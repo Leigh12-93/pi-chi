@@ -1,9 +1,8 @@
 'use client'
 
 import { useState } from 'react'
-import { useSession, signIn } from 'next-auth/react'
 import {
-  Hammer, Plus, Sparkles, FolderOpen, Trash2,
+  Hammer, Sparkles, FolderOpen, Trash2,
   Github, Clock, Globe, ExternalLink, Loader2,
 } from 'lucide-react'
 
@@ -55,7 +54,6 @@ const QUICK_STARTS = [
 ]
 
 export function ProjectPicker({ onSelect, savedProjects, loadingProjects, onDeleteProject, isLoggedIn }: ProjectPickerProps) {
-  const { status } = useSession()
   const [name, setName] = useState('')
   const [creating, setCreating] = useState(false)
   const [deletingId, setDeletingId] = useState<string | null>(null)
@@ -87,18 +85,18 @@ export function ProjectPicker({ onSelect, savedProjects, loadingProjects, onDele
         </div>
 
         {/* Auth prompt */}
-        {status !== 'loading' && !isLoggedIn && (
+        {!isLoggedIn && (
           <div className="bg-forge-panel border border-forge-border rounded-xl p-4 mb-6 text-center">
             <p className="text-sm text-forge-text-dim mb-3">
               Sign in with GitHub to save projects and deploy to your account
             </p>
-            <button
-              onClick={() => signIn('github')}
+            <a
+              href="/api/auth/login"
               className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-white text-gray-900 text-sm font-medium hover:bg-gray-100 transition-colors"
             >
               <Github className="w-4 h-4" />
               Sign in with GitHub
-            </button>
+            </a>
           </div>
         )}
 

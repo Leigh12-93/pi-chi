@@ -1,42 +1,38 @@
-import NextAuth from 'next-auth'
-import GitHub from 'next-auth/providers/github'
+import { SignJWT, jwtVerify } from 'jose'
+import { cookies } from 'next/headers'
 
-export const { handlers, signIn, signOut, auth } = NextAuth({
-  trustHost: true,
-  debug: process.env.NODE_ENV !== 'production',
-  logger: {
-    error: (code: any, ...message: any[]) => {
-      console.error('[NextAuth Error]', code, JSON.stringify(message).substring(0, 500))
-    },
-    warn: (code: any) => {
-      console.warn('[NextAuth Warn]', code)
-    },
-  },
-  providers: [
-    GitHub({
-      clientId: (process.env.GITHUB_CLIENT_ID || '').trim(),
-      clientSecret: (process.env.GITHUB_CLIENT_SECRET || '').trim(),
-      // Disable PKCE — known issues with cookie preservation on Vercel
-      checks: ['state'],
-      authorization: {
-        params: {
-          scope: 'repo read:user user:email',
-        },
-      },
-    }),
-  ],
-  callbacks: {
-    async jwt({ token, account, profile }) {
-      if (account) {
-        token.accessToken = account.access_token
-        token.githubUsername = (profile as any)?.login || account.providerAccountId
-      }
-      return token
-    },
-    async session({ session, token }) {
-      (session as any).accessToken = (token as any).accessToken
-      (session as any).githubUsername = (token as any).githubUsername
-      return session
-    },
-  },
-})
+const SECRET = new TextEncoder().encode((process.env.AUTH_SECRET || '').trim())
+const COOKIE_NAME = 'forge-session'
+
+export interface ForgeSession {
+  user: {
+    name: string
+    email: string
+    image: string
+  }
+  accessToken: string
+  githubUsername: string
+}
+
+export async function createSession(data: ForgeSession): Promise<string> {
+  return new SignJWT({ ...data })
+    .setProtectedHeader({ alg: 'HS256' })
+    .setExpirationTime('30d')
+    .setIssuedAt()
+    .sign(SECRET)
+}
+
+export async function getSession(): Promise<ForgeSession | null> {
+  try {
+    const cookieStore = await cookies()
+    const token = cookieStore.get(COOKIE_NAME)?.value
+    if (!token) return null
+
+    const { payload } = await jwtVerify(token, SECRET)
+    return payload as unknown as ForgeSession
+  } catch {
+    return null
+  }
+}
+
+export { COOKIE_NAME }

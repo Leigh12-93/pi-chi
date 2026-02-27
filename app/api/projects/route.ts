@@ -1,11 +1,11 @@
 import { NextResponse } from 'next/server'
 import { supabase } from '@/lib/supabase'
-import { auth } from '@/lib/auth'
+import { getSession } from '@/lib/auth'
 
 // GET /api/projects — list user's projects
 export async function GET() {
-  const session = await auth()
-  const username = (session as any)?.githubUsername || session?.user?.name
+  const session = await getSession()
+  const username = session?.githubUsername
   if (!username) {
     return NextResponse.json({ error: 'Not authenticated' }, { status: 401 })
   }
@@ -22,8 +22,8 @@ export async function GET() {
 
 // POST /api/projects — create a new project
 export async function POST(req: Request) {
-  const session = await auth()
-  const username = (session as any)?.githubUsername || session?.user?.name
+  const session = await getSession()
+  const username = session?.githubUsername
   if (!username) {
     return NextResponse.json({ error: 'Not authenticated' }, { status: 401 })
   }

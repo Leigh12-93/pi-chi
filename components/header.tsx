@@ -1,6 +1,6 @@
 'use client'
 
-import { useSession, signIn, signOut } from 'next-auth/react'
+import { useSession } from '@/components/session-provider'
 import { Hammer, FolderOpen, FileText, Github, LogOut } from 'lucide-react'
 
 interface HeaderProps {
@@ -10,7 +10,7 @@ interface HeaderProps {
 }
 
 export function Header({ projectName, onSwitchProject, fileCount }: HeaderProps) {
-  const { data: session, status } = useSession()
+  const { session, status } = useSession()
 
   return (
     <header className="h-11 flex items-center justify-between px-4 border-b border-forge-border bg-forge-panel shrink-0">
@@ -44,7 +44,7 @@ export function Header({ projectName, onSwitchProject, fileCount }: HeaderProps)
           <div className="flex items-center gap-2">
             <div className="flex items-center gap-1.5 px-2 py-1 rounded bg-forge-surface text-[10px] text-forge-text-dim">
               <Github className="w-3 h-3" />
-              <span>{session.user.name || session.user.email}</span>
+              <span>{session.githubUsername || session.user.name}</span>
             </div>
             {session.user.image && (
               <img
@@ -53,22 +53,22 @@ export function Header({ projectName, onSwitchProject, fileCount }: HeaderProps)
                 className="w-6 h-6 rounded-full border border-forge-border"
               />
             )}
-            <button
-              onClick={() => signOut()}
+            <a
+              href="/api/auth/logout"
               className="p-1 text-forge-text-dim hover:text-forge-danger transition-colors"
               title="Sign out"
             >
               <LogOut className="w-3.5 h-3.5" />
-            </button>
+            </a>
           </div>
         ) : (
-          <button
-            onClick={() => signIn('github')}
+          <a
+            href="/api/auth/login"
             className="flex items-center gap-1.5 px-2.5 py-1 rounded bg-forge-surface hover:bg-forge-accent/20 text-xs text-forge-text-dim hover:text-forge-text transition-colors"
           >
             <Github className="w-3.5 h-3.5" />
             Sign in
-          </button>
+          </a>
         )}
       </div>
     </header>

@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useCallback, useEffect, useRef } from 'react'
-import { useSession } from 'next-auth/react'
+import { useSession } from '@/components/session-provider'
 import { Workspace } from '@/components/workspace'
 import { ProjectPicker } from '@/components/project-picker'
 
@@ -17,7 +17,7 @@ interface SavedProject {
 }
 
 export default function ForgePage() {
-  const { data: session } = useSession()
+  const { session, status } = useSession()
   const [projectId, setProjectId] = useState<string | null>(null)
   const [projectName, setProjectName] = useState<string | null>(null)
   const [files, setFiles] = useState<Record<string, string>>({})
@@ -29,10 +29,10 @@ export default function ForgePage() {
 
   // Load saved projects when session is available
   useEffect(() => {
-    if ((session as any)?.githubUsername) {
+    if (session?.githubUsername) {
       loadProjects()
     }
-  }, [(session as any)?.githubUsername])
+  }, [session?.githubUsername])
 
   const loadProjects = async () => {
     setLoadingProjects(true)
@@ -77,7 +77,6 @@ export default function ForgePage() {
 
   const handleSelectProject = useCallback(async (name: string, id?: string, initialFiles?: Record<string, string>) => {
     if (id) {
-      // Loading existing project
       try {
         const res = await fetch(`/api/projects/${id}`)
         if (res.ok) {
@@ -95,7 +94,7 @@ export default function ForgePage() {
     }
 
     // Creating new project
-    if ((session as any)?.githubUsername) {
+    if (session?.githubUsername) {
       try {
         const res = await fetch('/api/projects', {
           method: 'POST',
@@ -142,7 +141,7 @@ export default function ForgePage() {
     }
   }, [])
 
-  const githubToken = (session as any)?.accessToken as string | undefined
+  const githubToken = session?.accessToken
 
   if (!projectName) {
     return (

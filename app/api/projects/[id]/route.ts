@@ -1,12 +1,12 @@
 import { NextResponse } from 'next/server'
 import { supabase } from '@/lib/supabase'
-import { auth } from '@/lib/auth'
+import { getSession } from '@/lib/auth'
 
 // GET /api/projects/[id] — get project with all files
 export async function GET(_req: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
-  const session = await auth()
-  const username = (session as any)?.githubUsername
+  const session = await getSession()
+  const username = session?.githubUsername
   if (!username) return NextResponse.json({ error: 'Not authenticated' }, { status: 401 })
 
   const { data: project, error: projErr } = await supabase
@@ -34,8 +34,8 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
 // PUT /api/projects/[id] — save project files (upsert all)
 export async function PUT(req: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
-  const session = await auth()
-  const username = (session as any)?.githubUsername
+  const session = await getSession()
+  const username = session?.githubUsername
   if (!username) return NextResponse.json({ error: 'Not authenticated' }, { status: 401 })
 
   // Verify ownership
@@ -98,8 +98,8 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
 // DELETE /api/projects/[id] — delete project
 export async function DELETE(_req: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
-  const session = await auth()
-  const username = (session as any)?.githubUsername
+  const session = await getSession()
+  const username = session?.githubUsername
   if (!username) return NextResponse.json({ error: 'Not authenticated' }, { status: 401 })
 
   const { error } = await supabase
