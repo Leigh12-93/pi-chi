@@ -65,6 +65,7 @@ const TOOL_LABELS: Record<string, { label: string; Icon: LucideIcon; color: stri
   stop_sandbox: { label: 'Stopping sandbox', Icon: Terminal, color: 'red' },
   sandbox_status: { label: 'Checking sandbox', Icon: Rocket, color: 'blue' },
   add_image: { label: 'Finding image', Icon: ImageIcon, color: 'cyan' },
+  check_task_status: { label: 'Checking task', Icon: RefreshCw, color: 'blue' },
 }
 
 const QUICK_ACTIONS = [
@@ -123,6 +124,12 @@ function getToolSummary(toolName: string, args: Record<string, unknown>, result:
     case 'github_search_code': return args.query ? String(args.query).slice(0, 50) : 'Searching...'
     case 'load_chat_history': return data ? `${(data as any).count || 0} messages` : 'Loading...'
     case 'github_pull_latest': return data?.ok ? `${(data as any).fileCount || 0} files pulled` : 'Pulling...'
+    case 'check_task_status': {
+      if (data?.status === 'completed') return `${data.type || 'Task'}: completed`
+      if (data?.status === 'failed') return `${data.type || 'Task'}: failed`
+      if (data?.status === 'running') return `${data.type || 'Task'}: running...`
+      return 'Checking...'
+    }
     default: return 'Done'
   }
 }

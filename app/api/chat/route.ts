@@ -6,6 +6,7 @@ import { SYSTEM_PROMPT } from '@/lib/system-prompt'
 import { mcpClient } from '@/lib/mcp-client'
 import { createSandbox, getSandboxStatus, destroySandbox } from '@/lib/vercel-sandbox'
 import { chatLimiter } from '@/lib/rate-limit'
+import { TaskStore } from '@/lib/background-tasks'
 
 // ═══════════════════════════════════════════════════════════════════
 // Virtual Filesystem — lives in closure per request
@@ -706,6 +707,9 @@ export async function POST(req: Request) {
   // Initialize virtual FS from client state
   const vfs = new VirtualFS(body.files || {})
 
+  // In-request task store for background operations
+  const taskStore = new TaskStore()
+
   // Build file manifest for system context (lean — no content)
   const manifest = vfs.manifest()
   const manifestStr = manifest.length > 0
@@ -940,7 +944,7 @@ export async function POST(req: Request) {
       // ─── GitHub Operations ──────────────────────────────────────
 
       github_create_repo: tool({
-        description: 'Create a new GitHub repository and push all project files to it.',
+        description: 'Create a new GitHub repository and push all project files to it. Returns a taskId — use check_task_status to poll for completion.',
         parameters: z.object({
           repoName: z.string().describe('Repository name'),
           isPublic: z.boolean().optional().describe('Make repo public (default: private)'),
@@ -949,61 +953,69 @@ export async function POST(req: Request) {
         execute: async ({ repoName, isPublic, description }) => {
           if (!effectiveGithubToken) return { error: 'Not authenticated. Sign in with GitHub.' }
 
-          const repo = await githubFetch('/user/repos', effectiveGithubToken, {
-            method: 'POST',
-            body: JSON.stringify({
-              name: repoName,
-              description: description || `Built with Forge`,
-              private: !isPublic,
-              auto_init: true, // Creates initial commit so Git Data API works
-            }),
-          })
-          if (repo.error) return { error: `Failed to create repo: ${repo.error}` }
-
-          const owner = repo.owner.login
           const files = vfs.toRecord()
+          const token = effectiveGithubToken
 
-          // Wait briefly for GitHub to initialize the repo
-          await new Promise(resolve => setTimeout(resolve, 1500))
+          const { taskId, error } = await TaskStore.createPersistent(
+            supabaseFetch,
+            projectId,
+            'github_create',
+            async () => {
+              const repo = await githubFetch('/user/repos', token, {
+                method: 'POST',
+                body: JSON.stringify({
+                  name: repoName,
+                  description: description || `Built with Forge`,
+                  private: !isPublic,
+                  auto_init: true,
+                }),
+              })
+              if (repo.error) throw new Error(`Failed to create repo: ${repo.error}`)
 
-          // Get the initial commit SHA from the default branch
-          const ref = await githubFetch(`/repos/${owner}/${repoName}/git/refs/heads/main`, effectiveGithubToken)
-          if (ref.error) return { error: `Repo created but failed to get initial ref: ${ref.error}` }
-          const parentSha = ref.object.sha
+              const owner = repo.owner.login
+              await new Promise(resolve => setTimeout(resolve, 1500))
 
-          const blobs = []
-          for (const [path, content] of Object.entries(files)) {
-            const blob = await githubFetch(`/repos/${owner}/${repoName}/git/blobs`, effectiveGithubToken, {
-              method: 'POST',
-              body: JSON.stringify({ content, encoding: 'utf-8' }),
-            })
-            if (blob.error) return { error: `Failed to create blob for ${path}: ${blob.error}` }
-            blobs.push({ path, mode: '100644', type: 'blob', sha: blob.sha })
-          }
+              const ref = await githubFetch(`/repos/${owner}/${repoName}/git/refs/heads/main`, token)
+              if (ref.error) throw new Error(`Repo created but failed to get initial ref: ${ref.error}`)
+              const parentSha = ref.object.sha
 
-          const tree = await githubFetch(`/repos/${owner}/${repoName}/git/trees`, effectiveGithubToken, {
-            method: 'POST',
-            body: JSON.stringify({ base_tree: parentSha, tree: blobs }),
-          })
-          if (tree.error) return { error: `Failed to create tree: ${tree.error}` }
+              const blobs = []
+              for (const [path, content] of Object.entries(files)) {
+                const blob = await githubFetch(`/repos/${owner}/${repoName}/git/blobs`, token, {
+                  method: 'POST',
+                  body: JSON.stringify({ content, encoding: 'utf-8' }),
+                })
+                if (blob.error) throw new Error(`Failed to create blob for ${path}: ${blob.error}`)
+                blobs.push({ path, mode: '100644', type: 'blob', sha: blob.sha })
+              }
 
-          const commit = await githubFetch(`/repos/${owner}/${repoName}/git/commits`, effectiveGithubToken, {
-            method: 'POST',
-            body: JSON.stringify({ message: 'Initial commit from Forge', tree: tree.sha, parents: [parentSha] }),
-          })
-          if (commit.error) return { error: `Failed to create commit: ${commit.error}` }
+              const tree = await githubFetch(`/repos/${owner}/${repoName}/git/trees`, token, {
+                method: 'POST',
+                body: JSON.stringify({ base_tree: parentSha, tree: blobs }),
+              })
+              if (tree.error) throw new Error(`Failed to create tree: ${tree.error}`)
 
-          await githubFetch(`/repos/${owner}/${repoName}/git/refs/heads/main`, effectiveGithubToken, {
-            method: 'PATCH',
-            body: JSON.stringify({ sha: commit.sha }),
-          })
+              const commit = await githubFetch(`/repos/${owner}/${repoName}/git/commits`, token, {
+                method: 'POST',
+                body: JSON.stringify({ message: 'Initial commit from Forge', tree: tree.sha, parents: [parentSha] }),
+              })
+              if (commit.error) throw new Error(`Failed to create commit: ${commit.error}`)
 
-          return { ok: true, url: repo.html_url, owner, repoName, filesCount: Object.keys(files).length }
+              await githubFetch(`/repos/${owner}/${repoName}/git/refs/heads/main`, token, {
+                method: 'PATCH',
+                body: JSON.stringify({ sha: commit.sha }),
+              })
+
+              return { ok: true, url: repo.html_url, owner, repoName, filesCount: Object.keys(files).length }
+            },
+          )
+          if (error) return { error }
+          return { taskId, status: 'running', message: 'Creating repo and pushing files. Use check_task_status to monitor.' }
         },
       }),
 
       github_push_update: tool({
-        description: 'Push updated files to an existing GitHub repository.',
+        description: 'Push updated files to an existing GitHub repository. Returns a taskId — use check_task_status to poll for completion.',
         parameters: z.object({
           owner: z.string().describe('GitHub username/org'),
           repo: z.string().describe('Repository name'),
@@ -1013,48 +1025,58 @@ export async function POST(req: Request) {
         execute: async ({ owner, repo, message, branch }) => {
           if (!effectiveGithubToken) return { error: 'Not authenticated. Sign in with GitHub.' }
           const branchName = branch || 'main'
-
-          const ref = await githubFetch(`/repos/${owner}/${repo}/git/refs/heads/${branchName}`, effectiveGithubToken)
-          if (ref.error) return { error: `Failed to get branch: ${ref.error}` }
-          const parentSha = ref.object.sha
-
           const files = vfs.toRecord()
-          const blobs = []
-          for (const [path, content] of Object.entries(files)) {
-            const blob = await githubFetch(`/repos/${owner}/${repo}/git/blobs`, effectiveGithubToken, {
-              method: 'POST',
-              body: JSON.stringify({ content, encoding: 'utf-8' }),
-            })
-            if (blob.error) return { error: `Failed to create blob for ${path}: ${blob.error}` }
-            blobs.push({ path, mode: '100644' as const, type: 'blob' as const, sha: blob.sha as string })
-          }
+          const token = effectiveGithubToken
 
-          const tree = await githubFetch(`/repos/${owner}/${repo}/git/trees`, effectiveGithubToken, {
-            method: 'POST',
-            body: JSON.stringify({ base_tree: parentSha, tree: blobs }),
-          })
-          if (tree.error) return { error: `Failed to create tree: ${tree.error}` }
+          const { taskId, error } = await TaskStore.createPersistent(
+            supabaseFetch,
+            projectId,
+            'github_push',
+            async () => {
+              const ref = await githubFetch(`/repos/${owner}/${repo}/git/refs/heads/${branchName}`, token)
+              if (ref.error) throw new Error(`Failed to get branch: ${ref.error}`)
+              const parentSha = ref.object.sha
 
-          const commit = await githubFetch(`/repos/${owner}/${repo}/git/commits`, effectiveGithubToken, {
-            method: 'POST',
-            body: JSON.stringify({ message, tree: tree.sha, parents: [parentSha] }),
-          })
-          if (commit.error) return { error: `Failed to commit: ${commit.error}` }
+              const blobs = []
+              for (const [path, content] of Object.entries(files)) {
+                const blob = await githubFetch(`/repos/${owner}/${repo}/git/blobs`, token, {
+                  method: 'POST',
+                  body: JSON.stringify({ content, encoding: 'utf-8' }),
+                })
+                if (blob.error) throw new Error(`Failed to create blob for ${path}: ${blob.error}`)
+                blobs.push({ path, mode: '100644' as const, type: 'blob' as const, sha: blob.sha as string })
+              }
 
-          const update = await githubFetch(`/repos/${owner}/${repo}/git/refs/heads/${branchName}`, effectiveGithubToken, {
-            method: 'PATCH',
-            body: JSON.stringify({ sha: commit.sha }),
-          })
-          if (update.error) return { error: `Failed to update ref: ${update.error}` }
+              const tree = await githubFetch(`/repos/${owner}/${repo}/git/trees`, token, {
+                method: 'POST',
+                body: JSON.stringify({ base_tree: parentSha, tree: blobs }),
+              })
+              if (tree.error) throw new Error(`Failed to create tree: ${tree.error}`)
 
-          return { ok: true, commitSha: commit.sha, filesCount: Object.keys(files).length }
+              const commit = await githubFetch(`/repos/${owner}/${repo}/git/commits`, token, {
+                method: 'POST',
+                body: JSON.stringify({ message, tree: tree.sha, parents: [parentSha] }),
+              })
+              if (commit.error) throw new Error(`Failed to commit: ${commit.error}`)
+
+              const update = await githubFetch(`/repos/${owner}/${repo}/git/refs/heads/${branchName}`, token, {
+                method: 'PATCH',
+                body: JSON.stringify({ sha: commit.sha }),
+              })
+              if (update.error) throw new Error(`Failed to update ref: ${update.error}`)
+
+              return { ok: true, commitSha: commit.sha, filesCount: Object.keys(files).length }
+            },
+          )
+          if (error) return { error }
+          return { taskId, status: 'running', message: 'Pushing to GitHub. Use check_task_status to monitor.' }
         },
       }),
 
       // ─── Vercel Deployment ──────────────────────────────────────
 
       deploy_to_vercel: tool({
-        description: 'Deploy the current project files to Vercel. Returns the deployment URL.',
+        description: 'Deploy the current project files to Vercel. Returns a taskId — use check_task_status to poll for completion.',
         parameters: z.object({
           framework: z.enum(['nextjs', 'vite', 'static']).optional().describe('Framework hint'),
         }),
@@ -1069,8 +1091,34 @@ export async function POST(req: Request) {
             else fw = 'static'
           }
 
-          const result = await vercelDeploy(projectName, files, fw === 'static' ? null as any : fw)
-          return result
+          const { taskId, error } = await TaskStore.createPersistent(
+            supabaseFetch,
+            projectId,
+            'deploy',
+            () => vercelDeploy(projectName, files, fw === 'static' ? null as any : fw),
+          )
+          if (error) return { error }
+          return { taskId, status: 'running', message: 'Deploy started. Use check_task_status to monitor progress.' }
+        },
+      }),
+
+      // ─── Background Task Polling ────────────────────────────────
+
+      check_task_status: tool({
+        description: 'Check the status of a background task (deploy, GitHub push, build check). Use this to poll for completion after a tool returns a taskId.',
+        parameters: z.object({
+          taskId: z.string().describe('Task ID returned by deploy_to_vercel, github_create_repo, github_push_update, or forge_check_build'),
+        }),
+        execute: async ({ taskId }) => {
+          // Check in-request store first
+          const inReq = taskStore.check(taskId)
+          if (inReq) return inReq
+
+          // Check persistent Supabase store
+          const persistent = await TaskStore.checkPersistent(supabaseFetch, taskId)
+          if (persistent) return persistent
+
+          return { error: 'Task not found' }
         },
       }),
 
@@ -2319,7 +2367,7 @@ export function ${name}({ variant = 'default', size = 'default', className, chil
       }),
 
       forge_check_build: tool({
-        description: 'Trigger a preview (non-production) deployment on Vercel to check if the current code builds successfully. Use this BEFORE forge_redeploy to catch errors.',
+        description: 'Trigger a preview (non-production) deployment on Vercel to check if the current code builds successfully. Returns a taskId — use check_task_status to poll for completion. Use this BEFORE forge_redeploy to catch errors.',
         parameters: z.object({
           branch: z.string().default('master').describe('Branch to build'),
         }),
@@ -2327,81 +2375,89 @@ export function ${name}({ variant = 'default', size = 'default', className, chil
           const token = VERCEL_TOKEN
           if (!token) return { error: 'No Vercel deploy token configured' }
 
-          const teamParam = VERCEL_TEAM ? `?teamId=${VERCEL_TEAM}` : ''
-          const res = await fetch(`https://api.vercel.com/v13/deployments${teamParam}`, {
-            method: 'POST',
-            headers: {
-              Authorization: `Bearer ${token}`,
-              'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({
-              name: 'forge',
-              target: 'preview',  // NOT production
-              gitSource: {
-                type: 'github',
-                org: 'Leigh12-93',
-                repo: 'forge',
-                ref: branch,
-              },
-            }),
-          })
+          const { taskId, error } = await TaskStore.createPersistent(
+            supabaseFetch,
+            projectId,
+            'check_build',
+            async () => {
+              const teamParam = VERCEL_TEAM ? `?teamId=${VERCEL_TEAM}` : ''
+              const res = await fetch(`https://api.vercel.com/v13/deployments${teamParam}`, {
+                method: 'POST',
+                headers: {
+                  Authorization: `Bearer ${token}`,
+                  'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                  name: 'forge',
+                  target: 'preview',
+                  gitSource: {
+                    type: 'github',
+                    org: 'Leigh12-93',
+                    repo: 'forge',
+                    ref: branch,
+                  },
+                }),
+              })
 
-          const data = await res.json()
-          if (!res.ok) return { error: data.error?.message || `Vercel API ${res.status}` }
+              const data = await res.json()
+              if (!res.ok) throw new Error(data.error?.message || `Vercel API ${res.status}`)
 
-          // Poll for build result (up to 90 seconds)
-          const deployId = data.id
-          const previewUrl = `https://${data.url}`
-          let state = data.readyState || 'QUEUED'
-          let attempts = 0
+              const deployId = data.id
+              const previewUrl = `https://${data.url}`
+              let state = data.readyState || 'QUEUED'
+              let attempts = 0
 
-          while (['QUEUED', 'BUILDING', 'INITIALIZING'].includes(state) && attempts < 18) {
-            await new Promise(r => setTimeout(r, 5000))
-            attempts++
-            const check = await fetch(`https://api.vercel.com/v13/deployments/${deployId}${teamParam}`, {
-              headers: { Authorization: `Bearer ${token}` },
-            })
-            if (check.ok) {
-              const checkData = await check.json()
-              state = checkData.readyState || state
-              if (state === 'ERROR') {
-                // Try to get build logs
-                const logsRes = await fetch(`https://api.vercel.com/v2/deployments/${deployId}/events${teamParam}`, {
+              while (['QUEUED', 'BUILDING', 'INITIALIZING'].includes(state) && attempts < 18) {
+                await new Promise(r => setTimeout(r, 5000))
+                attempts++
+                const check = await fetch(`https://api.vercel.com/v13/deployments/${deployId}${teamParam}`, {
                   headers: { Authorization: `Bearer ${token}` },
                 })
-                let errorLog = ''
-                if (logsRes.ok) {
-                  const events = await logsRes.json()
-                  const errors = (Array.isArray(events) ? events : [])
-                    .filter((e: any) => e.type === 'error' || (e.payload?.text || '').includes('error') || (e.payload?.text || '').includes('Error'))
-                    .map((e: any) => e.payload?.text || e.text || '')
-                    .slice(-10)
-                  errorLog = errors.join('\n')
-                }
-                return {
-                  ok: false,
-                  state: 'ERROR',
-                  previewUrl,
-                  buildFailed: true,
-                  errors: errorLog || 'Build failed — check Vercel dashboard for details',
-                  note: 'DO NOT deploy to production. Fix the errors first.',
+                if (check.ok) {
+                  const checkData = await check.json()
+                  state = checkData.readyState || state
+                  if (state === 'ERROR') {
+                    const logsRes = await fetch(`https://api.vercel.com/v2/deployments/${deployId}/events${teamParam}`, {
+                      headers: { Authorization: `Bearer ${token}` },
+                    })
+                    let errorLog = ''
+                    if (logsRes.ok) {
+                      const events = await logsRes.json()
+                      const errors = (Array.isArray(events) ? events : [])
+                        .filter((e: any) => e.type === 'error' || (e.payload?.text || '').includes('error') || (e.payload?.text || '').includes('Error'))
+                        .map((e: any) => e.payload?.text || e.text || '')
+                        .slice(-10)
+                      errorLog = errors.join('\n')
+                    }
+                    return {
+                      ok: false,
+                      state: 'ERROR',
+                      previewUrl,
+                      deployId,
+                      buildFailed: true,
+                      errors: errorLog || 'Build failed — check Vercel dashboard for details',
+                      note: 'DO NOT deploy to production. Fix the errors first.',
+                    }
+                  }
                 }
               }
-            }
-          }
 
-          return {
-            ok: state === 'READY',
-            state,
-            previewUrl,
-            deployId,
-            buildFailed: state === 'ERROR',
-            note: state === 'READY'
-              ? 'Preview build succeeded! Safe to deploy to production with forge_redeploy.'
-              : state === 'ERROR'
-                ? 'Build FAILED. Fix errors before deploying.'
-                : `Build still in progress (state: ${state}). Check forge_deployment_status later.`,
-          }
+              return {
+                ok: state === 'READY',
+                state,
+                previewUrl,
+                deployId,
+                buildFailed: state === 'ERROR',
+                note: state === 'READY'
+                  ? 'Preview build succeeded! Safe to deploy to production with forge_redeploy.'
+                  : state === 'ERROR'
+                    ? 'Build FAILED. Fix errors before deploying.'
+                    : `Build still in progress (state: ${state}). Check forge_deployment_status later.`,
+              }
+            },
+          )
+          if (error) return { error }
+          return { taskId, status: 'running', message: 'Preview build started. Use check_task_status to monitor progress (may take 60-90 seconds).' }
         },
       }),
     },

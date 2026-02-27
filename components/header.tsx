@@ -4,16 +4,19 @@ import { useSession } from '@/components/session-provider'
 import {
   Hammer, FolderOpen, FileText, Github, LogOut,
   Rocket, Upload, Save, GitBranch, Download,
+  Loader2, Check,
 } from 'lucide-react'
+import { cn } from '@/lib/utils'
 
 interface HeaderProps {
   projectName: string
   onSwitchProject: () => void
   fileCount: number
   onAction?: (action: string) => void
+  saveStatus?: 'idle' | 'saving' | 'saved' | 'error'
 }
 
-export function Header({ projectName, onSwitchProject, fileCount, onAction }: HeaderProps) {
+export function Header({ projectName, onSwitchProject, fileCount, onAction, saveStatus = 'idle' }: HeaderProps) {
   const { session, status } = useSession()
 
   const actions = [
@@ -23,6 +26,12 @@ export function Header({ projectName, onSwitchProject, fileCount, onAction }: He
     { id: 'create-repo', icon: GitBranch, label: 'New Repo', tip: 'Create GitHub repo', color: 'hover:text-orange-600' },
     { id: 'download', icon: Download, label: 'Download', tip: 'Download project as ZIP', color: 'hover:text-cyan-600' },
   ]
+
+  const getSaveIcon = () => {
+    if (saveStatus === 'saving') return <Loader2 className="w-3.5 h-3.5 animate-spin" />
+    if (saveStatus === 'saved') return <Check className="w-3.5 h-3.5 text-green-600" />
+    return null
+  }
 
   return (
     <header className="h-11 flex items-center justify-between px-2 sm:px-4 border-b border-forge-border bg-forge-panel shrink-0">
@@ -50,17 +59,27 @@ export function Header({ projectName, onSwitchProject, fileCount, onAction }: He
 
       {/* Center: Action Buttons */}
       <div className="flex items-center gap-0.5 sm:gap-1">
-        {actions.map(action => (
-          <button
-            key={action.id}
-            onClick={() => onAction?.(action.id)}
-            className={`flex items-center gap-1.5 p-1.5 sm:px-2.5 sm:py-1.5 text-[11px] font-medium text-forge-text-dim ${action.color} hover:bg-forge-surface rounded transition-all`}
-            title={action.tip}
-          >
-            <action.icon className="w-3.5 h-3.5" />
-            <span className="hidden lg:inline">{action.label}</span>
-          </button>
-        ))}
+        {actions.map(action => {
+          const saveIcon = action.id === 'save' ? getSaveIcon() : null
+          return (
+            <button
+              key={action.id}
+              onClick={() => onAction?.(action.id)}
+              disabled={action.id === 'save' && saveStatus === 'saving'}
+              className={cn(
+                'flex items-center gap-1.5 p-1.5 sm:px-2.5 sm:py-1.5 text-[11px] font-medium text-forge-text-dim hover:bg-forge-surface rounded transition-all',
+                action.color,
+                action.id === 'save' && saveStatus === 'saving' && 'opacity-70',
+                action.id === 'save' && saveStatus === 'saved' && 'text-green-600',
+                action.id === 'save' && saveStatus === 'error' && 'text-red-600',
+              )}
+              title={action.tip}
+            >
+              {saveIcon || <action.icon className="w-3.5 h-3.5" />}
+              <span className="hidden lg:inline">{action.label}</span>
+            </button>
+          )
+        })}
       </div>
 
       {/* Right: Auth */}

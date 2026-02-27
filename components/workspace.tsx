@@ -7,6 +7,7 @@ import { CodeEditor } from './code-editor'
 import { FileTree } from './file-tree'
 import { PreviewPanel } from './preview-panel'
 import { Header } from './header'
+import { TaskPollingDialog } from './action-dialog'
 import { useKeyboardShortcuts } from '@/lib/keyboard-shortcuts'
 import { MessageSquare, FolderTree, Code2, Eye, Loader2 } from 'lucide-react'
 import { cn } from '@/lib/utils'
@@ -62,6 +63,7 @@ interface WorkspaceProps {
 }
 
 type MobileTab = 'chat' | 'files' | 'code' | 'preview'
+type DialogType = 'deploy' | 'push' | 'create-repo' | null
 
 export function Workspace({
   projectName, projectId, files, activeFile,
@@ -72,6 +74,8 @@ export function Workspace({
   const [mobileTab, setMobileTab] = useState<MobileTab>('chat')
   const [openFiles, setOpenFiles] = useState<string[]>([])
   const [showSidebar, setShowSidebar] = useState(true)
+  const [activeDialog, setActiveDialog] = useState<DialogType>(null)
+  const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle')
   const chatSendRef = useRef<((message: string) => void) | null>(null)
 
   const fileTree = useMemo(() => buildTreeFromMap(files), [files])
@@ -108,13 +112,6 @@ export function Workspace({
     chatSendRef.current = sendFn
   }, [])
 
-  const ACTION_MESSAGES: Record<string, string> = {
-    save: 'Save this project to the database now.',
-    deploy: 'Deploy this project to Vercel.',
-    push: 'Push all project files to GitHub.',
-    'create-repo': 'Create a new GitHub repository for this project and push all files.',
-  }
-
   const handleDownload = useCallback(async () => {
     const fileEntries = Object.entries(files)
     if (fileEntries.length === 0) return
@@ -137,17 +134,49 @@ export function Workspace({
     URL.revokeObjectURL(url)
   }, [files, projectName])
 
+  const handleSave = useCallback(async () => {
+    if (!projectId || Object.keys(files).length === 0) return
+    setSaveStatus('saving')
+    try {
+      const res = await fetch(`/api/projects/${projectId}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ files }),
+      })
+      setSaveStatus(res.ok ? 'saved' : 'error')
+      setTimeout(() => setSaveStatus('idle'), 2000)
+    } catch {
+      setSaveStatus('error')
+      setTimeout(() => setSaveStatus('idle'), 2000)
+    }
+  }, [projectId, files])
+
   const handleAction = useCallback((action: string) => {
-    if (action === 'download') {
-      handleDownload()
-      return
+    switch (action) {
+      case 'download':
+        handleDownload()
+        break
+      case 'save':
+        handleSave()
+        break
+      case 'deploy':
+      case 'push':
+      case 'create-repo':
+        setActiveDialog(action as DialogType)
+        break
     }
-    const message = ACTION_MESSAGES[action]
-    if (message && chatSendRef.current) {
-      chatSendRef.current(message)
-      setMobileTab('chat')
+  }, [handleDownload, handleSave])
+
+  const handleDialogSuccess = useCallback((result: Record<string, unknown>) => {
+    // Notify the chat for history
+    if (chatSendRef.current) {
+      if (result.url) {
+        chatSendRef.current(`[System] Operation completed successfully. URL: ${result.url}`)
+      } else if (result.commitSha) {
+        chatSendRef.current(`[System] Pushed to GitHub. Commit: ${String(result.commitSha).slice(0, 7)}`)
+      }
     }
-  }, [handleDownload])
+  }, [])
 
   const handleCloseFile = (path: string) => {
     setOpenFiles(prev => prev.filter(f => f !== path))
@@ -270,7 +299,13 @@ export function Workspace({
 
   return (
     <div className="h-screen flex flex-col bg-forge-bg">
-      <Header projectName={projectName} onSwitchProject={onSwitchProject} fileCount={Object.keys(files).length} onAction={handleAction} />
+      <Header
+        projectName={projectName}
+        onSwitchProject={onSwitchProject}
+        fileCount={Object.keys(files).length}
+        onAction={handleAction}
+        saveStatus={saveStatus}
+      />
 
       {/* Desktop layout */}
       <div className="flex-1 hidden md:flex overflow-hidden">
@@ -338,6 +373,69 @@ export function Workspace({
           ))}
         </div>
       </div>
+
+      {/* Deploy Dialog */}
+      <TaskPollingDialog
+        open={activeDialog === 'deploy'}
+        onClose={() => setActiveDialog(null)}
+        title="Deploy to Vercel"
+        description={`Deploy "${projectName}" to Vercel. This will create a production deployment with all ${Object.keys(files).length} files.`}
+        confirmLabel="Deploy"
+        taskType="deploy"
+        projectId={projectId}
+        buildParams={() => ({
+          projectName,
+          files,
+        })}
+        onSuccess={handleDialogSuccess}
+      />
+
+      {/* Create Repo Dialog */}
+      <TaskPollingDialog
+        open={activeDialog === 'create-repo'}
+        onClose={() => setActiveDialog(null)}
+        title="Create GitHub Repository"
+        description="Create a new GitHub repository and push all project files."
+        confirmLabel="Create & Push"
+        taskType="github_create"
+        projectId={projectId}
+        fields={[
+          { name: 'repoName', label: 'Repository Name', placeholder: projectName.replace(/\s+/g, '-').toLowerCase(), required: true, defaultValue: projectName.replace(/\s+/g, '-').toLowerCase() },
+          { name: 'description', label: 'Description', placeholder: 'Built with Forge' },
+        ]}
+        buildParams={(fieldValues) => ({
+          repoName: fieldValues.repoName,
+          description: fieldValues.description || 'Built with Forge',
+          isPublic: false,
+          files,
+          githubToken,
+        })}
+        onSuccess={handleDialogSuccess}
+      />
+
+      {/* Push to GitHub Dialog */}
+      <TaskPollingDialog
+        open={activeDialog === 'push'}
+        onClose={() => setActiveDialog(null)}
+        title="Push to GitHub"
+        description={`Push all ${Object.keys(files).length} files to an existing GitHub repository.`}
+        confirmLabel="Push"
+        taskType="github_push"
+        projectId={projectId}
+        fields={[
+          { name: 'owner', label: 'Owner', placeholder: 'your-username', required: true },
+          { name: 'repo', label: 'Repository', placeholder: 'my-project', required: true },
+          { name: 'message', label: 'Commit Message', placeholder: 'Update from Forge', defaultValue: 'Update from Forge' },
+        ]}
+        buildParams={(fieldValues) => ({
+          owner: fieldValues.owner,
+          repo: fieldValues.repo,
+          message: fieldValues.message || 'Update from Forge',
+          files,
+          githubToken,
+        })}
+        onSuccess={handleDialogSuccess}
+      />
     </div>
   )
 }

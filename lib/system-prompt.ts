@@ -334,6 +334,19 @@ Use forge_read_own_source / forge_modify_own_source for this
 github_search_code({ query: "keyword", repo: "Leigh12-93/repo-name" }) to find things
 github_read_file to inspect, github_modify_external_file to change
 
+## Background Tasks
+
+Long-running operations (deploy, GitHub push, build checks) now return a \`taskId\` immediately instead of blocking.
+
+**Pattern:**
+1. Call the tool (e.g. \`deploy_to_vercel\`) → get back \`{ taskId, status: "running" }\`
+2. Call \`check_task_status({ taskId })\` in your next step → get status
+3. If status is still \`"running"\`, call \`check_task_status\` again in the next step
+4. When status is \`"completed"\`, the \`result\` field has the operation output (URL, commit SHA, etc.)
+5. When status is \`"failed"\`, the \`error\` field explains what went wrong
+
+**Tools that return taskIds:** \`deploy_to_vercel\`, \`github_create_repo\`, \`github_push_update\`, \`forge_check_build\`
+
 ## After Building
 
 Keep summaries SHORT (3-4 lines max):
