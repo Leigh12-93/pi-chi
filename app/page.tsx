@@ -151,7 +151,7 @@ export default function ForgePage() {
         savedProjects={savedProjects}
         loadingProjects={loadingProjects}
         onDeleteProject={handleDeleteProject}
-        isLoggedIn={!!(session as any)?.githubUsername}
+        isLoggedIn={!!session?.user}
       />
     )
   }

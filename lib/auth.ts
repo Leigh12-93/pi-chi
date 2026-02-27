@@ -8,23 +8,22 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
       clientSecret: (process.env.GITHUB_CLIENT_SECRET || '').trim(),
       authorization: {
         params: {
-          // Request repo scope so user can create/push repos
           scope: 'repo read:user user:email',
         },
       },
     }),
   ],
   callbacks: {
-    async jwt({ token, account }) {
-      // Persist the GitHub access token in the JWT
+    async jwt({ token, account, profile }) {
       if (account) {
         token.accessToken = account.access_token
-        token.githubUsername = account.providerAccountId
+        // profile.login is the actual GitHub username (e.g. "Leigh12-93")
+        // account.providerAccountId is just the numeric ID
+        token.githubUsername = (profile as any)?.login || account.providerAccountId
       }
       return token
     },
     async session({ session, token }) {
-      // Expose access token and username to the client
       (session as any).accessToken = (token as any).accessToken
       (session as any).githubUsername = (token as any).githubUsername
       return session
