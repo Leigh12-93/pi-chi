@@ -53,6 +53,7 @@ export function PreviewPanel({ files, projectId }: PreviewPanelProps) {
   const lastSyncedFilesRef = useRef<string>('')
   const startingRef = useRef(false) // prevent double-starts
   const hasAutoStartedRef = useRef(false) // only auto-start once per session
+  const e2bAvailableRef = useRef<boolean | null>(null) // cached E2B availability check
 
   // Detect project type
   const projectType = useMemo(() => {
@@ -197,7 +198,7 @@ export function PreviewPanel({ files, projectId }: PreviewPanelProps) {
   }, [projectId])
 
   // ─── AUTO-START: launch sandbox when project looks ready ──────
-  // Debounce 3s after files stabilize (AI is done streaming)
+  // Check E2B availability first, then debounce 3s after files stabilize
   useEffect(() => {
     if (sandboxStatus !== 'idle') return
     if (hasAutoStartedRef.current) return
@@ -206,7 +207,24 @@ export function PreviewPanel({ files, projectId }: PreviewPanelProps) {
 
     if (autoStartTimeoutRef.current) clearTimeout(autoStartTimeoutRef.current)
 
-    autoStartTimeoutRef.current = setTimeout(() => {
+    autoStartTimeoutRef.current = setTimeout(async () => {
+      // Check if E2B is available (cached after first check)
+      if (e2bAvailableRef.current === null) {
+        try {
+          const res = await fetch('/api/sandbox?check=true')
+          const data = await res.json()
+          e2bAvailableRef.current = data.available === true
+        } catch {
+          e2bAvailableRef.current = false
+        }
+      }
+
+      // Silently skip auto-start if E2B is not configured
+      if (!e2bAvailableRef.current) {
+        hasAutoStartedRef.current = true // don't retry
+        return
+      }
+
       hasAutoStartedRef.current = true
       startSandbox()
     }, 3000) // wait 3s for files to stabilize
@@ -380,36 +398,40 @@ export function PreviewPanel({ files, projectId }: PreviewPanelProps) {
             title="Static Preview"
           />
 
-          {/* Loading overlay while sandbox boots */}
+          {/* Loading indicator while sandbox boots — small banner, not blocking */}
           {isSandboxLoading && (
-            <div className="absolute inset-0 bg-white/80 backdrop-blur-sm flex items-center justify-center z-10">
-              <div className="text-center">
-                <Loader2 className="w-8 h-8 animate-spin text-forge-accent mx-auto mb-3" />
-                <p className="text-sm font-medium text-gray-700">{STATUS_LABELS[sandboxStatus]}</p>
-                <p className="text-xs text-gray-500 mt-1">Setting up live environment...</p>
+            <div className="absolute top-2 left-2 right-2 z-10">
+              <div className="bg-amber-50 border border-amber-200 rounded-lg px-3 py-2 shadow flex items-center gap-2 max-w-xs mx-auto">
+                <Loader2 className="w-4 h-4 animate-spin text-amber-600 shrink-0" />
+                <div className="flex-1">
+                  <p className="text-xs font-medium text-amber-800">{STATUS_LABELS[sandboxStatus]}</p>
+                  <p className="text-[10px] text-amber-600">Static preview shown below</p>
+                </div>
               </div>
             </div>
           )}
 
-          {/* Sandbox error overlay */}
+          {/* Sandbox error — small toast at bottom, not a blocking overlay */}
           {sandboxStatus === 'error' && sandboxError && (
-            <div className="absolute inset-0 bg-white/90 flex items-center justify-center z-10 p-4">
-              <div className="text-center max-w-sm">
-                <AlertTriangle className="w-6 h-6 text-red-500 mx-auto mb-2" />
-                <p className="text-sm font-medium text-red-900 mb-1">Sandbox Error</p>
-                <p className="text-xs text-red-700 font-mono bg-red-50 p-2 rounded mb-3 break-all max-h-24 overflow-auto">{sandboxError}</p>
-                <div className="flex gap-2 justify-center">
+            <div className="absolute bottom-3 left-3 right-3 z-10">
+              <div className="bg-red-50 border border-red-200 rounded-lg p-3 shadow-lg flex items-start gap-2 max-w-sm mx-auto">
+                <AlertTriangle className="w-4 h-4 text-red-500 shrink-0 mt-0.5" />
+                <div className="flex-1 min-w-0">
+                  <p className="text-xs font-medium text-red-900">Sandbox Error</p>
+                  <p className="text-[10px] text-red-700 font-mono truncate mt-0.5" title={sandboxError}>{sandboxError}</p>
+                </div>
+                <div className="flex gap-1 shrink-0">
                   <button
-                    onClick={() => { hasAutoStartedRef.current = false; startSandbox() }}
-                    className="px-3 py-1.5 bg-forge-accent text-white text-xs rounded hover:opacity-90 transition-colors"
+                    onClick={() => { hasAutoStartedRef.current = false; e2bAvailableRef.current = null; startSandbox() }}
+                    className="px-2 py-1 bg-red-600 text-white text-[10px] rounded hover:bg-red-700 transition-colors"
                   >
                     Retry
                   </button>
                   <button
                     onClick={() => { setSandboxStatus('idle'); setSandboxError(null); hasAutoStartedRef.current = true }}
-                    className="px-3 py-1.5 bg-gray-200 text-gray-700 text-xs rounded hover:bg-gray-300 transition-colors"
+                    className="px-2 py-1 bg-red-200 text-red-800 text-[10px] rounded hover:bg-red-300 transition-colors"
                   >
-                    Dismiss
+                    ×
                   </button>
                 </div>
               </div>

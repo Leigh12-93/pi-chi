@@ -45,7 +45,13 @@ export async function POST(req: NextRequest) {
 }
 
 // GET /api/sandbox?projectId=xxx — Get sandbox status
+// GET /api/sandbox?check=true — Check if E2B is configured
 export async function GET(req: NextRequest) {
+  const check = req.nextUrl.searchParams.get('check')
+  if (check) {
+    return NextResponse.json({ available: isE2BConfigured() })
+  }
+
   const projectId = req.nextUrl.searchParams.get('projectId')
   if (!projectId) {
     return NextResponse.json({ error: 'projectId is required' }, { status: 400 })

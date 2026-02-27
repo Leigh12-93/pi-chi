@@ -54,7 +54,7 @@ export async function createSandbox(
     framework: framework || detectFramework(files),
   }
 
-  let sandbox: Sandbox
+  let sandbox: Sandbox | undefined
 
   try {
     // Create sandbox VM with longer timeout for initial creation
