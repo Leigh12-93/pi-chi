@@ -814,7 +814,7 @@ export async function POST(req: Request) {
       }),
 
       edit_file: tool({
-        description: 'Edit a file by replacing a specific string. old_string must match EXACTLY (including whitespace/indentation). If you did not write this file yourself, use read_file first to get the exact content.',
+        description: 'Edit a file by replacing a specific string. old_string must match EXACTLY (including whitespace/indentation). IMPORTANT: If you did NOT write this file yourself in this conversation, you MUST call read_file first. If this tool returns an error, STOP and call read_file before retrying — never guess.',
         parameters: z.object({
           path: z.string().describe('File path'),
           old_string: z.string().describe('Exact string to find (must match whitespace/indentation)'),
@@ -866,8 +866,8 @@ export async function POST(req: Request) {
           }
 
           return {
-            error: 'old_string not found in file.',
-            hint: 'The content does not match exactly. Use read_file to get current content, then retry.',
+            error: 'old_string not found in file. You MUST call read_file on this file before retrying. Do NOT guess at the content.',
+            hint: 'STOP. Call read_file to see the actual file content, then use the exact text from read_file as old_string.',
             nearMatch: nearLines.length > 0 ? nearLines[0] : undefined,
             fileLength: `${lines.length} lines`,
           }
