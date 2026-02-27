@@ -1,23 +1,21 @@
 'use client'
 
 import { useState, useRef, useEffect, useCallback } from 'react'
-import { useChat, type Message } from '@ai-sdk/react'
+import { useChat } from '@ai-sdk/react'
 import {
-  Send, Loader2, Bot, User, Copy, Check, Trash2,
+  Send, Loader2, Bot, Copy, Check, Trash2,
   FileText, FolderPlus, GitCommit, GitBranch, Search,
   Terminal, Package, Pencil, Eye, Globe, Rocket,
-  AlertTriangle, CheckCircle, XCircle, RotateCcw,
+  AlertTriangle, CheckCircle, XCircle,
   StopCircle, Sparkles, ArrowUp, type LucideIcon,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
-import DOMPurify from 'dompurify'
 
 // ═══════════════════════════════════════════════════════════════════
-// Tool display config — adapted from AWB ai-chat-content.tsx
+// Tool display config
 // ═══════════════════════════════════════════════════════════════════
 
 const TOOL_LABELS: Record<string, { label: string; Icon: LucideIcon; color: string }> = {
-  // File ops
   write_file: { label: 'Writing file', Icon: FileText, color: 'green' },
   read_file: { label: 'Reading file', Icon: Eye, color: 'blue' },
   edit_file: { label: 'Editing file', Icon: Pencil, color: 'yellow' },
@@ -25,35 +23,23 @@ const TOOL_LABELS: Record<string, { label: string; Icon: LucideIcon; color: stri
   list_files: { label: 'Listing files', Icon: FolderPlus, color: 'blue' },
   search_files: { label: 'Searching files', Icon: Search, color: 'purple' },
   glob_files: { label: 'Finding files', Icon: Search, color: 'purple' },
-  // Project ops
   create_project: { label: 'Creating project', Icon: Sparkles, color: 'indigo' },
-  install_packages: { label: 'Installing packages', Icon: Package, color: 'green' },
-  run_command: { label: 'Running command', Icon: Terminal, color: 'yellow' },
-  // Git ops
-  git_init: { label: 'Initializing git', Icon: GitBranch, color: 'orange' },
-  git_status: { label: 'Checking status', Icon: GitBranch, color: 'blue' },
-  git_add: { label: 'Staging files', Icon: GitBranch, color: 'green' },
-  git_commit: { label: 'Committing', Icon: GitCommit, color: 'green' },
-  git_push: { label: 'Pushing', Icon: ArrowUp, color: 'blue' },
-  git_diff: { label: 'Getting diff', Icon: GitBranch, color: 'yellow' },
-  git_log: { label: 'Getting history', Icon: GitBranch, color: 'blue' },
-  git_branch: { label: 'Managing branches', Icon: GitBranch, color: 'purple' },
-  git_clone: { label: 'Cloning repo', Icon: GitBranch, color: 'green' },
-  git_remote: { label: 'Managing remotes', Icon: Globe, color: 'blue' },
-  // Deploy
-  deploy_vercel: { label: 'Deploying to Vercel', Icon: Rocket, color: 'blue' },
-  deploy_gh_pages: { label: 'Creating GitHub repo', Icon: Rocket, color: 'green' },
+  github_create_repo: { label: 'Creating GitHub repo', Icon: GitBranch, color: 'green' },
+  github_push_update: { label: 'Pushing to GitHub', Icon: ArrowUp, color: 'blue' },
+  deploy_to_vercel: { label: 'Deploying to Vercel', Icon: Rocket, color: 'blue' },
+  get_all_files: { label: 'Reading all files', Icon: Eye, color: 'blue' },
+  rename_file: { label: 'Renaming file', Icon: Pencil, color: 'yellow' },
 }
 
 const QUICK_ACTIONS = [
-  { label: 'New Next.js App', query: 'Create a new Next.js project with Tailwind CSS', icon: Sparkles },
-  { label: 'Landing Page', query: 'Build a modern landing page with hero section, features, and footer', icon: FileText },
-  { label: 'Dashboard', query: 'Build an admin dashboard with sidebar navigation, charts, and data tables', icon: FolderPlus },
-  { label: 'Portfolio', query: 'Create a portfolio website with project showcase, about section, and contact form', icon: Globe },
+  { label: 'Landing Page', query: 'Build a modern landing page with hero, features grid, testimonials, and footer using Next.js and Tailwind', icon: Sparkles },
+  { label: 'Dashboard', query: 'Build an admin dashboard with sidebar nav, stats cards, chart area, and data table', icon: FolderPlus },
+  { label: 'Portfolio', query: 'Create a portfolio site with project showcase, about section, skills, and contact form', icon: Globe },
+  { label: 'Blog', query: 'Build a blog with article list, individual post pages, categories, and search', icon: FileText },
 ]
 
 // ═══════════════════════════════════════════════════════════════════
-// Markdown renderer — adapted from AWB
+// Markdown renderer
 // ═══════════════════════════════════════════════════════════════════
 
 function renderMarkdown(text: string): string {
@@ -70,84 +56,143 @@ function renderMarkdown(text: string): string {
     .replace(/\n/g, '<br/>')
 }
 
-function getToolResultSummary(toolName: string, result: unknown): string {
+function getToolSummary(toolName: string, result: unknown): string {
   const data = (result && typeof result === 'object') ? result as Record<string, unknown> : null
   if (!data) return toolName.replace(/_/g, ' ')
   if (data.error) return `Failed: ${String(data.error).slice(0, 80)}`
-
   switch (toolName) {
     case 'write_file': return data.path ? `Created ${data.path} (${data.lines} lines)` : 'File written'
     case 'read_file': return data.path ? `Read ${data.path}` : 'File read'
     case 'edit_file': return data.path ? `Edited ${data.path}` : 'File edited'
     case 'delete_file': return data.path ? `Deleted ${data.path}` : 'Deleted'
-    case 'list_files': {
-      const files = data.files as unknown[]
-      return files ? `${files.length} items` : 'Listed files'
-    }
+    case 'create_project': return data.template ? `Scaffolded ${data.template} (${(data.files as string[])?.length} files)` : 'Created'
+    case 'github_create_repo': return data.url ? `Created ${data.url}` : 'Repo created'
+    case 'github_push_update': return data.success ? `Pushed ${data.filesCount} files` : 'Push failed'
+    case 'deploy_to_vercel': return data.url ? `Deployed: ${data.url}` : 'Deploy failed'
+    case 'list_files': return `${data.count || 0} files`
     case 'search_files': return `${data.count || 0} matches`
-    case 'create_project': return data.template ? `Scaffolded ${data.template} project` : 'Project created'
-    case 'install_packages': return data.success ? 'Packages installed' : 'Install failed'
-    case 'run_command': return `Exit code: ${data.exitCode}`
-    case 'git_commit': return data.success ? 'Committed' : 'Commit failed'
-    case 'git_push': return data.success ? 'Pushed' : 'Push failed'
-    case 'git_status': return 'Status loaded'
-    case 'deploy_vercel': return data.success ? 'Deployed!' : 'Deploy failed'
-    case 'deploy_gh_pages': return data.success ? 'Repo created & pushed' : 'Failed'
-    default: {
-      const info = TOOL_LABELS[toolName]
-      if (info) return info.label.replace(/ing\b/, 'ed').replace(/ting\b/, 'ted')
-      return toolName.replace(/_/g, ' ')
-    }
+    case 'rename_file': return data.newPath ? `→ ${data.newPath}` : 'Renamed'
+    default: return 'Done'
   }
 }
 
 // ═══════════════════════════════════════════════════════════════════
-// Chat Panel Component
+// File change extraction from tool results
+// ═══════════════════════════════════════════════════════════════════
+
+type ToolInvocation = {
+  toolName: string
+  state: string
+  args: Record<string, unknown>
+  result?: Record<string, unknown>
+}
+
+function extractFileChanges(toolInvocations: ToolInvocation[]): {
+  updates: Record<string, string>
+  deletes: string[]
+} {
+  const updates: Record<string, string> = {}
+  const deletes: string[] = []
+
+  for (const inv of toolInvocations) {
+    if (inv.state !== 'result' || !inv.result) continue
+    const result = inv.result
+
+    switch (inv.toolName) {
+      case 'write_file':
+        if (result.success && typeof result.path === 'string' && typeof result.content === 'string') {
+          updates[result.path] = result.content
+        }
+        break
+      case 'edit_file':
+        if (result.success && typeof result.path === 'string' && typeof result.content === 'string') {
+          updates[result.path] = result.content
+        }
+        break
+      case 'rename_file':
+        if (result.success) {
+          if (typeof result.oldPath === 'string') deletes.push(result.oldPath)
+          if (typeof result.newPath === 'string' && typeof result.content === 'string') {
+            updates[result.newPath] = result.content
+          }
+        }
+        break
+      case 'delete_file':
+        if (result.success && typeof result.path === 'string') {
+          deletes.push(result.path)
+        }
+        break
+      case 'create_project':
+        if (result.allFiles && typeof result.allFiles === 'object') {
+          Object.assign(updates, result.allFiles)
+        }
+        break
+    }
+  }
+
+  return { updates, deletes }
+}
+
+// ═══════════════════════════════════════════════════════════════════
+// Chat Panel
 // ═══════════════════════════════════════════════════════════════════
 
 interface ChatPanelProps {
   projectName: string
-  onFilesChanged: () => void
+  files: Record<string, string>
+  onFileChange: (path: string, content: string) => void
+  onFileDelete: (path: string) => void
+  onBulkFileUpdate: (files: Record<string, string>) => void
 }
 
-export function ChatPanel({ projectName, onFilesChanged }: ChatPanelProps) {
+export function ChatPanel({ projectName, files, onFileChange, onFileDelete, onBulkFileUpdate }: ChatPanelProps) {
   const {
     messages,
-    input: chatInput,
-    setInput: setChatInput,
-    handleSubmit,
     setMessages,
     stop,
-    isLoading: chatLoading,
+    isLoading,
     error,
     append,
   } = useChat({
     api: '/api/chat',
-    body: { projectName },
-    onError: (err) => {
-      console.error('Chat error:', err)
-    },
+    body: { projectName, files },
+    onError: (err) => console.error('Chat error:', err),
   })
 
   const [input, setInput] = useState('')
-  const isLoading = chatLoading
   const [copiedId, setCopiedId] = useState<string | null>(null)
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLTextAreaElement>(null)
+  const processedMsgIds = useRef(new Set<string>())
 
   // Auto-scroll
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'auto' })
   }, [messages, isLoading])
 
-  // Trigger file refresh when AI finishes (it may have written files)
-  const prevLoadingRef = useRef(isLoading)
+  // Extract file changes from tool results and apply to parent state
   useEffect(() => {
-    if (prevLoadingRef.current && !isLoading) {
-      onFilesChanged()
+    for (const msg of messages) {
+      if (msg.role !== 'assistant' || processedMsgIds.current.has(msg.id)) continue
+
+      const invocations = (msg as any).toolInvocations as ToolInvocation[] | undefined
+      if (!invocations || invocations.length === 0) continue
+
+      // Only process if all invocations are in 'result' state
+      const allDone = invocations.every(inv => inv.state === 'result')
+      if (!allDone) continue
+
+      processedMsgIds.current.add(msg.id)
+      const { updates, deletes } = extractFileChanges(invocations)
+
+      if (Object.keys(updates).length > 0) {
+        onBulkFileUpdate(updates)
+      }
+      for (const path of deletes) {
+        onFileDelete(path)
+      }
     }
-    prevLoadingRef.current = isLoading
-  }, [isLoading, onFilesChanged])
+  }, [messages, onBulkFileUpdate, onFileDelete])
 
   const handleSend = useCallback((text?: string) => {
     const content = (text || input).trim()
@@ -163,12 +208,18 @@ export function ChatPanel({ projectName, onFilesChanged }: ChatPanelProps) {
     setTimeout(() => setCopiedId(null), 2000)
   }
 
-  const handleClear = () => {
-    setMessages([])
-    inputRef.current?.focus()
-  }
-
   const isEmpty = messages.length === 0
+
+  const colorClasses: Record<string, string> = {
+    green: 'text-emerald-400 bg-emerald-400/10',
+    blue: 'text-blue-400 bg-blue-400/10',
+    yellow: 'text-yellow-400 bg-yellow-400/10',
+    red: 'text-red-400 bg-red-400/10',
+    purple: 'text-purple-400 bg-purple-400/10',
+    indigo: 'text-indigo-400 bg-indigo-400/10',
+    orange: 'text-orange-400 bg-orange-400/10',
+    gray: 'text-gray-400 bg-gray-400/10',
+  }
 
   return (
     <div className="h-full flex flex-col bg-forge-panel border-r border-forge-border">
@@ -176,10 +227,10 @@ export function ChatPanel({ projectName, onFilesChanged }: ChatPanelProps) {
       <div className="flex items-center justify-between px-4 py-2.5 border-b border-forge-border shrink-0">
         <div className="flex items-center gap-2">
           <Bot className="w-4 h-4 text-forge-accent" />
-          <span className="text-xs font-medium text-forge-text">AI Assistant</span>
+          <span className="text-xs font-medium text-forge-text">AI Builder</span>
         </div>
         {messages.length > 0 && (
-          <button onClick={handleClear} className="text-forge-text-dim hover:text-forge-danger transition-colors">
+          <button onClick={() => { setMessages([]); processedMsgIds.current.clear() }} className="text-forge-text-dim hover:text-forge-danger transition-colors">
             <Trash2 className="w-3.5 h-3.5" />
           </button>
         )}
@@ -193,9 +244,8 @@ export function ChatPanel({ projectName, onFilesChanged }: ChatPanelProps) {
               <Sparkles className="w-6 h-6 text-forge-accent" />
             </div>
             <h2 className="text-lg font-semibold text-forge-text mb-1">What shall we build?</h2>
-            <p className="text-xs text-forge-text-dim text-center mb-6">Describe your idea and I'll create it</p>
-
-            <div className="grid grid-cols-2 gap-2 w-full max-w-sm">
+            <p className="text-xs text-forge-text-dim text-center mb-6">Describe your idea and I'll build it</p>
+            <div className="grid grid-cols-1 gap-2 w-full max-w-xs">
               {QUICK_ACTIONS.map(action => (
                 <button
                   key={action.label}
@@ -213,18 +263,7 @@ export function ChatPanel({ projectName, onFilesChanged }: ChatPanelProps) {
             {messages.map((message) => {
               const isUser = message.role === 'user'
               const textContent = typeof message.content === 'string' ? message.content : ''
-              const toolInvocations = (message as any).toolInvocations as Array<{ toolName: string; state: string; args: Record<string, unknown>; result?: unknown }> | undefined
-
-              const colorClasses: Record<string, string> = {
-                green: 'text-emerald-400 bg-emerald-400/10',
-                blue: 'text-blue-400 bg-blue-400/10',
-                yellow: 'text-yellow-400 bg-yellow-400/10',
-                red: 'text-red-400 bg-red-400/10',
-                purple: 'text-purple-400 bg-purple-400/10',
-                indigo: 'text-indigo-400 bg-indigo-400/10',
-                orange: 'text-orange-400 bg-orange-400/10',
-                gray: 'text-gray-400 bg-gray-400/10',
-              }
+              const invocations = (message as any).toolInvocations as ToolInvocation[] | undefined
 
               return (
                 <div key={message.id} className={cn('animate-fade-in', isUser ? 'flex justify-end' : '')}>
@@ -234,71 +273,50 @@ export function ChatPanel({ projectName, onFilesChanged }: ChatPanelProps) {
                     </div>
                   ) : (
                     <div className="space-y-1.5">
-                      {/* Tool invocations */}
-                      {toolInvocations && toolInvocations.length > 0 && (
+                      {invocations && invocations.length > 0 && (
                         <div className="space-y-1">
-                          {toolInvocations.map((invocation, i) => {
-                            const toolName = invocation.toolName
-                            const info = TOOL_LABELS[toolName] || { label: toolName.replace(/_/g, ' '), Icon: Terminal, color: 'gray' }
-                            const isRunning = invocation.state === 'call' || invocation.state === 'partial-call'
-                            const result = invocation.state === 'result' ? invocation.result : undefined
-                            const hasError = result && typeof result === 'object' && 'error' in (result as Record<string, unknown>)
-                            const summary = result ? getToolResultSummary(toolName, result) : info.label
+                          {invocations.map((inv, i) => {
+                            const info = TOOL_LABELS[inv.toolName] || { label: inv.toolName.replace(/_/g, ' '), Icon: Terminal, color: 'gray' }
+                            const isRunning = inv.state === 'call' || inv.state === 'partial-call'
+                            const hasError = inv.result && typeof inv.result === 'object' && 'error' in inv.result
+                            const summary = inv.result ? getToolSummary(inv.toolName, inv.result) : info.label
 
                             return (
                               <div
                                 key={i}
                                 className={cn(
                                   'flex items-center gap-2 px-2.5 py-1.5 rounded-lg text-[11px] border transition-all',
-                                  isRunning
-                                    ? 'border-forge-border animate-shimmer'
-                                    : hasError
-                                      ? 'border-red-800/30 bg-red-950/20'
-                                      : 'border-forge-border bg-forge-surface/50',
+                                  isRunning ? 'border-forge-border animate-shimmer'
+                                    : hasError ? 'border-red-800/30 bg-red-950/20'
+                                    : 'border-forge-border bg-forge-surface/50',
                                 )}
                               >
                                 <div className={cn('w-5 h-5 rounded flex items-center justify-center shrink-0', colorClasses[info.color] || colorClasses.gray)}>
-                                  {isRunning ? (
-                                    <Loader2 className="w-3 h-3 animate-spin" />
-                                  ) : hasError ? (
-                                    <XCircle className="w-3 h-3 text-red-400" />
-                                  ) : (
-                                    <info.Icon className="w-3 h-3" />
-                                  )}
+                                  {isRunning ? <Loader2 className="w-3 h-3 animate-spin" />
+                                    : hasError ? <XCircle className="w-3 h-3 text-red-400" />
+                                    : <info.Icon className="w-3 h-3" />}
                                 </div>
-                                <span className={cn(
-                                  'truncate',
-                                  hasError ? 'text-red-300' : 'text-forge-text-dim',
-                                )}>
+                                <span className={cn('truncate', hasError ? 'text-red-300' : 'text-forge-text-dim')}>
                                   {summary}
                                 </span>
-                                {!isRunning && !hasError && (
-                                  <CheckCircle className="w-3 h-3 text-emerald-500 shrink-0 ml-auto" />
-                                )}
+                                {!isRunning && !hasError && <CheckCircle className="w-3 h-3 text-emerald-500 shrink-0 ml-auto" />}
                               </div>
                             )
                           })}
                         </div>
                       )}
 
-                      {/* Text content */}
                       {textContent && (
                         <div className="relative group">
                           <div
-                            className="text-[13px] leading-relaxed text-gray-300 [&_pre]:my-2 [&_code]:text-[12px] [&_li]:text-[13px]"
-                            dangerouslySetInnerHTML={{
-                              __html: DOMPurify.sanitize(renderMarkdown(textContent)),
-                            }}
+                            className="text-[13px] leading-relaxed text-gray-300 [&_pre]:my-2 [&_code]:text-[12px]"
+                            dangerouslySetInnerHTML={{ __html: renderMarkdown(textContent) }}
                           />
                           <button
                             onClick={() => handleCopy(message.id, textContent)}
                             className="absolute top-0 right-0 opacity-0 group-hover:opacity-100 transition-opacity p-1 rounded hover:bg-forge-surface"
                           >
-                            {copiedId === message.id ? (
-                              <Check className="w-3 h-3 text-emerald-400" />
-                            ) : (
-                              <Copy className="w-3 h-3 text-forge-text-dim" />
-                            )}
+                            {copiedId === message.id ? <Check className="w-3 h-3 text-emerald-400" /> : <Copy className="w-3 h-3 text-forge-text-dim" />}
                           </button>
                         </div>
                       )}
@@ -308,15 +326,13 @@ export function ChatPanel({ projectName, onFilesChanged }: ChatPanelProps) {
               )
             })}
 
-            {/* Loading indicator */}
             {isLoading && (
               <div className="flex items-center gap-2 text-forge-text-dim text-xs py-2">
                 <Loader2 className="w-3.5 h-3.5 animate-spin text-forge-accent" />
-                <span>Thinking...</span>
+                <span>Building...</span>
               </div>
             )}
 
-            {/* Error */}
             {error && (
               <div className="flex items-center gap-2 text-xs text-red-400 bg-red-950/20 border border-red-800/30 rounded-lg px-3 py-2">
                 <AlertTriangle className="w-3.5 h-3.5 shrink-0" />
@@ -329,7 +345,7 @@ export function ChatPanel({ projectName, onFilesChanged }: ChatPanelProps) {
         )}
       </div>
 
-      {/* Input area */}
+      {/* Input */}
       <div className="border-t border-forge-border p-3 shrink-0">
         <div className="relative">
           <textarea
@@ -337,35 +353,23 @@ export function ChatPanel({ projectName, onFilesChanged }: ChatPanelProps) {
             value={input}
             onChange={e => {
               setInput(e.target.value)
-              // Auto-resize
               e.target.style.height = 'auto'
               e.target.style.height = Math.min(e.target.scrollHeight, 120) + 'px'
             }}
             onKeyDown={e => {
-              if (e.key === 'Enter' && !e.shiftKey) {
-                e.preventDefault()
-                handleSend()
-              }
+              if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSend() }
             }}
             placeholder={isEmpty ? 'Describe what you want to build...' : 'Ask anything...'}
             rows={1}
             className="w-full bg-forge-surface border border-forge-border rounded-lg pl-3 pr-10 py-2.5 text-sm text-forge-text placeholder:text-forge-text-dim/50 outline-none focus:border-forge-accent/50 resize-none transition-colors"
           />
-          <div className="absolute right-2 bottom-2 flex items-center gap-1">
+          <div className="absolute right-2 bottom-2">
             {isLoading ? (
-              <button
-                onClick={stop}
-                className="p-1.5 rounded-md bg-forge-danger/20 text-forge-danger hover:bg-forge-danger/30 transition-colors"
-                title="Stop generating"
-              >
+              <button onClick={stop} className="p-1.5 rounded-md bg-forge-danger/20 text-forge-danger hover:bg-forge-danger/30 transition-colors">
                 <StopCircle className="w-4 h-4" />
               </button>
             ) : (
-              <button
-                onClick={() => handleSend()}
-                disabled={!input.trim()}
-                className="p-1.5 rounded-md bg-forge-accent text-white hover:bg-forge-accent-hover disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
-              >
+              <button onClick={() => handleSend()} disabled={!input.trim()} className="p-1.5 rounded-md bg-forge-accent text-white hover:bg-forge-accent-hover disabled:opacity-30 disabled:cursor-not-allowed transition-colors">
                 <Send className="w-4 h-4" />
               </button>
             )}

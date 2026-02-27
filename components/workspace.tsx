@@ -1,32 +1,70 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useMemo } from 'react'
 import { Panel, PanelGroup, PanelResizeHandle } from 'react-resizable-panels'
 import { ChatPanel } from './chat-panel'
 import { CodeEditor } from './code-editor'
 import { FileTree } from './file-tree'
 import { PreviewPanel } from './preview-panel'
 import { Header } from './header'
-import type { Project, FileNode } from '@/lib/types'
+import type { FileNode } from '@/lib/types'
+
+// Build tree structure from flat file map
+function buildTreeFromMap(files: Record<string, string>): FileNode[] {
+  const root: FileNode[] = []
+  const paths = Object.keys(files).sort()
+
+  for (const path of paths) {
+    const parts = path.split('/')
+    let current = root
+    for (let i = 0; i < parts.length; i++) {
+      const name = parts[i]
+      const isFile = i === parts.length - 1
+      const dirPath = parts.slice(0, i + 1).join('/')
+
+      if (isFile) {
+        current.push({ name, path, type: 'file' })
+      } else {
+        let dir = current.find(n => n.name === name && n.type === 'directory')
+        if (!dir) {
+          dir = { name, path: dirPath, type: 'directory', children: [] }
+          current.push(dir)
+        }
+        current = dir.children!
+      }
+    }
+  }
+
+  // Sort: directories first, then alphabetical
+  function sortNodes(nodes: FileNode[]): FileNode[] {
+    return nodes.sort((a, b) => {
+      if (a.type !== b.type) return a.type === 'directory' ? -1 : 1
+      return a.name.localeCompare(b.name)
+    }).map(n => n.children ? { ...n, children: sortNodes(n.children) } : n)
+  }
+
+  return sortNodes(root)
+}
 
 interface WorkspaceProps {
-  project: Project
-  files: FileNode[]
+  projectName: string
+  files: Record<string, string>
   activeFile: string | null
-  fileContents: Record<string, string>
   onFileSelect: (path: string) => void
-  onFilesChanged: () => void
+  onFileChange: (path: string, content: string) => void
+  onFileDelete: (path: string) => void
+  onBulkFileUpdate: (files: Record<string, string>) => void
   onSwitchProject: () => void
-  onFileContentUpdate: (path: string, content: string) => void
 }
 
 export function Workspace({
-  project, files, activeFile, fileContents,
-  onFileSelect, onFilesChanged, onSwitchProject, onFileContentUpdate,
+  projectName, files, activeFile,
+  onFileSelect, onFileChange, onFileDelete, onBulkFileUpdate, onSwitchProject,
 }: WorkspaceProps) {
   const [rightTab, setRightTab] = useState<'code' | 'preview'>('code')
   const [openFiles, setOpenFiles] = useState<string[]>([])
-  const [previewUrl, setPreviewUrl] = useState<string | null>(null)
+
+  const fileTree = useMemo(() => buildTreeFromMap(files), [files])
 
   const handleFileSelect = (path: string) => {
     onFileSelect(path)
@@ -43,31 +81,19 @@ export function Workspace({
     }
   }
 
-  const handleSaveFile = async (path: string, content: string) => {
-    try {
-      await fetch('/api/files', {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ project: project.name, path, content }),
-      })
-      onFileContentUpdate(path, content)
-    } catch { /* ignore */ }
-  }
-
   return (
     <div className="h-screen flex flex-col bg-forge-bg">
-      <Header
-        project={project}
-        onSwitchProject={onSwitchProject}
-        previewUrl={previewUrl}
-      />
+      <Header projectName={projectName} onSwitchProject={onSwitchProject} fileCount={Object.keys(files).length} />
 
       <PanelGroup direction="horizontal" className="flex-1">
         {/* Chat Panel */}
         <Panel defaultSize={30} minSize={20} maxSize={50}>
           <ChatPanel
-            projectName={project.name}
-            onFilesChanged={onFilesChanged}
+            projectName={projectName}
+            files={files}
+            onFileChange={onFileChange}
+            onFileDelete={onFileDelete}
+            onBulkFileUpdate={onBulkFileUpdate}
           />
         </Panel>
 
@@ -79,7 +105,7 @@ export function Workspace({
             {/* File Tree */}
             <Panel defaultSize={20} minSize={12} maxSize={35}>
               <FileTree
-                files={files}
+                files={fileTree}
                 activeFile={activeFile}
                 onFileSelect={handleFileSelect}
               />
@@ -142,21 +168,16 @@ export function Workspace({
                   )}
                 </div>
 
-                {/* Content */}
                 <div className="flex-1 overflow-hidden">
                   {rightTab === 'code' ? (
                     <CodeEditor
                       path={activeFile}
-                      content={activeFile ? fileContents[activeFile] || '' : ''}
-                      onSave={handleSaveFile}
-                      onChange={(content) => activeFile && onFileContentUpdate(activeFile, content)}
+                      content={activeFile ? files[activeFile] || '' : ''}
+                      onSave={(path, content) => onFileChange(path, content)}
+                      onChange={(content) => activeFile && onFileChange(activeFile, content)}
                     />
                   ) : (
-                    <PreviewPanel
-                      projectName={project.name}
-                      url={previewUrl}
-                      onUrlChange={setPreviewUrl}
-                    />
+                    <PreviewPanel files={files} />
                   )}
                 </div>
               </div>
