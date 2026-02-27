@@ -256,16 +256,20 @@ export function ChatPanel({ projectName, projectId, files, onFileChange, onFileD
       .catch(() => {})
   }, [projectId, historyLoaded, setMessages])
 
-  // Live file extraction
+  // Live file extraction — works with both parts[] and legacy toolInvocations[]
   useEffect(() => {
     for (const msg of messages) {
       if (msg.role !== 'assistant') continue
-      const invocations = (msg as any).toolInvocations as ToolInvocation[] | undefined
-      if (!invocations) continue
+
+      // Extract tool invocations from parts (preferred) or legacy field
+      const parts = (msg as any).parts as Array<{ type: string; toolInvocation?: ToolInvocation }> | undefined
+      const invocations: ToolInvocation[] = parts
+        ? parts.filter(p => p.type === 'tool-invocation' && p.toolInvocation).map(p => p.toolInvocation!)
+        : ((msg as any).toolInvocations as ToolInvocation[] | undefined) || []
 
       for (let i = 0; i < invocations.length; i++) {
         const inv = invocations[i]
-        const key = `${msg.id}:${i}`
+        const key = `${msg.id}:${inv.toolName}:${i}`
 
         if (processedInvs.current.has(key)) continue
 
@@ -389,7 +393,7 @@ export function ChatPanel({ projectName, projectId, files, onFileChange, onFileD
             {messages.map((message) => {
               const isUser = message.role === 'user'
               const textContent = typeof message.content === 'string' ? message.content : ''
-              const invocations = (message as any).toolInvocations as ToolInvocation[] | undefined
+              const parts = (message as any).parts as Array<{ type: string; text?: string; toolInvocation?: ToolInvocation }> | undefined
 
               return (
                 <div key={message.id} className={cn('animate-fade-in', isUser ? 'flex justify-end' : '')}>
@@ -397,85 +401,107 @@ export function ChatPanel({ projectName, projectId, files, onFileChange, onFileD
                     <div className="max-w-[85%] px-3 py-2 rounded-xl bg-forge-accent/20 text-sm text-forge-text">
                       {textContent}
                     </div>
-                  ) : (
+                  ) : parts && parts.length > 0 ? (
+                    /* Render parts in order — text and tool calls interleaved */
                     <div className="space-y-1.5">
-                      {invocations && invocations.length > 0 && (
-                        <div className="space-y-1">
-                          {invocations.map((inv, i) => {
-                            const info = TOOL_LABELS[inv.toolName] || { label: inv.toolName.replace(/_/g, ' '), Icon: Terminal, color: 'gray' }
-                            const isRunning = inv.state === 'call' || inv.state === 'partial-call'
-                            const hasError = inv.result && typeof inv.result === 'object' && 'error' in inv.result
-                            const summary = getToolSummary(inv.toolName, inv.args || {}, inv.result)
-
-                            if (inv.toolName === 'think' && inv.state === 'result') {
-                              const planFiles = Array.isArray(inv.args?.files) ? inv.args.files as string[] : []
-                              return (
-                                <div key={i} className="border border-purple-200 bg-purple-50 rounded-lg p-2.5 text-[11px]">
-                                  <div className="flex items-center gap-1.5 mb-1.5 text-purple-600">
-                                    <Brain className="w-3.5 h-3.5" />
-                                    <span className="font-medium">Planning</span>
-                                  </div>
-                                  <div className="text-purple-700 leading-relaxed whitespace-pre-wrap">
-                                    {String(inv.args?.plan || '').slice(0, 300)}
-                                  </div>
-                                  {planFiles.length > 0 && (
-                                    <div className="mt-1.5 flex flex-wrap gap-1">
-                                      {planFiles.map((f: string, fi: number) => (
-                                        <span key={fi} className="px-1.5 py-0.5 bg-purple-100 text-purple-600 rounded text-[10px] font-mono">{f}</span>
-                                      ))}
-                                    </div>
-                                  )}
-                                </div>
-                              )
-                            }
-
-                            if (inv.toolName === 'suggest_improvement' && inv.state === 'result') {
-                              const sArgs = (inv.args || {}) as Record<string, string>
-                              const priority = sArgs.priority || 'medium'
-                              const priorityColor = priority === 'high' ? 'text-red-600 bg-red-50' : priority === 'medium' ? 'text-amber-600 bg-amber-50' : 'text-blue-600 bg-blue-50'
-                              return (
-                                <div key={i} className="border border-amber-200 bg-amber-50 rounded-lg p-2.5 text-[11px]">
-                                  <div className="flex items-center gap-1.5 mb-1">
-                                    <Lightbulb className="w-3.5 h-3.5 text-amber-600" />
-                                    <span className="font-medium text-amber-600">Improvement Suggestion</span>
-                                    <span className={cn('px-1.5 py-0.5 rounded text-[9px] font-medium uppercase', priorityColor)}>{priority}</span>
-                                  </div>
-                                  <p className="text-amber-700 mb-1">{sArgs.issue || ''}</p>
-                                  {sArgs.suggestion && (
-                                    <pre className="text-[10px] bg-gray-100 text-gray-700 rounded p-2 mt-1 whitespace-pre-wrap font-mono">{sArgs.suggestion}</pre>
-                                  )}
-                                  {sArgs.file && (
-                                    <span className="inline-block mt-1 px-1.5 py-0.5 bg-gray-100 text-gray-600 rounded text-[10px] font-mono">{sArgs.file}</span>
-                                  )}
-                                </div>
-                              )
-                            }
-
-                            return (
+                      {parts.map((part, partIdx) => {
+                        if (part.type === 'text' && part.text) {
+                          return (
+                            <div key={partIdx} className="relative group">
                               <div
-                                key={i}
-                                className={cn(
-                                  'flex items-center gap-2 px-2.5 py-1.5 rounded-lg text-[11px] border transition-all',
-                                  isRunning ? 'border-forge-border animate-shimmer'
-                                    : hasError ? 'border-red-200 bg-red-50'
-                                    : 'border-forge-border bg-forge-surface/50',
-                                )}
+                                className="text-[13px] leading-relaxed text-gray-700 [&_pre]:my-2 [&_code]:text-[12px]"
+                                dangerouslySetInnerHTML={{ __html: renderMarkdown(part.text) }}
+                              />
+                              <button
+                                onClick={() => handleCopy(`${message.id}-${partIdx}`, part.text!)}
+                                className="absolute top-0 right-0 opacity-0 group-hover:opacity-100 transition-opacity p-1 rounded hover:bg-forge-surface"
                               >
-                                <div className={cn('w-5 h-5 rounded flex items-center justify-center shrink-0', colorClasses[info.color] || colorClasses.gray)}>
-                                  {isRunning ? <Loader2 className="w-3 h-3 animate-spin" />
-                                    : hasError ? <XCircle className="w-3 h-3 text-red-600" />
-                                    : <info.Icon className="w-3 h-3" />}
+                                {copiedId === `${message.id}-${partIdx}` ? <Check className="w-3 h-3 text-emerald-500" /> : <Copy className="w-3 h-3 text-forge-text-dim" />}
+                              </button>
+                            </div>
+                          )
+                        }
+
+                        if (part.type === 'tool-invocation' && part.toolInvocation) {
+                          const inv = part.toolInvocation
+                          const info = TOOL_LABELS[inv.toolName] || { label: inv.toolName.replace(/_/g, ' '), Icon: Terminal, color: 'gray' }
+                          const isRunning = inv.state === 'call' || inv.state === 'partial-call'
+                          const hasError = inv.result && typeof inv.result === 'object' && 'error' in inv.result
+                          const summary = getToolSummary(inv.toolName, inv.args || {}, inv.result)
+
+                          if (inv.toolName === 'think' && inv.state === 'result') {
+                            const planFiles = Array.isArray(inv.args?.files) ? inv.args.files as string[] : []
+                            return (
+                              <div key={partIdx} className="border border-purple-200 bg-purple-50 rounded-lg p-2.5 text-[11px]">
+                                <div className="flex items-center gap-1.5 mb-1.5 text-purple-600">
+                                  <Brain className="w-3.5 h-3.5" />
+                                  <span className="font-medium">Planning</span>
                                 </div>
-                                <span className={cn('truncate flex-1', hasError ? 'text-red-600' : 'text-forge-text-dim')}>
-                                  {summary}
-                                </span>
-                                {!isRunning && !hasError && <CheckCircle className="w-3 h-3 text-emerald-500 shrink-0" />}
+                                <div className="text-purple-700 leading-relaxed whitespace-pre-wrap">
+                                  {String(inv.args?.plan || '').slice(0, 300)}
+                                </div>
+                                {planFiles.length > 0 && (
+                                  <div className="mt-1.5 flex flex-wrap gap-1">
+                                    {planFiles.map((f: string, fi: number) => (
+                                      <span key={fi} className="px-1.5 py-0.5 bg-purple-100 text-purple-600 rounded text-[10px] font-mono">{f}</span>
+                                    ))}
+                                  </div>
+                                )}
                               </div>
                             )
-                          })}
-                        </div>
-                      )}
+                          }
 
+                          if (inv.toolName === 'suggest_improvement' && inv.state === 'result') {
+                            const sArgs = (inv.args || {}) as Record<string, string>
+                            const priority = sArgs.priority || 'medium'
+                            const priorityColor = priority === 'high' ? 'text-red-600 bg-red-50' : priority === 'medium' ? 'text-amber-600 bg-amber-50' : 'text-blue-600 bg-blue-50'
+                            return (
+                              <div key={partIdx} className="border border-amber-200 bg-amber-50 rounded-lg p-2.5 text-[11px]">
+                                <div className="flex items-center gap-1.5 mb-1">
+                                  <Lightbulb className="w-3.5 h-3.5 text-amber-600" />
+                                  <span className="font-medium text-amber-600">Improvement Suggestion</span>
+                                  <span className={cn('px-1.5 py-0.5 rounded text-[9px] font-medium uppercase', priorityColor)}>{priority}</span>
+                                </div>
+                                <p className="text-amber-700 mb-1">{sArgs.issue || ''}</p>
+                                {sArgs.suggestion && (
+                                  <pre className="text-[10px] bg-gray-100 text-gray-700 rounded p-2 mt-1 whitespace-pre-wrap font-mono">{sArgs.suggestion}</pre>
+                                )}
+                                {sArgs.file && (
+                                  <span className="inline-block mt-1 px-1.5 py-0.5 bg-gray-100 text-gray-600 rounded text-[10px] font-mono">{sArgs.file}</span>
+                                )}
+                              </div>
+                            )
+                          }
+
+                          return (
+                            <div
+                              key={partIdx}
+                              className={cn(
+                                'flex items-center gap-2 px-2.5 py-1.5 rounded-lg text-[11px] border transition-all',
+                                isRunning ? 'border-forge-border animate-shimmer'
+                                  : hasError ? 'border-red-200 bg-red-50'
+                                  : 'border-forge-border bg-forge-surface/50',
+                              )}
+                            >
+                              <div className={cn('w-5 h-5 rounded flex items-center justify-center shrink-0', colorClasses[info.color] || colorClasses.gray)}>
+                                {isRunning ? <Loader2 className="w-3 h-3 animate-spin" />
+                                  : hasError ? <XCircle className="w-3 h-3 text-red-600" />
+                                  : <info.Icon className="w-3 h-3" />}
+                              </div>
+                              <span className={cn('truncate flex-1', hasError ? 'text-red-600' : 'text-forge-text-dim')}>
+                                {summary}
+                              </span>
+                              {!isRunning && !hasError && <CheckCircle className="w-3 h-3 text-emerald-500 shrink-0" />}
+                            </div>
+                          )
+                        }
+
+                        return null
+                      })}
+                    </div>
+                  ) : (
+                    /* Fallback for messages without parts (e.g. loaded from DB) */
+                    <div className="space-y-1.5">
                       {textContent && (
                         <div className="relative group">
                           <div

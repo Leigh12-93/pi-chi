@@ -1,7 +1,7 @@
 import type { NextConfig } from 'next'
 
 const nextConfig: NextConfig = {
-  serverExternalPackages: ['simple-git', '@e2b/sdk'],
+  serverExternalPackages: ['simple-git', '@vercel/sandbox'],
 }
 
 export default nextConfig

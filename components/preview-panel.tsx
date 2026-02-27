@@ -53,7 +53,7 @@ export function PreviewPanel({ files, projectId }: PreviewPanelProps) {
   const lastSyncedFilesRef = useRef<string>('')
   const startingRef = useRef(false) // prevent double-starts
   const hasAutoStartedRef = useRef(false) // only auto-start once per session
-  const e2bAvailableRef = useRef<boolean | null>(null) // cached E2B availability check
+  const sandboxAvailableRef = useRef<boolean | null>(null) // cached sandbox availability check
 
   // Detect project type
   const projectType = useMemo(() => {
@@ -198,7 +198,7 @@ export function PreviewPanel({ files, projectId }: PreviewPanelProps) {
   }, [projectId])
 
   // ─── AUTO-START: launch sandbox when project looks ready ──────
-  // Check E2B availability first, then debounce 3s after files stabilize
+  // Check sandbox availability first, then debounce 3s after files stabilize
   useEffect(() => {
     if (sandboxStatus !== 'idle') return
     if (hasAutoStartedRef.current) return
@@ -208,19 +208,19 @@ export function PreviewPanel({ files, projectId }: PreviewPanelProps) {
     if (autoStartTimeoutRef.current) clearTimeout(autoStartTimeoutRef.current)
 
     autoStartTimeoutRef.current = setTimeout(async () => {
-      // Check if E2B is available (cached after first check)
-      if (e2bAvailableRef.current === null) {
+      // Check if sandbox is available (cached after first check)
+      if (sandboxAvailableRef.current === null) {
         try {
           const res = await fetch('/api/sandbox?check=true')
           const data = await res.json()
-          e2bAvailableRef.current = data.available === true
+          sandboxAvailableRef.current = data.available === true
         } catch {
-          e2bAvailableRef.current = false
+          sandboxAvailableRef.current = false
         }
       }
 
-      // Silently skip auto-start if E2B is not configured
-      if (!e2bAvailableRef.current) {
+      // Silently skip auto-start if sandbox is not configured
+      if (!sandboxAvailableRef.current) {
         hasAutoStartedRef.current = true // don't retry
         return
       }
@@ -422,7 +422,7 @@ export function PreviewPanel({ files, projectId }: PreviewPanelProps) {
                 </div>
                 <div className="flex gap-1 shrink-0">
                   <button
-                    onClick={() => { hasAutoStartedRef.current = false; e2bAvailableRef.current = null; startSandbox() }}
+                    onClick={() => { hasAutoStartedRef.current = false; sandboxAvailableRef.current = null; startSandbox() }}
                     className="px-2 py-1 bg-red-600 text-white text-[10px] rounded hover:bg-red-700 transition-colors"
                   >
                     Retry

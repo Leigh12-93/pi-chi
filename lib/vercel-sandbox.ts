@@ -1,11 +1,9 @@
-import { Sandbox } from '@e2b/sdk'
+import { Sandbox } from '@vercel/sandbox'
 
 // ═══════════════════════════════════════════════════════════════════
-// E2B Sandbox Manager
-// Manages ephemeral Linux VMs for live project preview
+// Vercel Sandbox Manager
+// Manages ephemeral Firecracker microVMs for live project preview
 // ═══════════════════════════════════════════════════════════════════
-
-const E2B_API_KEY = (process.env.E2B_API_KEY || '').trim()
 
 export interface SandboxSession {
   sandboxId: string
@@ -19,7 +17,7 @@ export interface SandboxSession {
 // In-memory store — works per serverless instance.
 const activeSandboxes = new Map<string, { sandbox: Sandbox; session: SandboxSession }>()
 
-const BASE_PATH = '/home/user/app'
+const BASE_PATH = '/vercel/sandbox/app'
 const DEV_PORT = 3000
 
 /**
@@ -31,13 +29,13 @@ export async function createSandbox(
   files: Record<string, string>,
   framework?: string,
 ): Promise<SandboxSession & { ok: boolean }> {
-  if (!E2B_API_KEY) {
+  if (!isVercelSandboxConfigured()) {
     return {
       ok: false,
       sandboxId: '',
       url: '',
       status: 'error',
-      error: 'E2B_API_KEY not configured. Sign up at e2b.dev and add the key to your environment.',
+      error: 'Vercel Sandbox not configured. Run `vercel link && vercel env pull` for local dev, or deploy to Vercel for automatic auth.',
       createdAt: Date.now(),
       framework: framework || 'unknown',
     }
@@ -57,102 +55,76 @@ export async function createSandbox(
   let sandbox: Sandbox | undefined
 
   try {
-    // Create sandbox VM with longer timeout for initial creation
-    const createTimeout = new Promise<never>((_, reject) => {
-      setTimeout(() => reject(new Error('Sandbox creation timed out after 60 seconds')), 60000)
+    // Create sandbox VM — Vercel Sandbox starts in milliseconds
+    sandbox = await Sandbox.create({
+      runtime: 'node24',
+      ports: [DEV_PORT],
+      timeout: 300_000, // 5 minutes VM lifetime
     })
 
-    sandbox = await Promise.race([
-      Sandbox.create({
-        apiKey: E2B_API_KEY,
-        timeout: 300, // 5 minutes VM lifetime
-      }),
-      createTimeout
-    ])
-
-    session.sandboxId = sandbox.id
+    session.sandboxId = sandbox.sandboxId
     activeSandboxes.set(projectId, { sandbox, session })
 
-    // Write all project files
+    // Write all project files in a single batch call
     session.status = 'writing'
-    for (const [path, content] of Object.entries(files)) {
-      await sandbox.filesystem.write(`${BASE_PATH}/${path}`, content)
-    }
+    const fileEntries = Object.entries(files).map(([path, content]) => ({
+      path: `${BASE_PATH}/${path}`,
+      content: Buffer.from(content),
+    }))
+    await sandbox.writeFiles(fileEntries)
 
     // Install dependencies
     session.status = 'installing'
     const hasPackageJson = 'package.json' in files
     if (hasPackageJson) {
-      const installResult = await sandbox.process.startAndWait({
-        cmd: 'cd ' + BASE_PATH + ' && npm install 2>&1',
-        timeout: 120, // 2 minutes
+      const installResult = await sandbox.runCommand({
+        cmd: 'npm',
+        args: ['install'],
+        cwd: BASE_PATH,
       })
       if (installResult.exitCode !== 0) {
-        const output = installResult.stdout + '\n' + installResult.stderr
+        const stdout = typeof installResult.stdout === 'string' ? installResult.stdout : ''
+        const stderr = typeof installResult.stderr === 'string' ? installResult.stderr : ''
+        const output = stdout + '\n' + stderr
         throw new Error(`npm install failed (exit ${installResult.exitCode}): ${output.slice(-500)}`)
       }
     }
 
-    // Start dev server (fire and forget — runs in background)
+    // Start dev server in detached mode (runs in background)
     session.status = 'starting'
     const devCmd = getDevCommand(session.framework)
+    const [cmd, ...args] = devCmd.split(' ')
 
-    sandbox.process.start({
-      cmd: `cd ${BASE_PATH} && ${devCmd}`,
-    }).catch(() => { /* server process — ignore when killed */ })
+    await sandbox.runCommand({
+      cmd,
+      args,
+      cwd: BASE_PATH,
+      detached: true,
+    })
 
-    // Wait for server to boot with health check
-    await waitForServer(sandbox, DEV_PORT)
+    // Wait briefly for server to bind to port
+    await new Promise(resolve => setTimeout(resolve, 3000))
 
-    // Get public URL
-    const hostname = sandbox.getHostname(DEV_PORT)
-    session.url = `https://${hostname}`
+    // Get public URL — domain() returns the HTTPS URL directly
+    const domain = sandbox.domain(DEV_PORT)
+    session.url = domain.startsWith('https://') ? domain : `https://${domain}`
     session.status = 'running'
 
     return { ...session, ok: true }
   } catch (error) {
     session.status = 'error'
     session.error = error instanceof Error ? error.message : 'Unknown error'
-    
+
     // Clean up failed sandbox
     if (sandbox) {
       try {
-        await sandbox.close()
+        await sandbox.stop()
       } catch { /* ignore cleanup errors */ }
     }
     activeSandboxes.delete(projectId)
-    
+
     return { ...session, ok: false }
   }
-}
-
-/**
- * Wait for dev server to be ready by checking if port is listening
- */
-async function waitForServer(sandbox: Sandbox, port: number, maxWaitMs = 30000): Promise<void> {
-  const startTime = Date.now()
-  
-  while (Date.now() - startTime < maxWaitMs) {
-    try {
-      const result = await sandbox.process.startAndWait({
-        cmd: `curl -s -o /dev/null -w "%{http_code}" http://localhost:${port} || echo "000"`,
-        timeout: 5,
-      })
-      
-      const httpCode = result.stdout.trim()
-      if (httpCode !== '000' && httpCode !== '502' && httpCode !== '503') {
-        // Server is responding (even if with errors like 404, that's fine)
-        return
-      }
-    } catch {
-      // Curl failed, server not ready yet
-    }
-    
-    // Wait 2 seconds before next check
-    await new Promise(resolve => setTimeout(resolve, 2000))
-  }
-  
-  throw new Error('Dev server failed to start within 30 seconds')
 }
 
 /**
@@ -166,12 +138,12 @@ export async function syncFiles(
   if (!entry) return { ok: false, synced: 0, error: 'No active sandbox for this project' }
 
   try {
-    let count = 0
-    for (const [path, content] of Object.entries(files)) {
-      await entry.sandbox.filesystem.write(`${BASE_PATH}/${path}`, content)
-      count++
-    }
-    return { ok: true, synced: count }
+    const fileEntries = Object.entries(files).map(([path, content]) => ({
+      path: `${BASE_PATH}/${path}`,
+      content: Buffer.from(content),
+    }))
+    await entry.sandbox.writeFiles(fileEntries)
+    return { ok: true, synced: fileEntries.length }
   } catch (error) {
     return { ok: false, synced: 0, error: error instanceof Error ? error.message : 'Sync failed' }
   }
@@ -184,7 +156,7 @@ export async function destroySandbox(projectId: string): Promise<{ ok: boolean }
   const entry = activeSandboxes.get(projectId)
   if (entry) {
     try {
-      await entry.sandbox.close()
+      await entry.sandbox.stop()
     } catch { /* already dead */ }
     activeSandboxes.delete(projectId)
   }
@@ -201,10 +173,17 @@ export function getSandboxStatus(projectId: string): SandboxSession | null {
 }
 
 /**
- * Check if E2B is configured.
+ * Check if Vercel Sandbox is configured.
+ * On Vercel deployments: OIDC token is auto-provided.
+ * Locally: needs `vercel env pull` to get VERCEL_OIDC_TOKEN.
  */
-export function isE2BConfigured(): boolean {
-  return !!E2B_API_KEY
+export function isVercelSandboxConfigured(): boolean {
+  // SDK auto-resolves auth from these env vars
+  return !!(
+    (process.env.VERCEL_OIDC_TOKEN || '').trim() ||
+    (process.env.VERCEL_TOKEN || '').trim() ||
+    process.env.VERCEL // on Vercel platform, SDK authenticates automatically
+  )
 }
 
 // ─── Helpers ────────────────────────────────────────────────────

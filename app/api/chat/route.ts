@@ -4,7 +4,7 @@ import { z } from 'zod'
 import { supabase } from '@/lib/supabase'
 import { SYSTEM_PROMPT } from '@/lib/system-prompt'
 import { mcpClient } from '@/lib/mcp-client'
-import { createSandbox, getSandboxStatus, destroySandbox } from '@/lib/e2b-sandbox'
+import { createSandbox, getSandboxStatus, destroySandbox } from '@/lib/vercel-sandbox'
 import { chatLimiter } from '@/lib/rate-limit'
 
 // ═══════════════════════════════════════════════════════════════════

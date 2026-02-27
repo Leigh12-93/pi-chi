@@ -4,8 +4,8 @@ import {
   syncFiles,
   destroySandbox,
   getSandboxStatus,
-  isE2BConfigured,
-} from '@/lib/e2b-sandbox'
+  isVercelSandboxConfigured,
+} from '@/lib/vercel-sandbox'
 import { sandboxLimiter } from '@/lib/rate-limit'
 
 // POST /api/sandbox — Create sandbox with project files
@@ -27,9 +27,9 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'projectId and files are required' }, { status: 400 })
     }
 
-    if (!isE2BConfigured()) {
+    if (!isVercelSandboxConfigured()) {
       return NextResponse.json(
-        { error: 'E2B not configured. Add E2B_API_KEY to your environment.' },
+        { error: 'Vercel Sandbox not configured. Run `vercel link && vercel env pull` for local dev.' },
         { status: 503 },
       )
     }
@@ -45,11 +45,11 @@ export async function POST(req: NextRequest) {
 }
 
 // GET /api/sandbox?projectId=xxx — Get sandbox status
-// GET /api/sandbox?check=true — Check if E2B is configured
+// GET /api/sandbox?check=true — Check if Vercel Sandbox is configured
 export async function GET(req: NextRequest) {
   const check = req.nextUrl.searchParams.get('check')
   if (check) {
-    return NextResponse.json({ available: isE2BConfigured() })
+    return NextResponse.json({ available: isVercelSandboxConfigured() })
   }
 
   const projectId = req.nextUrl.searchParams.get('projectId')
