@@ -9,7 +9,7 @@ import {
   AlertTriangle, CheckCircle, XCircle,
   StopCircle, Sparkles, ArrowUp, Lightbulb,
   Brain, Database, Wrench, RefreshCw,
-  BookOpen, Save,
+  BookOpen, Save, Plug,
   type LucideIcon,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
@@ -45,6 +45,9 @@ const TOOL_LABELS: Record<string, { label: string; Icon: LucideIcon; color: stri
   github_search_code: { label: 'Searching GitHub', Icon: Search, color: 'purple' },
   load_chat_history: { label: 'Loading chat history', Icon: Database, color: 'blue' },
   github_pull_latest: { label: 'Pulling from GitHub', Icon: RefreshCw, color: 'green' },
+  mcp_list_servers: { label: 'Listing MCP servers', Icon: Plug, color: 'purple' },
+  mcp_connect_server: { label: 'Connecting MCP server', Icon: Plug, color: 'green' },
+  mcp_call_tool: { label: 'Calling MCP tool', Icon: Plug, color: 'blue' },
 }
 
 const QUICK_ACTIONS = [

@@ -1,154 +1,133 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { mcpManager } from '@/lib/mcp-client'
-import { MCP_SERVER_REGISTRY, getServersByTag, getRecommendedServers } from '@/lib/mcp-registry'
+import { mcpClient, type MCPServerConfig } from '@/lib/mcp-client'
+import { MCP_SERVER_TEMPLATES, MCP_CATEGORIES } from '@/lib/mcp-registry'
 
-// GET /api/mcp - List available MCP servers and their status
-export async function GET(req: NextRequest) {
-  const { searchParams } = new URL(req.url)
-  const tag = searchParams.get('tag')
-  const recommended = searchParams.get('recommended') === 'true'
+// GET /api/mcp — List configured servers, their status, and available templates
+export async function GET() {
+  const servers = mcpClient.getServers().map(s => ({
+    id: s.config.id,
+    name: s.config.name,
+    description: s.config.description,
+    url: s.config.url,
+    enabled: s.config.enabled,
+    connected: s.connected,
+    tools: s.tools.map(t => ({ name: t.name, description: t.description })),
+    error: s.error,
+    tags: s.config.tags,
+  }))
 
-  try {
-    let servers
-    
-    if (recommended) {
-      servers = getRecommendedServers()
-    } else if (tag) {
-      servers = getServersByTag(tag)
-    } else {
-      servers = mcpManager.getServers()
-    }
-
-    // Add connection status to each server
-    const serversWithStatus = await Promise.all(
-      servers.map(async (server) => {
-        const isConnected = await mcpManager.checkServerHealth(server.id)
-        return {
-          ...server,
-          connected: isConnected,
-          tools: mcpManager.getAvailableTools().filter(tool => tool.serverId === server.id)
-        }
-      })
-    )
-
-    return NextResponse.json({
-      servers: serversWithStatus,
-      registry: Object.keys(MCP_SERVER_REGISTRY)
-    })
-  } catch (error) {
-    console.error('Error listing MCP servers:', error)
-    return NextResponse.json(
-      { error: 'Failed to list MCP servers' },
-      { status: 500 }
-    )
-  }
+  return NextResponse.json({
+    servers,
+    templates: MCP_SERVER_TEMPLATES.map(t => ({
+      id: t.id,
+      name: t.name,
+      description: t.description,
+      urlPlaceholder: t.urlPlaceholder,
+      authType: t.authType,
+      authHint: t.authHint,
+      tags: t.tags,
+      docsUrl: t.docsUrl,
+    })),
+    categories: MCP_CATEGORIES,
+  })
 }
 
-// POST /api/mcp - Add or update MCP server configuration
+// POST /api/mcp — Add a server and optionally connect
 export async function POST(req: NextRequest) {
   try {
-    const config = await req.json()
-    
-    // Validate required fields
-    if (!config.id || !config.name || !config.endpoint) {
-      return NextResponse.json(
-        { error: 'Missing required fields: id, name, endpoint' },
-        { status: 400 }
-      )
+    const body = await req.json()
+    const { url, name, token, tags, connect: autoConnect } = body
+
+    if (!url || !name) {
+      return NextResponse.json({ error: 'url and name are required' }, { status: 400 })
     }
 
-    mcpManager.addServer(config)
-    
-    return NextResponse.json({ 
-      success: true, 
-      message: `Server ${config.name} configured successfully` 
-    })
-  } catch (error) {
-    console.error('Error configuring MCP server:', error)
-    return NextResponse.json(
-      { error: 'Failed to configure MCP server' },
-      { status: 500 }
-    )
-  }
-}
+    const config: MCPServerConfig = {
+      id: `mcp-${Date.now()}`,
+      name,
+      description: body.description || '',
+      url,
+      enabled: true,
+      tags: tags || [],
+    }
 
-// PUT /api/mcp/[serverId]/connect - Connect to an MCP server
-export async function PUT(req: NextRequest) {
-  const url = new URL(req.url)
-  const pathParts = url.pathname.split('/')
-  const serverId = pathParts[pathParts.length - 2] // Get serverId from path
-  const action = pathParts[pathParts.length - 1] // Get action (connect/disconnect)
+    if (token) {
+      config.auth = { type: 'bearer', token }
+    }
 
-  if (!serverId) {
-    return NextResponse.json(
-      { error: 'Server ID is required' },
-      { status: 400 }
-    )
-  }
+    mcpClient.addServer(config)
 
-  try {
-    if (action === 'connect') {
-      const success = await mcpManager.connectServer(serverId)
-      if (success) {
-        const tools = mcpManager.getAvailableTools().filter(tool => tool.serverId === serverId)
-        return NextResponse.json({ 
-          success: true, 
-          message: `Connected to ${serverId}`,
-          tools: tools.map(tool => ({
-            name: tool.name,
-            description: tool.description
-          }))
-        })
-      } else {
-        return NextResponse.json(
-          { error: `Failed to connect to ${serverId}` },
-          { status: 500 }
-        )
-      }
-    } else if (action === 'disconnect') {
-      await mcpManager.disconnectServer(serverId)
-      return NextResponse.json({ 
-        success: true, 
-        message: `Disconnected from ${serverId}` 
+    if (autoConnect !== false) {
+      const state = await mcpClient.connect(config.id)
+      return NextResponse.json({
+        ok: true,
+        server: {
+          id: config.id,
+          name: config.name,
+          connected: state.connected,
+          tools: state.tools.map(t => ({ name: t.name, description: t.description })),
+          error: state.error,
+        },
       })
-    } else {
-      return NextResponse.json(
-        { error: 'Invalid action. Use connect or disconnect' },
-        { status: 400 }
-      )
     }
+
+    return NextResponse.json({ ok: true, server: { id: config.id, name: config.name } })
   } catch (error) {
-    console.error(`Error ${action}ing MCP server ${serverId}:`, error)
     return NextResponse.json(
-      { error: `Failed to ${action} MCP server` },
-      { status: 500 }
+      { error: error instanceof Error ? error.message : 'Failed to add server' },
+      { status: 500 },
     )
   }
 }
 
-// DELETE /api/mcp/[serverId] - Remove MCP server configuration
-export async function DELETE(req: NextRequest) {
-  const url = new URL(req.url)
-  const serverId = url.pathname.split('/').pop()
+// PUT /api/mcp — Connect or disconnect a server
+export async function PUT(req: NextRequest) {
+  try {
+    const { serverId, action } = await req.json()
 
-  if (!serverId) {
+    if (!serverId || !action) {
+      return NextResponse.json({ error: 'serverId and action are required' }, { status: 400 })
+    }
+
+    if (action === 'connect') {
+      const state = await mcpClient.connect(serverId)
+      return NextResponse.json({
+        ok: true,
+        connected: state.connected,
+        tools: state.tools.map(t => ({ name: t.name, description: t.description })),
+        error: state.error,
+      })
+    }
+
+    if (action === 'disconnect') {
+      mcpClient.disconnect(serverId)
+      return NextResponse.json({ ok: true, connected: false })
+    }
+
+    return NextResponse.json({ error: 'action must be connect or disconnect' }, { status: 400 })
+  } catch (error) {
     return NextResponse.json(
-      { error: 'Server ID is required' },
-      { status: 400 }
+      { error: error instanceof Error ? error.message : 'Failed' },
+      { status: 500 },
     )
   }
+}
 
+// DELETE /api/mcp — Remove a server
+export async function DELETE(req: NextRequest) {
   try {
-    mcpManager.removeServer(serverId)
-    return NextResponse.json({ 
-      success: true, 
-      message: `Server ${serverId} removed successfully` 
-    })
+    const { serverId } = await req.json()
+    if (!serverId) {
+      return NextResponse.json({ error: 'serverId is required' }, { status: 400 })
+    }
+
+    mcpClient.disconnect(serverId)
+    mcpClient.removeServer(serverId)
+    return NextResponse.json({ ok: true })
   } catch (error) {
-    console.error(`Error removing MCP server ${serverId}:`, error)
     return NextResponse.json(
-      { error: 'Failed to remove MCP server' },
-      { status: 500 }
+      { error: error instanceof Error ? error.message : 'Failed' },
+      { status: 500 },
     )
   }
 }

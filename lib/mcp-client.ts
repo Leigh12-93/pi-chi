@@ -1,231 +1,253 @@
-import { Client } from '@modelcontextprotocol/client'
+/**
+ * Lightweight MCP Client for Forge
+ *
+ * Speaks MCP protocol over HTTP (Streamable HTTP transport) using fetch().
+ * No external SDK needed — works on Vercel serverless.
+ *
+ * MCP Streamable HTTP = JSON-RPC 2.0 over POST requests.
+ * Reference: https://modelcontextprotocol.io/docs/concepts/transports#streamable-http
+ */
+
 import { z } from 'zod'
 
-// MCP Server Configuration
+// ─── Types ──────────────────────────────────────────────────────────
+
 export interface MCPServerConfig {
   id: string
   name: string
   description: string
-  endpoint: string
-  transport: 'http' | 'stdio' | 'websocket'
+  url: string                // Base URL of the MCP server's HTTP endpoint
   auth?: {
-    type: 'bearer' | 'basic' | 'api-key'
+    type: 'bearer' | 'header'
     token?: string
-    username?: string
-    password?: string
-    apiKey?: string
-    header?: string
+    headerName?: string      // Custom header name (e.g. 'x-api-key')
+    headerValue?: string
   }
   enabled: boolean
   tags: string[]
 }
 
-// MCP Tool Definition
-export interface MCPTool {
-  serverId: string
+export interface MCPToolDef {
   name: string
   description: string
-  inputSchema: z.ZodSchema
-  handler: (args: any) => Promise<any>
+  inputSchema: Record<string, unknown>  // JSON Schema from the server
 }
 
-// MCP Client Manager
-export class MCPClientManager {
-  private clients = new Map<string, Client>()
-  private tools = new Map<string, MCPTool>()
-  private servers: MCPServerConfig[] = []
+export interface MCPServerState {
+  config: MCPServerConfig
+  connected: boolean
+  tools: MCPToolDef[]
+  error?: string
+}
 
-  constructor() {
-    // Initialize with default servers
-    this.servers = [
-      {
-        id: 'supabase-local',
-        name: 'Supabase Local',
-        description: 'Local Supabase database operations',
-        endpoint: 'http://localhost:54321/functions/v1/mcp-server/mcp',
-        transport: 'http',
-        enabled: false,
-        tags: ['database', 'supabase']
-      },
-      {
-        id: 'filesystem',
-        name: 'Filesystem',
-        description: 'File system operations beyond basic read/write',
-        endpoint: 'stdio://filesystem-mcp',
-        transport: 'stdio',
-        enabled: false,
-        tags: ['filesystem', 'files']
-      },
-      {
-        id: 'git',
-        name: 'Git Operations',
-        description: 'Advanced Git operations and repository management',
-        endpoint: 'stdio://git-mcp',
-        transport: 'stdio',
-        enabled: false,
-        tags: ['git', 'version-control']
-      }
-    ]
-  }
+interface JsonRpcRequest {
+  jsonrpc: '2.0'
+  id: number
+  method: string
+  params?: Record<string, unknown>
+}
 
-  // Get all configured servers
-  getServers(): MCPServerConfig[] {
-    return [...this.servers]
-  }
+interface JsonRpcResponse {
+  jsonrpc: '2.0'
+  id: number
+  result?: any
+  error?: { code: number; message: string; data?: any }
+}
 
-  // Add or update server configuration
-  addServer(config: MCPServerConfig): void {
-    const index = this.servers.findIndex(s => s.id === config.id)
-    if (index >= 0) {
-      this.servers[index] = config
-    } else {
-      this.servers.push(config)
-    }
-  }
+// ─── MCP Client ─────────────────────────────────────────────────────
 
-  // Remove server configuration
-  removeServer(serverId: string): void {
-    this.servers = this.servers.filter(s => s.id !== serverId)
-    this.disconnectServer(serverId)
-  }
+export class MCPClient {
+  private servers = new Map<string, MCPServerState>()
+  private requestId = 0
 
-  // Connect to an MCP server
-  async connectServer(serverId: string): Promise<boolean> {
-    const config = this.servers.find(s => s.id === serverId)
-    if (!config || !config.enabled) {
-      return false
+  /** Send a JSON-RPC request to an MCP server */
+  private async rpc(config: MCPServerConfig, method: string, params?: Record<string, unknown>): Promise<any> {
+    const body: JsonRpcRequest = {
+      jsonrpc: '2.0',
+      id: ++this.requestId,
+      method,
+      ...(params ? { params } : {}),
     }
 
-    try {
-      let client: Client
+    const headers: Record<string, string> = {
+      'Content-Type': 'application/json',
+      'Accept': 'application/json',
+    }
 
-      if (config.transport === 'http') {
-        // HTTP transport
-        const { HttpTransport } = await import('@modelcontextprotocol/client')
-        const transport = new HttpTransport(config.endpoint)
-        client = new Client({ transport })
-      } else if (config.transport === 'stdio') {
-        // STDIO transport (for local MCP servers)
-        const { StdioTransport } = await import('@modelcontextprotocol/client')
-        const transport = new StdioTransport({
-          command: config.endpoint.replace('stdio://', ''),
-          args: []
-        })
-        client = new Client({ transport })
-      } else {
-        throw new Error(`Unsupported transport: ${config.transport}`)
+    if (config.auth) {
+      if (config.auth.type === 'bearer' && config.auth.token) {
+        headers['Authorization'] = `Bearer ${config.auth.token}`
+      } else if (config.auth.type === 'header' && config.auth.headerName && config.auth.headerValue) {
+        headers[config.auth.headerName] = config.auth.headerValue
       }
+    }
 
-      // Connect and initialize
-      await client.connect()
-      
-      // Get available tools from the server
-      const toolsResponse = await client.request({
-        method: 'tools/list',
-        params: {}
-      })
+    const res = await fetch(config.url, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify(body),
+    })
 
-      // Register tools from this server
-      if (toolsResponse.tools) {
-        for (const tool of toolsResponse.tools) {
-          const mcpTool: MCPTool = {
-            serverId,
-            name: tool.name,
-            description: tool.description || '',
-            inputSchema: z.object(tool.inputSchema?.properties || {}),
-            handler: async (args: any) => {
-              return await client.request({
-                method: 'tools/call',
-                params: {
-                  name: tool.name,
-                  arguments: args
-                }
-              })
-            }
-          }
-          this.tools.set(`${serverId}:${tool.name}`, mcpTool)
+    if (!res.ok) {
+      throw new Error(`MCP server ${config.id} returned ${res.status}: ${res.statusText}`)
+    }
+
+    const contentType = res.headers.get('content-type') || ''
+
+    // Handle JSON response (standard Streamable HTTP)
+    if (contentType.includes('application/json')) {
+      const json: JsonRpcResponse = await res.json()
+      if (json.error) {
+        throw new Error(`MCP error ${json.error.code}: ${json.error.message}`)
+      }
+      return json.result
+    }
+
+    // Handle SSE response (some servers send SSE for long-running tools)
+    if (contentType.includes('text/event-stream')) {
+      const text = await res.text()
+      const lines = text.split('\n')
+      for (const line of lines) {
+        if (line.startsWith('data: ')) {
+          try {
+            const json: JsonRpcResponse = JSON.parse(line.slice(6))
+            if (json.error) throw new Error(`MCP error ${json.error.code}: ${json.error.message}`)
+            return json.result
+          } catch { /* skip non-JSON lines */ }
         }
       }
-
-      this.clients.set(serverId, client)
-      return true
-    } catch (error) {
-      console.error(`Failed to connect to MCP server ${serverId}:`, error)
-      return false
-    }
-  }
-
-  // Disconnect from an MCP server
-  async disconnectServer(serverId: string): Promise<void> {
-    const client = this.clients.get(serverId)
-    if (client) {
-      try {
-        await client.disconnect()
-      } catch (error) {
-        console.error(`Error disconnecting from ${serverId}:`, error)
-      }
-      this.clients.delete(serverId)
+      throw new Error('No valid JSON-RPC response in SSE stream')
     }
 
-    // Remove tools from this server
-    for (const [key] of this.tools) {
-      if (key.startsWith(`${serverId}:`)) {
-        this.tools.delete(key)
-      }
-    }
+    throw new Error(`Unexpected content type: ${contentType}`)
   }
 
-  // Get all available tools from connected servers
-  getAvailableTools(): MCPTool[] {
-    return Array.from(this.tools.values())
+  /** Add a server configuration */
+  addServer(config: MCPServerConfig): void {
+    this.servers.set(config.id, {
+      config,
+      connected: false,
+      tools: [],
+    })
   }
 
-  // Get a specific tool
-  getTool(serverId: string, toolName: string): MCPTool | undefined {
-    return this.tools.get(`${serverId}:${toolName}`)
+  /** Remove a server */
+  removeServer(id: string): void {
+    this.servers.delete(id)
   }
 
-  // Execute a tool
-  async executeTool(serverId: string, toolName: string, args: any): Promise<any> {
-    const tool = this.getTool(serverId, toolName)
-    if (!tool) {
-      throw new Error(`Tool ${toolName} not found on server ${serverId}`)
-    }
-
-    return await tool.handler(args)
-  }
-
-  // Connect to all enabled servers
-  async connectAllServers(): Promise<void> {
-    const enabledServers = this.servers.filter(s => s.enabled)
-    await Promise.allSettled(
-      enabledServers.map(server => this.connectServer(server.id))
-    )
-  }
-
-  // Disconnect from all servers
-  async disconnectAllServers(): Promise<void> {
-    await Promise.allSettled(
-      Array.from(this.clients.keys()).map(serverId => this.disconnectServer(serverId))
-    )
-  }
-
-  // Health check for a server
-  async checkServerHealth(serverId: string): Promise<boolean> {
-    const client = this.clients.get(serverId)
-    if (!client) return false
+  /** Connect to a server — initializes and discovers tools */
+  async connect(serverId: string): Promise<MCPServerState> {
+    const state = this.servers.get(serverId)
+    if (!state) throw new Error(`Server ${serverId} not configured`)
 
     try {
-      await client.request({
-        method: 'ping',
-        params: {}
+      // 1. Initialize the connection
+      await this.rpc(state.config, 'initialize', {
+        protocolVersion: '2025-03-26',
+        capabilities: {},
+        clientInfo: { name: 'forge', version: '1.0.0' },
       })
-      return true
-    } catch {
-      return false
+
+      // 2. Send initialized notification (no response expected, but we send via RPC)
+      try {
+        await this.rpc(state.config, 'notifications/initialized', {})
+      } catch {
+        // Some servers don't respond to notifications — that's OK
+      }
+
+      // 3. Discover available tools
+      const toolsResult = await this.rpc(state.config, 'tools/list', {})
+      const tools: MCPToolDef[] = (toolsResult?.tools || []).map((t: any) => ({
+        name: t.name,
+        description: t.description || '',
+        inputSchema: t.inputSchema || {},
+      }))
+
+      state.connected = true
+      state.tools = tools
+      state.error = undefined
+      return state
+    } catch (err) {
+      state.connected = false
+      state.tools = []
+      state.error = err instanceof Error ? err.message : 'Connection failed'
+      return state
     }
+  }
+
+  /** Disconnect from a server */
+  disconnect(serverId: string): void {
+    const state = this.servers.get(serverId)
+    if (state) {
+      state.connected = false
+      state.tools = []
+    }
+  }
+
+  /** Execute a tool on a connected server */
+  async callTool(serverId: string, toolName: string, args: Record<string, unknown>): Promise<any> {
+    const state = this.servers.get(serverId)
+    if (!state) throw new Error(`Server ${serverId} not configured`)
+    if (!state.connected) throw new Error(`Server ${serverId} not connected`)
+
+    const result = await this.rpc(state.config, 'tools/call', {
+      name: toolName,
+      arguments: args,
+    })
+
+    // MCP tools return content array — extract text content
+    if (result?.content && Array.isArray(result.content)) {
+      const textParts = result.content
+        .filter((c: any) => c.type === 'text')
+        .map((c: any) => c.text)
+      if (textParts.length === 1) return textParts[0]
+      if (textParts.length > 1) return textParts.join('\n')
+      // If no text content, return the raw result
+      return result.content[0]
+    }
+
+    return result
+  }
+
+  /** Get all configured servers with their state */
+  getServers(): MCPServerState[] {
+    return Array.from(this.servers.values())
+  }
+
+  /** Get a specific server state */
+  getServer(id: string): MCPServerState | undefined {
+    return this.servers.get(id)
+  }
+
+  /** Get all tools from all connected servers */
+  getAllTools(): Array<MCPToolDef & { serverId: string }> {
+    const tools: Array<MCPToolDef & { serverId: string }> = []
+    for (const [serverId, state] of this.servers) {
+      if (state.connected) {
+        for (const tool of state.tools) {
+          tools.push({ ...tool, serverId })
+        }
+      }
+    }
+    return tools
+  }
+
+  /** Connect to all enabled servers */
+  async connectAll(): Promise<MCPServerState[]> {
+    const results: MCPServerState[] = []
+    for (const [_, state] of this.servers) {
+      if (state.config.enabled) {
+        results.push(await this.connect(state.config.id))
+      }
+    }
+    return results
   }
 }
 
-// Global MCP client manager instance
-export const mcpManager = new MCPClientManager()
+// ─── Singleton ──────────────────────────────────────────────────────
+
+// Note: On Vercel serverless, this resets per invocation.
+// For persistent connections, servers need to be re-connected per request.
+// In practice, MCP HTTP servers are stateless per-request anyway.
+export const mcpClient = new MCPClient()
