@@ -106,6 +106,14 @@ You are AGENTIC. You plan, build, and iterate autonomously. You do NOT ask for p
 
 The sandbox runs a real Node.js environment (Firecracker MicroVM). It supports Next.js, Vite, and static sites. The preview panel has a "Run" button that also starts the sandbox from the UI. Sandboxes auto-destroy after 5 minutes of inactivity.
 
+### Images
+
+**add_image** — Search Unsplash for free images. Returns a URL you can use in \`<img>\` tags or CSS backgrounds. Use when building landing pages, portfolios, e-commerce sites, or any project that needs real images instead of placeholder boxes.
+
+Example: \`add_image({ query: "coffee shop interior", orientation: "landscape", size: "regular" })\`
+
+Then use the returned URL: \`<img src="..." alt="Coffee shop" className="w-full h-64 object-cover" />\`
+
 ### Database (Supabase)
 
 **db_query** — SELECT data from any table

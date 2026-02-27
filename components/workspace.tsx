@@ -8,7 +8,7 @@ import { FileTree } from './file-tree'
 import { PreviewPanel } from './preview-panel'
 import { Header } from './header'
 import { useKeyboardShortcuts } from '@/lib/keyboard-shortcuts'
-import { MessageSquare, FolderTree, Code2, Eye } from 'lucide-react'
+import { MessageSquare, FolderTree, Code2, Eye, Loader2 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import type { FileNode } from '@/lib/types'
 
@@ -115,13 +115,39 @@ export function Workspace({
     'create-repo': 'Create a new GitHub repository for this project and push all files.',
   }
 
+  const handleDownload = useCallback(async () => {
+    const fileEntries = Object.entries(files)
+    if (fileEntries.length === 0) return
+
+    const JSZip = (await import('jszip')).default
+    const zip = new JSZip()
+
+    for (const [path, content] of fileEntries) {
+      zip.file(path, content)
+    }
+
+    const blob = await zip.generateAsync({ type: 'blob' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `${projectName || 'project'}.zip`
+    document.body.appendChild(a)
+    a.click()
+    document.body.removeChild(a)
+    URL.revokeObjectURL(url)
+  }, [files, projectName])
+
   const handleAction = useCallback((action: string) => {
+    if (action === 'download') {
+      handleDownload()
+      return
+    }
     const message = ACTION_MESSAGES[action]
     if (message && chatSendRef.current) {
       chatSendRef.current(message)
       setMobileTab('chat')
     }
-  }, [])
+  }, [handleDownload])
 
   const handleCloseFile = (path: string) => {
     setOpenFiles(prev => prev.filter(f => f !== path))

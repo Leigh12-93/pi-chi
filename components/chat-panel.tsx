@@ -9,7 +9,7 @@ import {
   AlertTriangle, CheckCircle, XCircle,
   StopCircle, Sparkles, ArrowUp, Lightbulb,
   Brain, Database, Wrench, RefreshCw,
-  BookOpen, Save, Plug,
+  BookOpen, Save, Plug, ImageIcon,
   type LucideIcon,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
@@ -64,6 +64,7 @@ const TOOL_LABELS: Record<string, { label: string; Icon: LucideIcon; color: stri
   start_sandbox: { label: 'Starting sandbox', Icon: Rocket, color: 'green' },
   stop_sandbox: { label: 'Stopping sandbox', Icon: Terminal, color: 'red' },
   sandbox_status: { label: 'Checking sandbox', Icon: Rocket, color: 'blue' },
+  add_image: { label: 'Finding image', Icon: ImageIcon, color: 'cyan' },
 }
 
 const QUICK_ACTIONS = [

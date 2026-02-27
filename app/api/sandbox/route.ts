@@ -6,10 +6,21 @@ import {
   getSandboxStatus,
   isE2BConfigured,
 } from '@/lib/e2b-sandbox'
+import { sandboxLimiter } from '@/lib/rate-limit'
 
 // POST /api/sandbox — Create sandbox with project files
 export async function POST(req: NextRequest) {
   try {
+    // Rate limit — 5 sandbox creations/minute per IP
+    const ip = req.headers.get('x-forwarded-for')?.split(',')[0]?.trim() || 'unknown'
+    const limit = sandboxLimiter(ip)
+    if (!limit.ok) {
+      return NextResponse.json(
+        { error: 'Rate limited. Too many sandbox requests.' },
+        { status: 429, headers: { 'Retry-After': String(Math.ceil(limit.resetIn / 1000)) } },
+      )
+    }
+
     const { projectId, files, framework } = await req.json()
 
     if (!projectId || !files) {

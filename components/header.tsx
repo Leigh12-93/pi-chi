@@ -3,7 +3,7 @@
 import { useSession } from '@/components/session-provider'
 import {
   Hammer, FolderOpen, FileText, Github, LogOut,
-  Rocket, Upload, Save, GitBranch,
+  Rocket, Upload, Save, GitBranch, Download,
 } from 'lucide-react'
 
 interface HeaderProps {
@@ -21,6 +21,7 @@ export function Header({ projectName, onSwitchProject, fileCount, onAction }: He
     { id: 'deploy', icon: Rocket, label: 'Deploy', tip: 'Deploy to Vercel', color: 'hover:text-blue-600' },
     { id: 'push', icon: Upload, label: 'Push', tip: 'Push to GitHub', color: 'hover:text-purple-600' },
     { id: 'create-repo', icon: GitBranch, label: 'New Repo', tip: 'Create GitHub repo', color: 'hover:text-orange-600' },
+    { id: 'download', icon: Download, label: 'Download', tip: 'Download project as ZIP', color: 'hover:text-cyan-600' },
   ]
 
   return (
