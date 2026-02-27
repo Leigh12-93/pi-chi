@@ -318,14 +318,18 @@ export function ChatPanel({ projectName, projectId, files, onFileChange, onFileD
     append({ role: 'user', content })
   }, [input, isLoading, append])
 
-  // Register send function for parent
+  // Keep a stable ref to append so parent's send function always works
+  const appendRef = useRef(append)
+  useEffect(() => { appendRef.current = append }, [append])
+
+  // Register send function for parent (once)
   useEffect(() => {
     if (onRegisterSend) {
       onRegisterSend((message: string) => {
-        append({ role: 'user', content: message })
+        appendRef.current({ role: 'user', content: message })
       })
     }
-  }, [onRegisterSend, append])
+  }, [onRegisterSend])
 
   const handleCopy = (id: string, content: string) => {
     navigator.clipboard.writeText(content)
