@@ -76,6 +76,7 @@ export function Workspace({
   const [showSidebar, setShowSidebar] = useState(true)
   const [activeDialog, setActiveDialog] = useState<DialogType>(null)
   const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle')
+  const [pendingChatMessage, setPendingChatMessage] = useState<string | null>(null)
   const chatSendRef = useRef<((message: string) => void) | null>(null)
 
   const fileTree = useMemo(() => buildTreeFromMap(files), [files])
@@ -168,20 +169,15 @@ export function Workspace({
   }, [handleDownload, handleSave])
 
   const handleDialogSuccess = useCallback((result: Record<string, unknown>) => {
-    // Notify the chat for history
-    if (chatSendRef.current) {
-      if (result.url) {
-        chatSendRef.current(`[System] Operation completed successfully. URL: ${result.url}`)
-      } else if (result.commitSha) {
-        chatSendRef.current(`[System] Pushed to GitHub. Commit: ${String(result.commitSha).slice(0, 7)}`)
-      }
+    if (result.url) {
+      setPendingChatMessage(`[System] Operation completed successfully. URL: ${result.url}`)
+    } else if (result.commitSha) {
+      setPendingChatMessage(`[System] Pushed to GitHub. Commit: ${String(result.commitSha).slice(0, 7)}`)
     }
   }, [])
 
   const handleDialogFix = useCallback((errorMessage: string) => {
-    if (chatSendRef.current) {
-      chatSendRef.current(`The deploy failed with these build errors. Please fix them:\n\n\`\`\`\n${errorMessage}\n\`\`\``)
-    }
+    setPendingChatMessage(`The deploy failed with these build errors. Please fix them:\n\n\`\`\`\n${errorMessage}\n\`\`\``)
     setMobileTab('chat')
   }, [])
 
@@ -219,6 +215,8 @@ export function Workspace({
       onBulkFileUpdate={onBulkFileUpdate}
       githubToken={githubToken}
       onRegisterSend={handleRegisterSend}
+      pendingMessage={pendingChatMessage}
+      onPendingMessageSent={() => setPendingChatMessage(null)}
     />
   )
 

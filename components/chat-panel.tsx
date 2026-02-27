@@ -209,9 +209,11 @@ interface ChatPanelProps {
   onBulkFileUpdate: (files: Record<string, string>) => void
   githubToken?: string
   onRegisterSend?: (sendFn: (message: string) => void) => void
+  pendingMessage?: string | null
+  onPendingMessageSent?: () => void
 }
 
-export function ChatPanel({ projectName, projectId, files, onFileChange, onFileDelete, onBulkFileUpdate, githubToken, onRegisterSend }: ChatPanelProps) {
+export function ChatPanel({ projectName, projectId, files, onFileChange, onFileDelete, onBulkFileUpdate, githubToken, onRegisterSend, pendingMessage, onPendingMessageSent }: ChatPanelProps) {
   const {
     messages,
     setMessages,
@@ -330,6 +332,14 @@ export function ChatPanel({ projectName, projectId, files, onFileChange, onFileD
       })
     }
   }, [onRegisterSend])
+
+  // Handle pending messages from parent (e.g., "Fix with AI" button)
+  useEffect(() => {
+    if (pendingMessage && !isLoading) {
+      append({ role: 'user', content: pendingMessage })
+      onPendingMessageSent?.()
+    }
+  }, [pendingMessage, isLoading, append, onPendingMessageSent])
 
   const handleCopy = (id: string, content: string) => {
     navigator.clipboard.writeText(content)
