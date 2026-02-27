@@ -91,17 +91,17 @@ export function PreviewPanel({ files }: PreviewPanelProps) {
 
       // Extract JSX from the default export function
       // This is a simplified approach — it extracts the return statement
-      const jsxMatch = appFile.match(/return\\s*\\(\\s*([\\s\\S]*)\\s*\\)\\s*\\}?\\s*$/m)
+      const jsxMatch = appFile.match(/return\s*\(\s*([\s\S]*)\s*\)\s*\}?\s*$/m)
       let jsx = jsxMatch ? jsxMatch[1] : '<div class="p-8 text-center">Preview loading...</div>'
 
       // Clean up TSX syntax for plain HTML
       jsx = jsx
         .replace(/className=/g, 'class=')
-        .replace(/\\{\\/\\*.*?\\*\\/\\}/g, '') // Remove JSX comments
-        .replace(/\\{`([^`]*)`\\}/g, '$1') // Template literals
-        .replace(/\\{'([^']*)'\\}/g, '$1') // String expressions
-        .replace(/<(\\w+)\\s*\\/>/g, '<$1></$1>') // Self-closing tags
-        .replace(/\\{[^}]*\\}/g, '') // Remove remaining JSX expressions
+        .replace(/\{\/\*.*?\*\/\}/g, '') // Remove JSX comments
+        .replace(/\{`([^`]*)`\}/g, '$1') // Template literals
+        .replace(/\{'([^']*)'\}/g, '$1') // String expressions
+        .replace(/<(\w+)\s*\/>/g, '<$1></$1>') // Self-closing tags
+        .replace(/\{[^}]*\}/g, '') // Remove remaining JSX expressions
 
       // Get CSS
       const css = files['app/globals.css'] || files['src/index.css'] || ''
@@ -115,7 +115,7 @@ export function PreviewPanel({ files }: PreviewPanelProps) {
   <title>Preview</title>
   ${hasTailwind ? '<script src="https://cdn.tailwindcss.com"></script>' : ''}
   <style>
-    ${css.replace(/@import\\s+"tailwindcss";\\s*/g, '').replace(/@import\\s+'tailwindcss';\\s*/g, '')}
+    ${css.replace(/@import\s+"tailwindcss";\s*/g, '').replace(/@import\s+'tailwindcss';\s*/g, '')}
     body { margin: 0; font-family: system-ui, -apple-system, sans-serif; }
   </style>
 </head>

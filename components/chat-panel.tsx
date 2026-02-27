@@ -33,7 +33,6 @@ const TOOL_LABELS: Record<string, { label: string; Icon: LucideIcon; color: stri
   deploy_to_vercel: { label: 'Deploying to Vercel', Icon: Rocket, color: 'blue' },
   get_all_files: { label: 'File manifest', Icon: Eye, color: 'blue' },
   rename_file: { label: 'Renaming file', Icon: Pencil, color: 'yellow' },
-  // Superpower tools
   db_query: { label: 'Querying database', Icon: Database, color: 'green' },
   db_mutate: { label: 'Modifying database', Icon: Database, color: 'yellow' },
   save_project: { label: 'Saving project', Icon: Save, color: 'green' },
@@ -44,10 +43,8 @@ const TOOL_LABELS: Record<string, { label: string; Icon: LucideIcon; color: stri
   github_list_repo_files: { label: 'Listing repo files', Icon: FolderPlus, color: 'blue' },
   github_modify_external_file: { label: 'Modifying repo file', Icon: Pencil, color: 'yellow' },
   github_search_code: { label: 'Searching GitHub', Icon: Search, color: 'purple' },
-  load_chat_history: { label: 'Loading chat history', Icon: BookOpen, color: 'blue' },
-  load_chat_history: { label: 'Loading chat history', Icon: BookOpen, color: 'blue' },
-  load_chat_history: { label: 'Loading chat history', Icon: BookOpen, color: 'blue' },
-  load_chat_history: { label: 'Loading chat history', Icon: BookOpen, color: 'blue' },
+  load_chat_history: { label: 'Loading chat history', Icon: Database, color: 'blue' },
+  github_pull_latest: { label: 'Pulling from GitHub', Icon: RefreshCw, color: 'green' },
 }
 
 const QUICK_ACTIONS = [
@@ -58,16 +55,16 @@ const QUICK_ACTIONS = [
 ]
 
 // ═══════════════════════════════════════════════════════════════════
-// Markdown renderer
+// Markdown renderer (light theme)
 // ═══════════════════════════════════════════════════════════════════
 
 function renderMarkdown(text: string): string {
   return text
-    .replace(/```(\w*)\n([\s\S]*?)```/g, '<pre class="bg-gray-900/80 text-gray-100 rounded-lg p-3 my-2 overflow-x-auto text-[12px] font-mono leading-relaxed border border-gray-700/50"><code>$2</code></pre>')
-    .replace(/`([^`]+)`/g, '<code class="bg-gray-800 px-1.5 py-0.5 rounded text-[12px] font-mono text-indigo-300">$1</code>')
-    .replace(/^### (.+)$/gm, '<h3 class="text-[13px] font-bold mt-3 mb-1 text-gray-200">$1</h3>')
-    .replace(/^## (.+)$/gm, '<h2 class="text-sm font-bold mt-3 mb-1.5 text-gray-100">$1</h2>')
-    .replace(/\*\*(.+?)\*\*/g, '<strong class="font-semibold text-gray-100">$1</strong>')
+    .replace(/```(\w*)\n([\s\S]*?)```/g, '<pre class="bg-gray-100 text-gray-800 rounded-lg p-3 my-2 overflow-x-auto text-[12px] font-mono leading-relaxed border border-gray-200"><code>$2</code></pre>')
+    .replace(/`([^`]+)`/g, '<code class="bg-indigo-50 px-1.5 py-0.5 rounded text-[12px] font-mono text-indigo-600">$1</code>')
+    .replace(/^### (.+)$/gm, '<h3 class="text-[13px] font-bold mt-3 mb-1 text-gray-800">$1</h3>')
+    .replace(/^## (.+)$/gm, '<h2 class="text-sm font-bold mt-3 mb-1.5 text-gray-900">$1</h2>')
+    .replace(/\*\*(.+?)\*\*/g, '<strong class="font-semibold text-gray-900">$1</strong>')
     .replace(/\*(.+?)\*/g, '<em>$1</em>')
     .replace(/^\d+\. (.+)$/gm, '<li class="ml-4 pl-1 list-decimal text-[13px] leading-relaxed">$1</li>')
     .replace(/^- (.+)$/gm, '<li class="ml-4 pl-1 list-disc text-[13px] leading-relaxed">$1</li>')
@@ -94,7 +91,6 @@ function getToolSummary(toolName: string, args: Record<string, unknown>, result:
     case 'search_files': return data ? `${data.count || 0} matches` : 'Searching...'
     case 'rename_file': return args.newPath ? `→ ${args.newPath}` : 'Renaming...'
     case 'get_all_files': return data ? `${(data as any).totalFiles || 0} files` : 'Reading manifest...'
-    // Superpower tools
     case 'db_query': return args.table ? `${args.table}${args.filters ? ` (${String(args.filters).slice(0, 40)})` : ''}` : 'Querying...'
     case 'db_mutate': return args.table ? `${args.operation} on ${args.table}` : 'Mutating...'
     case 'save_project': return data?.ok ? `${(data as any).savedFiles || 0} files saved` : 'Saving...'
@@ -105,13 +101,14 @@ function getToolSummary(toolName: string, args: Record<string, unknown>, result:
     case 'github_list_repo_files': return args.repo ? `${args.owner}/${args.repo}/${args.path || ''}` : 'Listing...'
     case 'github_modify_external_file': return args.path ? `${args.owner}/${args.repo}/${args.path}` : 'Modifying...'
     case 'github_search_code': return args.query ? String(args.query).slice(0, 50) : 'Searching...'
-    case 'load_chat_history': return data ? `${data.count || 0} messages loaded` : 'Loading...'
+    case 'load_chat_history': return data ? `${(data as any).count || 0} messages` : 'Loading...'
+    case 'github_pull_latest': return data?.ok ? `${(data as any).fileCount || 0} files pulled` : 'Pulling...'
     default: return 'Done'
   }
 }
 
 // ═══════════════════════════════════════════════════════════════════
-// Live file extraction — processes tool invocations as they stream
+// Live file extraction
 // ═══════════════════════════════════════════════════════════════════
 
 type ToolInvocation = {
@@ -121,12 +118,6 @@ type ToolInvocation = {
   result?: Record<string, unknown>
 }
 
-/**
- * Extract file changes from tool invocations.
- * For write_file: reads content from ARGS (not result) — available immediately at 'call' state.
- * For edit_file: applies old→new from ARGS against current file state.
- * For create_project: reads allFiles from RESULT (server-generated).
- */
 function extractFileUpdates(
   inv: ToolInvocation,
   currentFiles: Record<string, string>,
@@ -135,14 +126,12 @@ function extractFileUpdates(
 
   switch (inv.toolName) {
     case 'write_file':
-      // Available at 'call' state — content is in args
       if (typeof args.path === 'string' && typeof args.content === 'string') {
         return { updates: { [args.path]: args.content } }
       }
       return null
 
     case 'edit_file':
-      // Apply edit locally from args
       if (inv.state === 'result' && inv.result && !('error' in inv.result)) {
         const path = args.path as string
         const oldStr = args.old_string as string
@@ -164,16 +153,12 @@ function extractFileUpdates(
       if (typeof args.oldPath === 'string' && typeof args.newPath === 'string') {
         const content = currentFiles[args.oldPath]
         if (content !== undefined) {
-          return {
-            updates: { [args.newPath]: content },
-            deletes: [args.oldPath],
-          }
+          return { updates: { [args.newPath]: content }, deletes: [args.oldPath] }
         }
       }
       return null
 
     case 'create_project':
-      // Must wait for result — scaffold is generated server-side
       if (inv.state === 'result' && inv.result?.allFiles && typeof inv.result.allFiles === 'object') {
         return { updates: inv.result.allFiles as Record<string, string> }
       }
@@ -196,9 +181,10 @@ interface ChatPanelProps {
   onFileDelete: (path: string) => void
   onBulkFileUpdate: (files: Record<string, string>) => void
   githubToken?: string
+  onRegisterSend?: (sendFn: (message: string) => void) => void
 }
 
-export function ChatPanel({ projectName, projectId, files, onFileChange, onFileDelete, onBulkFileUpdate, githubToken }: ChatPanelProps) {
+export function ChatPanel({ projectName, projectId, files, onFileChange, onFileDelete, onBulkFileUpdate, githubToken, onRegisterSend }: ChatPanelProps) {
   const {
     messages,
     setMessages,
@@ -212,62 +198,12 @@ export function ChatPanel({ projectName, projectId, files, onFileChange, onFileD
     onError: (err) => console.error('Chat error:', err),
   })
 
-  const [historyLoaded, setHistoryLoaded] = useState(false)
-
-  const [historyLoaded, setHistoryLoaded] = useState(false)
-
-  const [historyLoaded, setHistoryLoaded] = useState(false)
-
-  const [historyLoaded, setHistoryLoaded] = useState(false)
-
-  const [historyLoaded, setHistoryLoaded] = useState(false)
-
-  const [historyLoaded, setHistoryLoaded] = useState(false)
-
-  const [historyLoaded, setHistoryLoaded] = useState(false)
-
-  const [historyLoaded, setHistoryLoaded] = useState(false)
-
-  const [historyLoaded, setHistoryLoaded] = useState(false)
-
-  const [historyLoaded, setHistoryLoaded] = useState(false)
-
-  const [historyLoaded, setHistoryLoaded] = useState(false)
-
-  const [historyLoaded, setHistoryLoaded] = useState(false)
-
-  const [historyLoaded, setHistoryLoaded] = useState(false)
-
-  const [historyLoaded, setHistoryLoaded] = useState(false)
-
-  const [historyLoaded, setHistoryLoaded] = useState(false)
-
-  const [historyLoaded, setHistoryLoaded] = useState(false)
-
-  const [historyLoaded, setHistoryLoaded] = useState(false)
-
-  const [historyLoaded, setHistoryLoaded] = useState(false)
-
-  const [historyLoaded, setHistoryLoaded] = useState(false)
-
-  const [historyLoaded, setHistoryLoaded] = useState(false)
-
-  const [historyLoaded, setHistoryLoaded] = useState(false)
-
-  const [historyLoaded, setHistoryLoaded] = useState(false)
-
-  const [historyLoaded, setHistoryLoaded] = useState(false)
-
-  const [historyLoaded, setHistoryLoaded] = useState(false)
-
   const [input, setInput] = useState('')
   const [copiedId, setCopiedId] = useState<string | null>(null)
+  const [historyLoaded, setHistoryLoaded] = useState(false)
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLTextAreaElement>(null)
-
-  // Track processed invocations individually (msg.id + invocation index)
   const processedInvs = useRef(new Set<string>())
-  // Keep a running copy of files for edit_file to apply against
   const localFiles = useRef<Record<string, string>>({})
 
   // Sync local files ref with props
@@ -275,747 +211,32 @@ export function ChatPanel({ projectName, projectId, files, onFileChange, onFileD
     localFiles.current = { ...files }
   }, [files])
 
-  // Load chat history when project changes
-  useEffect(() => {
-    const loadHistory = async () => {
-      if (projectId && !historyLoaded) {
-        setHistoryLoaded(true)
-        try {
-          const response = await fetch(`/api/projects/${projectId}/messages`)
-          if (response.ok) {
-            const data = await response.json()
-            if (data.messages && data.messages.length > 0) {
-              const historicalMessages = data.messages.map((msg: any) => ({
-                id: msg.id,
-                role: msg.role,
-                content: msg.content,
-                toolInvocations: msg.tool_invocations,
-              }))
-              setMessages(historicalMessages)
-            }
-          }
-        } catch (error) {
-          console.error('Failed to load chat history:', error)
-        }
-      } else if (!projectId) {
-        setHistoryLoaded(false)
-        setMessages([]) // Clear messages when switching to a project without ID
-      }
-    }
-    
-    loadHistory()
-  }, [projectId, historyLoaded, setMessages])
-
-  // Load chat history when project changes
-  useEffect(() => {
-    const loadHistory = async () => {
-      if (projectId && !historyLoaded) {
-        setHistoryLoaded(true)
-        try {
-          const response = await fetch(`/api/projects/${projectId}/messages`)
-          if (response.ok) {
-            const data = await response.json()
-            if (data.messages && data.messages.length > 0) {
-              const historicalMessages = data.messages.map((msg: any) => ({
-                id: msg.id,
-                role: msg.role,
-                content: msg.content,
-                toolInvocations: msg.tool_invocations,
-              }))
-              setMessages(historicalMessages)
-            }
-          }
-        } catch (error) {
-          console.error('Failed to load chat history:', error)
-        }
-      } else if (!projectId) {
-        setHistoryLoaded(false)
-        setMessages([]) // Clear messages when switching to a project without ID
-      }
-    }
-    
-    loadHistory()
-  }, [projectId, historyLoaded, setMessages])
-
-  // Load chat history when project changes
-  useEffect(() => {
-    const loadHistory = async () => {
-      if (projectId && !historyLoaded) {
-        setHistoryLoaded(true)
-        try {
-          const response = await fetch(`/api/projects/${projectId}/messages`)
-          if (response.ok) {
-            const data = await response.json()
-            if (data.messages && data.messages.length > 0) {
-              const historicalMessages = data.messages.map((msg: any) => ({
-                id: msg.id,
-                role: msg.role,
-                content: msg.content,
-                toolInvocations: msg.tool_invocations,
-              }))
-              setMessages(historicalMessages)
-            }
-          }
-        } catch (error) {
-          console.error('Failed to load chat history:', error)
-        }
-      } else if (!projectId) {
-        setHistoryLoaded(false)
-        setMessages([]) // Clear messages when switching to a project without ID
-      }
-    }
-    
-    loadHistory()
-  }, [projectId, historyLoaded, setMessages])
-
-  // Load chat history when project changes
-  useEffect(() => {
-    const loadHistory = async () => {
-      if (projectId && !historyLoaded) {
-        setHistoryLoaded(true)
-        try {
-          const response = await fetch(`/api/projects/${projectId}/messages`)
-          if (response.ok) {
-            const data = await response.json()
-            if (data.messages && data.messages.length > 0) {
-              const historicalMessages = data.messages.map((msg: any) => ({
-                id: msg.id,
-                role: msg.role,
-                content: msg.content,
-                toolInvocations: msg.tool_invocations,
-              }))
-              setMessages(historicalMessages)
-            }
-          }
-        } catch (error) {
-          console.error('Failed to load chat history:', error)
-        }
-      } else if (!projectId) {
-        setHistoryLoaded(false)
-        setMessages([]) // Clear messages when switching to a project without ID
-      }
-    }
-    
-    loadHistory()
-  }, [projectId, historyLoaded, setMessages])
-
-  // Load chat history when project changes
-  useEffect(() => {
-    const loadHistory = async () => {
-      if (projectId && !historyLoaded) {
-        setHistoryLoaded(true)
-        try {
-          const response = await fetch(`/api/projects/${projectId}/messages`)
-          if (response.ok) {
-            const data = await response.json()
-            if (data.messages && data.messages.length > 0) {
-              const historicalMessages = data.messages.map((msg: any) => ({
-                id: msg.id,
-                role: msg.role,
-                content: msg.content,
-                toolInvocations: msg.tool_invocations,
-              }))
-              setMessages(historicalMessages)
-            }
-          }
-        } catch (error) {
-          console.error('Failed to load chat history:', error)
-        }
-      } else if (!projectId) {
-        setHistoryLoaded(false)
-        setMessages([]) // Clear messages when switching to a project without ID
-      }
-    }
-    
-    loadHistory()
-  }, [projectId, historyLoaded, setMessages])
-
-  // Load chat history when project changes
-  useEffect(() => {
-    const loadHistory = async () => {
-      if (projectId && !historyLoaded) {
-        setHistoryLoaded(true)
-        try {
-          const response = await fetch(`/api/projects/${projectId}/messages`)
-          if (response.ok) {
-            const data = await response.json()
-            if (data.messages && data.messages.length > 0) {
-              const historicalMessages = data.messages.map((msg: any) => ({
-                id: msg.id,
-                role: msg.role,
-                content: msg.content,
-                toolInvocations: msg.tool_invocations,
-              }))
-              setMessages(historicalMessages)
-            }
-          }
-        } catch (error) {
-          console.error('Failed to load chat history:', error)
-        }
-      } else if (!projectId) {
-        setHistoryLoaded(false)
-        setMessages([]) // Clear messages when switching to a project without ID
-      }
-    }
-    
-    loadHistory()
-  }, [projectId, historyLoaded, setMessages])
-
-  // Load chat history when project changes
-  useEffect(() => {
-    const loadHistory = async () => {
-      if (projectId && !historyLoaded) {
-        setHistoryLoaded(true)
-        try {
-          const response = await fetch(`/api/projects/${projectId}/messages`)
-          if (response.ok) {
-            const data = await response.json()
-            if (data.messages && data.messages.length > 0) {
-              const historicalMessages = data.messages.map((msg: any) => ({
-                id: msg.id,
-                role: msg.role,
-                content: msg.content,
-                toolInvocations: msg.tool_invocations,
-              }))
-              setMessages(historicalMessages)
-            }
-          }
-        } catch (error) {
-          console.error('Failed to load chat history:', error)
-        }
-      } else if (!projectId) {
-        setHistoryLoaded(false)
-        setMessages([]) // Clear messages when switching to a project without ID
-      }
-    }
-    
-    loadHistory()
-  }, [projectId, historyLoaded, setMessages])
-
-  // Load chat history when project changes
-  useEffect(() => {
-    const loadHistory = async () => {
-      if (projectId && !historyLoaded) {
-        setHistoryLoaded(true)
-        try {
-          const response = await fetch(`/api/projects/${projectId}/messages`)
-          if (response.ok) {
-            const data = await response.json()
-            if (data.messages && data.messages.length > 0) {
-              const historicalMessages = data.messages.map((msg: any) => ({
-                id: msg.id,
-                role: msg.role,
-                content: msg.content,
-                toolInvocations: msg.tool_invocations,
-              }))
-              setMessages(historicalMessages)
-            }
-          }
-        } catch (error) {
-          console.error('Failed to load chat history:', error)
-        }
-      } else if (!projectId) {
-        setHistoryLoaded(false)
-        setMessages([]) // Clear messages when switching to a project without ID
-      }
-    }
-    
-    loadHistory()
-  }, [projectId, historyLoaded, setMessages])
-
-  // Load chat history when project changes
-  useEffect(() => {
-    const loadHistory = async () => {
-      if (projectId && !historyLoaded) {
-        setHistoryLoaded(true)
-        try {
-          const response = await fetch(`/api/projects/${projectId}/messages`)
-          if (response.ok) {
-            const data = await response.json()
-            if (data.messages && data.messages.length > 0) {
-              const historicalMessages = data.messages.map((msg: any) => ({
-                id: msg.id,
-                role: msg.role,
-                content: msg.content,
-                toolInvocations: msg.tool_invocations,
-              }))
-              setMessages(historicalMessages)
-            }
-          }
-        } catch (error) {
-          console.error('Failed to load chat history:', error)
-        }
-      } else if (!projectId) {
-        setHistoryLoaded(false)
-        setMessages([]) // Clear messages when switching to a project without ID
-      }
-    }
-    
-    loadHistory()
-  }, [projectId, historyLoaded, setMessages])
-
-  // Load chat history when project changes
-  useEffect(() => {
-    const loadHistory = async () => {
-      if (projectId && !historyLoaded) {
-        setHistoryLoaded(true)
-        try {
-          const response = await fetch(`/api/projects/${projectId}/messages`)
-          if (response.ok) {
-            const data = await response.json()
-            if (data.messages && data.messages.length > 0) {
-              const historicalMessages = data.messages.map((msg: any) => ({
-                id: msg.id,
-                role: msg.role,
-                content: msg.content,
-                toolInvocations: msg.tool_invocations,
-              }))
-              setMessages(historicalMessages)
-            }
-          }
-        } catch (error) {
-          console.error('Failed to load chat history:', error)
-        }
-      } else if (!projectId) {
-        setHistoryLoaded(false)
-        setMessages([]) // Clear messages when switching to a project without ID
-      }
-    }
-    
-    loadHistory()
-  }, [projectId, historyLoaded, setMessages])
-
-  // Load chat history when project changes
-  useEffect(() => {
-    const loadHistory = async () => {
-      if (projectId && !historyLoaded) {
-        setHistoryLoaded(true)
-        try {
-          const response = await fetch(`/api/projects/${projectId}/messages`)
-          if (response.ok) {
-            const data = await response.json()
-            if (data.messages && data.messages.length > 0) {
-              const historicalMessages = data.messages.map((msg: any) => ({
-                id: msg.id,
-                role: msg.role,
-                content: msg.content,
-                toolInvocations: msg.tool_invocations,
-              }))
-              setMessages(historicalMessages)
-            }
-          }
-        } catch (error) {
-          console.error('Failed to load chat history:', error)
-        }
-      } else if (!projectId) {
-        setHistoryLoaded(false)
-        setMessages([]) // Clear messages when switching to a project without ID
-      }
-    }
-    
-    loadHistory()
-  }, [projectId, historyLoaded, setMessages])
-
-  // Load chat history when project changes
-  useEffect(() => {
-    const loadHistory = async () => {
-      if (projectId && !historyLoaded) {
-        setHistoryLoaded(true)
-        try {
-          const response = await fetch(`/api/projects/${projectId}/messages`)
-          if (response.ok) {
-            const data = await response.json()
-            if (data.messages && data.messages.length > 0) {
-              const historicalMessages = data.messages.map((msg: any) => ({
-                id: msg.id,
-                role: msg.role,
-                content: msg.content,
-                toolInvocations: msg.tool_invocations,
-              }))
-              setMessages(historicalMessages)
-            }
-          }
-        } catch (error) {
-          console.error('Failed to load chat history:', error)
-        }
-      } else if (!projectId) {
-        setHistoryLoaded(false)
-        setMessages([]) // Clear messages when switching to a project without ID
-      }
-    }
-    
-    loadHistory()
-  }, [projectId, historyLoaded, setMessages])
-
-  // Load chat history when project changes
-  useEffect(() => {
-    const loadHistory = async () => {
-      if (projectId && !historyLoaded) {
-        setHistoryLoaded(true)
-        try {
-          const response = await fetch(`/api/projects/${projectId}/messages`)
-          if (response.ok) {
-            const data = await response.json()
-            if (data.messages && data.messages.length > 0) {
-              const historicalMessages = data.messages.map((msg: any) => ({
-                id: msg.id,
-                role: msg.role,
-                content: msg.content,
-                toolInvocations: msg.tool_invocations,
-              }))
-              setMessages(historicalMessages)
-            }
-          }
-        } catch (error) {
-          console.error('Failed to load chat history:', error)
-        }
-      } else if (!projectId) {
-        setHistoryLoaded(false)
-        setMessages([]) // Clear messages when switching to a project without ID
-      }
-    }
-    
-    loadHistory()
-  }, [projectId, historyLoaded, setMessages])
-
-  // Load chat history when project changes
-  useEffect(() => {
-    const loadHistory = async () => {
-      if (projectId && !historyLoaded) {
-        setHistoryLoaded(true)
-        try {
-          const response = await fetch(`/api/projects/${projectId}/messages`)
-          if (response.ok) {
-            const data = await response.json()
-            if (data.messages && data.messages.length > 0) {
-              const historicalMessages = data.messages.map((msg: any) => ({
-                id: msg.id,
-                role: msg.role,
-                content: msg.content,
-                toolInvocations: msg.tool_invocations,
-              }))
-              setMessages(historicalMessages)
-            }
-          }
-        } catch (error) {
-          console.error('Failed to load chat history:', error)
-        }
-      } else if (!projectId) {
-        setHistoryLoaded(false)
-        setMessages([]) // Clear messages when switching to a project without ID
-      }
-    }
-    
-    loadHistory()
-  }, [projectId, historyLoaded, setMessages])
-
-  // Load chat history when project changes
-  useEffect(() => {
-    const loadHistory = async () => {
-      if (projectId && !historyLoaded) {
-        setHistoryLoaded(true)
-        try {
-          const response = await fetch(`/api/projects/${projectId}/messages`)
-          if (response.ok) {
-            const data = await response.json()
-            if (data.messages && data.messages.length > 0) {
-              const historicalMessages = data.messages.map((msg: any) => ({
-                id: msg.id,
-                role: msg.role,
-                content: msg.content,
-                toolInvocations: msg.tool_invocations,
-              }))
-              setMessages(historicalMessages)
-            }
-          }
-        } catch (error) {
-          console.error('Failed to load chat history:', error)
-        }
-      } else if (!projectId) {
-        setHistoryLoaded(false)
-        setMessages([]) // Clear messages when switching to a project without ID
-      }
-    }
-    
-    loadHistory()
-  }, [projectId, historyLoaded, setMessages])
-
-  // Load chat history when project changes
-  useEffect(() => {
-    const loadHistory = async () => {
-      if (projectId && !historyLoaded) {
-        setHistoryLoaded(true)
-        try {
-          const response = await fetch(`/api/projects/${projectId}/messages`)
-          if (response.ok) {
-            const data = await response.json()
-            if (data.messages && data.messages.length > 0) {
-              const historicalMessages = data.messages.map((msg: any) => ({
-                id: msg.id,
-                role: msg.role,
-                content: msg.content,
-                toolInvocations: msg.tool_invocations,
-              }))
-              setMessages(historicalMessages)
-            }
-          }
-        } catch (error) {
-          console.error('Failed to load chat history:', error)
-        }
-      } else if (!projectId) {
-        setHistoryLoaded(false)
-        setMessages([]) // Clear messages when switching to a project without ID
-      }
-    }
-    
-    loadHistory()
-  }, [projectId, historyLoaded, setMessages])
-
-  // Load chat history when project changes
-  useEffect(() => {
-    const loadHistory = async () => {
-      if (projectId && !historyLoaded) {
-        setHistoryLoaded(true)
-        try {
-          const response = await fetch(`/api/projects/${projectId}/messages`)
-          if (response.ok) {
-            const data = await response.json()
-            if (data.messages && data.messages.length > 0) {
-              const historicalMessages = data.messages.map((msg: any) => ({
-                id: msg.id,
-                role: msg.role,
-                content: msg.content,
-                toolInvocations: msg.tool_invocations,
-              }))
-              setMessages(historicalMessages)
-            }
-          }
-        } catch (error) {
-          console.error('Failed to load chat history:', error)
-        }
-      } else if (!projectId) {
-        setHistoryLoaded(false)
-        setMessages([]) // Clear messages when switching to a project without ID
-      }
-    }
-    
-    loadHistory()
-  }, [projectId, historyLoaded, setMessages])
-
-  // Load chat history when project changes
-  useEffect(() => {
-    const loadHistory = async () => {
-      if (projectId && !historyLoaded) {
-        setHistoryLoaded(true)
-        try {
-          const response = await fetch(`/api/projects/${projectId}/messages`)
-          if (response.ok) {
-            const data = await response.json()
-            if (data.messages && data.messages.length > 0) {
-              const historicalMessages = data.messages.map((msg: any) => ({
-                id: msg.id,
-                role: msg.role,
-                content: msg.content,
-                toolInvocations: msg.tool_invocations,
-              }))
-              setMessages(historicalMessages)
-            }
-          }
-        } catch (error) {
-          console.error('Failed to load chat history:', error)
-        }
-      } else if (!projectId) {
-        setHistoryLoaded(false)
-        setMessages([]) // Clear messages when switching to a project without ID
-      }
-    }
-    
-    loadHistory()
-  }, [projectId, historyLoaded, setMessages])
-
-  // Load chat history when project changes
-  useEffect(() => {
-    const loadHistory = async () => {
-      if (projectId && !historyLoaded) {
-        setHistoryLoaded(true)
-        try {
-          const response = await fetch(`/api/projects/${projectId}/messages`)
-          if (response.ok) {
-            const data = await response.json()
-            if (data.messages && data.messages.length > 0) {
-              const historicalMessages = data.messages.map((msg: any) => ({
-                id: msg.id,
-                role: msg.role,
-                content: msg.content,
-                toolInvocations: msg.tool_invocations,
-              }))
-              setMessages(historicalMessages)
-            }
-          }
-        } catch (error) {
-          console.error('Failed to load chat history:', error)
-        }
-      } else if (!projectId) {
-        setHistoryLoaded(false)
-        setMessages([]) // Clear messages when switching to a project without ID
-      }
-    }
-    
-    loadHistory()
-  }, [projectId, historyLoaded, setMessages])
-
-  // Load chat history when project changes
-  useEffect(() => {
-    const loadHistory = async () => {
-      if (projectId && !historyLoaded) {
-        setHistoryLoaded(true)
-        try {
-          const response = await fetch(`/api/projects/${projectId}/messages`)
-          if (response.ok) {
-            const data = await response.json()
-            if (data.messages && data.messages.length > 0) {
-              const historicalMessages = data.messages.map((msg: any) => ({
-                id: msg.id,
-                role: msg.role,
-                content: msg.content,
-                toolInvocations: msg.tool_invocations,
-              }))
-              setMessages(historicalMessages)
-            }
-          }
-        } catch (error) {
-          console.error('Failed to load chat history:', error)
-        }
-      } else if (!projectId) {
-        setHistoryLoaded(false)
-        setMessages([]) // Clear messages when switching to a project without ID
-      }
-    }
-    
-    loadHistory()
-  }, [projectId, historyLoaded, setMessages])
-
-  // Load chat history when project changes
-  useEffect(() => {
-    const loadHistory = async () => {
-      if (projectId && !historyLoaded) {
-        setHistoryLoaded(true)
-        try {
-          const response = await fetch(`/api/projects/${projectId}/messages`)
-          if (response.ok) {
-            const data = await response.json()
-            if (data.messages && data.messages.length > 0) {
-              const historicalMessages = data.messages.map((msg: any) => ({
-                id: msg.id,
-                role: msg.role,
-                content: msg.content,
-                toolInvocations: msg.tool_invocations,
-              }))
-              setMessages(historicalMessages)
-            }
-          }
-        } catch (error) {
-          console.error('Failed to load chat history:', error)
-        }
-      } else if (!projectId) {
-        setHistoryLoaded(false)
-        setMessages([]) // Clear messages when switching to a project without ID
-      }
-    }
-    
-    loadHistory()
-  }, [projectId, historyLoaded, setMessages])
-
-  // Load chat history when project changes
-  useEffect(() => {
-    const loadHistory = async () => {
-      if (projectId && !historyLoaded) {
-        setHistoryLoaded(true)
-        try {
-          const response = await fetch('/api/chat', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              messages: [{ role: 'user', content: 'load_chat_history' }],
-              projectName,
-              projectId,
-              files,
-              githubToken,
-            }),
-          })
-          
-          if (response.ok) {
-            // Parse the streaming response to extract chat history
-            const reader = response.body?.getReader()
-            if (reader) {
-              const decoder = new TextDecoder()
-              let buffer = ''
-              
-              while (true) {
-                const { done, value } = await reader.read()
-                if (done) break
-                
-                buffer += decoder.decode(value, { stream: true })
-                const lines = buffer.split('\n')
-                buffer = lines.pop() || ''
-                
-                for (const line of lines) {
-                  if (line.startsWith('0:')) {
-                    try {
-                      const data = JSON.parse(line.slice(2))
-                      if (data.toolInvocations) {
-                        const historyTool = data.toolInvocations.find((t: any) => t.toolName === 'load_chat_history')
-                        if (historyTool?.result?.messages) {
-                          const historicalMessages = historyTool.result.messages.map((msg: any) => ({
-                            id: msg.id,
-                            role: msg.role,
-                            content: msg.content,
-                            toolInvocations: msg.tool_invocations,
-                          }))
-                          setMessages(historicalMessages)
-                          return
-                        }
-                      }
-                    } catch (e) {
-                      // Ignore parsing errors
-                    }
-                  }
-                }
-              }
-            }
-          }
-        } catch (error) {
-          console.error('Failed to load chat history:', error)
-        }
-      } else if (!projectId) {
-        setHistoryLoaded(false)
-        setMessages([]) // Clear messages when switching to a project without ID
-      }
-    }
-    
-    loadHistory()
-  }, [projectId, historyLoaded, setMessages, projectName, files, githubToken])
-
-  // Load chat history when project changes
-  useEffect(() => {
-    if (projectId && !historyLoaded) {
-      setHistoryLoaded(true)
-      // Auto-load chat history for existing projects
-      append({
-        role: 'user',
-        content: '!load_history', // Special command to trigger history loading
-      })
-    } else if (!projectId) {
-      setHistoryLoaded(false)
-    }
-  }, [projectId, historyLoaded, append])
-
   // Auto-scroll
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'auto' })
   }, [messages, isLoading])
 
-  // ─── Live file extraction: process each invocation as it arrives ───
+  // Load chat history on mount (once per project)
+  useEffect(() => {
+    if (!projectId || historyLoaded) return
+    setHistoryLoaded(true)
+
+    fetch(`/api/projects/${projectId}/messages`)
+      .then(res => res.json())
+      .then(data => {
+        if (data.messages?.length > 0) {
+          const loaded = data.messages.map((msg: any) => ({
+            id: msg.id,
+            role: msg.role,
+            content: msg.content || '',
+          }))
+          setMessages(loaded)
+        }
+      })
+      .catch(() => {})
+  }, [projectId, historyLoaded, setMessages])
+
+  // Live file extraction
   useEffect(() => {
     for (const msg of messages) {
       if (msg.role !== 'assistant') continue
@@ -1026,10 +247,8 @@ export function ChatPanel({ projectName, projectId, files, onFileChange, onFileD
         const inv = invocations[i]
         const key = `${msg.id}:${i}`
 
-        // Skip already-processed invocations
         if (processedInvs.current.has(key)) continue
 
-        // Determine when to process based on tool type
         const processAtCall = ['write_file', 'delete_file'].includes(inv.toolName)
         const processAtResult = ['edit_file', 'create_project', 'rename_file'].includes(inv.toolName)
 
@@ -1044,9 +263,7 @@ export function ChatPanel({ projectName, projectId, files, onFileChange, onFileD
 
         processedInvs.current.add(key)
 
-        // Apply updates
         if (changes.updates && Object.keys(changes.updates).length > 0) {
-          // Update local ref immediately for chained edits
           for (const [path, content] of Object.entries(changes.updates)) {
             localFiles.current[path] = content
           }
@@ -1070,13 +287,21 @@ export function ChatPanel({ projectName, projectId, files, onFileChange, onFileD
     append({ role: 'user', content })
   }, [input, isLoading, append])
 
+  // Register send function for parent
+  useEffect(() => {
+    if (onRegisterSend) {
+      onRegisterSend((message: string) => {
+        append({ role: 'user', content: message })
+      })
+    }
+  }, [onRegisterSend, append])
+
   const handleCopy = (id: string, content: string) => {
     navigator.clipboard.writeText(content)
     setCopiedId(id)
     setTimeout(() => setCopiedId(null), 2000)
   }
 
-  // Count steps for progress indicator
   const stepCount = messages.reduce((acc, msg) => {
     const invs = (msg as any).toolInvocations as ToolInvocation[] | undefined
     return acc + (invs?.length || 0)
@@ -1085,14 +310,14 @@ export function ChatPanel({ projectName, projectId, files, onFileChange, onFileD
   const isEmpty = messages.length === 0
 
   const colorClasses: Record<string, string> = {
-    green: 'text-emerald-400 bg-emerald-400/10',
-    blue: 'text-blue-400 bg-blue-400/10',
-    yellow: 'text-yellow-400 bg-yellow-400/10',
-    red: 'text-red-400 bg-red-400/10',
-    purple: 'text-purple-400 bg-purple-400/10',
-    indigo: 'text-indigo-400 bg-indigo-400/10',
-    orange: 'text-orange-400 bg-orange-400/10',
-    gray: 'text-gray-400 bg-gray-400/10',
+    green: 'text-emerald-600 bg-emerald-50',
+    blue: 'text-blue-600 bg-blue-50',
+    yellow: 'text-amber-600 bg-amber-50',
+    red: 'text-red-600 bg-red-50',
+    purple: 'text-purple-600 bg-purple-50',
+    indigo: 'text-indigo-600 bg-indigo-50',
+    orange: 'text-orange-600 bg-orange-50',
+    gray: 'text-gray-600 bg-gray-100',
   }
 
   return (
@@ -1103,9 +328,7 @@ export function ChatPanel({ projectName, projectId, files, onFileChange, onFileD
           <Bot className="w-4 h-4 text-forge-accent" />
           <span className="text-xs font-medium text-forge-text">Forge AI</span>
           {isLoading && stepCount > 0 && (
-            <span className="text-[10px] text-forge-accent animate-pulse">
-              Step {stepCount}
-            </span>
+            <span className="text-[10px] text-forge-accent animate-pulse">Step {stepCount}</span>
           )}
         </div>
         {messages.length > 0 && (
@@ -1156,7 +379,6 @@ export function ChatPanel({ projectName, projectId, files, onFileChange, onFileD
                     </div>
                   ) : (
                     <div className="space-y-1.5">
-                      {/* Tool invocations */}
                       {invocations && invocations.length > 0 && (
                         <div className="space-y-1">
                           {invocations.map((inv, i) => {
@@ -1165,24 +387,21 @@ export function ChatPanel({ projectName, projectId, files, onFileChange, onFileD
                             const hasError = inv.result && typeof inv.result === 'object' && 'error' in inv.result
                             const summary = getToolSummary(inv.toolName, inv.args || {}, inv.result)
 
-                            // Special rendering for think tool
                             if (inv.toolName === 'think' && inv.state === 'result') {
                               const planFiles = Array.isArray(inv.args?.files) ? inv.args.files as string[] : []
                               return (
-                                <div key={i} className="border border-purple-800/30 bg-purple-950/20 rounded-lg p-2.5 text-[11px]">
-                                  <div className="flex items-center gap-1.5 mb-1.5 text-purple-400">
+                                <div key={i} className="border border-purple-200 bg-purple-50 rounded-lg p-2.5 text-[11px]">
+                                  <div className="flex items-center gap-1.5 mb-1.5 text-purple-600">
                                     <Brain className="w-3.5 h-3.5" />
                                     <span className="font-medium">Planning</span>
                                   </div>
-                                  <div className="text-purple-200/70 leading-relaxed whitespace-pre-wrap">
+                                  <div className="text-purple-700 leading-relaxed whitespace-pre-wrap">
                                     {String(inv.args?.plan || '').slice(0, 300)}
                                   </div>
                                   {planFiles.length > 0 && (
                                     <div className="mt-1.5 flex flex-wrap gap-1">
                                       {planFiles.map((f: string, fi: number) => (
-                                        <span key={fi} className="px-1.5 py-0.5 bg-purple-900/30 text-purple-300 rounded text-[10px] font-mono">
-                                          {f}
-                                        </span>
+                                        <span key={fi} className="px-1.5 py-0.5 bg-purple-100 text-purple-600 rounded text-[10px] font-mono">{f}</span>
                                       ))}
                                     </div>
                                   )}
@@ -1190,52 +409,44 @@ export function ChatPanel({ projectName, projectId, files, onFileChange, onFileD
                               )
                             }
 
-                            // Special rendering for improvement suggestions
                             if (inv.toolName === 'suggest_improvement' && inv.state === 'result') {
                               const sArgs = (inv.args || {}) as Record<string, string>
                               const priority = sArgs.priority || 'medium'
-                              const priorityColor = priority === 'high' ? 'text-red-400 bg-red-400/10' : priority === 'medium' ? 'text-yellow-400 bg-yellow-400/10' : 'text-blue-400 bg-blue-400/10'
+                              const priorityColor = priority === 'high' ? 'text-red-600 bg-red-50' : priority === 'medium' ? 'text-amber-600 bg-amber-50' : 'text-blue-600 bg-blue-50'
                               return (
-                                <div key={i} className="border border-yellow-800/30 bg-yellow-950/10 rounded-lg p-2.5 text-[11px]">
+                                <div key={i} className="border border-amber-200 bg-amber-50 rounded-lg p-2.5 text-[11px]">
                                   <div className="flex items-center gap-1.5 mb-1">
-                                    <Lightbulb className="w-3.5 h-3.5 text-yellow-400" />
-                                    <span className="font-medium text-yellow-400">Improvement Suggestion</span>
-                                    <span className={cn('px-1.5 py-0.5 rounded text-[9px] font-medium uppercase', priorityColor)}>
-                                      {priority}
-                                    </span>
+                                    <Lightbulb className="w-3.5 h-3.5 text-amber-600" />
+                                    <span className="font-medium text-amber-600">Improvement Suggestion</span>
+                                    <span className={cn('px-1.5 py-0.5 rounded text-[9px] font-medium uppercase', priorityColor)}>{priority}</span>
                                   </div>
-                                  <p className="text-yellow-200/70 mb-1">{sArgs.issue || ''}</p>
+                                  <p className="text-amber-700 mb-1">{sArgs.issue || ''}</p>
                                   {sArgs.suggestion && (
-                                    <pre className="text-[10px] bg-gray-900/60 text-gray-300 rounded p-2 mt-1 whitespace-pre-wrap font-mono">
-                                      {sArgs.suggestion}
-                                    </pre>
+                                    <pre className="text-[10px] bg-gray-100 text-gray-700 rounded p-2 mt-1 whitespace-pre-wrap font-mono">{sArgs.suggestion}</pre>
                                   )}
                                   {sArgs.file && (
-                                    <span className="inline-block mt-1 px-1.5 py-0.5 bg-gray-800 text-gray-400 rounded text-[10px] font-mono">
-                                      {sArgs.file}
-                                    </span>
+                                    <span className="inline-block mt-1 px-1.5 py-0.5 bg-gray-100 text-gray-600 rounded text-[10px] font-mono">{sArgs.file}</span>
                                   )}
                                 </div>
                               )
                             }
 
-                            // Standard tool badge
                             return (
                               <div
                                 key={i}
                                 className={cn(
                                   'flex items-center gap-2 px-2.5 py-1.5 rounded-lg text-[11px] border transition-all',
                                   isRunning ? 'border-forge-border animate-shimmer'
-                                    : hasError ? 'border-red-800/30 bg-red-950/20'
+                                    : hasError ? 'border-red-200 bg-red-50'
                                     : 'border-forge-border bg-forge-surface/50',
                                 )}
                               >
                                 <div className={cn('w-5 h-5 rounded flex items-center justify-center shrink-0', colorClasses[info.color] || colorClasses.gray)}>
                                   {isRunning ? <Loader2 className="w-3 h-3 animate-spin" />
-                                    : hasError ? <XCircle className="w-3 h-3 text-red-400" />
+                                    : hasError ? <XCircle className="w-3 h-3 text-red-600" />
                                     : <info.Icon className="w-3 h-3" />}
                                 </div>
-                                <span className={cn('truncate flex-1', hasError ? 'text-red-300' : 'text-forge-text-dim')}>
+                                <span className={cn('truncate flex-1', hasError ? 'text-red-600' : 'text-forge-text-dim')}>
                                   {summary}
                                 </span>
                                 {!isRunning && !hasError && <CheckCircle className="w-3 h-3 text-emerald-500 shrink-0" />}
@@ -1245,18 +456,17 @@ export function ChatPanel({ projectName, projectId, files, onFileChange, onFileD
                         </div>
                       )}
 
-                      {/* Text content */}
                       {textContent && (
                         <div className="relative group">
                           <div
-                            className="text-[13px] leading-relaxed text-gray-300 [&_pre]:my-2 [&_code]:text-[12px]"
+                            className="text-[13px] leading-relaxed text-gray-700 [&_pre]:my-2 [&_code]:text-[12px]"
                             dangerouslySetInnerHTML={{ __html: renderMarkdown(textContent) }}
                           />
                           <button
                             onClick={() => handleCopy(message.id, textContent)}
                             className="absolute top-0 right-0 opacity-0 group-hover:opacity-100 transition-opacity p-1 rounded hover:bg-forge-surface"
                           >
-                            {copiedId === message.id ? <Check className="w-3 h-3 text-emerald-400" /> : <Copy className="w-3 h-3 text-forge-text-dim" />}
+                            {copiedId === message.id ? <Check className="w-3 h-3 text-emerald-500" /> : <Copy className="w-3 h-3 text-forge-text-dim" />}
                           </button>
                         </div>
                       )}
@@ -1274,7 +484,7 @@ export function ChatPanel({ projectName, projectId, files, onFileChange, onFileD
             )}
 
             {error && (
-              <div className="flex items-center gap-2 text-xs text-red-400 bg-red-950/20 border border-red-800/30 rounded-lg px-3 py-2">
+              <div className="flex items-center gap-2 text-xs text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2">
                 <AlertTriangle className="w-3.5 h-3.5 shrink-0" />
                 <span>{error.message}</span>
               </div>

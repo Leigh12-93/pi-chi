@@ -24,6 +24,9 @@
 /* Selection */
 ::selection { background: rgba(99, 102, 241, 0.2); }
 
+/* iOS safe area for bottom tab bar */
+.safe-bottom { padding-bottom: env(safe-area-inset-bottom, 0); }
+
 /* Panel resize handle */
 [data-panel-group-direction="horizontal"] > [data-resize-handle] {
   width: 2px !important;

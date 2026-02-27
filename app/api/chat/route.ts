@@ -316,120 +316,6 @@ export async function POST(req: Request) {
     }
   }
 
-  // Save user message to database if projectId exists
-  if (projectId && messages.length > 0) {
-    const lastMessage = messages[messages.length - 1]
-    if (lastMessage.role === 'user') {
-      try {
-        await supabaseFetch('/forge_chat_messages', {
-          method: 'POST',
-          body: JSON.stringify({
-            project_id: projectId,
-            role: 'user',
-            content: lastMessage.content,
-          }),
-        })
-      } catch (error) {
-        console.error('Failed to save user message:', error)
-      }
-    }
-  }
-
-  // Save user message to database if projectId exists
-  if (projectId && messages.length > 0) {
-    const lastMessage = messages[messages.length - 1]
-    if (lastMessage.role === 'user') {
-      try {
-        await supabaseFetch('/forge_chat_messages', {
-          method: 'POST',
-          body: JSON.stringify({
-            project_id: projectId,
-            role: 'user',
-            content: lastMessage.content,
-          }),
-        })
-      } catch (error) {
-        console.error('Failed to save user message:', error)
-      }
-    }
-  }
-
-  // Save user message to database if projectId exists
-  if (projectId && messages.length > 0) {
-    const lastMessage = messages[messages.length - 1]
-    if (lastMessage.role === 'user') {
-      try {
-        await supabaseFetch('/forge_chat_messages', {
-          method: 'POST',
-          body: JSON.stringify({
-            project_id: projectId,
-            role: 'user',
-            content: lastMessage.content,
-          }),
-        })
-      } catch (error) {
-        console.error('Failed to save user message:', error)
-      }
-    }
-  }
-
-  // Save user message to database if projectId exists
-  if (projectId && messages.length > 0) {
-    const lastMessage = messages[messages.length - 1]
-    if (lastMessage.role === 'user') {
-      try {
-        await supabaseFetch('/forge_chat_messages', {
-          method: 'POST',
-          body: JSON.stringify({
-            project_id: projectId,
-            role: 'user',
-            content: lastMessage.content,
-          }),
-        })
-      } catch (error) {
-        console.error('Failed to save user message:', error)
-      }
-    }
-  }
-
-  // Save user message to database if projectId exists
-  if (projectId && messages.length > 0) {
-    const lastMessage = messages[messages.length - 1]
-    if (lastMessage.role === 'user') {
-      try {
-        await supabaseFetch('/forge_chat_messages', {
-          method: 'POST',
-          body: JSON.stringify({
-            project_id: projectId,
-            role: 'user',
-            content: lastMessage.content,
-          }),
-        })
-      } catch (error) {
-        console.error('Failed to save user message:', error)
-      }
-    }
-  }
-
-  // Save user message to database if projectId exists
-  if (projectId && messages.length > 0) {
-    const lastMessage = messages[messages.length - 1]
-    if (lastMessage.role === 'user') {
-      try {
-        await supabaseFetch('/forge_chat_messages', {
-          method: 'POST',
-          body: JSON.stringify({
-            project_id: projectId,
-            role: 'user',
-            content: lastMessage.content,
-          }),
-        })
-      } catch (error) {
-        console.error('Failed to save user message:', error)
-      }
-    }
-  }
-
   const result = streamText({
     model: anthropic('claude-sonnet-4-20250514'),
     system: SYSTEM_PROMPT + `\n\n---\nProject: "${projectName}"${projectId ? ` (id: ${projectId})` : ''}\nFile manifest:\n${manifestStr}`,
@@ -1078,12 +964,12 @@ export async function POST(req: Request) {
         parameters: z.object({}),
         execute: async () => {
           if (!projectId) return { error: 'No project ID available' }
-          
+
           const result = await supabaseFetch(`/forge_chat_messages?project_id=eq.${projectId}&order=created_at.asc&limit=100`)
           if (!result.ok) return { error: `Failed to load chat history: ${JSON.stringify(result.data)}` }
-          
+
           const messages = Array.isArray(result.data) ? result.data : []
-          return { 
+          return {
             messages: messages.map((msg: any) => ({
               id: msg.id,
               role: msg.role,
@@ -1091,108 +977,69 @@ export async function POST(req: Request) {
               tool_invocations: msg.tool_invocations,
               created_at: msg.created_at,
             })),
-            count: messages.length 
+            count: messages.length
           }
         },
       }),
 
-      // ─── Chat History ───────────────────────────────────────────
+      // ─── Pull Latest from GitHub ──────────────────────────────
 
-      load_chat_history: tool({
-        description: 'Load previous chat messages for this project from the database.',
-        parameters: z.object({}),
-        execute: async () => {
-          if (!projectId) return { error: 'No project ID available' }
-          
-          const result = await supabaseFetch(`/forge_chat_messages?project_id=eq.${projectId}&order=created_at.asc&limit=100`)
-          if (!result.ok) return { error: `Failed to load chat history: ${JSON.stringify(result.data)}` }
-          
-          const messages = Array.isArray(result.data) ? result.data : []
-          return { 
-            messages: messages.map((msg: any) => ({
-              id: msg.id,
-              role: msg.role,
-              content: msg.content,
-              tool_invocations: msg.tool_invocations,
-              created_at: msg.created_at,
-            })),
-            count: messages.length 
+      github_pull_latest: tool({
+        description: 'Pull the latest files from a GitHub repo into the current project. ALWAYS call this before github_push_update to avoid overwriting remote changes.',
+        parameters: z.object({
+          owner: z.string().describe('Repository owner'),
+          repo: z.string().describe('Repository name'),
+          branch: z.string().default('master').describe('Branch to pull from'),
+        }),
+        execute: async ({ owner, repo, branch }) => {
+          const token = effectiveGithubToken
+          if (!token) return { error: 'No GitHub token available' }
+
+          // Get the tree recursively
+          const treeRes = await fetch(
+            `https://api.github.com/repos/${owner}/${repo}/git/trees/${branch}?recursive=1`,
+            { headers: { Authorization: `Bearer ${token}`, Accept: 'application/vnd.github.v3+json' } }
+          )
+          if (!treeRes.ok) return { error: `Failed to fetch tree: ${treeRes.status}` }
+          const treeData = await treeRes.json()
+
+          const textExts = new Set(['ts','tsx','js','jsx','json','css','scss','html','md','mdx','txt','yaml','yml','toml','sql','sh','py','rb','go','rs','java','kt','swift','c','cpp','h','xml','svg','graphql','gql','prisma'])
+          const skipDirs = new Set(['node_modules','.git','.next','dist','build','.vercel','.turbo','coverage','__pycache__','.cache'])
+
+          const blobs = (treeData.tree || []).filter((item: any) => {
+            if (item.type !== 'blob' || item.size > 100000) return false
+            const parts = item.path.split('/')
+            if (parts.some((p: string) => skipDirs.has(p))) return false
+            const ext = item.path.split('.').pop()?.toLowerCase() || ''
+            const basename = item.path.split('/').pop() || ''
+            if (['Dockerfile','Makefile','.gitignore','.env.example'].includes(basename)) return true
+            return textExts.has(ext)
+          }).slice(0, 100)
+
+          const results = await Promise.allSettled(
+            blobs.map(async (item: any) => {
+              const res = await fetch(
+                `https://api.github.com/repos/${owner}/${repo}/contents/${item.path}?ref=${branch}`,
+                { headers: { Authorization: `Bearer ${token}`, Accept: 'application/vnd.github.v3+json' } }
+              )
+              if (!res.ok) return null
+              const data = await res.json()
+              if (data.encoding === 'base64' && data.content) {
+                return { path: item.path, content: Buffer.from(data.content, 'base64').toString('utf-8') }
+              }
+              return null
+            })
+          )
+
+          const pulledFiles: Record<string, string> = {}
+          for (const r of results) {
+            if (r.status === 'fulfilled' && r.value) {
+              pulledFiles[r.value.path] = r.value.content
+              vfs.write(r.value.path, r.value.content)
+            }
           }
-        },
-      }),
 
-      // ─── Chat History ───────────────────────────────────────────
-
-      load_chat_history: tool({
-        description: 'Load previous chat messages for this project from the database.',
-        parameters: z.object({}),
-        execute: async () => {
-          if (!projectId) return { error: 'No project ID available' }
-          
-          const result = await supabaseFetch(`/forge_chat_messages?project_id=eq.${projectId}&order=created_at.asc&limit=100`)
-          if (!result.ok) return { error: `Failed to load chat history: ${JSON.stringify(result.data)}` }
-          
-          const messages = Array.isArray(result.data) ? result.data : []
-          return { 
-            messages: messages.map((msg: any) => ({
-              id: msg.id,
-              role: msg.role,
-              content: msg.content,
-              tool_invocations: msg.tool_invocations,
-              created_at: msg.created_at,
-            })),
-            count: messages.length 
-          }
-        },
-      }),
-
-      // ─── Chat History ───────────────────────────────────────────
-
-      load_chat_history: tool({
-        description: 'Load previous chat messages for this project from the database.',
-        parameters: z.object({}),
-        execute: async () => {
-          if (!projectId) return { error: 'No project ID available' }
-          
-          const result = await supabaseFetch(`/forge_chat_messages?project_id=eq.${projectId}&order=created_at.asc&limit=100`)
-          if (!result.ok) return { error: `Failed to load chat history: ${JSON.stringify(result.data)}` }
-          
-          const messages = Array.isArray(result.data) ? result.data : []
-          return { 
-            messages: messages.map((msg: any) => ({
-              id: msg.id,
-              role: msg.role,
-              content: msg.content,
-              tool_invocations: msg.tool_invocations,
-              created_at: msg.created_at,
-            })),
-            count: messages.length 
-          }
-        },
-      }),
-
-      // ─── Chat History ───────────────────────────────────────────
-
-      load_chat_history: tool({
-        description: 'Load previous chat messages for this project from the database.',
-        parameters: z.object({}),
-        execute: async () => {
-          if (!projectId) return { error: 'No project ID available' }
-          
-          const result = await supabaseFetch(`/forge_chat_messages?project_id=eq.${projectId}&order=created_at.asc&limit=100`)
-          if (!result.ok) return { error: `Failed to load chat history: ${JSON.stringify(result.data)}` }
-          
-          const messages = Array.isArray(result.data) ? result.data : []
-          return { 
-            messages: messages.map((msg: any) => ({
-              id: msg.id,
-              role: msg.role,
-              content: msg.content,
-              tool_invocations: msg.tool_invocations,
-              created_at: msg.created_at,
-            })),
-            count: messages.length 
-          }
+          return { ok: true, fileCount: Object.keys(pulledFiles).length, files: Object.keys(pulledFiles) }
         },
       }),
 
