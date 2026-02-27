@@ -48,6 +48,13 @@ const TOOL_LABELS: Record<string, { label: string; Icon: LucideIcon; color: stri
   mcp_list_servers: { label: 'Listing MCP servers', Icon: Plug, color: 'purple' },
   mcp_connect_server: { label: 'Connecting MCP server', Icon: Plug, color: 'green' },
   mcp_call_tool: { label: 'Calling MCP tool', Icon: Plug, color: 'blue' },
+  forge_check_npm_package: { label: 'Checking npm package', Icon: Search, color: 'blue' },
+  forge_revert_commit: { label: 'Reverting commit', Icon: RefreshCw, color: 'red' },
+  forge_create_branch: { label: 'Creating branch', Icon: GitBranch, color: 'green' },
+  forge_create_pr: { label: 'Creating pull request', Icon: GitBranch, color: 'purple' },
+  forge_merge_pr: { label: 'Merging pull request', Icon: GitBranch, color: 'green' },
+  forge_deployment_status: { label: 'Checking deployment', Icon: Rocket, color: 'blue' },
+  forge_check_build: { label: 'Running preview build', Icon: Rocket, color: 'yellow' },
 }
 
 const QUICK_ACTIONS = [

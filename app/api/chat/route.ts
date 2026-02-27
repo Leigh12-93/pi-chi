@@ -1137,6 +1137,309 @@ export async function POST(req: Request) {
           }
         },
       }),
+
+      // ─── Self-Build Safety Tools ─────────────────────────────────
+
+      forge_check_npm_package: tool({
+        description: 'Check if an npm package exists and get its latest version. ALWAYS call this before adding a new dependency to package.json.',
+        parameters: z.object({
+          name: z.string().describe('npm package name, e.g. "@modelcontextprotocol/sdk"'),
+        }),
+        execute: async ({ name }) => {
+          try {
+            const res = await fetch(`https://registry.npmjs.org/${encodeURIComponent(name)}`, {
+              headers: { Accept: 'application/json' },
+            })
+            if (res.status === 404) return { exists: false, name, error: `Package "${name}" does NOT exist on npm. Do not add it to package.json.` }
+            if (!res.ok) return { error: `npm registry returned ${res.status}` }
+            const data = await res.json()
+            const latest = data['dist-tags']?.latest
+            const description = data.description || ''
+            const deps = Object.keys(data.versions?.[latest]?.dependencies || {}).length
+            return { exists: true, name, latest, description, dependencyCount: deps }
+          } catch (err) {
+            return { error: err instanceof Error ? err.message : 'Failed to check npm' }
+          }
+        },
+      }),
+
+      forge_revert_commit: tool({
+        description: 'Revert the last commit on the Forge repo. Use this when a self-modification breaks the build.',
+        parameters: z.object({
+          reason: z.string().describe('Why are you reverting?'),
+        }),
+        execute: async ({ reason }) => {
+          const token = GITHUB_TOKEN
+          if (!token) return { error: 'No GitHub token configured' }
+
+          const owner = 'Leigh12-93'
+          const repo = 'forge'
+
+          // Get the latest 2 commits to find parent
+          const commits = await githubFetch(`/repos/${owner}/${repo}/commits?sha=master&per_page=2`, token)
+          if (!Array.isArray(commits) || commits.length < 2) return { error: 'Cannot revert — need at least 2 commits' }
+
+          const headSha = commits[0].sha
+          const parentSha = commits[1].sha
+          const headMessage = commits[0].commit.message
+
+          // Get the parent tree
+          const parentCommit = await githubFetch(`/repos/${owner}/${repo}/git/commits/${parentSha}`, token)
+          if (parentCommit.error) return { error: `Failed to get parent commit: ${parentCommit.error}` }
+
+          // Create a new commit that points to the parent's tree (effectively reverting)
+          const newCommit = await githubFetch(`/repos/${owner}/${repo}/git/commits`, token, {
+            method: 'POST',
+            body: JSON.stringify({
+              message: `[self-revert] Revert "${headMessage}"\n\nReason: ${reason}`,
+              tree: parentCommit.tree.sha,
+              parents: [headSha],
+            }),
+          })
+          if (newCommit.error) return { error: `Failed to create revert commit: ${newCommit.error}` }
+
+          // Update master to point to the revert commit
+          const update = await githubFetch(`/repos/${owner}/${repo}/git/refs/heads/master`, token, {
+            method: 'PATCH',
+            body: JSON.stringify({ sha: newCommit.sha }),
+          })
+          if (update.error) return { error: `Failed to update master: ${update.error}` }
+
+          return {
+            ok: true,
+            revertedCommit: headSha.slice(0, 7),
+            revertedMessage: headMessage,
+            newCommit: newCommit.sha.slice(0, 7),
+            reason,
+            note: 'Reverted successfully. Use forge_redeploy to deploy the revert.',
+          }
+        },
+      }),
+
+      forge_create_branch: tool({
+        description: 'Create a new branch on the Forge repo for safe development. Use this instead of pushing directly to master.',
+        parameters: z.object({
+          branch: z.string().describe('Branch name, e.g. "feat/add-testing-tools"'),
+          fromBranch: z.string().default('master').describe('Base branch to create from'),
+        }),
+        execute: async ({ branch, fromBranch }) => {
+          const token = GITHUB_TOKEN
+          if (!token) return { error: 'No GitHub token configured' }
+
+          const owner = 'Leigh12-93'
+          const repo = 'forge'
+
+          // Get SHA of the base branch
+          const ref = await githubFetch(`/repos/${owner}/${repo}/git/ref/heads/${fromBranch}`, token)
+          if (ref.error) return { error: `Failed to read ${fromBranch}: ${ref.error}` }
+
+          // Create new branch
+          const result = await githubFetch(`/repos/${owner}/${repo}/git/refs`, token, {
+            method: 'POST',
+            body: JSON.stringify({
+              ref: `refs/heads/${branch}`,
+              sha: ref.object.sha,
+            }),
+          })
+          if (result.error) return { error: `Failed to create branch: ${result.error}` }
+
+          return {
+            ok: true,
+            branch,
+            basedOn: fromBranch,
+            sha: ref.object.sha.slice(0, 7),
+            note: `Branch "${branch}" created. Use forge_modify_own_source with branch="${branch}" to push changes there instead of master.`,
+          }
+        },
+      }),
+
+      forge_create_pr: tool({
+        description: 'Create a pull request on the Forge repo. Use after pushing changes to a feature branch.',
+        parameters: z.object({
+          title: z.string().describe('PR title'),
+          body: z.string().describe('PR description'),
+          head: z.string().describe('Source branch with changes'),
+          base: z.string().default('master').describe('Target branch'),
+        }),
+        execute: async ({ title, body, head, base }) => {
+          const token = GITHUB_TOKEN
+          if (!token) return { error: 'No GitHub token configured' }
+
+          const result = await githubFetch('/repos/Leigh12-93/forge/pulls', token, {
+            method: 'POST',
+            body: JSON.stringify({ title, body, head, base }),
+          })
+          if (result.error) return { error: `Failed to create PR: ${result.error}` }
+
+          return {
+            ok: true,
+            number: result.number,
+            url: result.html_url,
+            title,
+            head,
+            base,
+          }
+        },
+      }),
+
+      forge_merge_pr: tool({
+        description: 'Merge a pull request on the Forge repo. Only merge after verifying the preview deploy succeeded.',
+        parameters: z.object({
+          prNumber: z.number().describe('PR number to merge'),
+          method: z.enum(['merge', 'squash', 'rebase']).default('squash').describe('Merge method'),
+        }),
+        execute: async ({ prNumber, method }) => {
+          const token = GITHUB_TOKEN
+          if (!token) return { error: 'No GitHub token configured' }
+
+          const result = await githubFetch(`/repos/Leigh12-93/forge/pulls/${prNumber}/merge`, token, {
+            method: 'PUT',
+            body: JSON.stringify({ merge_method: method }),
+          })
+          if (result.error) return { error: `Failed to merge PR: ${result.error}` }
+
+          return {
+            ok: true,
+            merged: true,
+            sha: result.sha?.slice(0, 7),
+            note: 'PR merged to master. Vercel will auto-deploy. Use forge_deployment_status to monitor.',
+          }
+        },
+      }),
+
+      forge_deployment_status: tool({
+        description: 'Check the current Vercel deployment status for Forge. Use after self-modification to verify the deploy succeeded.',
+        parameters: z.object({}),
+        execute: async () => {
+          const token = VERCEL_TOKEN
+          if (!token) return { error: 'No Vercel deploy token configured' }
+
+          const teamParam = VERCEL_TEAM ? `?teamId=${VERCEL_TEAM}` : ''
+          const res = await fetch(`https://api.vercel.com/v6/deployments${teamParam}&limit=3&projectId=forge`, {
+            headers: { Authorization: `Bearer ${token}` },
+          })
+          if (!res.ok) {
+            // Try alternative: list by name
+            const res2 = await fetch(`https://api.vercel.com/v6/deployments${teamParam ? teamParam + '&' : '?'}limit=3`, {
+              headers: { Authorization: `Bearer ${token}` },
+            })
+            if (!res2.ok) return { error: `Vercel API ${res2.status}` }
+            const data2 = await res2.json()
+            const forgeDeployments = (data2.deployments || [])
+              .filter((d: any) => d.name === 'forge')
+              .slice(0, 3)
+            if (forgeDeployments.length === 0) return { error: 'No Forge deployments found' }
+            return {
+              deployments: forgeDeployments.map((d: any) => ({
+                id: d.uid,
+                url: `https://${d.url}`,
+                state: d.readyState || d.state,
+                created: d.created,
+                target: d.target,
+                source: d.meta?.githubCommitMessage || d.meta?.githubCommitRef || 'unknown',
+              })),
+            }
+          }
+          const data = await res.json()
+          return {
+            deployments: (data.deployments || []).map((d: any) => ({
+              id: d.uid,
+              url: `https://${d.url}`,
+              state: d.readyState || d.state,
+              created: d.created,
+              target: d.target,
+              source: d.meta?.githubCommitMessage || d.meta?.githubCommitRef || 'unknown',
+            })),
+          }
+        },
+      }),
+
+      forge_check_build: tool({
+        description: 'Trigger a preview (non-production) deployment on Vercel to check if the current code builds successfully. Use this BEFORE forge_redeploy to catch errors.',
+        parameters: z.object({
+          branch: z.string().default('master').describe('Branch to build'),
+        }),
+        execute: async ({ branch }) => {
+          const token = VERCEL_TOKEN
+          if (!token) return { error: 'No Vercel deploy token configured' }
+
+          const teamParam = VERCEL_TEAM ? `?teamId=${VERCEL_TEAM}` : ''
+          const res = await fetch(`https://api.vercel.com/v13/deployments${teamParam}`, {
+            method: 'POST',
+            headers: {
+              Authorization: `Bearer ${token}`,
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              name: 'forge',
+              target: 'preview',  // NOT production
+              gitSource: {
+                type: 'github',
+                org: 'Leigh12-93',
+                repo: 'forge',
+                ref: branch,
+              },
+            }),
+          })
+
+          const data = await res.json()
+          if (!res.ok) return { error: data.error?.message || `Vercel API ${res.status}` }
+
+          // Poll for build result (up to 90 seconds)
+          const deployId = data.id
+          const previewUrl = `https://${data.url}`
+          let state = data.readyState || 'QUEUED'
+          let attempts = 0
+
+          while (['QUEUED', 'BUILDING', 'INITIALIZING'].includes(state) && attempts < 18) {
+            await new Promise(r => setTimeout(r, 5000))
+            attempts++
+            const check = await fetch(`https://api.vercel.com/v13/deployments/${deployId}${teamParam}`, {
+              headers: { Authorization: `Bearer ${token}` },
+            })
+            if (check.ok) {
+              const checkData = await check.json()
+              state = checkData.readyState || state
+              if (state === 'ERROR') {
+                // Try to get build logs
+                const logsRes = await fetch(`https://api.vercel.com/v2/deployments/${deployId}/events${teamParam}`, {
+                  headers: { Authorization: `Bearer ${token}` },
+                })
+                let errorLog = ''
+                if (logsRes.ok) {
+                  const events = await logsRes.json()
+                  const errors = (Array.isArray(events) ? events : [])
+                    .filter((e: any) => e.type === 'error' || (e.payload?.text || '').includes('error') || (e.payload?.text || '').includes('Error'))
+                    .map((e: any) => e.payload?.text || e.text || '')
+                    .slice(-10)
+                  errorLog = errors.join('\n')
+                }
+                return {
+                  ok: false,
+                  state: 'ERROR',
+                  previewUrl,
+                  buildFailed: true,
+                  errors: errorLog || 'Build failed — check Vercel dashboard for details',
+                  note: 'DO NOT deploy to production. Fix the errors first.',
+                }
+              }
+            }
+          }
+
+          return {
+            ok: state === 'READY',
+            state,
+            previewUrl,
+            deployId,
+            buildFailed: state === 'ERROR',
+            note: state === 'READY'
+              ? 'Preview build succeeded! Safe to deploy to production with forge_redeploy.'
+              : state === 'ERROR'
+                ? 'Build FAILED. Fix errors before deploying.'
+                : `Build still in progress (state: ${state}). Check forge_deployment_status later.`,
+          }
+        },
+      }),
     },
 
     onFinish: async (event) => {
