@@ -57,13 +57,20 @@ export async function createSandbox(
   let sandbox: Sandbox
 
   try {
-    // Create sandbox VM (timeout = how long it stays alive)
-    sandbox = await Sandbox.create({
-      apiKey: E2B_API_KEY,
-      timeout: 300, // 5 minutes in seconds
+    // Create sandbox VM with longer timeout for initial creation
+    const createTimeout = new Promise<never>((_, reject) => {
+      setTimeout(() => reject(new Error('Sandbox creation timed out after 60 seconds')), 60000)
     })
-    session.sandboxId = sandbox.id
 
+    sandbox = await Promise.race([
+      Sandbox.create({
+        apiKey: E2B_API_KEY,
+        timeout: 300, // 5 minutes VM lifetime
+      }),
+      createTimeout
+    ])
+
+    session.sandboxId = sandbox.id
     activeSandboxes.set(projectId, { sandbox, session })
 
     // Write all project files
@@ -94,8 +101,8 @@ export async function createSandbox(
       cmd: `cd ${BASE_PATH} && ${devCmd}`,
     }).catch(() => { /* server process — ignore when killed */ })
 
-    // Wait for server to boot
-    await new Promise(r => setTimeout(r, 5000))
+    // Wait for server to boot with health check
+    await waitForServer(sandbox, DEV_PORT)
 
     // Get public URL
     const hostname = sandbox.getHostname(DEV_PORT)
@@ -106,8 +113,46 @@ export async function createSandbox(
   } catch (error) {
     session.status = 'error'
     session.error = error instanceof Error ? error.message : 'Unknown error'
+    
+    // Clean up failed sandbox
+    if (sandbox) {
+      try {
+        await sandbox.close()
+      } catch { /* ignore cleanup errors */ }
+    }
+    activeSandboxes.delete(projectId)
+    
     return { ...session, ok: false }
   }
+}
+
+/**
+ * Wait for dev server to be ready by checking if port is listening
+ */
+async function waitForServer(sandbox: Sandbox, port: number, maxWaitMs = 30000): Promise<void> {
+  const startTime = Date.now()
+  
+  while (Date.now() - startTime < maxWaitMs) {
+    try {
+      const result = await sandbox.process.startAndWait({
+        cmd: `curl -s -o /dev/null -w "%{http_code}" http://localhost:${port} || echo "000"`,
+        timeout: 5,
+      })
+      
+      const httpCode = result.stdout.trim()
+      if (httpCode !== '000' && httpCode !== '502' && httpCode !== '503') {
+        // Server is responding (even if with errors like 404, that's fine)
+        return
+      }
+    } catch {
+      // Curl failed, server not ready yet
+    }
+    
+    // Wait 2 seconds before next check
+    await new Promise(resolve => setTimeout(resolve, 2000))
+  }
+  
+  throw new Error('Dev server failed to start within 30 seconds')
 }
 
 /**
@@ -176,9 +221,9 @@ function detectFramework(files: Record<string, string>): string {
 function getDevCommand(framework: string): string {
   switch (framework) {
     case 'nextjs':
-      return `npx next dev --port ${DEV_PORT}`
+      return `npx next dev --port ${DEV_PORT} --hostname 0.0.0.0`
     case 'vite':
-      return `npx vite --port ${DEV_PORT} --host`
+      return `npx vite --port ${DEV_PORT} --host 0.0.0.0`
     default:
       return `npx serve -l ${DEV_PORT} .`
   }
