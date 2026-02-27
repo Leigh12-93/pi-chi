@@ -54,6 +54,17 @@ class VirtualFS {
     return Object.fromEntries(this.files)
   }
 
+  /** File manifest — path, lines, size for each file. No content. */
+  manifest(): Array<{ path: string; lines: number; size: number }> {
+    return Array.from(this.files.entries())
+      .map(([path, content]) => ({
+        path,
+        lines: content.split('\n').length,
+        size: content.length,
+      }))
+      .sort((a, b) => a.path.localeCompare(b.path))
+  }
+
   toTree(): TreeNode[] {
     const root: TreeNode[] = []
     for (const path of this.list()) {
@@ -199,17 +210,12 @@ const VERCEL_TEAM = process.env.VERCEL_TEAM_ID || ''
 async function vercelDeploy(name: string, files: Record<string, string>, framework?: string) {
   if (!VERCEL_TOKEN) return { error: 'VERCEL_TOKEN not configured' }
 
-  const fileEntries = Object.entries(files).map(([file, data]) => ({
-    file,
-    data,
-  }))
+  const fileEntries = Object.entries(files).map(([file, data]) => ({ file, data }))
 
   const body: Record<string, unknown> = {
     name,
     files: fileEntries,
-    projectSettings: {
-      framework: framework || 'nextjs',
-    },
+    projectSettings: { framework: framework || 'nextjs' },
   }
 
   const teamParam = VERCEL_TEAM ? `?teamId=${VERCEL_TEAM}` : ''
@@ -231,38 +237,69 @@ async function vercelDeploy(name: string, files: Record<string, string>, framewo
 // System prompt
 // ═══════════════════════════════════════════════════════════════════
 
-const SYSTEM_PROMPT = `You are Forge, an expert AI React website builder. You create, edit, and deploy React websites and web applications.
+const SYSTEM_PROMPT = `You are Forge, an expert AI website builder specializing in React, Next.js, and modern web development.
 
-You work entirely in the cloud — files are virtual (in-memory) and deployments go to Vercel. No local filesystem.
+## How You Work
 
-## Behaviour Rules
+You are an AGENTIC AI. You plan, build, and iterate autonomously in multi-step sequences. You do not ask for permission between steps — you execute the full task.
 
-1. **Act first, report after.** Don't say "I'll create..." — just create the files.
-2. **Write COMPLETE code.** Never use placeholder comments. Every file must be production-ready.
-3. **Use modern React patterns.** Functional components, hooks, TypeScript, Tailwind CSS.
-4. **Be concise.** Short explanations. The code speaks for itself.
-5. **When editing, be surgical.** Use edit_file for small changes. Use write_file when rewriting most of a file.
+### Workflow (for every request)
+1. **THINK** — For complex tasks (3+ files), use the \`think\` tool first to plan your approach
+2. **BUILD** — Create/edit files to implement the plan. Work through files systematically.
+3. **VERIFY** — If you edited a complex file, read it back to confirm correctness
+4. **REPORT** — Brief summary: what was built, what to look at in preview, next steps
+
+### Token Efficiency (CRITICAL)
+- Tool results for write_file and edit_file are LEAN (no content echo). This is intentional.
+- NEVER read_file on a file you just wrote — you already know what's in it.
+- Use \`edit_file\` for surgical changes (<30% of file). Use \`write_file\` when rewriting >30%.
+- The file manifest below shows what exists. Only read_file when you need actual content.
+- Prefer creating fewer, well-structured files over many small ones.
 
 ## Tech Stack Defaults
-
 - **Framework:** Next.js 15 (App Router) with Tailwind CSS v4
 - **Language:** TypeScript (.tsx/.ts)
-- **Styling:** Tailwind CSS utility classes
+- **Styling:** Tailwind CSS utility classes — use modern features (container queries, has:, group, etc.)
 - **Icons:** lucide-react
-- **Components:** Build from scratch with Tailwind (shadcn/ui patterns)
+- **Components:** Build from scratch with Tailwind. Follow shadcn/ui patterns (composable, accessible).
+- **State:** React hooks (useState, useReducer). For complex state, extract to custom hooks.
 
-## Important: File Operations
+## Code Standards
+- Every file must be COMPLETE and PRODUCTION-READY. No placeholders. No "TODO" comments. No "add more here".
+- Components must be responsive (mobile-first). Test your layout assumptions.
+- Use semantic HTML. Buttons for actions, links for navigation, proper heading hierarchy.
+- Extract repeated patterns into components. One file = one concern.
+- Name files in kebab-case. Name components in PascalCase. Name hooks with use- prefix.
+- Always include proper TypeScript types. No \`any\` unless truly necessary.
 
-Your write_file/edit_file tools operate on a virtual filesystem. The user sees changes instantly in their editor and preview. Files persist in the browser session.
+## Rules
+1. **ACT FIRST.** Create files immediately. Never say "I'll create..." — just do it.
+2. **BE COMPLETE.** Every page needs real content, not lorem ipsum. Real menu items, real feature descriptions, real pricing.
+3. **BE VISUAL.** Use gradients, shadows, animations, hover states. Make it look professional.
+4. **SCAFFOLD THEN BUILD.** After create_project, IMMEDIATELY build the full application. Don't stop at the template.
+5. **SPLIT LARGE PAGES.** If a page exceeds 200 lines, extract sections into components.
 
-After scaffolding a project with create_project, IMMEDIATELY start writing the actual application code the user asked for. Don't stop at the template — build what they described.
+## Self-Improvement Protocol
 
-## After Making Changes
+When you encounter a limitation, bug, or inefficiency in your tooling or capabilities:
+1. Use \`suggest_improvement\` to log it with a specific fix
+2. Include the EXACT file path and code change needed
+3. Set priority based on impact (high = blocks common workflows, medium = inconvenient, low = nice-to-have)
 
-Give a brief summary:
-- What files were created/modified
-- What the user should see in the preview
-- Any suggestions for next steps`
+Examples of things to flag:
+- "Cannot install npm packages at runtime — need an install_packages tool"
+- "Preview doesn't render React state/events — need a proper React renderer"
+- "No image upload capability — need a file upload tool"
+- "edit_file fails on non-unique strings — need line-number-based editing"
+
+The user's development assistant (Claude Code) reads these suggestions and implements them.
+
+## After Building
+
+Keep summaries SHORT (3-4 lines max):
+- What was created/changed
+- What to see in the preview
+- One suggestion for what to build next`
 
 // ═══════════════════════════════════════════════════════════════════
 // POST handler
@@ -274,6 +311,12 @@ export async function POST(req: Request) {
 
   // Initialize virtual FS from client state
   const vfs = new VirtualFS(body.files || {})
+
+  // Build file manifest for system context (lean — no content)
+  const manifest = vfs.manifest()
+  const manifestStr = manifest.length > 0
+    ? manifest.map(f => `  ${f.path} (${f.lines}L, ${(f.size / 1024).toFixed(1)}kb)`).join('\n')
+    : '  (empty project)'
 
   // Convert messages
   let messages
@@ -288,42 +331,76 @@ export async function POST(req: Request) {
 
   const result = streamText({
     model: anthropic('claude-sonnet-4-20250514'),
-    system: SYSTEM_PROMPT + `\n\nProject: "${projectName}"\nExisting files: ${vfs.list().join(', ') || '(empty project)'}`,
+    system: SYSTEM_PROMPT + `\n\n---\nProject: "${projectName}"\nFile manifest:\n${manifestStr}`,
     messages,
-    maxSteps: 15,
+    maxSteps: 25,
     tools: {
 
-      // ─── File Operations ────────────────────────────────────────
+      // ─── Agentic Planning ──────────────────────────────────────
+
+      think: tool({
+        description: 'Think through your approach before building. Use this for complex tasks (3+ files) to plan the file structure, component hierarchy, and implementation order.',
+        parameters: z.object({
+          plan: z.string().describe('Your step-by-step plan for implementing this task'),
+          files: z.array(z.string()).describe('List of files you plan to create/modify'),
+          approach: z.string().optional().describe('Key architectural decisions'),
+        }),
+        execute: async ({ plan, files, approach }) => ({
+          acknowledged: true,
+          plan,
+          files,
+          approach,
+        }),
+      }),
+
+      suggest_improvement: tool({
+        description: 'Log a tooling limitation, bug, or improvement suggestion. The user\'s dev assistant (Claude Code) will implement these. Use when you encounter something that blocks or slows your work.',
+        parameters: z.object({
+          issue: z.string().describe('What limitation or bug you encountered'),
+          suggestion: z.string().describe('Specific fix — include exact code changes if possible'),
+          file: z.string().optional().describe('Which source file needs to change (e.g. app/api/chat/route.ts)'),
+          priority: z.enum(['low', 'medium', 'high']).describe('Impact: high=blocks workflows, medium=inconvenient, low=nice-to-have'),
+        }),
+        execute: async ({ issue, suggestion, file, priority }) => ({
+          logged: true,
+          issue,
+          suggestion,
+          file,
+          priority,
+        }),
+      }),
+
+      // ─── File Operations (lean results) ────────────────────────
 
       write_file: tool({
-        description: 'Create or overwrite a file. Returns the content so the client can update its state.',
+        description: 'Create or overwrite a file. The client updates from the tool call args (not the result), so the result is lean to save tokens.',
         parameters: z.object({
           path: z.string().describe('File path relative to project root, e.g. "app/page.tsx"'),
           content: z.string().describe('Complete file content'),
         }),
         execute: async ({ path, content }) => {
           vfs.write(path, content)
-          return { success: true, path, content, lines: content.split('\n').length }
+          return { ok: true, path, lines: content.split('\n').length }
         },
       }),
 
       read_file: tool({
-        description: 'Read a file from the project.',
+        description: 'Read a file\'s content. Only use when you need to see existing content before editing. NEVER read a file you just wrote.',
         parameters: z.object({
           path: z.string().describe('File path relative to project root'),
         }),
         execute: async ({ path }) => {
           const content = vfs.read(path)
           if (content === undefined) return { error: `File not found: ${path}` }
-          return { content, path }
+          return { content, path, lines: content.split('\n').length }
         },
       }),
 
       edit_file: tool({
-        description: 'Edit a file by replacing a specific string. old_string must match exactly.',
+        description: 'Edit a file by replacing a specific string. old_string must match EXACTLY (including whitespace). The client applies the edit from args, result is lean.',
         parameters: z.object({
           path: z.string().describe('File path'),
-          old_string: z.string().describe('Exact string to find and replace'),
+          old_string: z.string().describe('Exact string to find — include enough surrounding context to be unique'),
           new_string: z.string().describe('Replacement string'),
         }),
         execute: async ({ path, old_string, new_string }) => {
@@ -334,11 +411,11 @@ export async function POST(req: Request) {
           }
           const occurrences = content.split(old_string).length - 1
           if (occurrences > 1) {
-            return { error: `Found ${occurrences} occurrences. Provide more context to make it unique.` }
+            return { error: `Found ${occurrences} occurrences. Provide more surrounding context to make it unique.` }
           }
           const updated = content.replace(old_string, new_string)
           vfs.write(path, updated)
-          return { success: true, path, content: updated }
+          return { ok: true, path, lines: updated.split('\n').length }
         },
       }),
 
@@ -350,24 +427,23 @@ export async function POST(req: Request) {
         execute: async ({ path }) => {
           if (!vfs.exists(path)) return { error: `File not found: ${path}` }
           vfs.delete(path)
-          return { success: true, path, deleted: true }
+          return { ok: true, path, deleted: true }
         },
       }),
 
       list_files: tool({
-        description: 'List all files in the project. Returns file tree structure.',
+        description: 'List all files in the project with their sizes.',
         parameters: z.object({
           prefix: z.string().optional().describe('Filter files starting with this path prefix'),
         }),
         execute: async ({ prefix }) => {
           const files = vfs.list(prefix)
-          const tree = vfs.toTree()
-          return { files, tree, count: files.length }
+          return { files, count: files.length }
         },
       }),
 
       search_files: tool({
-        description: 'Search file contents with a regex pattern. Returns matching lines.',
+        description: 'Search file contents with a regex pattern. Returns matching lines with file path and line number.',
         parameters: z.object({
           pattern: z.string().describe('Regex pattern to search for'),
         }),
@@ -380,7 +456,7 @@ export async function POST(req: Request) {
       // ─── Project Scaffolding ────────────────────────────────────
 
       create_project: tool({
-        description: 'Scaffold a new project from a template. Creates all config files and base structure.',
+        description: 'Scaffold a new project from a template. Creates config files and base structure. Always call this FIRST for new projects, then build the actual app.',
         parameters: z.object({
           template: z.enum(['nextjs', 'vite-react', 'static']).describe('Project template'),
           description: z.string().optional().describe('Project description'),
@@ -396,7 +472,7 @@ export async function POST(req: Request) {
             vfs.write(path, content)
           }
           return {
-            success: true,
+            ok: true,
             template,
             files: Object.keys(scaffold),
             allFiles: vfs.toRecord(),
@@ -416,7 +492,6 @@ export async function POST(req: Request) {
         execute: async ({ repoName, isPublic, description }) => {
           if (!GITHUB_TOKEN) return { error: 'GITHUB_TOKEN not configured. Add it to environment variables.' }
 
-          // Create repo
           const repo = await githubFetch('/user/repos', {
             method: 'POST',
             body: JSON.stringify({
@@ -428,7 +503,6 @@ export async function POST(req: Request) {
           })
           if (repo.error) return { error: `Failed to create repo: ${repo.error}` }
 
-          // Push all files via GitHub Trees API
           const owner = repo.owner.login
           const files = vfs.toRecord()
           const blobs = []
@@ -442,37 +516,24 @@ export async function POST(req: Request) {
             blobs.push({ path, mode: '100644', type: 'blob', sha: blob.sha })
           }
 
-          // Create tree
           const tree = await githubFetch(`/repos/${owner}/${repoName}/git/trees`, {
             method: 'POST',
             body: JSON.stringify({ tree: blobs }),
           })
           if (tree.error) return { error: `Failed to create tree: ${tree.error}` }
 
-          // Create commit
           const commit = await githubFetch(`/repos/${owner}/${repoName}/git/commits`, {
             method: 'POST',
-            body: JSON.stringify({
-              message: 'Initial commit from Forge',
-              tree: tree.sha,
-            }),
+            body: JSON.stringify({ message: 'Initial commit from Forge', tree: tree.sha }),
           })
           if (commit.error) return { error: `Failed to create commit: ${commit.error}` }
 
-          // Update default branch ref
           await githubFetch(`/repos/${owner}/${repoName}/git/refs`, {
             method: 'POST',
             body: JSON.stringify({ ref: 'refs/heads/main', sha: commit.sha }),
           })
 
-          return {
-            success: true,
-            url: repo.html_url,
-            cloneUrl: repo.clone_url,
-            owner,
-            repoName,
-            filesCount: Object.keys(files).length,
-          }
+          return { ok: true, url: repo.html_url, owner, repoName, filesCount: Object.keys(files).length }
         },
       }),
 
@@ -488,12 +549,10 @@ export async function POST(req: Request) {
           if (!GITHUB_TOKEN) return { error: 'GITHUB_TOKEN not configured' }
           const branchName = branch || 'main'
 
-          // Get current branch HEAD
           const ref = await githubFetch(`/repos/${owner}/${repo}/git/refs/heads/${branchName}`)
           if (ref.error) return { error: `Failed to get branch: ${ref.error}` }
           const parentSha = ref.object.sha
 
-          // Create blobs for all files
           const files = vfs.toRecord()
           const blobs = []
           for (const [path, content] of Object.entries(files)) {
@@ -505,28 +564,25 @@ export async function POST(req: Request) {
             blobs.push({ path, mode: '100644' as const, type: 'blob' as const, sha: blob.sha as string })
           }
 
-          // Create tree
           const tree = await githubFetch(`/repos/${owner}/${repo}/git/trees`, {
             method: 'POST',
             body: JSON.stringify({ base_tree: parentSha, tree: blobs }),
           })
           if (tree.error) return { error: `Failed to create tree: ${tree.error}` }
 
-          // Create commit
           const commit = await githubFetch(`/repos/${owner}/${repo}/git/commits`, {
             method: 'POST',
             body: JSON.stringify({ message, tree: tree.sha, parents: [parentSha] }),
           })
           if (commit.error) return { error: `Failed to commit: ${commit.error}` }
 
-          // Update ref
           const update = await githubFetch(`/repos/${owner}/${repo}/git/refs/heads/${branchName}`, {
             method: 'PATCH',
             body: JSON.stringify({ sha: commit.sha }),
           })
           if (update.error) return { error: `Failed to update ref: ${update.error}` }
 
-          return { success: true, commitSha: commit.sha, filesCount: Object.keys(files).length }
+          return { ok: true, commitSha: commit.sha, filesCount: Object.keys(files).length }
         },
       }),
 
@@ -541,7 +597,6 @@ export async function POST(req: Request) {
           const files = vfs.toRecord()
           if (Object.keys(files).length === 0) return { error: 'No files to deploy. Create some files first.' }
 
-          // Auto-detect framework
           let fw = framework
           if (!fw) {
             if (files['next.config.ts'] || files['next.config.js']) fw = 'nextjs'
@@ -557,16 +612,10 @@ export async function POST(req: Request) {
       // ─── Utility ────────────────────────────────────────────────
 
       get_all_files: tool({
-        description: 'Get the complete contents of all files in the project. Useful for understanding the full codebase.',
+        description: 'Get the file manifest (path, lines, size for each file). Does NOT return content — use read_file for that.',
         parameters: z.object({}),
         execute: async () => {
-          const files = vfs.toRecord()
-          const summary = Object.entries(files).map(([path, content]) => ({
-            path,
-            lines: content.split('\n').length,
-            size: content.length,
-          }))
-          return { files, summary, totalFiles: summary.length }
+          return { manifest: vfs.manifest(), totalFiles: vfs.list().length }
         },
       }),
 
@@ -581,7 +630,7 @@ export async function POST(req: Request) {
           if (content === undefined) return { error: `File not found: ${oldPath}` }
           vfs.delete(oldPath)
           vfs.write(newPath, content)
-          return { success: true, oldPath, newPath, content }
+          return { ok: true, oldPath, newPath }
         },
       }),
     },

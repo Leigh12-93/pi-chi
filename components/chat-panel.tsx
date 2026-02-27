@@ -4,10 +4,11 @@ import { useState, useRef, useEffect, useCallback } from 'react'
 import { useChat } from '@ai-sdk/react'
 import {
   Send, Loader2, Bot, Copy, Check, Trash2,
-  FileText, FolderPlus, GitCommit, GitBranch, Search,
-  Terminal, Package, Pencil, Eye, Globe, Rocket,
+  FileText, FolderPlus, GitBranch, Search,
+  Terminal, Pencil, Eye, Globe, Rocket,
   AlertTriangle, CheckCircle, XCircle,
-  StopCircle, Sparkles, ArrowUp, type LucideIcon,
+  StopCircle, Sparkles, ArrowUp, Lightbulb,
+  Brain, type LucideIcon,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
@@ -16,26 +17,27 @@ import { cn } from '@/lib/utils'
 // ═══════════════════════════════════════════════════════════════════
 
 const TOOL_LABELS: Record<string, { label: string; Icon: LucideIcon; color: string }> = {
+  think: { label: 'Planning', Icon: Brain, color: 'purple' },
+  suggest_improvement: { label: 'Suggestion', Icon: Lightbulb, color: 'yellow' },
   write_file: { label: 'Writing file', Icon: FileText, color: 'green' },
   read_file: { label: 'Reading file', Icon: Eye, color: 'blue' },
   edit_file: { label: 'Editing file', Icon: Pencil, color: 'yellow' },
   delete_file: { label: 'Deleting file', Icon: Trash2, color: 'red' },
   list_files: { label: 'Listing files', Icon: FolderPlus, color: 'blue' },
   search_files: { label: 'Searching files', Icon: Search, color: 'purple' },
-  glob_files: { label: 'Finding files', Icon: Search, color: 'purple' },
-  create_project: { label: 'Creating project', Icon: Sparkles, color: 'indigo' },
+  create_project: { label: 'Scaffolding project', Icon: Sparkles, color: 'indigo' },
   github_create_repo: { label: 'Creating GitHub repo', Icon: GitBranch, color: 'green' },
   github_push_update: { label: 'Pushing to GitHub', Icon: ArrowUp, color: 'blue' },
   deploy_to_vercel: { label: 'Deploying to Vercel', Icon: Rocket, color: 'blue' },
-  get_all_files: { label: 'Reading all files', Icon: Eye, color: 'blue' },
+  get_all_files: { label: 'File manifest', Icon: Eye, color: 'blue' },
   rename_file: { label: 'Renaming file', Icon: Pencil, color: 'yellow' },
 }
 
 const QUICK_ACTIONS = [
-  { label: 'Landing Page', query: 'Build a modern landing page with hero, features grid, testimonials, and footer using Next.js and Tailwind', icon: Sparkles },
-  { label: 'Dashboard', query: 'Build an admin dashboard with sidebar nav, stats cards, chart area, and data table', icon: FolderPlus },
-  { label: 'Portfolio', query: 'Create a portfolio site with project showcase, about section, skills, and contact form', icon: Globe },
-  { label: 'Blog', query: 'Build a blog with article list, individual post pages, categories, and search', icon: FileText },
+  { label: 'Landing Page', query: 'Build a modern landing page with hero section, features grid, testimonials with avatars, pricing table, and footer. Use a cohesive color palette with gradients and animations. Make it look like a real SaaS product.', icon: Sparkles },
+  { label: 'Dashboard', query: 'Build an admin dashboard with sidebar navigation, stats cards with sparklines, a chart area, recent activity feed, and a data table with sorting. Dark theme, professional look.', icon: FolderPlus },
+  { label: 'Portfolio', query: 'Create a portfolio site with animated hero, project showcase with hover effects, about section with skills, timeline, and a contact form. Minimal, elegant design.', icon: Globe },
+  { label: 'E-commerce', query: 'Build an e-commerce product page with image gallery, size/color selector, add to cart, reviews section, and related products. Clean, modern design like Apple Store.', icon: FileText },
 ]
 
 // ═══════════════════════════════════════════════════════════════════
@@ -56,28 +58,31 @@ function renderMarkdown(text: string): string {
     .replace(/\n/g, '<br/>')
 }
 
-function getToolSummary(toolName: string, result: unknown): string {
+function getToolSummary(toolName: string, args: Record<string, unknown>, result: unknown): string {
   const data = (result && typeof result === 'object') ? result as Record<string, unknown> : null
-  if (!data) return toolName.replace(/_/g, ' ')
-  if (data.error) return `Failed: ${String(data.error).slice(0, 80)}`
+  if (data?.error) return `Error: ${String(data.error).slice(0, 80)}`
+
   switch (toolName) {
-    case 'write_file': return data.path ? `Created ${data.path} (${data.lines} lines)` : 'File written'
-    case 'read_file': return data.path ? `Read ${data.path}` : 'File read'
-    case 'edit_file': return data.path ? `Edited ${data.path}` : 'File edited'
-    case 'delete_file': return data.path ? `Deleted ${data.path}` : 'Deleted'
-    case 'create_project': return data.template ? `Scaffolded ${data.template} (${(data.files as string[])?.length} files)` : 'Created'
-    case 'github_create_repo': return data.url ? `Created ${data.url}` : 'Repo created'
-    case 'github_push_update': return data.success ? `Pushed ${data.filesCount} files` : 'Push failed'
-    case 'deploy_to_vercel': return data.url ? `Deployed: ${data.url}` : 'Deploy failed'
-    case 'list_files': return `${data.count || 0} files`
-    case 'search_files': return `${data.count || 0} matches`
-    case 'rename_file': return data.newPath ? `→ ${data.newPath}` : 'Renamed'
+    case 'think': return args.plan ? String(args.plan).slice(0, 100) + (String(args.plan).length > 100 ? '...' : '') : 'Planning...'
+    case 'suggest_improvement': return args.issue ? `${args.priority}: ${String(args.issue).slice(0, 80)}` : 'Suggestion logged'
+    case 'write_file': return args.path ? `${args.path} (${String(args.content || '').split('\n').length}L)` : 'Writing...'
+    case 'read_file': return args.path ? `${args.path}` : 'Reading...'
+    case 'edit_file': return args.path ? `${args.path}` : 'Editing...'
+    case 'delete_file': return args.path ? `${args.path}` : 'Deleting...'
+    case 'create_project': return args.template ? `${args.template} template` : 'Scaffolding...'
+    case 'github_create_repo': return args.repoName ? `${args.repoName}` : 'Creating...'
+    case 'github_push_update': return data?.ok ? `${data.filesCount} files pushed` : 'Pushing...'
+    case 'deploy_to_vercel': return data?.url ? `${data.url}` : 'Deploying...'
+    case 'list_files': return data ? `${data.count || 0} files` : 'Listing...'
+    case 'search_files': return data ? `${data.count || 0} matches` : 'Searching...'
+    case 'rename_file': return args.newPath ? `→ ${args.newPath}` : 'Renaming...'
+    case 'get_all_files': return data ? `${(data as any).totalFiles || 0} files` : 'Reading manifest...'
     default: return 'Done'
   }
 }
 
 // ═══════════════════════════════════════════════════════════════════
-// File change extraction from tool results
+// Live file extraction — processes tool invocations as they stream
 // ═══════════════════════════════════════════════════════════════════
 
 type ToolInvocation = {
@@ -87,50 +92,67 @@ type ToolInvocation = {
   result?: Record<string, unknown>
 }
 
-function extractFileChanges(toolInvocations: ToolInvocation[]): {
-  updates: Record<string, string>
-  deletes: string[]
-} {
-  const updates: Record<string, string> = {}
-  const deletes: string[] = []
+/**
+ * Extract file changes from tool invocations.
+ * For write_file: reads content from ARGS (not result) — available immediately at 'call' state.
+ * For edit_file: applies old→new from ARGS against current file state.
+ * For create_project: reads allFiles from RESULT (server-generated).
+ */
+function extractFileUpdates(
+  inv: ToolInvocation,
+  currentFiles: Record<string, string>,
+): { updates?: Record<string, string>; deletes?: string[] } | null {
+  const args = inv.args || {}
 
-  for (const inv of toolInvocations) {
-    if (inv.state !== 'result' || !inv.result) continue
-    const result = inv.result
+  switch (inv.toolName) {
+    case 'write_file':
+      // Available at 'call' state — content is in args
+      if (typeof args.path === 'string' && typeof args.content === 'string') {
+        return { updates: { [args.path]: args.content } }
+      }
+      return null
 
-    switch (inv.toolName) {
-      case 'write_file':
-        if (result.success && typeof result.path === 'string' && typeof result.content === 'string') {
-          updates[result.path] = result.content
+    case 'edit_file':
+      // Apply edit locally from args
+      if (inv.state === 'result' && inv.result && !('error' in inv.result)) {
+        const path = args.path as string
+        const oldStr = args.old_string as string
+        const newStr = args.new_string as string
+        const current = currentFiles[path]
+        if (current && current.includes(oldStr)) {
+          return { updates: { [path]: current.replace(oldStr, newStr) } }
         }
-        break
-      case 'edit_file':
-        if (result.success && typeof result.path === 'string' && typeof result.content === 'string') {
-          updates[result.path] = result.content
-        }
-        break
-      case 'rename_file':
-        if (result.success) {
-          if (typeof result.oldPath === 'string') deletes.push(result.oldPath)
-          if (typeof result.newPath === 'string' && typeof result.content === 'string') {
-            updates[result.newPath] = result.content
+      }
+      return null
+
+    case 'delete_file':
+      if (typeof args.path === 'string') {
+        return { deletes: [args.path] }
+      }
+      return null
+
+    case 'rename_file':
+      if (typeof args.oldPath === 'string' && typeof args.newPath === 'string') {
+        const content = currentFiles[args.oldPath]
+        if (content !== undefined) {
+          return {
+            updates: { [args.newPath]: content },
+            deletes: [args.oldPath],
           }
         }
-        break
-      case 'delete_file':
-        if (result.success && typeof result.path === 'string') {
-          deletes.push(result.path)
-        }
-        break
-      case 'create_project':
-        if (result.allFiles && typeof result.allFiles === 'object') {
-          Object.assign(updates, result.allFiles)
-        }
-        break
-    }
-  }
+      }
+      return null
 
-  return { updates, deletes }
+    case 'create_project':
+      // Must wait for result — scaffold is generated server-side
+      if (inv.state === 'result' && inv.result?.allFiles && typeof inv.result.allFiles === 'object') {
+        return { updates: inv.result.allFiles as Record<string, string> }
+      }
+      return null
+
+    default:
+      return null
+  }
 }
 
 // ═══════════════════════════════════════════════════════════════════
@@ -163,33 +185,65 @@ export function ChatPanel({ projectName, files, onFileChange, onFileDelete, onBu
   const [copiedId, setCopiedId] = useState<string | null>(null)
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLTextAreaElement>(null)
-  const processedMsgIds = useRef(new Set<string>())
+
+  // Track processed invocations individually (msg.id + invocation index)
+  const processedInvs = useRef(new Set<string>())
+  // Keep a running copy of files for edit_file to apply against
+  const localFiles = useRef<Record<string, string>>({})
+
+  // Sync local files ref with props
+  useEffect(() => {
+    localFiles.current = { ...files }
+  }, [files])
 
   // Auto-scroll
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'auto' })
   }, [messages, isLoading])
 
-  // Extract file changes from tool results and apply to parent state
+  // ─── Live file extraction: process each invocation as it arrives ───
   useEffect(() => {
     for (const msg of messages) {
-      if (msg.role !== 'assistant' || processedMsgIds.current.has(msg.id)) continue
-
+      if (msg.role !== 'assistant') continue
       const invocations = (msg as any).toolInvocations as ToolInvocation[] | undefined
-      if (!invocations || invocations.length === 0) continue
+      if (!invocations) continue
 
-      // Only process if all invocations are in 'result' state
-      const allDone = invocations.every(inv => inv.state === 'result')
-      if (!allDone) continue
+      for (let i = 0; i < invocations.length; i++) {
+        const inv = invocations[i]
+        const key = `${msg.id}:${i}`
 
-      processedMsgIds.current.add(msg.id)
-      const { updates, deletes } = extractFileChanges(invocations)
+        // Skip already-processed invocations
+        if (processedInvs.current.has(key)) continue
 
-      if (Object.keys(updates).length > 0) {
-        onBulkFileUpdate(updates)
-      }
-      for (const path of deletes) {
-        onFileDelete(path)
+        // Determine when to process based on tool type
+        const processAtCall = ['write_file', 'delete_file'].includes(inv.toolName)
+        const processAtResult = ['edit_file', 'create_project', 'rename_file'].includes(inv.toolName)
+
+        const shouldProcess =
+          (processAtCall && (inv.state === 'call' || inv.state === 'result')) ||
+          (processAtResult && inv.state === 'result')
+
+        if (!shouldProcess) continue
+
+        const changes = extractFileUpdates(inv, localFiles.current)
+        if (!changes) continue
+
+        processedInvs.current.add(key)
+
+        // Apply updates
+        if (changes.updates && Object.keys(changes.updates).length > 0) {
+          // Update local ref immediately for chained edits
+          for (const [path, content] of Object.entries(changes.updates)) {
+            localFiles.current[path] = content
+          }
+          onBulkFileUpdate(changes.updates)
+        }
+        if (changes.deletes) {
+          for (const path of changes.deletes) {
+            delete localFiles.current[path]
+            onFileDelete(path)
+          }
+        }
       }
     }
   }, [messages, onBulkFileUpdate, onFileDelete])
@@ -207,6 +261,12 @@ export function ChatPanel({ projectName, files, onFileChange, onFileDelete, onBu
     setCopiedId(id)
     setTimeout(() => setCopiedId(null), 2000)
   }
+
+  // Count steps for progress indicator
+  const stepCount = messages.reduce((acc, msg) => {
+    const invs = (msg as any).toolInvocations as ToolInvocation[] | undefined
+    return acc + (invs?.length || 0)
+  }, 0)
 
   const isEmpty = messages.length === 0
 
@@ -227,10 +287,19 @@ export function ChatPanel({ projectName, files, onFileChange, onFileDelete, onBu
       <div className="flex items-center justify-between px-4 py-2.5 border-b border-forge-border shrink-0">
         <div className="flex items-center gap-2">
           <Bot className="w-4 h-4 text-forge-accent" />
-          <span className="text-xs font-medium text-forge-text">AI Builder</span>
+          <span className="text-xs font-medium text-forge-text">Forge AI</span>
+          {isLoading && stepCount > 0 && (
+            <span className="text-[10px] text-forge-accent animate-pulse">
+              Step {stepCount}
+            </span>
+          )}
         </div>
         {messages.length > 0 && (
-          <button onClick={() => { setMessages([]); processedMsgIds.current.clear() }} className="text-forge-text-dim hover:text-forge-danger transition-colors">
+          <button
+            onClick={() => { setMessages([]); processedInvs.current.clear() }}
+            className="text-forge-text-dim hover:text-forge-danger transition-colors"
+            title="Clear chat"
+          >
             <Trash2 className="w-3.5 h-3.5" />
           </button>
         )}
@@ -244,7 +313,7 @@ export function ChatPanel({ projectName, files, onFileChange, onFileDelete, onBu
               <Sparkles className="w-6 h-6 text-forge-accent" />
             </div>
             <h2 className="text-lg font-semibold text-forge-text mb-1">What shall we build?</h2>
-            <p className="text-xs text-forge-text-dim text-center mb-6">Describe your idea and I'll build it</p>
+            <p className="text-xs text-forge-text-dim text-center mb-6">Describe your idea and Forge builds it</p>
             <div className="grid grid-cols-1 gap-2 w-full max-w-xs">
               {QUICK_ACTIONS.map(action => (
                 <button
@@ -273,14 +342,70 @@ export function ChatPanel({ projectName, files, onFileChange, onFileDelete, onBu
                     </div>
                   ) : (
                     <div className="space-y-1.5">
+                      {/* Tool invocations */}
                       {invocations && invocations.length > 0 && (
                         <div className="space-y-1">
                           {invocations.map((inv, i) => {
                             const info = TOOL_LABELS[inv.toolName] || { label: inv.toolName.replace(/_/g, ' '), Icon: Terminal, color: 'gray' }
                             const isRunning = inv.state === 'call' || inv.state === 'partial-call'
                             const hasError = inv.result && typeof inv.result === 'object' && 'error' in inv.result
-                            const summary = inv.result ? getToolSummary(inv.toolName, inv.result) : info.label
+                            const summary = getToolSummary(inv.toolName, inv.args || {}, inv.result)
 
+                            // Special rendering for think tool
+                            if (inv.toolName === 'think' && inv.state === 'result') {
+                              const planFiles = Array.isArray(inv.args?.files) ? inv.args.files as string[] : []
+                              return (
+                                <div key={i} className="border border-purple-800/30 bg-purple-950/20 rounded-lg p-2.5 text-[11px]">
+                                  <div className="flex items-center gap-1.5 mb-1.5 text-purple-400">
+                                    <Brain className="w-3.5 h-3.5" />
+                                    <span className="font-medium">Planning</span>
+                                  </div>
+                                  <div className="text-purple-200/70 leading-relaxed whitespace-pre-wrap">
+                                    {String(inv.args?.plan || '').slice(0, 300)}
+                                  </div>
+                                  {planFiles.length > 0 && (
+                                    <div className="mt-1.5 flex flex-wrap gap-1">
+                                      {planFiles.map((f: string, fi: number) => (
+                                        <span key={fi} className="px-1.5 py-0.5 bg-purple-900/30 text-purple-300 rounded text-[10px] font-mono">
+                                          {f}
+                                        </span>
+                                      ))}
+                                    </div>
+                                  )}
+                                </div>
+                              )
+                            }
+
+                            // Special rendering for improvement suggestions
+                            if (inv.toolName === 'suggest_improvement' && inv.state === 'result') {
+                              const sArgs = (inv.args || {}) as Record<string, string>
+                              const priority = sArgs.priority || 'medium'
+                              const priorityColor = priority === 'high' ? 'text-red-400 bg-red-400/10' : priority === 'medium' ? 'text-yellow-400 bg-yellow-400/10' : 'text-blue-400 bg-blue-400/10'
+                              return (
+                                <div key={i} className="border border-yellow-800/30 bg-yellow-950/10 rounded-lg p-2.5 text-[11px]">
+                                  <div className="flex items-center gap-1.5 mb-1">
+                                    <Lightbulb className="w-3.5 h-3.5 text-yellow-400" />
+                                    <span className="font-medium text-yellow-400">Improvement Suggestion</span>
+                                    <span className={cn('px-1.5 py-0.5 rounded text-[9px] font-medium uppercase', priorityColor)}>
+                                      {priority}
+                                    </span>
+                                  </div>
+                                  <p className="text-yellow-200/70 mb-1">{sArgs.issue || ''}</p>
+                                  {sArgs.suggestion && (
+                                    <pre className="text-[10px] bg-gray-900/60 text-gray-300 rounded p-2 mt-1 whitespace-pre-wrap font-mono">
+                                      {sArgs.suggestion}
+                                    </pre>
+                                  )}
+                                  {sArgs.file && (
+                                    <span className="inline-block mt-1 px-1.5 py-0.5 bg-gray-800 text-gray-400 rounded text-[10px] font-mono">
+                                      {sArgs.file}
+                                    </span>
+                                  )}
+                                </div>
+                              )
+                            }
+
+                            // Standard tool badge
                             return (
                               <div
                                 key={i}
@@ -296,16 +421,17 @@ export function ChatPanel({ projectName, files, onFileChange, onFileDelete, onBu
                                     : hasError ? <XCircle className="w-3 h-3 text-red-400" />
                                     : <info.Icon className="w-3 h-3" />}
                                 </div>
-                                <span className={cn('truncate', hasError ? 'text-red-300' : 'text-forge-text-dim')}>
+                                <span className={cn('truncate flex-1', hasError ? 'text-red-300' : 'text-forge-text-dim')}>
                                   {summary}
                                 </span>
-                                {!isRunning && !hasError && <CheckCircle className="w-3 h-3 text-emerald-500 shrink-0 ml-auto" />}
+                                {!isRunning && !hasError && <CheckCircle className="w-3 h-3 text-emerald-500 shrink-0" />}
                               </div>
                             )
                           })}
                         </div>
                       )}
 
+                      {/* Text content */}
                       {textContent && (
                         <div className="relative group">
                           <div
@@ -329,7 +455,7 @@ export function ChatPanel({ projectName, files, onFileChange, onFileDelete, onBu
             {isLoading && (
               <div className="flex items-center gap-2 text-forge-text-dim text-xs py-2">
                 <Loader2 className="w-3.5 h-3.5 animate-spin text-forge-accent" />
-                <span>Building...</span>
+                <span>Building{stepCount > 0 ? ` (step ${stepCount})` : ''}...</span>
               </div>
             )}
 
@@ -359,13 +485,13 @@ export function ChatPanel({ projectName, files, onFileChange, onFileDelete, onBu
             onKeyDown={e => {
               if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSend() }
             }}
-            placeholder={isEmpty ? 'Describe what you want to build...' : 'Ask anything...'}
+            placeholder={isEmpty ? 'Describe what you want to build...' : 'Ask for changes, new features, fixes...'}
             rows={1}
             className="w-full bg-forge-surface border border-forge-border rounded-lg pl-3 pr-10 py-2.5 text-sm text-forge-text placeholder:text-forge-text-dim/50 outline-none focus:border-forge-accent/50 resize-none transition-colors"
           />
           <div className="absolute right-2 bottom-2">
             {isLoading ? (
-              <button onClick={stop} className="p-1.5 rounded-md bg-forge-danger/20 text-forge-danger hover:bg-forge-danger/30 transition-colors">
+              <button onClick={stop} className="p-1.5 rounded-md bg-forge-danger/20 text-forge-danger hover:bg-forge-danger/30 transition-colors" title="Stop">
                 <StopCircle className="w-4 h-4" />
               </button>
             ) : (

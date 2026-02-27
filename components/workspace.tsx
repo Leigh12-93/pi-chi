@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useEffect, useRef } from 'react'
 import { Panel, PanelGroup, PanelResizeHandle } from 'react-resizable-panels'
 import { ChatPanel } from './chat-panel'
 import { CodeEditor } from './code-editor'
@@ -65,6 +65,27 @@ export function Workspace({
   const [openFiles, setOpenFiles] = useState<string[]>([])
 
   const fileTree = useMemo(() => buildTreeFromMap(files), [files])
+  const prevFileCount = useRef(0)
+
+  // Auto-select first meaningful file when project is scaffolded
+  useEffect(() => {
+    const fileKeys = Object.keys(files)
+    const wasEmpty = prevFileCount.current === 0
+    prevFileCount.current = fileKeys.length
+
+    if (wasEmpty && fileKeys.length > 0 && !activeFile) {
+      // Pick the main app file
+      const mainFile = fileKeys.find(f => f === 'app/page.tsx')
+        || fileKeys.find(f => f === 'src/App.tsx')
+        || fileKeys.find(f => f.endsWith('/page.tsx'))
+        || fileKeys.find(f => f.endsWith('.tsx'))
+        || fileKeys[0]
+      if (mainFile) {
+        onFileSelect(mainFile)
+        setOpenFiles([mainFile])
+      }
+    }
+  }, [files, activeFile, onFileSelect])
 
   const handleFileSelect = (path: string) => {
     onFileSelect(path)
