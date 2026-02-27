@@ -8,7 +8,9 @@ import {
   Terminal, Pencil, Eye, Globe, Rocket,
   AlertTriangle, CheckCircle, XCircle,
   StopCircle, Sparkles, ArrowUp, Lightbulb,
-  Brain, type LucideIcon,
+  Brain, Database, Wrench, RefreshCw,
+  BookOpen, Save,
+  type LucideIcon,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
@@ -31,6 +33,17 @@ const TOOL_LABELS: Record<string, { label: string; Icon: LucideIcon; color: stri
   deploy_to_vercel: { label: 'Deploying to Vercel', Icon: Rocket, color: 'blue' },
   get_all_files: { label: 'File manifest', Icon: Eye, color: 'blue' },
   rename_file: { label: 'Renaming file', Icon: Pencil, color: 'yellow' },
+  // Superpower tools
+  db_query: { label: 'Querying database', Icon: Database, color: 'green' },
+  db_mutate: { label: 'Modifying database', Icon: Database, color: 'yellow' },
+  save_project: { label: 'Saving project', Icon: Save, color: 'green' },
+  forge_read_own_source: { label: 'Reading own source', Icon: BookOpen, color: 'purple' },
+  forge_modify_own_source: { label: 'Self-modifying', Icon: Wrench, color: 'red' },
+  forge_redeploy: { label: 'Redeploying self', Icon: RefreshCw, color: 'orange' },
+  github_read_file: { label: 'Reading repo file', Icon: Eye, color: 'blue' },
+  github_list_repo_files: { label: 'Listing repo files', Icon: FolderPlus, color: 'blue' },
+  github_modify_external_file: { label: 'Modifying repo file', Icon: Pencil, color: 'yellow' },
+  github_search_code: { label: 'Searching GitHub', Icon: Search, color: 'purple' },
 }
 
 const QUICK_ACTIONS = [
@@ -77,6 +90,17 @@ function getToolSummary(toolName: string, args: Record<string, unknown>, result:
     case 'search_files': return data ? `${data.count || 0} matches` : 'Searching...'
     case 'rename_file': return args.newPath ? `→ ${args.newPath}` : 'Renaming...'
     case 'get_all_files': return data ? `${(data as any).totalFiles || 0} files` : 'Reading manifest...'
+    // Superpower tools
+    case 'db_query': return args.table ? `${args.table}${args.filters ? ` (${String(args.filters).slice(0, 40)})` : ''}` : 'Querying...'
+    case 'db_mutate': return args.table ? `${args.operation} on ${args.table}` : 'Mutating...'
+    case 'save_project': return data?.ok ? `${(data as any).savedFiles || 0} files saved` : 'Saving...'
+    case 'forge_read_own_source': return args.path ? `forge/${args.path}` : 'Reading...'
+    case 'forge_modify_own_source': return args.path ? `forge/${args.path}` : 'Modifying...'
+    case 'forge_redeploy': return data?.ok ? `Deploying: ${(data as any).reason || ''}`.slice(0, 60) : 'Redeploying...'
+    case 'github_read_file': return args.path ? `${args.owner}/${args.repo}/${args.path}` : 'Reading...'
+    case 'github_list_repo_files': return args.repo ? `${args.owner}/${args.repo}/${args.path || ''}` : 'Listing...'
+    case 'github_modify_external_file': return args.path ? `${args.owner}/${args.repo}/${args.path}` : 'Modifying...'
+    case 'github_search_code': return args.query ? String(args.query).slice(0, 50) : 'Searching...'
     default: return 'Done'
   }
 }
@@ -161,6 +185,7 @@ function extractFileUpdates(
 
 interface ChatPanelProps {
   projectName: string
+  projectId: string | null
   files: Record<string, string>
   onFileChange: (path: string, content: string) => void
   onFileDelete: (path: string) => void
@@ -168,7 +193,7 @@ interface ChatPanelProps {
   githubToken?: string
 }
 
-export function ChatPanel({ projectName, files, onFileChange, onFileDelete, onBulkFileUpdate, githubToken }: ChatPanelProps) {
+export function ChatPanel({ projectName, projectId, files, onFileChange, onFileDelete, onBulkFileUpdate, githubToken }: ChatPanelProps) {
   const {
     messages,
     setMessages,
@@ -178,7 +203,7 @@ export function ChatPanel({ projectName, files, onFileChange, onFileDelete, onBu
     append,
   } = useChat({
     api: '/api/chat',
-    body: { projectName, files, githubToken },
+    body: { projectName, projectId, files, githubToken },
     onError: (err) => console.error('Chat error:', err),
   })
 

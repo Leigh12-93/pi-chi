@@ -48,6 +48,7 @@ function buildTreeFromMap(files: Record<string, string>): FileNode[] {
 
 interface WorkspaceProps {
   projectName: string
+  projectId: string | null
   files: Record<string, string>
   activeFile: string | null
   onFileSelect: (path: string) => void
@@ -59,7 +60,7 @@ interface WorkspaceProps {
 }
 
 export function Workspace({
-  projectName, files, activeFile,
+  projectName, projectId, files, activeFile,
   onFileSelect, onFileChange, onFileDelete, onBulkFileUpdate, onSwitchProject,
   githubToken,
 }: WorkspaceProps) {
@@ -113,6 +114,7 @@ export function Workspace({
         <Panel defaultSize={30} minSize={20} maxSize={50}>
           <ChatPanel
             projectName={projectName}
+            projectId={projectId}
             files={files}
             onFileChange={onFileChange}
             onFileDelete={onFileDelete}

@@ -1,6 +1,7 @@
 import { streamText, tool, convertToCoreMessages } from 'ai'
 import { anthropic } from '@ai-sdk/anthropic'
 import { z } from 'zod'
+import { supabase } from '@/lib/supabase'
 
 // ═══════════════════════════════════════════════════════════════════
 // Virtual Filesystem — lives in closure per request
@@ -54,7 +55,6 @@ class VirtualFS {
     return Object.fromEntries(this.files)
   }
 
-  /** File manifest — path, lines, size for each file. No content. */
   manifest(): Array<{ path: string; lines: number; size: number }> {
     return Array.from(this.files.entries())
       .map(([path, content]) => ({
@@ -234,10 +234,47 @@ async function vercelDeploy(name: string, files: Record<string, string>, framewo
 }
 
 // ═══════════════════════════════════════════════════════════════════
-// System prompt
+// Supabase DB credentials (for the AI's database tools)
 // ═══════════════════════════════════════════════════════════════════
 
-const SYSTEM_PROMPT = `You are Forge, an expert AI website builder specializing in React, Next.js, and modern web development.
+const SUPABASE_URL = (process.env.NEXT_PUBLIC_SUPABASE_URL || '').trim()
+const SUPABASE_KEY = (process.env.SUPABASE_SERVICE_ROLE_KEY || '').trim()
+
+async function supabaseFetch(path: string, options: RequestInit = {}) {
+  const res = await fetch(`${SUPABASE_URL}/rest/v1${path}`, {
+    ...options,
+    headers: {
+      'apikey': SUPABASE_KEY,
+      'Authorization': `Bearer ${SUPABASE_KEY}`,
+      'Content-Type': 'application/json',
+      'Prefer': 'return=representation',
+      ...options.headers,
+    },
+  })
+  const text = await res.text()
+  try {
+    return { data: JSON.parse(text), status: res.status, ok: res.ok }
+  } catch {
+    return { data: text, status: res.status, ok: res.ok }
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════
+// System prompt — THE BRAIN
+// ═══════════════════════════════════════════════════════════════════
+
+const SYSTEM_PROMPT = `You are Forge, an expert AI website builder with SUPERPOWER capabilities.
+
+## Your Identity
+
+You are not just a code generator. You are an autonomous AI agent with full access to:
+- **Your own source code** (GitHub repo: Leigh12-93/forge) — you can modify yourself
+- **A Supabase database** — you can query, insert, update, delete data
+- **GitHub API** — create repos, push code, read files from any accessible repo
+- **Vercel API** — deploy projects to production
+- **AussieSMS codebase** (GitHub repo: Leigh12-93/sms-gateway-android or local) — you can read and modify this app
+
+You have the power to improve yourself. If you encounter a limitation, use your self-modification tools to fix it.
 
 ## How You Work
 
@@ -247,7 +284,8 @@ You are an AGENTIC AI. You plan, build, and iterate autonomously in multi-step s
 1. **THINK** — For complex tasks (3+ files), use the \`think\` tool first to plan your approach
 2. **BUILD** — Create/edit files to implement the plan. Work through files systematically.
 3. **VERIFY** — If you edited a complex file, read it back to confirm correctness
-4. **REPORT** — Brief summary: what was built, what to look at in preview, next steps
+4. **SAVE** — Auto-save to database after significant changes (use \`save_project\`)
+5. **REPORT** — Brief summary: what was built, what to look at in preview, next steps
 
 ### Token Efficiency (CRITICAL)
 - Tool results for write_file and edit_file are LEAN (no content echo). This is intentional.
@@ -265,7 +303,7 @@ You are an AGENTIC AI. You plan, build, and iterate autonomously in multi-step s
 - **State:** React hooks (useState, useReducer). For complex state, extract to custom hooks.
 
 ## Code Standards
-- Every file must be COMPLETE and PRODUCTION-READY. No placeholders. No "TODO" comments. No "add more here".
+- Every file must be COMPLETE and PRODUCTION-READY. No placeholders. No "TODO" comments.
 - Components must be responsive (mobile-first). Test your layout assumptions.
 - Use semantic HTML. Buttons for actions, links for navigation, proper heading hierarchy.
 - Extract repeated patterns into components. One file = one concern.
@@ -274,25 +312,39 @@ You are an AGENTIC AI. You plan, build, and iterate autonomously in multi-step s
 
 ## Rules
 1. **ACT FIRST.** Create files immediately. Never say "I'll create..." — just do it.
-2. **BE COMPLETE.** Every page needs real content, not lorem ipsum. Real menu items, real feature descriptions, real pricing.
+2. **BE COMPLETE.** Every page needs real content, not lorem ipsum.
 3. **BE VISUAL.** Use gradients, shadows, animations, hover states. Make it look professional.
-4. **SCAFFOLD THEN BUILD.** After create_project, IMMEDIATELY build the full application. Don't stop at the template.
+4. **SCAFFOLD THEN BUILD.** After create_project, IMMEDIATELY build the full application.
 5. **SPLIT LARGE PAGES.** If a page exceeds 200 lines, extract sections into components.
+
+## Superpower Tools
+
+### Self-Modification
+You can read and modify your OWN source code using \`forge_read_own_source\` and \`forge_modify_own_source\`.
+Your source lives at GitHub repo \`Leigh12-93/forge\`. After modifying yourself, use \`forge_redeploy\` to push changes and trigger a Vercel redeploy.
+
+**Use self-modification when:**
+- A user requests a feature that requires changing your tools or system prompt
+- You encounter a bug in your own code
+- You need a new tool that doesn't exist yet
+- You want to improve your own capabilities
+
+### Database Access
+You have full CRUD access to the Supabase database. Tables prefixed with \`forge_\` are yours.
+Use \`db_query\` to read data and \`db_mutate\` to insert/update/delete.
+
+### External Repo Access
+You can read and modify other GitHub repos the user has access to:
+- \`github_read_file\` — read any file from any accessible repo
+- \`github_push_update\` — push changes to any accessible repo
+- AussieSMS app repo: \`Leigh12-93/sms-gateway-android\` (or Leigh12-93/aussie-sms if that exists)
 
 ## Self-Improvement Protocol
 
-When you encounter a limitation, bug, or inefficiency in your tooling or capabilities:
-1. Use \`suggest_improvement\` to log it with a specific fix
-2. Include the EXACT file path and code change needed
-3. Set priority based on impact (high = blocks common workflows, medium = inconvenient, low = nice-to-have)
-
-Examples of things to flag:
-- "Cannot install npm packages at runtime — need an install_packages tool"
-- "Preview doesn't render React state/events — need a proper React renderer"
-- "No image upload capability — need a file upload tool"
-- "edit_file fails on non-unique strings — need line-number-based editing"
-
-The user's development assistant (Claude Code) reads these suggestions and implements them.
+When you encounter a limitation:
+1. First try to fix it using self-modification tools
+2. If that's not possible, use \`suggest_improvement\` to log it
+3. Include the EXACT file path and code change needed
 
 ## After Building
 
@@ -308,6 +360,7 @@ Keep summaries SHORT (3-4 lines max):
 export async function POST(req: Request) {
   const body = await req.json()
   const projectName = body.projectName || 'untitled'
+  const projectId = body.projectId || null
 
   // Use user's GitHub token from OAuth if available, fall back to server PAT
   const userGithubToken = body.githubToken ? String(body.githubToken).trim() : ''
@@ -335,7 +388,7 @@ export async function POST(req: Request) {
 
   const result = streamText({
     model: anthropic('claude-sonnet-4-20250514'),
-    system: SYSTEM_PROMPT + `\n\n---\nProject: "${projectName}"\nFile manifest:\n${manifestStr}`,
+    system: SYSTEM_PROMPT + `\n\n---\nProject: "${projectName}"${projectId ? ` (id: ${projectId})` : ''}\nFile manifest:\n${manifestStr}`,
     messages,
     maxSteps: 25,
     tools: {
@@ -358,12 +411,12 @@ export async function POST(req: Request) {
       }),
 
       suggest_improvement: tool({
-        description: 'Log a tooling limitation, bug, or improvement suggestion. The user\'s dev assistant (Claude Code) will implement these. Use when you encounter something that blocks or slows your work.',
+        description: 'Log a tooling limitation, bug, or improvement suggestion. Use when you encounter something that blocks or slows your work.',
         parameters: z.object({
           issue: z.string().describe('What limitation or bug you encountered'),
           suggestion: z.string().describe('Specific fix — include exact code changes if possible'),
-          file: z.string().optional().describe('Which source file needs to change (e.g. app/api/chat/route.ts)'),
-          priority: z.enum(['low', 'medium', 'high']).describe('Impact: high=blocks workflows, medium=inconvenient, low=nice-to-have'),
+          file: z.string().optional().describe('Which source file needs to change'),
+          priority: z.enum(['low', 'medium', 'high']).describe('Impact level'),
         }),
         execute: async ({ issue, suggestion, file, priority }) => ({
           logged: true,
@@ -377,9 +430,9 @@ export async function POST(req: Request) {
       // ─── File Operations (lean results) ────────────────────────
 
       write_file: tool({
-        description: 'Create or overwrite a file. The client updates from the tool call args (not the result), so the result is lean to save tokens.',
+        description: 'Create or overwrite a file. Result is lean to save tokens.',
         parameters: z.object({
-          path: z.string().describe('File path relative to project root, e.g. "app/page.tsx"'),
+          path: z.string().describe('File path relative to project root'),
           content: z.string().describe('Complete file content'),
         }),
         execute: async ({ path, content }) => {
@@ -389,7 +442,7 @@ export async function POST(req: Request) {
       }),
 
       read_file: tool({
-        description: 'Read a file\'s content. Only use when you need to see existing content before editing. NEVER read a file you just wrote.',
+        description: 'Read a file\'s content. Only use when you need existing content before editing.',
         parameters: z.object({
           path: z.string().describe('File path relative to project root'),
         }),
@@ -401,10 +454,10 @@ export async function POST(req: Request) {
       }),
 
       edit_file: tool({
-        description: 'Edit a file by replacing a specific string. old_string must match EXACTLY (including whitespace). The client applies the edit from args, result is lean.',
+        description: 'Edit a file by replacing a specific string. old_string must match EXACTLY.',
         parameters: z.object({
           path: z.string().describe('File path'),
-          old_string: z.string().describe('Exact string to find — include enough surrounding context to be unique'),
+          old_string: z.string().describe('Exact string to find'),
           new_string: z.string().describe('Replacement string'),
         }),
         execute: async ({ path, old_string, new_string }) => {
@@ -415,7 +468,7 @@ export async function POST(req: Request) {
           }
           const occurrences = content.split(old_string).length - 1
           if (occurrences > 1) {
-            return { error: `Found ${occurrences} occurrences. Provide more surrounding context to make it unique.` }
+            return { error: `Found ${occurrences} occurrences. Provide more context to make it unique.` }
           }
           const updated = content.replace(old_string, new_string)
           vfs.write(path, updated)
@@ -447,7 +500,7 @@ export async function POST(req: Request) {
       }),
 
       search_files: tool({
-        description: 'Search file contents with a regex pattern. Returns matching lines with file path and line number.',
+        description: 'Search file contents with a regex pattern.',
         parameters: z.object({
           pattern: z.string().describe('Regex pattern to search for'),
         }),
@@ -460,7 +513,7 @@ export async function POST(req: Request) {
       // ─── Project Scaffolding ────────────────────────────────────
 
       create_project: tool({
-        description: 'Scaffold a new project from a template. Creates config files and base structure. Always call this FIRST for new projects, then build the actual app.',
+        description: 'Scaffold a new project from a template. Always call this FIRST for new projects.',
         parameters: z.object({
           template: z.enum(['nextjs', 'vite-react', 'static']).describe('Project template'),
           description: z.string().optional().describe('Project description'),
@@ -494,7 +547,7 @@ export async function POST(req: Request) {
           description: z.string().optional().describe('Repository description'),
         }),
         execute: async ({ repoName, isPublic, description }) => {
-          if (!effectiveGithubToken) return { error: 'Not authenticated. Sign in with GitHub to create repos.' }
+          if (!effectiveGithubToken) return { error: 'Not authenticated. Sign in with GitHub.' }
 
           const repo = await githubFetch('/user/repos', effectiveGithubToken, {
             method: 'POST',
@@ -550,7 +603,7 @@ export async function POST(req: Request) {
           branch: z.string().optional().describe('Branch name (default: main)'),
         }),
         execute: async ({ owner, repo, message, branch }) => {
-          if (!effectiveGithubToken) return { error: 'Not authenticated. Sign in with GitHub to push.' }
+          if (!effectiveGithubToken) return { error: 'Not authenticated. Sign in with GitHub.' }
           const branchName = branch || 'main'
 
           const ref = await githubFetch(`/repos/${owner}/${repo}/git/refs/heads/${branchName}`, effectiveGithubToken)
@@ -595,11 +648,11 @@ export async function POST(req: Request) {
       deploy_to_vercel: tool({
         description: 'Deploy the current project files to Vercel. Returns the deployment URL.',
         parameters: z.object({
-          framework: z.enum(['nextjs', 'vite', 'static']).optional().describe('Framework hint (default: auto-detect)'),
+          framework: z.enum(['nextjs', 'vite', 'static']).optional().describe('Framework hint'),
         }),
         execute: async ({ framework }) => {
           const files = vfs.toRecord()
-          if (Object.keys(files).length === 0) return { error: 'No files to deploy. Create some files first.' }
+          if (Object.keys(files).length === 0) return { error: 'No files to deploy.' }
 
           let fw = framework
           if (!fw) {
@@ -616,7 +669,7 @@ export async function POST(req: Request) {
       // ─── Utility ────────────────────────────────────────────────
 
       get_all_files: tool({
-        description: 'Get the file manifest (path, lines, size for each file). Does NOT return content — use read_file for that.',
+        description: 'Get the file manifest (path, lines, size). No content.',
         parameters: z.object({}),
         execute: async () => {
           return { manifest: vfs.manifest(), totalFiles: vfs.list().length }
@@ -635,6 +688,371 @@ export async function POST(req: Request) {
           vfs.delete(oldPath)
           vfs.write(newPath, content)
           return { ok: true, oldPath, newPath }
+        },
+      }),
+
+      // ═══════════════════════════════════════════════════════════════
+      // SUPERPOWER TOOLS
+      // ═══════════════════════════════════════════════════════════════
+
+      // ─── Database Operations ────────────────────────────────────
+
+      db_query: tool({
+        description: 'Query the Supabase database. Read data from any table. Use PostgREST query syntax for filters. Tables you own: forge_projects, forge_project_files, forge_chat_messages, forge_deployments. Other tables in the DB: credit_packages, profiles, users, messages, etc.',
+        parameters: z.object({
+          table: z.string().describe('Table name, e.g. "forge_projects"'),
+          select: z.string().optional().describe('Columns to select, e.g. "id, name, created_at" (default: *)'),
+          filters: z.string().optional().describe('PostgREST filter query string, e.g. "status=eq.active&limit=10"'),
+          order: z.string().optional().describe('Order clause, e.g. "created_at.desc"'),
+          limit: z.number().optional().describe('Max rows to return (default: 50)'),
+        }),
+        execute: async ({ table, select, filters, order, limit }) => {
+          const params = new URLSearchParams()
+          if (select) params.set('select', select)
+          if (order) params.set('order', order)
+          params.set('limit', String(limit || 50))
+
+          const filterStr = filters ? `&${filters}` : ''
+          const result = await supabaseFetch(`/${table}?${params.toString()}${filterStr}`)
+
+          if (!result.ok) return { error: `DB query failed: ${JSON.stringify(result.data)}` }
+          return { data: result.data, count: Array.isArray(result.data) ? result.data.length : 1 }
+        },
+      }),
+
+      db_mutate: tool({
+        description: 'Insert, update, or delete data in the Supabase database. Use for forge_ tables or any table you have access to.',
+        parameters: z.object({
+          operation: z.enum(['insert', 'update', 'upsert', 'delete']).describe('Operation type'),
+          table: z.string().describe('Table name'),
+          data: z.any().optional().describe('Data to insert/update (object or array of objects)'),
+          filters: z.string().optional().describe('PostgREST filter for update/delete, e.g. "id=eq.abc123"'),
+          onConflict: z.string().optional().describe('For upsert: conflict column(s), e.g. "project_id,path"'),
+        }),
+        execute: async ({ operation, table, data, filters, onConflict }) => {
+          let path = `/${table}`
+          const filterStr = filters ? `?${filters}` : ''
+
+          switch (operation) {
+            case 'insert': {
+              const result = await supabaseFetch(path, {
+                method: 'POST',
+                body: JSON.stringify(data),
+              })
+              return result.ok ? { ok: true, data: result.data } : { error: JSON.stringify(result.data) }
+            }
+            case 'upsert': {
+              const headers: Record<string, string> = {}
+              if (onConflict) headers['Prefer'] = `return=representation,resolution=merge-duplicates`
+              const queryStr = onConflict ? `?on_conflict=${onConflict}` : ''
+              const result = await supabaseFetch(`${path}${queryStr}`, {
+                method: 'POST',
+                headers,
+                body: JSON.stringify(data),
+              })
+              return result.ok ? { ok: true, data: result.data } : { error: JSON.stringify(result.data) }
+            }
+            case 'update': {
+              const result = await supabaseFetch(`${path}${filterStr}`, {
+                method: 'PATCH',
+                body: JSON.stringify(data),
+              })
+              return result.ok ? { ok: true, data: result.data } : { error: JSON.stringify(result.data) }
+            }
+            case 'delete': {
+              const result = await supabaseFetch(`${path}${filterStr}`, {
+                method: 'DELETE',
+              })
+              return result.ok ? { ok: true } : { error: JSON.stringify(result.data) }
+            }
+          }
+        },
+      }),
+
+      // ─── Project Persistence ────────────────────────────────────
+
+      save_project: tool({
+        description: 'Save the current project files to the database. Call this after significant changes to persist the user\'s work.',
+        parameters: z.object({
+          description: z.string().optional().describe('Updated project description'),
+        }),
+        execute: async ({ description }) => {
+          if (!projectId) return { ok: false, note: 'No project ID — project will be saved client-side when user signs in' }
+
+          const files = vfs.toRecord()
+          const filePaths = Object.keys(files)
+
+          // Update project metadata
+          const updates: Record<string, unknown> = {}
+          if (description) updates.description = description
+          if (Object.keys(updates).length > 0) {
+            await supabase.from('forge_projects').update(updates).eq('id', projectId)
+          }
+
+          // Delete removed files
+          if (filePaths.length > 0) {
+            await supabase
+              .from('forge_project_files')
+              .delete()
+              .eq('project_id', projectId)
+              .not('path', 'in', `(${filePaths.map(p => `"${p}"`).join(',')})`)
+          }
+
+          // Upsert current files
+          if (filePaths.length > 0) {
+            const rows = filePaths.map(path => ({
+              project_id: projectId,
+              path,
+              content: files[path],
+            }))
+            await supabase
+              .from('forge_project_files')
+              .upsert(rows, { onConflict: 'project_id,path' })
+          }
+
+          return { ok: true, savedFiles: filePaths.length }
+        },
+      }),
+
+      // ─── Self-Modification (SUPERPOWER) ─────────────────────────
+
+      forge_read_own_source: tool({
+        description: 'Read a file from Forge\'s own source code on GitHub (repo: Leigh12-93/forge). Use this to understand your own implementation before modifying it.',
+        parameters: z.object({
+          path: z.string().describe('File path in the Forge repo, e.g. "app/api/chat/route.ts" or "components/chat-panel.tsx"'),
+          branch: z.string().optional().describe('Branch (default: main)'),
+        }),
+        execute: async ({ path, branch }) => {
+          const token = GITHUB_TOKEN
+          if (!token) return { error: 'No GitHub token configured' }
+
+          const branchName = branch || 'main'
+          const result = await githubFetch(
+            `/repos/Leigh12-93/forge/contents/${path}?ref=${branchName}`,
+            token
+          )
+          if (result.error) return { error: result.error }
+
+          // GitHub returns base64-encoded content
+          const content = Buffer.from(result.content, 'base64').toString('utf-8')
+          return { path, content, size: content.length, lines: content.split('\n').length }
+        },
+      }),
+
+      forge_modify_own_source: tool({
+        description: 'Modify a file in Forge\'s own source code. This pushes a commit to the Forge repo on GitHub. Use with care — you are editing your own brain.',
+        parameters: z.object({
+          path: z.string().describe('File path to modify in Forge repo'),
+          content: z.string().describe('New file content (complete file)'),
+          message: z.string().describe('Commit message describing the change'),
+          branch: z.string().optional().describe('Branch (default: main)'),
+        }),
+        execute: async ({ path, content, message, branch }) => {
+          const token = GITHUB_TOKEN
+          if (!token) return { error: 'No GitHub token configured' }
+
+          const owner = 'Leigh12-93'
+          const repo = 'forge'
+          const branchName = branch || 'main'
+
+          // Get current file SHA (needed for update)
+          const existing = await githubFetch(`/repos/${owner}/${repo}/contents/${path}?ref=${branchName}`, token)
+
+          const body: Record<string, string> = {
+            message: `[self-modify] ${message}`,
+            content: Buffer.from(content).toString('base64'),
+            branch: branchName,
+          }
+          if (existing.sha) body.sha = existing.sha
+
+          const result = await githubFetch(`/repos/${owner}/${repo}/contents/${path}`, token, {
+            method: 'PUT',
+            body: JSON.stringify(body),
+          })
+
+          if (result.error) return { error: result.error }
+          return {
+            ok: true,
+            path,
+            commitSha: result.commit?.sha,
+            note: 'File updated on GitHub. Use forge_redeploy to deploy the change.',
+          }
+        },
+      }),
+
+      forge_redeploy: tool({
+        description: 'Trigger a redeployment of Forge itself on Vercel. Call this after using forge_modify_own_source to apply your changes.',
+        parameters: z.object({
+          reason: z.string().describe('Why are you redeploying? e.g. "Added new db_query tool"'),
+        }),
+        execute: async ({ reason }) => {
+          // Trigger Vercel deploy hook or use the Vercel API to redeploy
+          const token = VERCEL_TOKEN
+          if (!token) return { error: 'No Vercel deploy token configured' }
+
+          // Create a deployment from the latest Git commit
+          const teamParam = VERCEL_TEAM ? `?teamId=${VERCEL_TEAM}` : ''
+          const res = await fetch(`https://api.vercel.com/v13/deployments${teamParam}`, {
+            method: 'POST',
+            headers: {
+              Authorization: `Bearer ${token}`,
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              name: 'forge',
+              gitSource: {
+                type: 'github',
+                org: 'Leigh12-93',
+                repo: 'forge',
+                ref: 'main',
+              },
+            }),
+          })
+
+          const data = await res.json()
+          if (!res.ok) return { error: data.error?.message || `Vercel API ${res.status}` }
+          return {
+            ok: true,
+            url: `https://${data.url}`,
+            deploymentId: data.id,
+            reason,
+            note: 'Forge is redeploying. Changes will be live in ~60 seconds.',
+          }
+        },
+      }),
+
+      // ─── External Repo Access ───────────────────────────────────
+
+      github_read_file: tool({
+        description: 'Read a file from any GitHub repository you have access to. Use to inspect code in other projects like AussieSMS.',
+        parameters: z.object({
+          owner: z.string().describe('GitHub username/org, e.g. "Leigh12-93"'),
+          repo: z.string().describe('Repository name'),
+          path: z.string().describe('File path in the repo'),
+          branch: z.string().optional().describe('Branch (default: main)'),
+        }),
+        execute: async ({ owner, repo, path, branch }) => {
+          const token = effectiveGithubToken
+          if (!token) return { error: 'Not authenticated' }
+
+          const branchName = branch || 'main'
+          const result = await githubFetch(
+            `/repos/${owner}/${repo}/contents/${path}?ref=${branchName}`,
+            token
+          )
+          if (result.error) return { error: result.error }
+
+          if (result.type === 'dir') {
+            // Return directory listing
+            const entries = (result as any[]).map((e: any) => ({
+              name: e.name,
+              type: e.type,
+              path: e.path,
+              size: e.size,
+            }))
+            return { type: 'directory', entries, path }
+          }
+
+          const content = Buffer.from(result.content, 'base64').toString('utf-8')
+          return { path, content, size: content.length, lines: content.split('\n').length }
+        },
+      }),
+
+      github_list_repo_files: tool({
+        description: 'List files in a GitHub repository directory. Use to explore codebases.',
+        parameters: z.object({
+          owner: z.string().describe('GitHub username/org'),
+          repo: z.string().describe('Repository name'),
+          path: z.string().optional().describe('Directory path (default: root)'),
+          branch: z.string().optional().describe('Branch (default: main)'),
+        }),
+        execute: async ({ owner, repo, path, branch }) => {
+          const token = effectiveGithubToken
+          if (!token) return { error: 'Not authenticated' }
+
+          const branchName = branch || 'main'
+          const dirPath = path || ''
+          const result = await githubFetch(
+            `/repos/${owner}/${repo}/contents/${dirPath}?ref=${branchName}`,
+            token
+          )
+          if (result.error) return { error: result.error }
+
+          if (Array.isArray(result)) {
+            const entries = result.map((e: any) => ({
+              name: e.name,
+              type: e.type,
+              path: e.path,
+              size: e.size,
+            }))
+            return { entries, count: entries.length }
+          }
+          return { error: 'Path is a file, not a directory. Use github_read_file instead.' }
+        },
+      }),
+
+      github_modify_external_file: tool({
+        description: 'Modify a file in any GitHub repository you have access to. Pushes a commit directly.',
+        parameters: z.object({
+          owner: z.string().describe('GitHub username/org'),
+          repo: z.string().describe('Repository name'),
+          path: z.string().describe('File path to modify'),
+          content: z.string().describe('New file content'),
+          message: z.string().describe('Commit message'),
+          branch: z.string().optional().describe('Branch (default: main)'),
+        }),
+        execute: async ({ owner, repo, path, content, message, branch }) => {
+          const token = effectiveGithubToken
+          if (!token) return { error: 'Not authenticated' }
+
+          const branchName = branch || 'main'
+
+          // Get current file SHA
+          const existing = await githubFetch(`/repos/${owner}/${repo}/contents/${path}?ref=${branchName}`, token)
+
+          const body: Record<string, string> = {
+            message,
+            content: Buffer.from(content).toString('base64'),
+            branch: branchName,
+          }
+          if (existing.sha) body.sha = existing.sha
+
+          const result = await githubFetch(`/repos/${owner}/${repo}/contents/${path}`, token, {
+            method: 'PUT',
+            body: JSON.stringify(body),
+          })
+
+          if (result.error) return { error: result.error }
+          return { ok: true, path, commitSha: result.commit?.sha }
+        },
+      }),
+
+      // ─── GitHub Search ──────────────────────────────────────────
+
+      github_search_code: tool({
+        description: 'Search for code across GitHub repositories. Find files, functions, patterns.',
+        parameters: z.object({
+          query: z.string().describe('Search query. Supports GitHub code search syntax.'),
+          repo: z.string().optional().describe('Restrict to a specific repo, e.g. "Leigh12-93/forge"'),
+        }),
+        execute: async ({ query, repo }) => {
+          const token = effectiveGithubToken
+          if (!token) return { error: 'Not authenticated' }
+
+          const q = repo ? `${query} repo:${repo}` : query
+          const result = await githubFetch(
+            `/search/code?q=${encodeURIComponent(q)}&per_page=10`,
+            token
+          )
+          if (result.error) return { error: result.error }
+
+          const items = (result.items || []).map((item: any) => ({
+            name: item.name,
+            path: item.path,
+            repo: item.repository?.full_name,
+            url: item.html_url,
+          }))
+          return { results: items, total: result.total_count }
         },
       }),
     },
