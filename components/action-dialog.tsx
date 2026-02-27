@@ -255,6 +255,7 @@ export function TaskPollingDialog({
   const [state, setState] = useState<DialogState>('confirm')
   const [fieldValues, setFieldValues] = useState<Record<string, string>>({})
   const [errorMessage, setErrorMessage] = useState('')
+  const [progressText, setProgressText] = useState('')
   const [resultData, setResultData] = useState<Record<string, unknown> | null>(null)
   const overlayRef = useRef<HTMLDivElement>(null)
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null)
@@ -263,6 +264,7 @@ export function TaskPollingDialog({
     if (open) {
       setState('confirm')
       setErrorMessage('')
+      setProgressText('')
       setResultData(null)
       const defaults: Record<string, string> = {}
       fields?.forEach(f => {
@@ -319,6 +321,11 @@ export function TaskPollingDialog({
 
           const task = await statusRes.json()
 
+          // Update progress text
+          if (task.progress) {
+            setProgressText(task.progress)
+          }
+
           if (task.status === 'completed') {
             if (pollRef.current) clearInterval(pollRef.current)
             setResultData(task.result || {})
@@ -332,7 +339,7 @@ export function TaskPollingDialog({
         } catch {
           // Keep polling on network errors
         }
-      }, 3000)
+      }, 2000)
     } catch (err) {
       setState('error')
       setErrorMessage(err instanceof Error ? err.message : String(err))
@@ -409,8 +416,14 @@ export function TaskPollingDialog({
         {state === 'running' && (
           <div className="flex flex-col items-center py-6">
             <Loader2 className="w-8 h-8 text-forge-accent animate-spin mb-3" />
-            <p className="text-xs text-forge-text-dim">Working on it...</p>
-            <p className="text-[10px] text-forge-text-dim/50 mt-1">This may take a moment</p>
+            <p className="text-xs text-forge-text font-medium mb-1">
+              {progressText || 'Starting...'}
+            </p>
+            <div className="w-full max-w-xs mt-2">
+              <div className="h-1 bg-forge-surface rounded-full overflow-hidden">
+                <div className="h-full bg-forge-accent rounded-full animate-pulse" style={{ width: '60%' }} />
+              </div>
+            </div>
           </div>
         )}
 

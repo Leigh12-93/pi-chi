@@ -41,10 +41,22 @@ async function githubFetch(path: string, token: string, options: RequestInit = {
   return data
 }
 
+// ─── Progress helper ───────────────────────────────────────────
+
+async function updateProgress(taskId: string, progress: string) {
+  await supabaseFetch(`/forge_tasks?id=eq.${taskId}`, {
+    method: 'PATCH',
+    body: JSON.stringify({ progress }),
+  })
+}
+
 // ─── Task executors ────────────────────────────────────────────
 
-async function executeDeploy(params: { projectName: string; files: Record<string, string>; framework?: string }) {
+async function executeDeploy(taskId: string, params: { projectName: string; files: Record<string, string>; framework?: string }) {
   if (!VERCEL_TOKEN) throw new Error('VERCEL_TOKEN not configured')
+
+  const fileCount = Object.keys(params.files).length
+  await updateProgress(taskId, `Uploading ${fileCount} files to Vercel...`)
 
   const fileEntries = Object.entries(params.files).map(([file, data]) => ({ file, data }))
   let fw = params.framework
@@ -55,6 +67,8 @@ async function executeDeploy(params: { projectName: string; files: Record<string
   }
 
   const teamParam = VERCEL_TEAM ? `?teamId=${VERCEL_TEAM}` : ''
+  await updateProgress(taskId, `Creating ${fw} deployment...`)
+
   const res = await fetch(`https://api.vercel.com/v13/deployments${teamParam}`, {
     method: 'POST',
     headers: {
@@ -70,14 +84,49 @@ async function executeDeploy(params: { projectName: string; files: Record<string
 
   const data = await res.json()
   if (!res.ok) throw new Error(data.error?.message || `Vercel API ${res.status}`)
-  return { url: `https://${data.url}`, id: data.id, readyState: data.readyState }
+
+  const deployId = data.id
+  const deployUrl = `https://${data.url}`
+  let state = data.readyState || 'QUEUED'
+
+  // Poll for build completion (up to 90s)
+  let attempts = 0
+  while (['QUEUED', 'BUILDING', 'INITIALIZING'].includes(state) && attempts < 18) {
+    await new Promise(r => setTimeout(r, 5000))
+    attempts++
+    await updateProgress(taskId, `Building... (${attempts * 5}s)`)
+
+    try {
+      const check = await fetch(`https://api.vercel.com/v13/deployments/${deployId}${teamParam}`, {
+        headers: { Authorization: `Bearer ${VERCEL_TOKEN}` },
+      })
+      if (check.ok) {
+        const checkData = await check.json()
+        state = checkData.readyState || state
+        if (state === 'BUILDING') {
+          await updateProgress(taskId, `Building... (${attempts * 5}s)`)
+        } else if (state === 'READY') {
+          await updateProgress(taskId, 'Deployment ready!')
+        } else if (state === 'ERROR') {
+          throw new Error('Build failed on Vercel')
+        }
+      }
+    } catch (e) {
+      if (e instanceof Error && e.message === 'Build failed on Vercel') throw e
+      // network error — keep polling
+    }
+  }
+
+  return { url: deployUrl, id: deployId, readyState: state }
 }
 
-async function executeGithubCreate(params: {
+async function executeGithubCreate(taskId: string, params: {
   repoName: string; isPublic?: boolean; description?: string; files: Record<string, string>; githubToken?: string
 }) {
   const token = params.githubToken || GITHUB_TOKEN
   if (!token) throw new Error('Not authenticated. Sign in with GitHub.')
+
+  await updateProgress(taskId, `Creating repository ${params.repoName}...`)
 
   const repo = await githubFetch('/user/repos', token, {
     method: 'POST',
@@ -91,14 +140,18 @@ async function executeGithubCreate(params: {
   if (repo.error) throw new Error(`Failed to create repo: ${repo.error}`)
 
   const owner = repo.owner.login
+  await updateProgress(taskId, 'Waiting for repo initialization...')
   await new Promise(resolve => setTimeout(resolve, 1500))
 
   const ref = await githubFetch(`/repos/${owner}/${params.repoName}/git/refs/heads/main`, token)
   if (ref.error) throw new Error(`Repo created but failed to get initial ref: ${ref.error}`)
   const parentSha = ref.object.sha
 
+  const fileEntries = Object.entries(params.files)
   const blobs = []
-  for (const [path, content] of Object.entries(params.files)) {
+  for (let i = 0; i < fileEntries.length; i++) {
+    const [path, content] = fileEntries[i]
+    await updateProgress(taskId, `Uploading files (${i + 1}/${fileEntries.length}): ${path.split('/').pop()}`)
     const blob = await githubFetch(`/repos/${owner}/${params.repoName}/git/blobs`, token, {
       method: 'POST',
       body: JSON.stringify({ content, encoding: 'utf-8' }),
@@ -107,12 +160,14 @@ async function executeGithubCreate(params: {
     blobs.push({ path, mode: '100644', type: 'blob', sha: blob.sha })
   }
 
+  await updateProgress(taskId, 'Creating commit tree...')
   const tree = await githubFetch(`/repos/${owner}/${params.repoName}/git/trees`, token, {
     method: 'POST',
     body: JSON.stringify({ base_tree: parentSha, tree: blobs }),
   })
   if (tree.error) throw new Error(`Failed to create tree: ${tree.error}`)
 
+  await updateProgress(taskId, 'Pushing initial commit...')
   const commit = await githubFetch(`/repos/${owner}/${params.repoName}/git/commits`, token, {
     method: 'POST',
     body: JSON.stringify({ message: 'Initial commit from Forge', tree: tree.sha, parents: [parentSha] }),
@@ -124,22 +179,27 @@ async function executeGithubCreate(params: {
     body: JSON.stringify({ sha: commit.sha }),
   })
 
+  await updateProgress(taskId, 'Done!')
   return { url: repo.html_url, owner, repoName: params.repoName, filesCount: Object.keys(params.files).length }
 }
 
-async function executeGithubPush(params: {
+async function executeGithubPush(taskId: string, params: {
   owner: string; repo: string; message: string; branch?: string; files: Record<string, string>; githubToken?: string
 }) {
   const token = params.githubToken || GITHUB_TOKEN
   if (!token) throw new Error('Not authenticated. Sign in with GitHub.')
   const branchName = params.branch || 'main'
 
+  await updateProgress(taskId, `Fetching ${branchName} branch...`)
   const ref = await githubFetch(`/repos/${params.owner}/${params.repo}/git/refs/heads/${branchName}`, token)
   if (ref.error) throw new Error(`Failed to get branch: ${ref.error}`)
   const parentSha = ref.object.sha
 
+  const fileEntries = Object.entries(params.files)
   const blobs = []
-  for (const [path, content] of Object.entries(params.files)) {
+  for (let i = 0; i < fileEntries.length; i++) {
+    const [path, content] = fileEntries[i]
+    await updateProgress(taskId, `Uploading files (${i + 1}/${fileEntries.length}): ${path.split('/').pop()}`)
     const blob = await githubFetch(`/repos/${params.owner}/${params.repo}/git/blobs`, token, {
       method: 'POST',
       body: JSON.stringify({ content, encoding: 'utf-8' }),
@@ -148,12 +208,14 @@ async function executeGithubPush(params: {
     blobs.push({ path, mode: '100644' as const, type: 'blob' as const, sha: blob.sha as string })
   }
 
+  await updateProgress(taskId, 'Creating commit tree...')
   const tree = await githubFetch(`/repos/${params.owner}/${params.repo}/git/trees`, token, {
     method: 'POST',
     body: JSON.stringify({ base_tree: parentSha, tree: blobs }),
   })
   if (tree.error) throw new Error(`Failed to create tree: ${tree.error}`)
 
+  await updateProgress(taskId, 'Pushing commit...')
   const commit = await githubFetch(`/repos/${params.owner}/${params.repo}/git/commits`, token, {
     method: 'POST',
     body: JSON.stringify({ message: params.message, tree: tree.sha, parents: [parentSha] }),
@@ -166,6 +228,7 @@ async function executeGithubPush(params: {
   })
   if (update.error) throw new Error(`Failed to update ref: ${update.error}`)
 
+  await updateProgress(taskId, 'Done!')
   return { commitSha: commit.sha, filesCount: Object.keys(params.files).length }
 }
 
@@ -202,13 +265,13 @@ export async function POST(req: Request) {
 
       switch (type) {
         case 'deploy':
-          result = await executeDeploy(params)
+          result = await executeDeploy(taskId, params)
           break
         case 'github_create':
-          result = await executeGithubCreate(params)
+          result = await executeGithubCreate(taskId, params)
           break
         case 'github_push':
-          result = await executeGithubPush(params)
+          result = await executeGithubPush(taskId, params)
           break
         default:
           throw new Error(`Unknown task type: ${type}`)

@@ -6,6 +6,7 @@ CREATE TABLE IF NOT EXISTS forge_tasks (
   project_id TEXT,
   type TEXT NOT NULL,
   status TEXT DEFAULT 'running' CHECK (status IN ('running', 'completed', 'failed')),
+  progress TEXT,
   result JSONB,
   error TEXT,
   created_at TIMESTAMPTZ DEFAULT now(),
