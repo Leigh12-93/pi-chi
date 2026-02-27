@@ -1,18 +1,15 @@
 import { handlers } from '@/lib/auth'
 import { NextRequest, NextResponse } from 'next/server'
 
-// Wrap the GET handler to log callback errors
 async function wrappedGET(req: NextRequest) {
   const url = new URL(req.url)
+  const isCallback = url.pathname.includes('/callback/')
 
-  // If this is the callback, log what we receive
-  if (url.pathname.includes('/callback/')) {
-    console.log('[Auth Callback]', {
-      pathname: url.pathname,
+  if (isCallback) {
+    console.log('[Auth Callback] Incoming:', {
       hasCode: url.searchParams.has('code'),
+      codeLength: url.searchParams.get('code')?.length,
       hasState: url.searchParams.has('state'),
-      hasError: url.searchParams.has('error'),
-      error: url.searchParams.get('error'),
       cookies: req.cookies.getAll().map(c => c.name),
     })
   }
@@ -20,25 +17,38 @@ async function wrappedGET(req: NextRequest) {
   try {
     const response = await handlers.GET(req)
 
-    // Log the response for callbacks
-    if (url.pathname.includes('/callback/')) {
-      const location = response?.headers?.get('location')
-      console.log('[Auth Callback Response]', {
-        status: response?.status,
-        location: location?.substring(0, 200),
-        setCookie: response?.headers?.get('set-cookie')?.substring(0, 100),
+    if (isCallback && response) {
+      const location = response.headers?.get('location') || ''
+      const isError = location.includes('/error')
+
+      console.log('[Auth Callback] Response:', {
+        status: response.status,
+        location,
+        isError,
       })
+
+      // If callback redirects to error page, show the error instead of silently redirecting
+      if (isError) {
+        const errorUrl = new URL(location, req.url)
+        return NextResponse.json({
+          debug: 'Auth callback failed — redirected to error page',
+          errorRedirect: location,
+          errorType: errorUrl.searchParams.get('error'),
+          incomingCookies: req.cookies.getAll().map(c => c.name),
+          hasCode: url.searchParams.has('code'),
+          hasState: url.searchParams.has('state'),
+        }, { status: 500 })
+      }
     }
 
     return response
   } catch (error: any) {
-    console.error('[Auth Handler Error]', error.message, error.stack?.substring(0, 500))
-    // Return error details as JSON for debugging
-    if (url.pathname.includes('/callback/')) {
+    console.error('[Auth Error]', error.message)
+    if (isCallback) {
       return NextResponse.json({
-        error: 'Auth callback failed',
-        message: error.message,
-        stack: error.stack?.substring(0, 500),
+        debug: 'Auth callback threw an exception',
+        error: error.message,
+        stack: error.stack?.substring(0, 800),
       }, { status: 500 })
     }
     throw error
