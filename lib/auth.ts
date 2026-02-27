@@ -3,6 +3,7 @@ import GitHub from 'next-auth/providers/github'
 
 export const { handlers, signIn, signOut, auth } = NextAuth({
   trustHost: true,
+  debug: true,
   providers: [
     GitHub({
       clientId: (process.env.GITHUB_CLIENT_ID || '').trim(),
@@ -18,8 +19,6 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
     async jwt({ token, account, profile }) {
       if (account) {
         token.accessToken = account.access_token
-        // profile.login is the actual GitHub username (e.g. "Leigh12-93")
-        // account.providerAccountId is just the numeric ID
         token.githubUsername = (profile as any)?.login || account.providerAccountId
       }
       return token
