@@ -86,7 +86,7 @@ export function CodeEditor({ path, content, onSave, onChange }: CodeEditorProps)
           height="100%"
           language={language}
           value={content}
-          theme="vs-dark"
+          theme="vs"
           onMount={handleMount}
           onChange={handleChange}
           options={{

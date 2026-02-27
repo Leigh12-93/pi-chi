@@ -10,16 +10,16 @@ export const metadata: Metadata = {
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en" className="dark">
-      <body className="bg-[#0a0a0a] text-gray-100 antialiased">
+    <html lang="en">
+      <body className="bg-forge-bg text-forge-text antialiased">
         <SessionProvider>
           {children}
         </SessionProvider>
         <Toaster
-          theme="dark"
+          theme="light"
           position="bottom-right"
           toastOptions={{
-            style: { background: '#1a1a2e', border: '1px solid #2a2a4a', color: '#e0e0e0' },
+            style: { background: '#ffffff', border: '1px solid #e0e3eb', color: '#1a1a2e' },
           }}
         />
       </body>
