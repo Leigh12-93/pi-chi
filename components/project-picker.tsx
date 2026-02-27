@@ -142,14 +142,14 @@ export function ProjectPicker({ onSelect, savedProjects, loadingProjects, onDele
   }
 
   return (
-    <div className="min-h-screen bg-forge-bg flex items-center justify-center p-8">
+    <div className="min-h-screen bg-forge-bg flex items-center justify-center p-4 sm:p-8">
       <div className="max-w-3xl w-full">
         {/* Logo */}
         <div className="text-center mb-8">
-          <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-forge-accent/10 mb-4">
-            <Hammer className="w-8 h-8 text-forge-accent" />
+          <div className="inline-flex items-center justify-center w-12 h-12 sm:w-16 sm:h-16 rounded-2xl bg-forge-accent/10 mb-3 sm:mb-4">
+            <Hammer className="w-6 h-6 sm:w-8 sm:h-8 text-forge-accent" />
           </div>
-          <h1 className="text-3xl font-bold text-forge-text mb-2">Forge</h1>
+          <h1 className="text-2xl sm:text-3xl font-bold text-forge-text mb-2">Forge</h1>
           <p className="text-forge-text-dim text-sm">AI-powered website builder with superpowers</p>
         </div>
 

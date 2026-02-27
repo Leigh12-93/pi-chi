@@ -7,6 +7,8 @@ import { CodeEditor } from './code-editor'
 import { FileTree } from './file-tree'
 import { PreviewPanel } from './preview-panel'
 import { Header } from './header'
+import { MessageSquare, FolderTree, Code2, Eye } from 'lucide-react'
+import { cn } from '@/lib/utils'
 import type { FileNode } from '@/lib/types'
 
 // Build tree structure from flat file map
@@ -59,12 +61,15 @@ interface WorkspaceProps {
   githubToken?: string
 }
 
+type MobileTab = 'chat' | 'files' | 'code' | 'preview'
+
 export function Workspace({
   projectName, projectId, files, activeFile,
   onFileSelect, onFileChange, onFileDelete, onBulkFileUpdate, onSwitchProject,
   githubToken,
 }: WorkspaceProps) {
   const [rightTab, setRightTab] = useState<'code' | 'preview'>('code')
+  const [mobileTab, setMobileTab] = useState<MobileTab>('chat')
   const [openFiles, setOpenFiles] = useState<string[]>([])
   const chatSendRef = useRef<((message: string) => void) | null>(null)
 
@@ -78,7 +83,6 @@ export function Workspace({
     prevFileCount.current = fileKeys.length
 
     if (wasEmpty && fileKeys.length > 0 && !activeFile) {
-      // Pick the main app file
       const mainFile = fileKeys.find(f => f === 'app/page.tsx')
         || fileKeys.find(f => f === 'src/App.tsx')
         || fileKeys.find(f => f.endsWith('/page.tsx'))
@@ -96,6 +100,8 @@ export function Workspace({
     if (!openFiles.includes(path)) {
       setOpenFiles(prev => [...prev, path])
     }
+    // On mobile, switch to code tab after selecting a file
+    setMobileTab('code')
   }
 
   const handleRegisterSend = useCallback((sendFn: (message: string) => void) => {
@@ -113,6 +119,7 @@ export function Workspace({
     const message = ACTION_MESSAGES[action]
     if (message && chatSendRef.current) {
       chatSendRef.current(message)
+      setMobileTab('chat')
     }
   }, [])
 
@@ -124,113 +131,198 @@ export function Workspace({
     }
   }
 
+  const chatPanel = (
+    <ChatPanel
+      projectName={projectName}
+      projectId={projectId}
+      files={files}
+      onFileChange={onFileChange}
+      onFileDelete={onFileDelete}
+      onBulkFileUpdate={onBulkFileUpdate}
+      githubToken={githubToken}
+      onRegisterSend={handleRegisterSend}
+    />
+  )
+
+  const fileTreePanel = (
+    <FileTree
+      files={fileTree}
+      activeFile={activeFile}
+      onFileSelect={handleFileSelect}
+    />
+  )
+
+  const editorPanel = (
+    <div className="h-full flex flex-col bg-forge-surface">
+      {/* Tab bar */}
+      <div className="flex items-center border-b border-forge-border bg-forge-panel">
+        <button
+          onClick={() => setRightTab('code')}
+          className={`px-4 py-2 text-xs font-medium transition-colors ${
+            rightTab === 'code'
+              ? 'text-forge-accent border-b-2 border-forge-accent bg-forge-surface'
+              : 'text-forge-text-dim hover:text-forge-text'
+          }`}
+        >
+          Code
+        </button>
+        <button
+          onClick={() => setRightTab('preview')}
+          className={`px-4 py-2 text-xs font-medium transition-colors ${
+            rightTab === 'preview'
+              ? 'text-forge-accent border-b-2 border-forge-accent bg-forge-surface'
+              : 'text-forge-text-dim hover:text-forge-text'
+          }`}
+        >
+          Preview
+        </button>
+
+        {/* Open file tabs */}
+        {rightTab === 'code' && openFiles.length > 0 && (
+          <div className="flex items-center ml-2 border-l border-forge-border pl-2 overflow-x-auto">
+            {openFiles.map(f => {
+              const name = f.split('/').pop() || f
+              return (
+                <div
+                  key={f}
+                  className={`flex items-center gap-1 px-2 py-1 text-xs rounded cursor-pointer transition-colors whitespace-nowrap ${
+                    activeFile === f
+                      ? 'bg-forge-surface text-forge-text'
+                      : 'text-forge-text-dim hover:text-forge-text'
+                  }`}
+                  onClick={() => onFileSelect(f)}
+                >
+                  <span>{name}</span>
+                  <button
+                    onClick={(e) => { e.stopPropagation(); handleCloseFile(f) }}
+                    className="ml-1 hover:text-forge-danger text-[10px]"
+                  >
+                    ×
+                  </button>
+                </div>
+              )
+            })}
+          </div>
+        )}
+      </div>
+
+      <div className="flex-1 overflow-hidden">
+        {rightTab === 'code' ? (
+          <CodeEditor
+            path={activeFile}
+            content={activeFile ? files[activeFile] || '' : ''}
+            onSave={(path, content) => onFileChange(path, content)}
+            onChange={(content) => activeFile && onFileChange(activeFile, content)}
+          />
+        ) : (
+          <PreviewPanel files={files} />
+        )}
+      </div>
+    </div>
+  )
+
+  const MOBILE_TABS = [
+    { id: 'chat' as MobileTab, label: 'Chat', Icon: MessageSquare },
+    { id: 'files' as MobileTab, label: 'Files', Icon: FolderTree },
+    { id: 'code' as MobileTab, label: 'Code', Icon: Code2 },
+    { id: 'preview' as MobileTab, label: 'Preview', Icon: Eye },
+  ]
+
   return (
     <div className="h-screen flex flex-col bg-forge-bg">
       <Header projectName={projectName} onSwitchProject={onSwitchProject} fileCount={Object.keys(files).length} onAction={handleAction} />
 
-      <PanelGroup direction="horizontal" className="flex-1">
-        {/* Chat Panel */}
-        <Panel defaultSize={30} minSize={20} maxSize={50}>
-          <ChatPanel
-            projectName={projectName}
-            projectId={projectId}
-            files={files}
-            onFileChange={onFileChange}
-            onFileDelete={onFileDelete}
-            onBulkFileUpdate={onBulkFileUpdate}
-            githubToken={githubToken}
-            onRegisterSend={handleRegisterSend}
-          />
-        </Panel>
+      {/* Desktop layout: resizable panels */}
+      <div className="flex-1 hidden md:flex overflow-hidden">
+        <PanelGroup direction="horizontal">
+          <Panel defaultSize={30} minSize={20} maxSize={50}>
+            {chatPanel}
+          </Panel>
 
-        <PanelResizeHandle />
+          <PanelResizeHandle />
 
-        {/* Right Side: File Tree + Editor/Preview */}
-        <Panel defaultSize={70} minSize={40}>
-          <PanelGroup direction="horizontal">
-            {/* File Tree */}
-            <Panel defaultSize={20} minSize={12} maxSize={35}>
-              <FileTree
-                files={fileTree}
-                activeFile={activeFile}
-                onFileSelect={handleFileSelect}
-              />
-            </Panel>
+          <Panel defaultSize={70} minSize={40}>
+            <PanelGroup direction="horizontal">
+              <Panel defaultSize={20} minSize={12} maxSize={35}>
+                {fileTreePanel}
+              </Panel>
 
-            <PanelResizeHandle />
+              <PanelResizeHandle />
 
-            {/* Editor / Preview */}
-            <Panel defaultSize={80} minSize={40}>
-              <div className="h-full flex flex-col bg-forge-surface">
-                {/* Tab bar */}
-                <div className="flex items-center border-b border-forge-border bg-forge-panel">
-                  <button
-                    onClick={() => setRightTab('code')}
-                    className={`px-4 py-2 text-xs font-medium transition-colors ${
-                      rightTab === 'code'
-                        ? 'text-forge-accent border-b-2 border-forge-accent bg-forge-surface'
-                        : 'text-forge-text-dim hover:text-forge-text'
-                    }`}
-                  >
-                    Code
-                  </button>
-                  <button
-                    onClick={() => setRightTab('preview')}
-                    className={`px-4 py-2 text-xs font-medium transition-colors ${
-                      rightTab === 'preview'
-                        ? 'text-forge-accent border-b-2 border-forge-accent bg-forge-surface'
-                        : 'text-forge-text-dim hover:text-forge-text'
-                    }`}
-                  >
-                    Preview
-                  </button>
+              <Panel defaultSize={80} minSize={40}>
+                {editorPanel}
+              </Panel>
+            </PanelGroup>
+          </Panel>
+        </PanelGroup>
+      </div>
 
-                  {/* Open file tabs */}
-                  {rightTab === 'code' && openFiles.length > 0 && (
-                    <div className="flex items-center ml-2 border-l border-forge-border pl-2 overflow-x-auto">
-                      {openFiles.map(f => {
-                        const name = f.split('/').pop() || f
-                        return (
-                          <div
-                            key={f}
-                            className={`flex items-center gap-1 px-2 py-1 text-xs rounded cursor-pointer transition-colors ${
-                              activeFile === f
-                                ? 'bg-forge-surface text-forge-text'
-                                : 'text-forge-text-dim hover:text-forge-text'
-                            }`}
-                            onClick={() => onFileSelect(f)}
-                          >
-                            <span>{name}</span>
-                            <button
-                              onClick={(e) => { e.stopPropagation(); handleCloseFile(f) }}
-                              className="ml-1 hover:text-forge-danger text-[10px]"
-                            >
-                              ×
-                            </button>
-                          </div>
-                        )
-                      })}
-                    </div>
-                  )}
+      {/* Mobile layout: single panel + bottom tabs */}
+      <div className="flex-1 flex flex-col md:hidden overflow-hidden">
+        <div className="flex-1 overflow-hidden">
+          {mobileTab === 'chat' && chatPanel}
+          {mobileTab === 'files' && fileTreePanel}
+          {mobileTab === 'code' && (
+            <div className="h-full flex flex-col bg-forge-surface">
+              {/* Simplified mobile editor — no code/preview sub-tabs, just file tabs */}
+              {openFiles.length > 0 && (
+                <div className="flex items-center border-b border-forge-border bg-forge-panel px-2 overflow-x-auto shrink-0">
+                  {openFiles.map(f => {
+                    const name = f.split('/').pop() || f
+                    return (
+                      <div
+                        key={f}
+                        className={`flex items-center gap-1 px-2 py-1.5 text-xs rounded cursor-pointer transition-colors whitespace-nowrap ${
+                          activeFile === f
+                            ? 'bg-forge-surface text-forge-text'
+                            : 'text-forge-text-dim hover:text-forge-text'
+                        }`}
+                        onClick={() => onFileSelect(f)}
+                      >
+                        <span>{name}</span>
+                        <button
+                          onClick={(e) => { e.stopPropagation(); handleCloseFile(f) }}
+                          className="ml-1 hover:text-forge-danger text-[10px]"
+                        >
+                          ×
+                        </button>
+                      </div>
+                    )
+                  })}
                 </div>
-
-                <div className="flex-1 overflow-hidden">
-                  {rightTab === 'code' ? (
-                    <CodeEditor
-                      path={activeFile}
-                      content={activeFile ? files[activeFile] || '' : ''}
-                      onSave={(path, content) => onFileChange(path, content)}
-                      onChange={(content) => activeFile && onFileChange(activeFile, content)}
-                    />
-                  ) : (
-                    <PreviewPanel files={files} />
-                  )}
-                </div>
+              )}
+              <div className="flex-1 overflow-hidden">
+                <CodeEditor
+                  path={activeFile}
+                  content={activeFile ? files[activeFile] || '' : ''}
+                  onSave={(path, content) => onFileChange(path, content)}
+                  onChange={(content) => activeFile && onFileChange(activeFile, content)}
+                />
               </div>
-            </Panel>
-          </PanelGroup>
-        </Panel>
-      </PanelGroup>
+            </div>
+          )}
+          {mobileTab === 'preview' && <PreviewPanel files={files} />}
+        </div>
+
+        {/* Bottom tab bar */}
+        <div className="flex items-center justify-around border-t border-forge-border bg-forge-panel py-1.5 shrink-0 safe-bottom">
+          {MOBILE_TABS.map(tab => (
+            <button
+              key={tab.id}
+              onClick={() => setMobileTab(tab.id)}
+              className={cn(
+                'flex flex-col items-center gap-0.5 px-3 py-1 rounded-lg transition-colors min-w-[60px]',
+                mobileTab === tab.id
+                  ? 'text-forge-accent bg-forge-accent/10'
+                  : 'text-forge-text-dim'
+              )}
+            >
+              <tab.Icon className="w-4 h-4" />
+              <span className="text-[10px] font-medium">{tab.label}</span>
+            </button>
+          ))}
+        </div>
+      </div>
     </div>
   )
 }
