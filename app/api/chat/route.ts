@@ -731,13 +731,13 @@ export async function POST(req: Request) {
         description: 'Read a file from Forge\'s own source code on GitHub (repo: Leigh12-93/forge). Use this to understand your own implementation before modifying it.',
         parameters: z.object({
           path: z.string().describe('File path in the Forge repo, e.g. "app/api/chat/route.ts" or "components/chat-panel.tsx"'),
-          branch: z.string().optional().describe('Branch (default: main)'),
+          branch: z.string().optional().describe('Branch (default: master)'),
         }),
         execute: async ({ path, branch }) => {
           const token = GITHUB_TOKEN
           if (!token) return { error: 'No GitHub token configured' }
 
-          const branchName = branch || 'main'
+          const branchName = branch || 'master'
           const result = await githubFetch(
             `/repos/Leigh12-93/forge/contents/${path}?ref=${branchName}`,
             token
@@ -756,7 +756,7 @@ export async function POST(req: Request) {
           path: z.string().describe('File path to modify in Forge repo'),
           content: z.string().describe('New file content (complete file)'),
           message: z.string().describe('Commit message describing the change'),
-          branch: z.string().optional().describe('Branch (default: main)'),
+          branch: z.string().optional().describe('Branch (default: master)'),
         }),
         execute: async ({ path, content, message, branch }) => {
           const token = GITHUB_TOKEN
@@ -764,7 +764,7 @@ export async function POST(req: Request) {
 
           const owner = 'Leigh12-93'
           const repo = 'forge'
-          const branchName = branch || 'main'
+          const branchName = branch || 'master'
 
           // Get current file SHA (needed for update)
           const existing = await githubFetch(`/repos/${owner}/${repo}/contents/${path}?ref=${branchName}`, token)
@@ -815,7 +815,7 @@ export async function POST(req: Request) {
                 type: 'github',
                 org: 'Leigh12-93',
                 repo: 'forge',
-                ref: 'main',
+                ref: 'master',
               },
             }),
           })

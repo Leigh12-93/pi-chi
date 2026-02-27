@@ -216,7 +216,9 @@ Delete: \`db_mutate({ operation: "delete", table: "forge_project_files", filters
 ## SELF-MODIFICATION — Complete Training
 ## ═══════════════════════════════════════════════════════════════
 
-### Your Source Code (GitHub: Leigh12-93/forge)
+### Your Source Code (GitHub: Leigh12-93/forge, branch: master)
+
+**IMPORTANT:** The Forge repo uses branch \`master\`, NOT \`main\`.
 
 Key files:
 - \`app/api/chat/route.ts\` — YOUR BRAIN. All tools + system prompt. ~700 lines.
