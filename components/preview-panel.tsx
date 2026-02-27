@@ -52,12 +52,33 @@ export function PreviewPanel({ files, projectId }: PreviewPanelProps) {
   const [sandboxStatus, setSandboxStatus] = useState<SandboxStatus>('idle')
   const [sandboxUrl, setSandboxUrl] = useState<string | null>(null)
   const [sandboxError, setSandboxError] = useState<string | null>(null)
+  const [cachedSandboxUrl, setCachedSandboxUrl] = useState<string | null>(null)
   const syncTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const autoStartTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const lastSyncedFilesRef = useRef<string>('')
   const startingRef = useRef(false) // prevent double-starts
   const hasAutoStartedRef = useRef(false) // only auto-start once per session
   const sandboxAvailableRef = useRef<boolean | null>(null) // cached sandbox availability check
+
+  // Cache sandbox URL when it's live so we can show it after sandbox dies
+  useEffect(() => {
+    if (sandboxUrl && sandboxStatus === 'running') {
+      setCachedSandboxUrl(sandboxUrl)
+      if (projectId) {
+        try { sessionStorage.setItem(`forge-sandbox-${projectId}`, sandboxUrl) } catch {}
+      }
+    }
+  }, [sandboxUrl, sandboxStatus, projectId])
+
+  // Restore cached sandbox URL on mount
+  useEffect(() => {
+    if (projectId && !cachedSandboxUrl) {
+      try {
+        const cached = sessionStorage.getItem(`forge-sandbox-${projectId}`)
+        if (cached) setCachedSandboxUrl(cached)
+      } catch {}
+    }
+  }, [projectId]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Detect project type
   const projectType = useMemo(() => {
@@ -311,13 +332,17 @@ export function PreviewPanel({ files, projectId }: PreviewPanelProps) {
 
   const isSandboxActive = sandboxStatus === 'running' && sandboxUrl
   const isSandboxLoading = ['booting', 'writing', 'installing', 'starting'].includes(sandboxStatus)
+  const isSandboxOffline = !isSandboxActive && !isSandboxLoading && !!cachedSandboxUrl
+  const showCachedPreview = isSandboxOffline && sandboxStatus !== 'error'
 
   // Display URL for the URL bar
   const displayUrl = isSandboxActive
     ? sandboxUrl
     : isSandboxLoading
       ? STATUS_LABELS[sandboxStatus]
-      : 'Preview'
+      : showCachedPreview
+        ? cachedSandboxUrl
+        : 'Preview'
 
   const content = (
     <div className={cn(
@@ -359,6 +384,7 @@ export function PreviewPanel({ files, projectId }: PreviewPanelProps) {
               isSandboxActive && 'border-green-300 bg-green-50/50',
               isSandboxLoading && 'border-amber-300 bg-amber-50/50',
               sandboxStatus === 'error' && 'border-red-300 bg-red-50/50',
+              showCachedPreview && 'border-gray-300 bg-gray-50/50',
             )}>
               {/* Status indicator */}
               {isSandboxActive && (
@@ -372,10 +398,13 @@ export function PreviewPanel({ files, projectId }: PreviewPanelProps) {
               {sandboxStatus === 'error' && (
                 <AlertTriangle className="w-3 h-3 shrink-0 text-red-500" />
               )}
-              {sandboxStatus === 'idle' && !previewError && (
+              {showCachedPreview && (
+                <Globe className="w-3 h-3 shrink-0 text-gray-400" />
+              )}
+              {sandboxStatus === 'idle' && !showCachedPreview && !previewError && (
                 <Globe className="w-3 h-3 shrink-0 text-forge-text-dim" />
               )}
-              {sandboxStatus === 'idle' && previewError && (
+              {sandboxStatus === 'idle' && !showCachedPreview && previewError && (
                 <AlertTriangle className="w-3 h-3 shrink-0 text-red-500" />
               )}
 
@@ -385,9 +414,17 @@ export function PreviewPanel({ files, projectId }: PreviewPanelProps) {
                 isSandboxActive ? 'text-green-700' : 'text-forge-text-dim',
                 isSandboxLoading && 'text-amber-700',
                 sandboxStatus === 'error' && 'text-red-600',
+                showCachedPreview && 'text-gray-400',
               )}>
                 {displayUrl}
               </span>
+
+              {/* Offline badge */}
+              {showCachedPreview && (
+                <span className="shrink-0 px-1.5 py-0.5 text-[9px] font-medium bg-gray-200 text-gray-500 rounded">
+                  CACHED
+                </span>
+              )}
             </div>
           </div>
 
@@ -463,17 +500,48 @@ export function PreviewPanel({ files, projectId }: PreviewPanelProps) {
       {/* ─── Preview Body ──────────────────────────────────────── */}
       <div className="flex-1 overflow-hidden bg-white relative">
         <div className={cn('h-full transition-all', widthClasses[viewMode])}>
-          {/* Static preview iframe */}
+          {/* Static preview iframe — always present as base layer */}
           <iframe
             key={`static-${refreshKey}`}
             srcDoc={previewHtml}
             className={cn(
-              'w-full h-full border-0 absolute inset-0',
-              isSandboxActive ? 'hidden' : 'block',
+              'w-full h-full border-0 absolute inset-0 transition-opacity duration-300',
+              (isSandboxActive || showCachedPreview) ? 'opacity-0 pointer-events-none' : 'opacity-100',
             )}
             sandbox="allow-scripts allow-same-origin"
             title="Static Preview"
           />
+
+          {/* Cached sandbox iframe — shown dimmed when sandbox is offline */}
+          {showCachedPreview && cachedSandboxUrl && (
+            <div className="absolute inset-0">
+              <iframe
+                key={`cached-${cachedSandboxUrl}`}
+                src={cachedSandboxUrl}
+                className="w-full h-full border-0 opacity-40 pointer-events-none"
+                title="Cached Preview"
+                allow="cross-origin-isolated"
+              />
+              {/* Offline overlay */}
+              <div className="absolute inset-0 flex items-center justify-center bg-white/30 backdrop-blur-[1px]">
+                <div className="flex flex-col items-center gap-3 px-6 py-4 bg-white/95 backdrop-blur border border-forge-border rounded-xl shadow-lg">
+                  <div className="w-10 h-10 rounded-full bg-gray-100 flex items-center justify-center">
+                    <Globe className="w-5 h-5 text-gray-400" />
+                  </div>
+                  <div className="text-center">
+                    <p className="text-xs font-medium text-forge-text">Sandbox offline</p>
+                    <p className="text-[10px] text-forge-text-dim mt-0.5">Showing cached preview</p>
+                  </div>
+                  <button
+                    onClick={() => { hasAutoStartedRef.current = false; sandboxAvailableRef.current = null; startSandbox() }}
+                    className="px-3 py-1.5 text-[11px] font-medium bg-forge-accent text-white rounded-lg hover:bg-forge-accent-hover transition-colors"
+                  >
+                    Restart Sandbox
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
 
           {/* Loading banner — non-blocking overlay at top */}
           {isSandboxLoading && (
@@ -517,7 +585,7 @@ export function PreviewPanel({ files, projectId }: PreviewPanelProps) {
             <iframe
               key={`sandbox-${refreshKey}`}
               src={sandboxUrl}
-              className="w-full h-full border-0"
+              className="w-full h-full border-0 absolute inset-0"
               title="Live Preview"
               allow="cross-origin-isolated"
             />
