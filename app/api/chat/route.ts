@@ -810,25 +810,63 @@ export async function POST(req: Request) {
       }),
 
       edit_file: tool({
-        description: 'Edit a file by replacing a specific string. old_string must match EXACTLY.',
+        description: 'Edit a file by replacing a specific string. old_string must match EXACTLY (including whitespace/indentation). If you did not write this file yourself, use read_file first to get the exact content.',
         parameters: z.object({
           path: z.string().describe('File path'),
-          old_string: z.string().describe('Exact string to find'),
+          old_string: z.string().describe('Exact string to find (must match whitespace/indentation)'),
           new_string: z.string().describe('Replacement string'),
         }),
         execute: async ({ path, old_string, new_string }) => {
           const content = vfs.read(path)
           if (content === undefined) return { error: `File not found: ${path}` }
-          if (!content.includes(old_string)) {
-            return { error: 'old_string not found in file. Read the file first to get exact content.' }
+
+          // Exact match — fast path
+          if (content.includes(old_string)) {
+            const occurrences = content.split(old_string).length - 1
+            if (occurrences > 1) {
+              return { error: `Found ${occurrences} occurrences. Provide more context to make it unique.` }
+            }
+            const updated = content.replace(old_string, new_string)
+            vfs.write(path, updated)
+            return { ok: true, path, lines: updated.split('\n').length }
           }
-          const occurrences = content.split(old_string).length - 1
-          if (occurrences > 1) {
-            return { error: `Found ${occurrences} occurrences. Provide more context to make it unique.` }
+
+          // Fuzzy match — normalize whitespace and try again
+          const normalize = (s: string) => s.replace(/[ \t]+/g, ' ').replace(/\r\n/g, '\n').trim()
+          const normOld = normalize(old_string)
+          const lines = content.split('\n')
+
+          // Try to find a block of lines that matches when normalized
+          const oldLines = old_string.split('\n')
+          for (let i = 0; i <= lines.length - oldLines.length; i++) {
+            const block = lines.slice(i, i + oldLines.length).join('\n')
+            if (normalize(block) === normOld) {
+              // Found a whitespace-fuzzy match — use the actual content for replacement
+              const updated = content.replace(block, new_string)
+              vfs.write(path, updated)
+              return { ok: true, path, lines: updated.split('\n').length, note: 'Matched with whitespace normalization' }
+            }
           }
-          const updated = content.replace(old_string, new_string)
-          vfs.write(path, updated)
-          return { ok: true, path, lines: updated.split('\n').length }
+
+          // No match — return helpful context from the file
+          // Find the closest matching line to help the AI self-correct
+          const firstOldLine = old_string.split('\n')[0].trim()
+          const nearLines: string[] = []
+          for (let i = 0; i < lines.length; i++) {
+            if (lines[i].includes(firstOldLine) || (firstOldLine.length > 10 && lines[i].trim().startsWith(firstOldLine.slice(0, 20)))) {
+              const start = Math.max(0, i - 2)
+              const end = Math.min(lines.length, i + oldLines.length + 2)
+              nearLines.push(`Lines ${start + 1}-${end}:\n${lines.slice(start, end).join('\n')}`)
+              break
+            }
+          }
+
+          return {
+            error: 'old_string not found in file.',
+            hint: 'The content does not match exactly. Use read_file to get current content, then retry.',
+            nearMatch: nearLines.length > 0 ? nearLines[0] : undefined,
+            fileLength: `${lines.length} lines`,
+          }
         },
       }),
 
