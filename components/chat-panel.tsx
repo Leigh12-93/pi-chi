@@ -165,9 +165,10 @@ interface ChatPanelProps {
   onFileChange: (path: string, content: string) => void
   onFileDelete: (path: string) => void
   onBulkFileUpdate: (files: Record<string, string>) => void
+  githubToken?: string
 }
 
-export function ChatPanel({ projectName, files, onFileChange, onFileDelete, onBulkFileUpdate }: ChatPanelProps) {
+export function ChatPanel({ projectName, files, onFileChange, onFileDelete, onBulkFileUpdate, githubToken }: ChatPanelProps) {
   const {
     messages,
     setMessages,
@@ -177,7 +178,7 @@ export function ChatPanel({ projectName, files, onFileChange, onFileDelete, onBu
     append,
   } = useChat({
     api: '/api/chat',
-    body: { projectName, files },
+    body: { projectName, files, githubToken },
     onError: (err) => console.error('Chat error:', err),
   })
 

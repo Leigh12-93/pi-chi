@@ -184,11 +184,11 @@ function scaffoldStatic(name: string): Record<string, string> {
 const GITHUB_TOKEN = (process.env.GITHUB_TOKEN || '').trim()
 const GITHUB_API = 'https://api.github.com'
 
-async function githubFetch(path: string, options: RequestInit = {}) {
+async function githubFetch(path: string, token: string, options: RequestInit = {}) {
   const res = await fetch(`${GITHUB_API}${path}`, {
     ...options,
     headers: {
-      Authorization: `Bearer ${GITHUB_TOKEN}`,
+      Authorization: `Bearer ${token}`,
       Accept: 'application/vnd.github+json',
       'X-GitHub-Api-Version': '2022-11-28',
       'Content-Type': 'application/json',
@@ -308,6 +308,10 @@ Keep summaries SHORT (3-4 lines max):
 export async function POST(req: Request) {
   const body = await req.json()
   const projectName = body.projectName || 'untitled'
+
+  // Use user's GitHub token from OAuth if available, fall back to server PAT
+  const userGithubToken = body.githubToken ? String(body.githubToken).trim() : ''
+  const effectiveGithubToken = userGithubToken || GITHUB_TOKEN
 
   // Initialize virtual FS from client state
   const vfs = new VirtualFS(body.files || {})
@@ -490,9 +494,9 @@ export async function POST(req: Request) {
           description: z.string().optional().describe('Repository description'),
         }),
         execute: async ({ repoName, isPublic, description }) => {
-          if (!GITHUB_TOKEN) return { error: 'GITHUB_TOKEN not configured. Add it to environment variables.' }
+          if (!effectiveGithubToken) return { error: 'Not authenticated. Sign in with GitHub to create repos.' }
 
-          const repo = await githubFetch('/user/repos', {
+          const repo = await githubFetch('/user/repos', effectiveGithubToken, {
             method: 'POST',
             body: JSON.stringify({
               name: repoName,
@@ -508,7 +512,7 @@ export async function POST(req: Request) {
           const blobs = []
 
           for (const [path, content] of Object.entries(files)) {
-            const blob = await githubFetch(`/repos/${owner}/${repoName}/git/blobs`, {
+            const blob = await githubFetch(`/repos/${owner}/${repoName}/git/blobs`, effectiveGithubToken, {
               method: 'POST',
               body: JSON.stringify({ content, encoding: 'utf-8' }),
             })
@@ -516,19 +520,19 @@ export async function POST(req: Request) {
             blobs.push({ path, mode: '100644', type: 'blob', sha: blob.sha })
           }
 
-          const tree = await githubFetch(`/repos/${owner}/${repoName}/git/trees`, {
+          const tree = await githubFetch(`/repos/${owner}/${repoName}/git/trees`, effectiveGithubToken, {
             method: 'POST',
             body: JSON.stringify({ tree: blobs }),
           })
           if (tree.error) return { error: `Failed to create tree: ${tree.error}` }
 
-          const commit = await githubFetch(`/repos/${owner}/${repoName}/git/commits`, {
+          const commit = await githubFetch(`/repos/${owner}/${repoName}/git/commits`, effectiveGithubToken, {
             method: 'POST',
             body: JSON.stringify({ message: 'Initial commit from Forge', tree: tree.sha }),
           })
           if (commit.error) return { error: `Failed to create commit: ${commit.error}` }
 
-          await githubFetch(`/repos/${owner}/${repoName}/git/refs`, {
+          await githubFetch(`/repos/${owner}/${repoName}/git/refs`, effectiveGithubToken, {
             method: 'POST',
             body: JSON.stringify({ ref: 'refs/heads/main', sha: commit.sha }),
           })
@@ -546,17 +550,17 @@ export async function POST(req: Request) {
           branch: z.string().optional().describe('Branch name (default: main)'),
         }),
         execute: async ({ owner, repo, message, branch }) => {
-          if (!GITHUB_TOKEN) return { error: 'GITHUB_TOKEN not configured' }
+          if (!effectiveGithubToken) return { error: 'Not authenticated. Sign in with GitHub to push.' }
           const branchName = branch || 'main'
 
-          const ref = await githubFetch(`/repos/${owner}/${repo}/git/refs/heads/${branchName}`)
+          const ref = await githubFetch(`/repos/${owner}/${repo}/git/refs/heads/${branchName}`, effectiveGithubToken)
           if (ref.error) return { error: `Failed to get branch: ${ref.error}` }
           const parentSha = ref.object.sha
 
           const files = vfs.toRecord()
           const blobs = []
           for (const [path, content] of Object.entries(files)) {
-            const blob = await githubFetch(`/repos/${owner}/${repo}/git/blobs`, {
+            const blob = await githubFetch(`/repos/${owner}/${repo}/git/blobs`, effectiveGithubToken, {
               method: 'POST',
               body: JSON.stringify({ content, encoding: 'utf-8' }),
             })
@@ -564,19 +568,19 @@ export async function POST(req: Request) {
             blobs.push({ path, mode: '100644' as const, type: 'blob' as const, sha: blob.sha as string })
           }
 
-          const tree = await githubFetch(`/repos/${owner}/${repo}/git/trees`, {
+          const tree = await githubFetch(`/repos/${owner}/${repo}/git/trees`, effectiveGithubToken, {
             method: 'POST',
             body: JSON.stringify({ base_tree: parentSha, tree: blobs }),
           })
           if (tree.error) return { error: `Failed to create tree: ${tree.error}` }
 
-          const commit = await githubFetch(`/repos/${owner}/${repo}/git/commits`, {
+          const commit = await githubFetch(`/repos/${owner}/${repo}/git/commits`, effectiveGithubToken, {
             method: 'POST',
             body: JSON.stringify({ message, tree: tree.sha, parents: [parentSha] }),
           })
           if (commit.error) return { error: `Failed to commit: ${commit.error}` }
 
-          const update = await githubFetch(`/repos/${owner}/${repo}/git/refs/heads/${branchName}`, {
+          const update = await githubFetch(`/repos/${owner}/${repo}/git/refs/heads/${branchName}`, effectiveGithubToken, {
             method: 'PATCH',
             body: JSON.stringify({ sha: commit.sha }),
           })

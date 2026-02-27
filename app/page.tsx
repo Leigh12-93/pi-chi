@@ -1,13 +1,13 @@
 'use client'
 
 import { useState, useCallback } from 'react'
+import { useSession } from 'next-auth/react'
 import { Workspace } from '@/components/workspace'
 import { ProjectPicker } from '@/components/project-picker'
-import type { FileNode } from '@/lib/types'
 
 export default function ForgePage() {
+  const { data: session } = useSession()
   const [projectName, setProjectName] = useState<string | null>(null)
-  // Virtual filesystem — all files stored in browser memory
   const [files, setFiles] = useState<Record<string, string>>({})
   const [activeFile, setActiveFile] = useState<string | null>(null)
 
@@ -34,6 +34,9 @@ export default function ForgePage() {
     setFiles(prev => ({ ...prev, ...newFiles }))
   }, [])
 
+  // Get user's GitHub OAuth token if logged in
+  const githubToken = (session as any)?.accessToken as string | undefined
+
   if (!projectName) {
     return <ProjectPicker onSelect={handleSelectProject} />
   }
@@ -48,6 +51,7 @@ export default function ForgePage() {
       onFileDelete={handleFileDelete}
       onBulkFileUpdate={handleBulkFileUpdate}
       onSwitchProject={() => setProjectName(null)}
+      githubToken={githubToken}
     />
   )
 }

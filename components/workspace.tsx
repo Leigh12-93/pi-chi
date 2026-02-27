@@ -55,11 +55,13 @@ interface WorkspaceProps {
   onFileDelete: (path: string) => void
   onBulkFileUpdate: (files: Record<string, string>) => void
   onSwitchProject: () => void
+  githubToken?: string
 }
 
 export function Workspace({
   projectName, files, activeFile,
   onFileSelect, onFileChange, onFileDelete, onBulkFileUpdate, onSwitchProject,
+  githubToken,
 }: WorkspaceProps) {
   const [rightTab, setRightTab] = useState<'code' | 'preview'>('code')
   const [openFiles, setOpenFiles] = useState<string[]>([])
@@ -115,6 +117,7 @@ export function Workspace({
             onFileChange={onFileChange}
             onFileDelete={onFileDelete}
             onBulkFileUpdate={onBulkFileUpdate}
+            githubToken={githubToken}
           />
         </Panel>
 
