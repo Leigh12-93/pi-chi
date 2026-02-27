@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useMemo, useEffect, useRef } from 'react'
+import { useState, useMemo, useEffect, useRef, useCallback } from 'react'
 import { Panel, PanelGroup, PanelResizeHandle } from 'react-resizable-panels'
 import { ChatPanel } from './chat-panel'
 import { CodeEditor } from './code-editor'
@@ -66,6 +66,7 @@ export function Workspace({
 }: WorkspaceProps) {
   const [rightTab, setRightTab] = useState<'code' | 'preview'>('code')
   const [openFiles, setOpenFiles] = useState<string[]>([])
+  const chatSendRef = useRef<((message: string) => void) | null>(null)
 
   const fileTree = useMemo(() => buildTreeFromMap(files), [files])
   const prevFileCount = useRef(0)
@@ -97,6 +98,24 @@ export function Workspace({
     }
   }
 
+  const handleRegisterSend = useCallback((sendFn: (message: string) => void) => {
+    chatSendRef.current = sendFn
+  }, [])
+
+  const ACTION_MESSAGES: Record<string, string> = {
+    save: 'Save this project to the database now.',
+    deploy: 'Deploy this project to Vercel.',
+    push: 'Push all project files to GitHub.',
+    'create-repo': 'Create a new GitHub repository for this project and push all files.',
+  }
+
+  const handleAction = useCallback((action: string) => {
+    const message = ACTION_MESSAGES[action]
+    if (message && chatSendRef.current) {
+      chatSendRef.current(message)
+    }
+  }, [])
+
   const handleCloseFile = (path: string) => {
     setOpenFiles(prev => prev.filter(f => f !== path))
     if (activeFile === path) {
@@ -107,7 +126,7 @@ export function Workspace({
 
   return (
     <div className="h-screen flex flex-col bg-forge-bg">
-      <Header projectName={projectName} onSwitchProject={onSwitchProject} fileCount={Object.keys(files).length} />
+      <Header projectName={projectName} onSwitchProject={onSwitchProject} fileCount={Object.keys(files).length} onAction={handleAction} />
 
       <PanelGroup direction="horizontal" className="flex-1">
         {/* Chat Panel */}
@@ -120,6 +139,7 @@ export function Workspace({
             onFileDelete={onFileDelete}
             onBulkFileUpdate={onBulkFileUpdate}
             githubToken={githubToken}
+            onRegisterSend={handleRegisterSend}
           />
         </Panel>
 
