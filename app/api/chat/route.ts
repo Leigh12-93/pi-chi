@@ -955,15 +955,23 @@ export async function POST(req: Request) {
               name: repoName,
               description: description || `Built with Forge`,
               private: !isPublic,
-              auto_init: false,
+              auto_init: true, // Creates initial commit so Git Data API works
             }),
           })
           if (repo.error) return { error: `Failed to create repo: ${repo.error}` }
 
           const owner = repo.owner.login
           const files = vfs.toRecord()
-          const blobs = []
 
+          // Wait briefly for GitHub to initialize the repo
+          await new Promise(resolve => setTimeout(resolve, 1500))
+
+          // Get the initial commit SHA from the default branch
+          const ref = await githubFetch(`/repos/${owner}/${repoName}/git/refs/heads/main`, effectiveGithubToken)
+          if (ref.error) return { error: `Repo created but failed to get initial ref: ${ref.error}` }
+          const parentSha = ref.object.sha
+
+          const blobs = []
           for (const [path, content] of Object.entries(files)) {
             const blob = await githubFetch(`/repos/${owner}/${repoName}/git/blobs`, effectiveGithubToken, {
               method: 'POST',
@@ -975,19 +983,19 @@ export async function POST(req: Request) {
 
           const tree = await githubFetch(`/repos/${owner}/${repoName}/git/trees`, effectiveGithubToken, {
             method: 'POST',
-            body: JSON.stringify({ tree: blobs }),
+            body: JSON.stringify({ base_tree: parentSha, tree: blobs }),
           })
           if (tree.error) return { error: `Failed to create tree: ${tree.error}` }
 
           const commit = await githubFetch(`/repos/${owner}/${repoName}/git/commits`, effectiveGithubToken, {
             method: 'POST',
-            body: JSON.stringify({ message: 'Initial commit from Forge', tree: tree.sha }),
+            body: JSON.stringify({ message: 'Initial commit from Forge', tree: tree.sha, parents: [parentSha] }),
           })
           if (commit.error) return { error: `Failed to create commit: ${commit.error}` }
 
-          await githubFetch(`/repos/${owner}/${repoName}/git/refs`, effectiveGithubToken, {
-            method: 'POST',
-            body: JSON.stringify({ ref: 'refs/heads/main', sha: commit.sha }),
+          await githubFetch(`/repos/${owner}/${repoName}/git/refs/heads/main`, effectiveGithubToken, {
+            method: 'PATCH',
+            body: JSON.stringify({ sha: commit.sha }),
           })
 
           return { ok: true, url: repo.html_url, owner, repoName, filesCount: Object.keys(files).length }
