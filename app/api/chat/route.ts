@@ -1354,6 +1354,420 @@ export async function POST(req: Request) {
         },
       }),
 
+      forge_list_branches: tool({
+        description: 'List all branches on the Forge repo. Useful to see what feature branches exist.',
+        parameters: z.object({}),
+        execute: async () => {
+          const token = GITHUB_TOKEN
+          if (!token) return { error: 'No GitHub token configured' }
+          const result = await githubFetch('/repos/Leigh12-93/forge/branches?per_page=30', token)
+          if (!Array.isArray(result)) return { error: result.error || 'Failed to list branches' }
+          return {
+            branches: result.map((b: any) => ({
+              name: b.name,
+              sha: b.commit.sha.slice(0, 7),
+              protected: b.protected,
+            })),
+          }
+        },
+      }),
+
+      forge_delete_branch: tool({
+        description: 'Delete a branch on the Forge repo after it has been merged.',
+        parameters: z.object({
+          branch: z.string().describe('Branch name to delete (cannot be master)'),
+        }),
+        execute: async ({ branch }) => {
+          if (branch === 'master' || branch === 'main') return { error: 'Cannot delete master/main branch' }
+          const token = GITHUB_TOKEN
+          if (!token) return { error: 'No GitHub token configured' }
+          const result = await githubFetch(`/repos/Leigh12-93/forge/git/refs/heads/${branch}`, token, {
+            method: 'DELETE',
+          })
+          if (result.error) return { error: `Failed to delete branch: ${result.error}` }
+          return { ok: true, deleted: branch }
+        },
+      }),
+
+      forge_read_deploy_log: tool({
+        description: 'Read the full build log from a Vercel deployment. Use after forge_check_build to see detailed error output.',
+        parameters: z.object({
+          deploymentId: z.string().describe('Vercel deployment ID (from forge_check_build or forge_deployment_status)'),
+        }),
+        execute: async ({ deploymentId }) => {
+          const token = VERCEL_TOKEN
+          if (!token) return { error: 'No Vercel deploy token configured' }
+          const teamParam = VERCEL_TEAM ? `?teamId=${VERCEL_TEAM}` : ''
+          const res = await fetch(`https://api.vercel.com/v2/deployments/${deploymentId}/events${teamParam}`, {
+            headers: { Authorization: `Bearer ${token}` },
+          })
+          if (!res.ok) return { error: `Vercel API ${res.status}` }
+          const events = await res.json()
+          const logs = (Array.isArray(events) ? events : [])
+            .filter((e: any) => e.type === 'stdout' || e.type === 'stderr' || e.type === 'error')
+            .map((e: any) => {
+              const text = e.payload?.text || e.text || ''
+              return `[${e.type}] ${text}`
+            })
+            .slice(-50)
+          return { logs, lineCount: logs.length }
+        },
+      }),
+
+      db_introspect: tool({
+        description: 'Discover the schema of a Supabase table — columns, types, constraints. Use this instead of guessing column names.',
+        parameters: z.object({
+          table: z.string().describe('Table name to inspect, e.g. "forge_projects"'),
+        }),
+        execute: async ({ table }) => {
+          // Use Supabase's PostgREST to introspect via information_schema
+          // The service role key has access to pg_catalog
+          const url = `${SUPABASE_URL}/rest/v1/rpc/get_table_schema`
+
+          // First try the RPC approach — if there's no function, fall back to reading 0 rows + headers
+          const fallbackRes = await fetch(`${SUPABASE_URL}/rest/v1/${table}?limit=0`, {
+            method: 'GET',
+            headers: {
+              'apikey': SUPABASE_KEY,
+              'Authorization': `Bearer ${SUPABASE_KEY}`,
+              'Accept': 'application/json',
+              'Prefer': 'count=exact',
+            },
+          })
+
+          if (!fallbackRes.ok) return { error: `Table "${table}" not found or not accessible (${fallbackRes.status})` }
+
+          const contentRange = fallbackRes.headers.get('content-range')
+          const totalRows = contentRange ? contentRange.split('/')[1] : 'unknown'
+
+          // Get column info via a raw SQL query through PostgREST RPC
+          // Using the information_schema approach
+          const schemaRes = await fetch(`${SUPABASE_URL}/rest/v1/rpc/execute_sql`, {
+            method: 'POST',
+            headers: {
+              'apikey': SUPABASE_KEY,
+              'Authorization': `Bearer ${SUPABASE_KEY}`,
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              query: `SELECT column_name, data_type, is_nullable, column_default, character_maximum_length
+                      FROM information_schema.columns
+                      WHERE table_name = '${table.replace(/'/g, "''")}'
+                      ORDER BY ordinal_position`
+            }),
+          })
+
+          if (schemaRes.ok) {
+            const schemaData = await schemaRes.json()
+            return {
+              table,
+              totalRows,
+              columns: schemaData,
+            }
+          }
+
+          // Fallback: read 1 row and infer types from the data
+          const sampleRes = await fetch(`${SUPABASE_URL}/rest/v1/${table}?limit=1`, {
+            headers: {
+              'apikey': SUPABASE_KEY,
+              'Authorization': `Bearer ${SUPABASE_KEY}`,
+              'Accept': 'application/json',
+            },
+          })
+
+          if (sampleRes.ok) {
+            const sample = await sampleRes.json()
+            if (Array.isArray(sample) && sample.length > 0) {
+              const columns = Object.entries(sample[0]).map(([name, value]) => ({
+                column_name: name,
+                inferred_type: value === null ? 'unknown' : typeof value,
+                sample_value: typeof value === 'string' ? value.slice(0, 50) : value,
+              }))
+              return { table, totalRows, columns, note: 'Types inferred from sample data (no RPC function available)' }
+            }
+          }
+
+          return { table, totalRows, columns: [], note: 'Table exists but is empty and schema could not be introspected' }
+        },
+      }),
+
+      scaffold_component: tool({
+        description: 'Generate a reusable UI component in shadcn/ui style. Creates the component file with proper TypeScript types, variants, and Tailwind styling.',
+        parameters: z.object({
+          name: z.string().describe('Component name in PascalCase, e.g. "Button", "Card", "Dialog"'),
+          type: z.enum(['button', 'card', 'input', 'modal', 'badge', 'alert', 'tabs', 'dropdown', 'avatar', 'tooltip', 'custom']).describe('Component type'),
+          variants: z.array(z.string()).optional().describe('Style variants, e.g. ["default", "destructive", "outline", "ghost"]'),
+          description: z.string().optional().describe('What the component should do'),
+        }),
+        execute: async ({ name, type, variants, description }) => {
+          const variantList = variants || ['default']
+          const kebab = name.replace(/([A-Z])/g, (m, c, i) => (i > 0 ? '-' : '') + c.toLowerCase())
+          const path = `components/ui/${kebab}.tsx`
+
+          const variantStyles = variantList.map(v => {
+            switch (v) {
+              case 'default': return `      default: 'bg-forge-accent text-white hover:bg-forge-accent-hover'`
+              case 'destructive': return `      destructive: 'bg-forge-danger text-white hover:bg-red-700'`
+              case 'outline': return `      outline: 'border border-forge-border bg-transparent hover:bg-forge-surface'`
+              case 'ghost': return `      ghost: 'hover:bg-forge-surface hover:text-forge-text'`
+              case 'secondary': return `      secondary: 'bg-forge-surface text-forge-text hover:bg-forge-panel'`
+              default: return `      '${v}': ''  // TODO: add styles`
+            }
+          }).join(',\n')
+
+          const sizeStyles = `      default: 'h-10 px-4 py-2',
+      sm: 'h-9 rounded-md px-3',
+      lg: 'h-11 rounded-md px-8',
+      icon: 'h-10 w-10'`
+
+          let content: string
+          if (type === 'card') {
+            content = `import { cn } from '@/lib/utils'
+
+interface ${name}Props extends React.HTMLAttributes<HTMLDivElement> {
+  children: React.ReactNode
+}
+
+export function ${name}({ className, children, ...props }: ${name}Props) {
+  return (
+    <div className={cn('rounded-xl border border-forge-border bg-forge-panel p-6', className)} {...props}>
+      {children}
+    </div>
+  )
+}
+
+export function ${name}Header({ className, children, ...props }: ${name}Props) {
+  return <div className={cn('flex flex-col space-y-1.5 pb-4', className)} {...props}>{children}</div>
+}
+
+export function ${name}Title({ className, children, ...props }: ${name}Props) {
+  return <h3 className={cn('text-lg font-semibold leading-none', className)} {...props}>{children}</h3>
+}
+
+export function ${name}Content({ className, children, ...props }: ${name}Props) {
+  return <div className={cn('text-sm text-forge-text-dim', className)} {...props}>{children}</div>
+}
+
+export function ${name}Footer({ className, children, ...props }: ${name}Props) {
+  return <div className={cn('flex items-center pt-4', className)} {...props}>{children}</div>
+}
+`
+          } else if (type === 'input') {
+            content = `import { forwardRef } from 'react'
+import { cn } from '@/lib/utils'
+
+export interface ${name}Props extends React.InputHTMLAttributes<HTMLInputElement> {
+  label?: string
+  error?: string
+}
+
+export const ${name} = forwardRef<HTMLInputElement, ${name}Props>(
+  ({ className, label, error, ...props }, ref) => {
+    return (
+      <div className="space-y-1.5">
+        {label && <label className="text-sm font-medium text-forge-text">{label}</label>}
+        <input
+          ref={ref}
+          className={cn(
+            'flex h-10 w-full rounded-lg border bg-forge-surface px-3 py-2 text-sm',
+            'placeholder:text-forge-text-dim/50 outline-none transition-colors',
+            error ? 'border-forge-danger' : 'border-forge-border focus:border-forge-accent',
+            className,
+          )}
+          {...props}
+        />
+        {error && <p className="text-xs text-forge-danger">{error}</p>}
+      </div>
+    )
+  }
+)
+${name}.displayName = '${name}'
+`
+          } else if (type === 'modal') {
+            content = `'use client'
+
+import { useEffect, useRef } from 'react'
+import { X } from 'lucide-react'
+import { cn } from '@/lib/utils'
+
+interface ${name}Props {
+  open: boolean
+  onClose: () => void
+  title?: string
+  children: React.ReactNode
+  className?: string
+}
+
+export function ${name}({ open, onClose, title, children, className }: ${name}Props) {
+  const overlayRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    const handleEsc = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose() }
+    if (open) document.addEventListener('keydown', handleEsc)
+    return () => document.removeEventListener('keydown', handleEsc)
+  }, [open, onClose])
+
+  if (!open) return null
+
+  return (
+    <div ref={overlayRef} className="fixed inset-0 z-50 flex items-center justify-center" onClick={e => { if (e.target === overlayRef.current) onClose() }}>
+      <div className="fixed inset-0 bg-black/50" />
+      <div className={cn('relative z-50 w-full max-w-lg rounded-xl border border-forge-border bg-forge-bg p-6 shadow-xl animate-fade-in', className)}>
+        <div className="flex items-center justify-between mb-4">
+          {title && <h2 className="text-lg font-semibold text-forge-text">{title}</h2>}
+          <button onClick={onClose} className="p-1 rounded-lg text-forge-text-dim hover:text-forge-text hover:bg-forge-surface transition-colors">
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+        {children}
+      </div>
+    </div>
+  )
+}
+`
+          } else if (type === 'badge') {
+            content = `import { cn } from '@/lib/utils'
+
+const variants = {
+${variantStyles}
+} as const
+
+interface ${name}Props extends React.HTMLAttributes<HTMLSpanElement> {
+  variant?: keyof typeof variants
+  children: React.ReactNode
+}
+
+export function ${name}({ variant = 'default', className, children, ...props }: ${name}Props) {
+  return (
+    <span className={cn('inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium transition-colors', variants[variant], className)} {...props}>
+      {children}
+    </span>
+  )
+}
+`
+          } else if (type === 'alert') {
+            content = `import { AlertTriangle, CheckCircle, Info, XCircle } from 'lucide-react'
+import { cn } from '@/lib/utils'
+
+const variants = {
+  info: { icon: Info, className: 'bg-blue-50 text-blue-800 border-blue-200' },
+  success: { icon: CheckCircle, className: 'bg-green-50 text-green-800 border-green-200' },
+  warning: { icon: AlertTriangle, className: 'bg-yellow-50 text-yellow-800 border-yellow-200' },
+  error: { icon: XCircle, className: 'bg-red-50 text-red-800 border-red-200' },
+}
+
+interface ${name}Props {
+  variant?: keyof typeof variants
+  title?: string
+  children: React.ReactNode
+  className?: string
+}
+
+export function ${name}({ variant = 'info', title, children, className }: ${name}Props) {
+  const { icon: Icon, className: variantClass } = variants[variant]
+  return (
+    <div className={cn('flex gap-3 rounded-lg border p-4', variantClass, className)}>
+      <Icon className="w-5 h-5 shrink-0 mt-0.5" />
+      <div>
+        {title && <p className="font-medium mb-1">{title}</p>}
+        <div className="text-sm">{children}</div>
+      </div>
+    </div>
+  )
+}
+`
+          } else {
+            // Default: button-style component with variants
+            content = `import { cn } from '@/lib/utils'
+
+const variants = {
+${variantStyles}
+} as const
+
+const sizes = {
+${sizeStyles}
+} as const
+
+interface ${name}Props extends React.ButtonHTMLAttributes<HTMLButtonElement> {
+  variant?: keyof typeof variants
+  size?: keyof typeof sizes
+}
+
+export function ${name}({ variant = 'default', size = 'default', className, children, ...props }: ${name}Props) {
+  return (
+    <button
+      className={cn(
+        'inline-flex items-center justify-center whitespace-nowrap rounded-lg text-sm font-medium transition-colors',
+        'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-forge-accent/50',
+        'disabled:pointer-events-none disabled:opacity-50',
+        variants[variant],
+        sizes[size],
+        className,
+      )}
+      {...props}
+    >
+      {children}
+    </button>
+  )
+}
+`
+          }
+
+          vfs.write(path, content)
+          return {
+            ok: true,
+            path,
+            component: name,
+            type,
+            variants: variantList,
+            lines: content.split('\n').length,
+          }
+        },
+      }),
+
+      generate_env_file: tool({
+        description: 'Analyze project files and generate a .env.example file listing all required environment variables.',
+        parameters: z.object({}),
+        execute: async () => {
+          const envVars = new Map<string, string>()
+
+          for (const [path, content] of vfs.files) {
+            // Match process.env.VARIABLE_NAME
+            const matches = content.matchAll(/process\.env\.([A-Z_][A-Z0-9_]*)/g)
+            for (const match of matches) {
+              const varName = match[1]
+              if (!envVars.has(varName)) {
+                envVars.set(varName, path)
+              }
+            }
+            // Match NEXT_PUBLIC_ in import.meta.env
+            const metaMatches = content.matchAll(/import\.meta\.env\.([A-Z_][A-Z0-9_]*)/g)
+            for (const match of metaMatches) {
+              if (!envVars.has(match[1])) envVars.set(match[1], path)
+            }
+          }
+
+          if (envVars.size === 0) return { ok: true, path: '.env.example', note: 'No environment variables found in project files' }
+
+          const lines = ['# Environment Variables', '# Generated from project source code', '']
+          const sorted = Array.from(envVars.entries()).sort((a, b) => a[0].localeCompare(b[0]))
+
+          for (const [name, source] of sorted) {
+            lines.push(`# Used in: ${source}`)
+            if (name.startsWith('NEXT_PUBLIC_')) {
+              lines.push(`${name}=  # Public (exposed to browser)`)
+            } else {
+              lines.push(`${name}=  # Server-side only`)
+            }
+            lines.push('')
+          }
+
+          const content = lines.join('\n')
+          vfs.write('.env.example', content)
+          return { ok: true, path: '.env.example', variables: sorted.map(([name]) => name), count: envVars.size }
+        },
+      }),
+
       forge_check_build: tool({
         description: 'Trigger a preview (non-production) deployment on Vercel to check if the current code builds successfully. Use this BEFORE forge_redeploy to catch errors.',
         parameters: z.object({

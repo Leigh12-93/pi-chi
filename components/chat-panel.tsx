@@ -55,6 +55,12 @@ const TOOL_LABELS: Record<string, { label: string; Icon: LucideIcon; color: stri
   forge_merge_pr: { label: 'Merging pull request', Icon: GitBranch, color: 'green' },
   forge_deployment_status: { label: 'Checking deployment', Icon: Rocket, color: 'blue' },
   forge_check_build: { label: 'Running preview build', Icon: Rocket, color: 'yellow' },
+  forge_list_branches: { label: 'Listing branches', Icon: GitBranch, color: 'blue' },
+  forge_delete_branch: { label: 'Deleting branch', Icon: GitBranch, color: 'red' },
+  forge_read_deploy_log: { label: 'Reading build log', Icon: Terminal, color: 'yellow' },
+  db_introspect: { label: 'Inspecting table schema', Icon: Database, color: 'purple' },
+  scaffold_component: { label: 'Scaffolding component', Icon: Sparkles, color: 'indigo' },
+  generate_env_file: { label: 'Generating .env.example', Icon: FileText, color: 'green' },
 }
 
 const QUICK_ACTIONS = [

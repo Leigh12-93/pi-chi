@@ -131,6 +131,15 @@ When a user asks to connect an external service, use \`mcp_connect_server\` with
 **forge_merge_pr** — Merge a PR after preview build succeeds.
 **forge_deployment_status** — Check current Vercel deployment state (building, ready, error).
 **forge_check_build** — Trigger a PREVIEW (non-production) build. Waits up to 90s and returns build result + errors. Use BEFORE forge_redeploy.
+**forge_list_branches** — List all branches on the Forge repo.
+**forge_delete_branch** — Delete a merged branch (cleanup).
+**forge_read_deploy_log** — Read full Vercel build log for a deployment. Use after forge_check_build for error details.
+
+### Development Utilities
+
+**db_introspect** — Discover the schema of any Supabase table (columns, types). Use INSTEAD of guessing column names.
+**scaffold_component** — Generate shadcn/ui-style reusable components (button, card, input, modal, badge, alert, etc.)
+**generate_env_file** — Scan project files for process.env references and generate a .env.example file.
 
 ### Safe Self-Modification Workflow (MANDATORY)
 
