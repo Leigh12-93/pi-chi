@@ -1,0 +1,86 @@
+import { NextRequest, NextResponse } from 'next/server'
+import {
+  createSandbox,
+  syncFiles,
+  destroySandbox,
+  getSandboxStatus,
+  isE2BConfigured,
+} from '@/lib/e2b-sandbox'
+
+// POST /api/sandbox — Create sandbox with project files
+export async function POST(req: NextRequest) {
+  try {
+    const { projectId, files, framework } = await req.json()
+
+    if (!projectId || !files) {
+      return NextResponse.json({ error: 'projectId and files are required' }, { status: 400 })
+    }
+
+    if (!isE2BConfigured()) {
+      return NextResponse.json(
+        { error: 'E2B not configured. Add E2B_API_KEY to your environment.' },
+        { status: 503 },
+      )
+    }
+
+    const result = await createSandbox(projectId, files, framework)
+    return NextResponse.json(result)
+  } catch (error) {
+    return NextResponse.json(
+      { error: error instanceof Error ? error.message : 'Failed to create sandbox' },
+      { status: 500 },
+    )
+  }
+}
+
+// GET /api/sandbox?projectId=xxx — Get sandbox status
+export async function GET(req: NextRequest) {
+  const projectId = req.nextUrl.searchParams.get('projectId')
+  if (!projectId) {
+    return NextResponse.json({ error: 'projectId is required' }, { status: 400 })
+  }
+
+  const status = getSandboxStatus(projectId)
+  if (!status) {
+    return NextResponse.json({ active: false })
+  }
+
+  return NextResponse.json({ active: true, ...status })
+}
+
+// PUT /api/sandbox — Sync files to running sandbox
+export async function PUT(req: NextRequest) {
+  try {
+    const { projectId, files } = await req.json()
+
+    if (!projectId || !files) {
+      return NextResponse.json({ error: 'projectId and files are required' }, { status: 400 })
+    }
+
+    const result = await syncFiles(projectId, files)
+    return NextResponse.json(result)
+  } catch (error) {
+    return NextResponse.json(
+      { error: error instanceof Error ? error.message : 'Failed to sync files' },
+      { status: 500 },
+    )
+  }
+}
+
+// DELETE /api/sandbox — Destroy sandbox
+export async function DELETE(req: NextRequest) {
+  try {
+    const { projectId } = await req.json()
+    if (!projectId) {
+      return NextResponse.json({ error: 'projectId is required' }, { status: 400 })
+    }
+
+    const result = await destroySandbox(projectId)
+    return NextResponse.json(result)
+  } catch (error) {
+    return NextResponse.json(
+      { error: error instanceof Error ? error.message : 'Failed to destroy sandbox' },
+      { status: 500 },
+    )
+  }
+}

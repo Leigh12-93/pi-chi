@@ -1,19 +1,43 @@
 'use client'
 
-import { useMemo, useState } from 'react'
-import { RefreshCw, Monitor, Smartphone, Tablet, AlertTriangle, ExternalLink, Code2 } from 'lucide-react'
+import { useMemo, useState, useCallback, useRef, useEffect } from 'react'
+import {
+  RefreshCw, Monitor, Smartphone, Tablet, AlertTriangle,
+  Code2, Play, Square, Loader2, Zap, ExternalLink,
+} from 'lucide-react'
 import { cn } from '@/lib/utils'
 
 interface PreviewPanelProps {
   files: Record<string, string>
+  projectId?: string | null
 }
 
 type ViewMode = 'desktop' | 'tablet' | 'mobile'
 
-export function PreviewPanel({ files }: PreviewPanelProps) {
+type SandboxStatus = 'idle' | 'booting' | 'writing' | 'installing' | 'starting' | 'running' | 'error'
+
+const STATUS_LABELS: Record<SandboxStatus, string> = {
+  idle: '',
+  booting: 'Creating VM...',
+  writing: 'Writing files...',
+  installing: 'Installing dependencies...',
+  starting: 'Starting dev server...',
+  running: 'Running',
+  error: 'Error',
+}
+
+export function PreviewPanel({ files, projectId }: PreviewPanelProps) {
   const [viewMode, setViewMode] = useState<ViewMode>('desktop')
   const [refreshKey, setRefreshKey] = useState(0)
   const [previewError, setPreviewError] = useState<string | null>(null)
+
+  // Sandbox state
+  const [sandboxStatus, setSandboxStatus] = useState<SandboxStatus>('idle')
+  const [sandboxUrl, setSandboxUrl] = useState<string | null>(null)
+  const [sandboxError, setSandboxError] = useState<string | null>(null)
+  const [sandboxId, setSandboxId] = useState<string | null>(null)
+  const syncTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const lastSyncedFilesRef = useRef<string>('')
 
   // Detect project type
   const projectType = useMemo(() => {
@@ -62,22 +86,19 @@ export function PreviewPanel({ files }: PreviewPanelProps) {
 </body></html>`
   }
 
-  // Build preview HTML from project files
+  // Build static preview HTML from project files (fallback when no sandbox)
   const previewHtml = useMemo(() => {
     setPreviewError(null)
-    
+
     try {
-      // No files to preview
       if (Object.keys(files).length === 0) {
         return createEmptyState('No files created yet', 'Start building to see a preview')
       }
 
-      // Static HTML projects
       if (projectType === 'static' && files['index.html']) {
         return files['index.html']
       }
 
-      // For React/Next.js projects, build a simple preview
       const appFile = files['src/App.tsx'] || files['src/App.jsx'] || files['app/page.tsx'] || files['app/page.jsx']
       if (!appFile) {
         if (projectType === 'nextjs') {
@@ -89,21 +110,17 @@ export function PreviewPanel({ files }: PreviewPanelProps) {
         }
       }
 
-      // Extract JSX from the default export function
-      // This is a simplified approach — it extracts the return statement
       const jsxMatch = appFile.match(/return\s*\(\s*([\s\S]*)\s*\)\s*\}?\s*$/m)
       let jsx = jsxMatch ? jsxMatch[1] : '<div class="p-8 text-center">Preview loading...</div>'
 
-      // Clean up TSX syntax for plain HTML
       jsx = jsx
         .replace(/className=/g, 'class=')
-        .replace(/\{\/\*.*?\*\/\}/g, '') // Remove JSX comments
-        .replace(/\{`([^`]*)`\}/g, '$1') // Template literals
-        .replace(/\{'([^']*)'\}/g, '$1') // String expressions
-        .replace(/<(\w+)\s*\/>/g, '<$1></$1>') // Self-closing tags
-        .replace(/\{[^}]*\}/g, '') // Remove remaining JSX expressions
+        .replace(/\{\/\*.*?\*\/\}/g, '')
+        .replace(/\{`([^`]*)`\}/g, '$1')
+        .replace(/\{'([^']*)'\}/g, '$1')
+        .replace(/<(\w+)\s*\/>/g, '<$1></$1>')
+        .replace(/\{[^}]*\}/g, '')
 
-      // Get CSS
       const css = files['app/globals.css'] || files['src/index.css'] || ''
       const hasTailwind = css.includes('tailwindcss') || css.includes('tailwind')
 
@@ -130,11 +147,108 @@ export function PreviewPanel({ files }: PreviewPanelProps) {
     }
   }, [files, refreshKey, projectType])
 
+  // ─── Sandbox controls ─────────────────────────────────────────
+
+  const startSandbox = useCallback(async () => {
+    if (!projectId) return
+    if (Object.keys(files).length === 0) return
+
+    setSandboxStatus('booting')
+    setSandboxError(null)
+    setSandboxUrl(null)
+
+    try {
+      const res = await fetch('/api/sandbox', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          projectId,
+          files,
+          framework: projectType !== 'unknown' ? projectType : undefined,
+        }),
+      })
+
+      const data = await res.json()
+
+      if (!res.ok || !data.ok) {
+        setSandboxStatus('error')
+        setSandboxError(data.error || 'Failed to create sandbox')
+        return
+      }
+
+      setSandboxId(data.sandboxId)
+      setSandboxUrl(data.url)
+      setSandboxStatus('running')
+      lastSyncedFilesRef.current = JSON.stringify(files)
+    } catch (error) {
+      setSandboxStatus('error')
+      setSandboxError(error instanceof Error ? error.message : 'Network error')
+    }
+  }, [projectId, files, projectType])
+
+  const stopSandbox = useCallback(async () => {
+    if (!projectId) return
+
+    try {
+      await fetch('/api/sandbox', {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ projectId }),
+      })
+    } catch { /* ignore cleanup errors */ }
+
+    setSandboxStatus('idle')
+    setSandboxUrl(null)
+    setSandboxId(null)
+    setSandboxError(null)
+  }, [projectId])
+
+  // Debounced file sync to running sandbox
+  useEffect(() => {
+    if (sandboxStatus !== 'running' || !projectId) return
+
+    const currentHash = JSON.stringify(files)
+    if (currentHash === lastSyncedFilesRef.current) return
+
+    if (syncTimeoutRef.current) clearTimeout(syncTimeoutRef.current)
+
+    syncTimeoutRef.current = setTimeout(async () => {
+      try {
+        await fetch('/api/sandbox', {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ projectId, files }),
+        })
+        lastSyncedFilesRef.current = currentHash
+      } catch { /* sync failed — will retry on next change */ }
+    }, 1500)
+
+    return () => {
+      if (syncTimeoutRef.current) clearTimeout(syncTimeoutRef.current)
+    }
+  }, [files, sandboxStatus, projectId])
+
+  // Cleanup on unmount
+  useEffect(() => {
+    return () => {
+      if (projectId && sandboxStatus === 'running') {
+        fetch('/api/sandbox', {
+          method: 'DELETE',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ projectId }),
+        }).catch(() => {})
+      }
+    }
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
+
   const widthClasses: Record<ViewMode, string> = {
     desktop: 'w-full',
     tablet: 'w-[768px] mx-auto',
     mobile: 'w-[375px] mx-auto',
   }
+
+  const isSandboxActive = sandboxStatus === 'running' && sandboxUrl
+  const isSandboxLoading = ['booting', 'writing', 'installing', 'starting'].includes(sandboxStatus)
 
   return (
     <div className="h-full flex flex-col bg-forge-surface">
@@ -146,7 +260,7 @@ export function PreviewPanel({ files }: PreviewPanelProps) {
             <Code2 className="w-3 h-3 text-forge-accent" />
             <span className="text-forge-text-dim font-mono">{projectType}</span>
           </div>
-          
+
           {/* View mode buttons */}
           {([
             { mode: 'desktop' as ViewMode, Icon: Monitor, label: 'Desktop' },
@@ -166,16 +280,91 @@ export function PreviewPanel({ files }: PreviewPanelProps) {
             </button>
           ))}
         </div>
-        
+
         <div className="flex items-center gap-1">
-          {previewError && (
-            <div className="flex items-center gap-1 text-forge-danger text-xs">
+          {/* Sandbox status */}
+          {isSandboxLoading && (
+            <div className="flex items-center gap-1.5 text-xs text-amber-600 mr-1">
+              <Loader2 className="w-3 h-3 animate-spin" />
+              <span>{STATUS_LABELS[sandboxStatus]}</span>
+            </div>
+          )}
+
+          {isSandboxActive && (
+            <div className="flex items-center gap-1.5 text-xs text-green-600 mr-1">
+              <Zap className="w-3 h-3" />
+              <span>Live</span>
+            </div>
+          )}
+
+          {sandboxStatus === 'error' && (
+            <div className="flex items-center gap-1 text-forge-danger text-xs mr-1">
               <AlertTriangle className="w-3 h-3" />
               <span>Error</span>
             </div>
           )}
+
+          {previewError && sandboxStatus === 'idle' && (
+            <div className="flex items-center gap-1 text-forge-danger text-xs mr-1">
+              <AlertTriangle className="w-3 h-3" />
+              <span>Error</span>
+            </div>
+          )}
+
+          {/* Open in new tab (when sandbox running) */}
+          {isSandboxActive && (
+            <a
+              href={sandboxUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="p-1.5 rounded text-forge-text-dim hover:text-forge-text transition-colors"
+              title="Open in new tab"
+            >
+              <ExternalLink className="w-3.5 h-3.5" />
+            </a>
+          )}
+
+          {/* Run / Stop sandbox button */}
+          {isSandboxActive || isSandboxLoading ? (
+            <button
+              onClick={stopSandbox}
+              disabled={isSandboxLoading}
+              className={cn(
+                'flex items-center gap-1 px-2 py-1 rounded text-xs font-medium transition-colors',
+                'bg-red-100 text-red-700 hover:bg-red-200',
+                isSandboxLoading && 'opacity-50 cursor-not-allowed',
+              )}
+              title="Stop sandbox"
+            >
+              <Square className="w-3 h-3" />
+              <span>Stop</span>
+            </button>
+          ) : (
+            <button
+              onClick={startSandbox}
+              disabled={!projectId || Object.keys(files).length === 0}
+              className={cn(
+                'flex items-center gap-1 px-2 py-1 rounded text-xs font-medium transition-colors',
+                'bg-green-100 text-green-700 hover:bg-green-200',
+                (!projectId || Object.keys(files).length === 0) && 'opacity-50 cursor-not-allowed',
+              )}
+              title="Run in sandbox (real Node.js environment)"
+            >
+              <Play className="w-3 h-3" />
+              <span>Run</span>
+            </button>
+          )}
+
+          {/* Refresh */}
           <button
-            onClick={() => setRefreshKey(k => k + 1)}
+            onClick={() => {
+              if (isSandboxActive) {
+                // Refresh sandbox iframe
+                setRefreshKey(k => k + 1)
+              } else {
+                setRefreshKey(k => k + 1)
+              }
+            }}
             className="p-1.5 rounded text-forge-text-dim hover:text-forge-text transition-colors"
             title="Refresh preview"
           >
@@ -184,16 +373,66 @@ export function PreviewPanel({ files }: PreviewPanelProps) {
         </div>
       </div>
 
-      {/* Preview iframe */}
+      {/* Preview content */}
       <div className="flex-1 overflow-auto bg-white p-0">
         <div className={cn('h-full transition-all', widthClasses[viewMode])}>
-          <iframe
-            key={refreshKey}
-            srcDoc={previewHtml}
-            className="w-full h-full border-0"
-            sandbox="allow-scripts allow-same-origin"
-            title="Preview"
-          />
+          {/* Loading state */}
+          {isSandboxLoading && (
+            <div className="h-full flex items-center justify-center bg-gray-50">
+              <div className="text-center">
+                <Loader2 className="w-8 h-8 animate-spin text-forge-accent mx-auto mb-3" />
+                <p className="text-sm font-medium text-gray-700">{STATUS_LABELS[sandboxStatus]}</p>
+                <p className="text-xs text-gray-500 mt-1">Setting up your development environment</p>
+              </div>
+            </div>
+          )}
+
+          {/* Sandbox error state */}
+          {sandboxStatus === 'error' && sandboxError && (
+            <div className="h-full flex items-center justify-center bg-red-50 p-4">
+              <div className="text-center max-w-md">
+                <AlertTriangle className="w-8 h-8 text-red-500 mx-auto mb-3" />
+                <p className="text-sm font-medium text-red-900 mb-2">Sandbox Error</p>
+                <p className="text-xs text-red-700 font-mono bg-red-100 p-3 rounded mb-3 break-all">{sandboxError}</p>
+                <div className="flex gap-2 justify-center">
+                  <button
+                    onClick={startSandbox}
+                    className="px-3 py-1.5 bg-red-600 text-white text-xs rounded hover:bg-red-700 transition-colors"
+                  >
+                    Retry
+                  </button>
+                  <button
+                    onClick={() => { setSandboxStatus('idle'); setSandboxError(null) }}
+                    className="px-3 py-1.5 bg-gray-200 text-gray-700 text-xs rounded hover:bg-gray-300 transition-colors"
+                  >
+                    Use static preview
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Sandbox running — show live iframe */}
+          {isSandboxActive && !isSandboxLoading && (
+            <iframe
+              key={`sandbox-${refreshKey}`}
+              src={sandboxUrl}
+              className="w-full h-full border-0"
+              title="Live Preview"
+              allow="cross-origin-isolated"
+            />
+          )}
+
+          {/* Static preview (no sandbox) */}
+          {sandboxStatus === 'idle' && (
+            <iframe
+              key={`static-${refreshKey}`}
+              srcDoc={previewHtml}
+              className="w-full h-full border-0"
+              sandbox="allow-scripts allow-same-origin"
+              title="Preview"
+            />
+          )}
         </div>
       </div>
     </div>

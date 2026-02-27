@@ -229,7 +229,7 @@ export function Workspace({
             onChange={(content) => activeFile && onFileChange(activeFile, content)}
           />
         ) : (
-          <PreviewPanel files={files} />
+          <PreviewPanel files={files} projectId={projectId} />
         )}
       </div>
     </div>
@@ -293,7 +293,7 @@ export function Workspace({
               </div>
             </div>
           )}
-          {mobileTab === 'preview' && <PreviewPanel files={files} />}
+          {mobileTab === 'preview' && <PreviewPanel files={files} projectId={projectId} />}
         </div>
 
         <div className="flex items-center justify-around border-t border-forge-border bg-forge-panel py-1.5 shrink-0 safe-bottom">

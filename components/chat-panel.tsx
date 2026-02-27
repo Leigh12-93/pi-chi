@@ -61,6 +61,9 @@ const TOOL_LABELS: Record<string, { label: string; Icon: LucideIcon; color: stri
   db_introspect: { label: 'Inspecting table schema', Icon: Database, color: 'purple' },
   scaffold_component: { label: 'Scaffolding component', Icon: Sparkles, color: 'indigo' },
   generate_env_file: { label: 'Generating .env.example', Icon: FileText, color: 'green' },
+  start_sandbox: { label: 'Starting sandbox', Icon: Rocket, color: 'green' },
+  stop_sandbox: { label: 'Stopping sandbox', Icon: Terminal, color: 'red' },
+  sandbox_status: { label: 'Checking sandbox', Icon: Rocket, color: 'blue' },
 }
 
 const QUICK_ACTIONS = [

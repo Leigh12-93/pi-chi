@@ -4,6 +4,7 @@ import { z } from 'zod'
 import { supabase } from '@/lib/supabase'
 import { SYSTEM_PROMPT } from '@/lib/system-prompt'
 import { mcpClient } from '@/lib/mcp-client'
+import { createSandbox, getSandboxStatus, destroySandbox } from '@/lib/e2b-sandbox'
 
 // ═══════════════════════════════════════════════════════════════════
 // Virtual Filesystem — lives in closure per request
@@ -1765,6 +1766,42 @@ export function ${name}({ variant = 'default', size = 'default', className, chil
           const content = lines.join('\n')
           vfs.write('.env.example', content)
           return { ok: true, path: '.env.example', variables: sorted.map(([name]) => name), count: envVars.size }
+        },
+      }),
+
+      // ─── Sandbox Preview ────────────────────────────────────────
+
+      start_sandbox: tool({
+        description: 'Start a live preview sandbox for the current project. Creates a real Linux VM with Node.js, installs dependencies, and starts the dev server. Returns a live URL. Use this when the user wants to see a real running preview of their app (not just static HTML).',
+        parameters: z.object({
+          framework: z.enum(['nextjs', 'vite', 'static']).optional().describe('Framework hint (auto-detected if omitted)'),
+        }),
+        execute: async ({ framework }) => {
+          if (!projectId) return { error: 'No project ID — save the project first.' }
+          const files = vfs.toRecord()
+          if (Object.keys(files).length === 0) return { error: 'No files to preview.' }
+          const result = await createSandbox(projectId, files, framework)
+          return result
+        },
+      }),
+
+      stop_sandbox: tool({
+        description: 'Stop the running preview sandbox for the current project.',
+        parameters: z.object({}),
+        execute: async () => {
+          if (!projectId) return { error: 'No project ID.' }
+          return destroySandbox(projectId)
+        },
+      }),
+
+      sandbox_status: tool({
+        description: 'Check the status of the preview sandbox for the current project.',
+        parameters: z.object({}),
+        execute: async () => {
+          if (!projectId) return { error: 'No project ID.' }
+          const status = getSandboxStatus(projectId)
+          if (!status) return { active: false, note: 'No sandbox running. Use start_sandbox to create one.' }
+          return { active: true, ...status }
         },
       }),
 
