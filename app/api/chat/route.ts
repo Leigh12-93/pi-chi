@@ -181,7 +181,7 @@ function scaffoldStatic(name: string): Record<string, string> {
 // GitHub API helpers
 // ═══════════════════════════════════════════════════════════════════
 
-const GITHUB_TOKEN = process.env.GITHUB_TOKEN || ''
+const GITHUB_TOKEN = (process.env.GITHUB_TOKEN || '').trim()
 const GITHUB_API = 'https://api.github.com'
 
 async function githubFetch(path: string, options: RequestInit = {}) {
@@ -204,7 +204,7 @@ async function githubFetch(path: string, options: RequestInit = {}) {
 // Vercel Deploy API helpers
 // ═══════════════════════════════════════════════════════════════════
 
-const VERCEL_TOKEN = process.env.VERCEL_TOKEN || ''
+const VERCEL_TOKEN = (process.env.FORGE_DEPLOY_TOKEN || process.env.VERCEL_TOKEN || '').trim()
 const VERCEL_TEAM = process.env.VERCEL_TEAM_ID || ''
 
 async function vercelDeploy(name: string, files: Record<string, string>, framework?: string) {
