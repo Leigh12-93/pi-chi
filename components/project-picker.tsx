@@ -1,9 +1,10 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import {
   Hammer, Sparkles, FolderOpen, Trash2,
   Github, Clock, Globe, ExternalLink, Loader2,
+  Lock, Star, GitBranch, Download,
 } from 'lucide-react'
 
 interface SavedProject {
@@ -15,6 +16,19 @@ interface SavedProject {
   vercel_url: string | null
   updated_at: string
   created_at: string
+}
+
+interface GitHubRepo {
+  id: number
+  name: string
+  full_name: string
+  description: string
+  language: string
+  private: boolean
+  default_branch: string
+  updated_at: string
+  html_url: string
+  stargazers_count: number
 }
 
 interface ProjectPickerProps {
@@ -46,6 +60,18 @@ const FRAMEWORK_COLORS: Record<string, string> = {
   static: 'bg-gray-500/20 text-gray-400',
 }
 
+const LANG_COLORS: Record<string, string> = {
+  TypeScript: 'bg-blue-500/20 text-blue-400',
+  JavaScript: 'bg-yellow-500/20 text-yellow-400',
+  Python: 'bg-green-500/20 text-green-400',
+  Kotlin: 'bg-purple-500/20 text-purple-400',
+  Java: 'bg-orange-500/20 text-orange-400',
+  HTML: 'bg-red-500/20 text-red-400',
+  CSS: 'bg-pink-500/20 text-pink-400',
+  Rust: 'bg-amber-500/20 text-amber-400',
+  Go: 'bg-cyan-500/20 text-cyan-400',
+}
+
 const QUICK_STARTS = [
   { label: 'Landing Page', query: 'Build a modern landing page with hero section, features grid, testimonials with avatars, pricing table, and footer. Use a cohesive color palette with gradients and animations. Make it look like a real SaaS product.' },
   { label: 'Dashboard', query: 'Build an admin dashboard with sidebar navigation, stats cards with sparklines, a chart area, recent activity feed, and a data table with sorting. Dark theme, professional look.' },
@@ -57,6 +83,24 @@ export function ProjectPicker({ onSelect, savedProjects, loadingProjects, onDele
   const [name, setName] = useState('')
   const [creating, setCreating] = useState(false)
   const [deletingId, setDeletingId] = useState<string | null>(null)
+  const [githubRepos, setGithubRepos] = useState<GitHubRepo[]>([])
+  const [loadingRepos, setLoadingRepos] = useState(false)
+  const [importingRepo, setImportingRepo] = useState<string | null>(null)
+  const [tab, setTab] = useState<'projects' | 'github'>('projects')
+
+  // Load GitHub repos when logged in
+  useEffect(() => {
+    if (isLoggedIn) {
+      setLoadingRepos(true)
+      fetch('/api/github/repos')
+        .then(res => res.json())
+        .then(data => {
+          if (Array.isArray(data)) setGithubRepos(data)
+        })
+        .catch(() => {})
+        .finally(() => setLoadingRepos(false))
+    }
+  }, [isLoggedIn])
 
   const handleCreate = () => {
     const projectName = name.trim().replace(/[^a-zA-Z0-9_-]/g, '-').toLowerCase() || `project-${Date.now()}`
@@ -72,9 +116,34 @@ export function ProjectPicker({ onSelect, savedProjects, loadingProjects, onDele
     setDeletingId(null)
   }
 
+  const handleImportRepo = async (repo: GitHubRepo) => {
+    setImportingRepo(repo.full_name)
+    try {
+      const res = await fetch('/api/github/import', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          owner: repo.full_name.split('/')[0],
+          repo: repo.name,
+          branch: repo.default_branch,
+        }),
+      })
+
+      if (!res.ok) throw new Error('Import failed')
+
+      const data = await res.json()
+      onSelect(repo.name, undefined, data.files)
+    } catch (err) {
+      console.error('Failed to import repo:', err)
+      alert('Failed to import repository. It may be too large or contain no text files.')
+    } finally {
+      setImportingRepo(null)
+    }
+  }
+
   return (
     <div className="min-h-screen bg-forge-bg flex items-center justify-center p-8">
-      <div className="max-w-2xl w-full">
+      <div className="max-w-3xl w-full">
         {/* Logo */}
         <div className="text-center mb-8">
           <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-forge-accent/10 mb-4">
@@ -140,95 +209,172 @@ export function ProjectPicker({ onSelect, savedProjects, loadingProjects, onDele
           </div>
         </div>
 
-        {/* Saved projects */}
+        {/* Tabs: Saved Projects / GitHub Repos */}
         {isLoggedIn && (
           <div>
-            <div className="flex items-center justify-between mb-3">
-              <h2 className="text-sm font-medium text-forge-text flex items-center gap-2">
-                <FolderOpen className="w-4 h-4 text-forge-text-dim" />
-                Your Projects
-              </h2>
-              {loadingProjects && (
-                <Loader2 className="w-3.5 h-3.5 text-forge-text-dim animate-spin" />
+            <div className="flex items-center gap-1 mb-4 border-b border-forge-border">
+              <button
+                onClick={() => setTab('projects')}
+                className={`flex items-center gap-1.5 px-3 py-2 text-xs font-medium border-b-2 transition-colors ${
+                  tab === 'projects'
+                    ? 'border-forge-accent text-forge-accent'
+                    : 'border-transparent text-forge-text-dim hover:text-forge-text'
+                }`}
+              >
+                <FolderOpen className="w-3.5 h-3.5" />
+                Saved Projects
+                {savedProjects.length > 0 && (
+                  <span className="ml-1 text-[10px] px-1.5 py-0.5 rounded-full bg-forge-surface">{savedProjects.length}</span>
+                )}
+              </button>
+              <button
+                onClick={() => setTab('github')}
+                className={`flex items-center gap-1.5 px-3 py-2 text-xs font-medium border-b-2 transition-colors ${
+                  tab === 'github'
+                    ? 'border-forge-accent text-forge-accent'
+                    : 'border-transparent text-forge-text-dim hover:text-forge-text'
+                }`}
+              >
+                <Github className="w-3.5 h-3.5" />
+                GitHub Repos
+                {githubRepos.length > 0 && (
+                  <span className="ml-1 text-[10px] px-1.5 py-0.5 rounded-full bg-forge-surface">{githubRepos.length}</span>
+                )}
+              </button>
+              {(loadingProjects || loadingRepos) && (
+                <Loader2 className="w-3.5 h-3.5 text-forge-text-dim animate-spin ml-auto" />
               )}
             </div>
 
-            {savedProjects.length === 0 && !loadingProjects ? (
-              <div className="text-center py-8 text-forge-text-dim text-sm border border-dashed border-forge-border rounded-xl">
-                No projects yet. Create one above to get started.
-              </div>
-            ) : (
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                {savedProjects.map(project => (
-                  <button
-                    key={project.id}
-                    onClick={() => onSelect(project.name, project.id)}
-                    className="group relative bg-forge-panel border border-forge-border rounded-xl p-4 text-left hover:border-forge-accent/50 hover:bg-forge-accent/5 transition-all"
-                  >
-                    <div className="flex items-start justify-between mb-2">
-                      <h3 className="text-sm font-medium text-forge-text group-hover:text-forge-accent transition-colors truncate pr-2">
-                        {project.name}
-                      </h3>
-                      <span className={`text-[9px] font-medium px-1.5 py-0.5 rounded ${FRAMEWORK_COLORS[project.framework] || FRAMEWORK_COLORS.static}`}>
-                        {project.framework}
-                      </span>
-                    </div>
+            {/* Saved Projects Tab */}
+            {tab === 'projects' && (
+              <>
+                {savedProjects.length === 0 && !loadingProjects ? (
+                  <div className="text-center py-8 text-forge-text-dim text-sm border border-dashed border-forge-border rounded-xl">
+                    No saved projects yet. Create one above or import from GitHub.
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    {savedProjects.map(project => (
+                      <button
+                        key={project.id}
+                        onClick={() => onSelect(project.name, project.id)}
+                        className="group relative bg-forge-panel border border-forge-border rounded-xl p-4 text-left hover:border-forge-accent/50 hover:bg-forge-accent/5 transition-all"
+                      >
+                        <div className="flex items-start justify-between mb-2">
+                          <h3 className="text-sm font-medium text-forge-text group-hover:text-forge-accent transition-colors truncate pr-2">
+                            {project.name}
+                          </h3>
+                          <span className={`text-[9px] font-medium px-1.5 py-0.5 rounded ${FRAMEWORK_COLORS[project.framework] || FRAMEWORK_COLORS.static}`}>
+                            {project.framework}
+                          </span>
+                        </div>
 
-                    {project.description && (
-                      <p className="text-xs text-forge-text-dim truncate mb-2">{project.description}</p>
-                    )}
+                        {project.description && (
+                          <p className="text-xs text-forge-text-dim truncate mb-2">{project.description}</p>
+                        )}
 
-                    <div className="flex items-center gap-3 text-[10px] text-forge-text-dim">
-                      <span className="flex items-center gap-1">
-                        <Clock className="w-3 h-3" />
-                        {formatRelative(project.updated_at)}
-                      </span>
+                        <div className="flex items-center gap-3 text-[10px] text-forge-text-dim">
+                          <span className="flex items-center gap-1">
+                            <Clock className="w-3 h-3" />
+                            {formatRelative(project.updated_at)}
+                          </span>
 
-                      {project.vercel_url && (
-                        <a
-                          href={project.vercel_url}
-                          target="_blank"
-                          rel="noreferrer"
-                          onClick={e => e.stopPropagation()}
-                          className="flex items-center gap-1 hover:text-forge-accent"
+                          {project.vercel_url && (
+                            <a href={project.vercel_url} target="_blank" rel="noreferrer" onClick={e => e.stopPropagation()} className="flex items-center gap-1 hover:text-forge-accent">
+                              <Globe className="w-3 h-3" /> Live <ExternalLink className="w-2.5 h-2.5" />
+                            </a>
+                          )}
+
+                          {project.github_repo_url && (
+                            <a href={project.github_repo_url} target="_blank" rel="noreferrer" onClick={e => e.stopPropagation()} className="flex items-center gap-1 hover:text-forge-accent">
+                              <Github className="w-3 h-3" /> Repo <ExternalLink className="w-2.5 h-2.5" />
+                            </a>
+                          )}
+                        </div>
+
+                        <button
+                          onClick={e => handleDelete(e, project.id)}
+                          disabled={deletingId === project.id}
+                          className="absolute top-3 right-3 p-1 rounded opacity-0 group-hover:opacity-100 text-forge-text-dim hover:text-forge-danger hover:bg-forge-danger/10 transition-all"
+                          title="Delete project"
                         >
-                          <Globe className="w-3 h-3" />
-                          Live
-                          <ExternalLink className="w-2.5 h-2.5" />
-                        </a>
-                      )}
+                          {deletingId === project.id ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Trash2 className="w-3.5 h-3.5" />}
+                        </button>
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </>
+            )}
 
-                      {project.github_repo_url && (
-                        <a
-                          href={project.github_repo_url}
-                          target="_blank"
-                          rel="noreferrer"
-                          onClick={e => e.stopPropagation()}
-                          className="flex items-center gap-1 hover:text-forge-accent"
-                        >
-                          <Github className="w-3 h-3" />
-                          Repo
-                          <ExternalLink className="w-2.5 h-2.5" />
-                        </a>
-                      )}
-                    </div>
+            {/* GitHub Repos Tab */}
+            {tab === 'github' && (
+              <>
+                {githubRepos.length === 0 && !loadingRepos ? (
+                  <div className="text-center py-8 text-forge-text-dim text-sm border border-dashed border-forge-border rounded-xl">
+                    No repositories found.
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    {githubRepos.map(repo => (
+                      <button
+                        key={repo.id}
+                        onClick={() => handleImportRepo(repo)}
+                        disabled={importingRepo === repo.full_name}
+                        className="group relative bg-forge-panel border border-forge-border rounded-xl p-4 text-left hover:border-forge-accent/50 hover:bg-forge-accent/5 transition-all disabled:opacity-60"
+                      >
+                        <div className="flex items-start justify-between mb-1.5">
+                          <h3 className="text-sm font-medium text-forge-text group-hover:text-forge-accent transition-colors truncate pr-2 flex items-center gap-1.5">
+                            {repo.private && <Lock className="w-3 h-3 text-forge-text-dim shrink-0" />}
+                            {repo.name}
+                          </h3>
+                          {repo.language && (
+                            <span className={`text-[9px] font-medium px-1.5 py-0.5 rounded shrink-0 ${LANG_COLORS[repo.language] || 'bg-gray-500/20 text-gray-400'}`}>
+                              {repo.language}
+                            </span>
+                          )}
+                        </div>
 
-                    {/* Delete button */}
-                    <button
-                      onClick={e => handleDelete(e, project.id)}
-                      disabled={deletingId === project.id}
-                      className="absolute top-3 right-3 p-1 rounded opacity-0 group-hover:opacity-100 text-forge-text-dim hover:text-forge-danger hover:bg-forge-danger/10 transition-all"
-                      title="Delete project"
-                    >
-                      {deletingId === project.id ? (
-                        <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                      ) : (
-                        <Trash2 className="w-3.5 h-3.5" />
-                      )}
-                    </button>
-                  </button>
-                ))}
-              </div>
+                        {repo.description && (
+                          <p className="text-xs text-forge-text-dim truncate mb-2">{repo.description}</p>
+                        )}
+
+                        <div className="flex items-center gap-3 text-[10px] text-forge-text-dim">
+                          <span className="flex items-center gap-1">
+                            <Clock className="w-3 h-3" />
+                            {formatRelative(repo.updated_at)}
+                          </span>
+                          <span className="flex items-center gap-1">
+                            <GitBranch className="w-3 h-3" />
+                            {repo.default_branch}
+                          </span>
+                          {repo.stargazers_count > 0 && (
+                            <span className="flex items-center gap-1">
+                              <Star className="w-3 h-3" />
+                              {repo.stargazers_count}
+                            </span>
+                          )}
+                        </div>
+
+                        {/* Import indicator */}
+                        {importingRepo === repo.full_name ? (
+                          <div className="absolute inset-0 flex items-center justify-center bg-forge-panel/90 rounded-xl">
+                            <div className="flex items-center gap-2 text-xs text-forge-accent">
+                              <Loader2 className="w-4 h-4 animate-spin" />
+                              Importing...
+                            </div>
+                          </div>
+                        ) : (
+                          <div className="absolute top-3 right-3 p-1 rounded opacity-0 group-hover:opacity-100 text-forge-text-dim hover:text-forge-accent transition-all">
+                            <Download className="w-3.5 h-3.5" />
+                          </div>
+                        )}
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </>
             )}
           </div>
         )}
