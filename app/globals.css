@@ -1,16 +1,16 @@
 @import "tailwindcss";
 
 @theme {
-  --color-forge-bg: #f8f9fb;
-  --color-forge-surface: #ffffff;
-  --color-forge-panel: #f1f3f8;
-  --color-forge-border: #e0e3eb;
-  --color-forge-border-bright: #c8cdd8;
+  --color-forge-bg: #ffffff;
+  --color-forge-surface: #f8f9fa;
+  --color-forge-panel: #f1f3f4;
+  --color-forge-border: #e1e5e9;
+  --color-forge-border-bright: #d1d5db;
   --color-forge-accent: #6366f1;
   --color-forge-accent-hover: #4f46e5;
-  --color-forge-text: #1a1a2e;
+  --color-forge-text: #1f2937;
   --color-forge-text-dim: #6b7280;
-  --color-forge-success: #16a34a;
+  --color-forge-success: #059669;
   --color-forge-warning: #d97706;
   --color-forge-danger: #dc2626;
 }
@@ -22,10 +22,7 @@
 ::-webkit-scrollbar-thumb:hover { background: #9ca3af; }
 
 /* Selection */
-::selection { background: rgba(99, 102, 241, 0.3); }
-
-/* iOS safe area for bottom tab bar */
-.safe-bottom { padding-bottom: env(safe-area-inset-bottom, 0); }
+::selection { background: rgba(99, 102, 241, 0.2); }
 
 /* Panel resize handle */
 [data-panel-group-direction="horizontal"] > [data-resize-handle] {
@@ -41,6 +38,9 @@
 /* Monaco overrides */
 .monaco-editor, .monaco-editor .margin, .monaco-editor-background {
   background-color: #ffffff !important;
+}
+.monaco-editor .current-line {
+  background-color: #f8f9fa !important;
 }
 
 /* Animations */
@@ -61,7 +61,7 @@
   100% { background-position: 200% 0; }
 }
 .animate-shimmer {
-  background: linear-gradient(90deg, transparent 25%, rgba(99,102,241,0.06) 50%, transparent 75%);
+  background: linear-gradient(90deg, transparent 25%, rgba(99,102,241,0.08) 50%, transparent 75%);
   background-size: 200% 100%;
   animation: shimmer 2s infinite;
 }

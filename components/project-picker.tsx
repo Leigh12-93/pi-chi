@@ -55,21 +55,21 @@ function formatRelative(dateStr: string): string {
 }
 
 const FRAMEWORK_COLORS: Record<string, string> = {
-  nextjs: 'bg-blue-100 text-blue-700',
-  'vite-react': 'bg-purple-100 text-purple-700',
-  static: 'bg-gray-100 text-gray-600',
+  nextjs: 'bg-blue-500/20 text-blue-400',
+  'vite-react': 'bg-purple-500/20 text-purple-400',
+  static: 'bg-gray-500/20 text-gray-400',
 }
 
 const LANG_COLORS: Record<string, string> = {
-  TypeScript: 'bg-blue-100 text-blue-700',
-  JavaScript: 'bg-amber-100 text-amber-700',
-  Python: 'bg-green-100 text-green-700',
-  Kotlin: 'bg-purple-100 text-purple-700',
-  Java: 'bg-orange-100 text-orange-700',
-  HTML: 'bg-red-100 text-red-700',
-  CSS: 'bg-pink-100 text-pink-700',
-  Rust: 'bg-amber-100 text-amber-700',
-  Go: 'bg-cyan-100 text-cyan-700',
+  TypeScript: 'bg-blue-500/20 text-blue-400',
+  JavaScript: 'bg-yellow-500/20 text-yellow-400',
+  Python: 'bg-green-500/20 text-green-400',
+  Kotlin: 'bg-purple-500/20 text-purple-400',
+  Java: 'bg-orange-500/20 text-orange-400',
+  HTML: 'bg-red-500/20 text-red-400',
+  CSS: 'bg-pink-500/20 text-pink-400',
+  Rust: 'bg-amber-500/20 text-amber-400',
+  Go: 'bg-cyan-500/20 text-cyan-400',
 }
 
 const QUICK_STARTS = [
@@ -142,14 +142,14 @@ export function ProjectPicker({ onSelect, savedProjects, loadingProjects, onDele
   }
 
   return (
-    <div className="min-h-screen bg-forge-bg flex items-center justify-center p-4 sm:p-8">
+    <div className="min-h-screen bg-forge-bg flex items-center justify-center p-8">
       <div className="max-w-3xl w-full">
         {/* Logo */}
         <div className="text-center mb-8">
-          <div className="inline-flex items-center justify-center w-12 h-12 sm:w-16 sm:h-16 rounded-2xl bg-forge-accent/10 mb-3 sm:mb-4">
-            <Hammer className="w-6 h-6 sm:w-8 sm:h-8 text-forge-accent" />
+          <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-forge-accent/10 mb-4">
+            <Hammer className="w-8 h-8 text-forge-accent" />
           </div>
-          <h1 className="text-2xl sm:text-3xl font-bold text-forge-text mb-2">Forge</h1>
+          <h1 className="text-3xl font-bold text-forge-text mb-2">Forge</h1>
           <p className="text-forge-text-dim text-sm">AI-powered website builder with superpowers</p>
         </div>
 
@@ -161,7 +161,7 @@ export function ProjectPicker({ onSelect, savedProjects, loadingProjects, onDele
             </p>
             <a
               href="/api/auth/login"
-              className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-gray-900 text-white text-sm font-medium hover:bg-gray-800 transition-colors"
+              className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-white text-gray-900 text-sm font-medium hover:bg-gray-100 transition-colors"
             >
               <Github className="w-4 h-4" />
               Sign in with GitHub
@@ -330,7 +330,7 @@ export function ProjectPicker({ onSelect, savedProjects, loadingProjects, onDele
                             {repo.name}
                           </h3>
                           {repo.language && (
-                            <span className={`text-[9px] font-medium px-1.5 py-0.5 rounded shrink-0 ${LANG_COLORS[repo.language] || 'bg-gray-100 text-gray-600'}`}>
+                            <span className={`text-[9px] font-medium px-1.5 py-0.5 rounded shrink-0 ${LANG_COLORS[repo.language] || 'bg-gray-500/20 text-gray-400'}`}>
                               {repo.language}
                             </span>
                           )}
