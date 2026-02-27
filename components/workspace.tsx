@@ -178,6 +178,13 @@ export function Workspace({
     }
   }, [])
 
+  const handleDialogFix = useCallback((errorMessage: string) => {
+    if (chatSendRef.current) {
+      chatSendRef.current(`The deploy failed with these build errors. Please fix them:\n\n\`\`\`\n${errorMessage}\n\`\`\``)
+    }
+    setMobileTab('chat')
+  }, [])
+
   const handleCloseFile = (path: string) => {
     setOpenFiles(prev => prev.filter(f => f !== path))
     if (activeFile === path) {
@@ -388,6 +395,7 @@ export function Workspace({
           files,
         })}
         onSuccess={handleDialogSuccess}
+        onFix={handleDialogFix}
       />
 
       {/* Create Repo Dialog */}
@@ -411,6 +419,7 @@ export function Workspace({
           githubToken,
         })}
         onSuccess={handleDialogSuccess}
+        onFix={handleDialogFix}
       />
 
       {/* Push to GitHub Dialog */}
@@ -435,6 +444,7 @@ export function Workspace({
           githubToken,
         })}
         onSuccess={handleDialogSuccess}
+        onFix={handleDialogFix}
       />
     </div>
   )

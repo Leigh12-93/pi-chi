@@ -238,6 +238,7 @@ interface TaskPollingDialogProps {
   projectId: string | null
   buildParams: (fieldValues: Record<string, string>) => Record<string, unknown>
   onSuccess?: (result: Record<string, unknown>) => void
+  onFix?: (errorMessage: string) => void
 }
 
 export function TaskPollingDialog({
@@ -251,6 +252,7 @@ export function TaskPollingDialog({
   projectId,
   buildParams,
   onSuccess,
+  onFix,
 }: TaskPollingDialogProps) {
   const [state, setState] = useState<DialogState>('confirm')
   const [fieldValues, setFieldValues] = useState<Record<string, string>>({})
@@ -463,11 +465,18 @@ export function TaskPollingDialog({
 
         {/* Error */}
         {state === 'error' && (
-          <div className="flex flex-col items-center py-4">
-            <XCircle className="w-8 h-8 text-forge-danger mb-2" />
-            <p className="text-xs text-forge-text font-medium mb-1">Failed</p>
-            <p className="text-[11px] text-forge-text-dim text-center max-w-sm">{errorMessage}</p>
-            <div className="flex gap-2 mt-4">
+          <div className="flex flex-col py-4">
+            <div className="flex items-center gap-2 mb-3">
+              <XCircle className="w-5 h-5 text-forge-danger shrink-0" />
+              <p className="text-xs text-forge-text font-medium">Build Failed</p>
+            </div>
+            {/* Scrollable error log */}
+            <div className="bg-[#1e1e1e] rounded-lg p-3 max-h-[200px] overflow-y-auto mb-3">
+              <pre className="text-[10px] text-red-400 font-mono whitespace-pre-wrap break-words leading-relaxed">
+                {errorMessage}
+              </pre>
+            </div>
+            <div className="flex justify-end gap-2">
               <button
                 onClick={onClose}
                 className="px-3 py-1.5 text-xs text-forge-text-dim hover:text-forge-text hover:bg-forge-surface rounded-lg transition-colors"
@@ -476,10 +485,18 @@ export function TaskPollingDialog({
               </button>
               <button
                 onClick={() => setState('confirm')}
-                className="px-4 py-1.5 text-xs font-medium bg-forge-accent text-white rounded-lg hover:bg-forge-accent-hover transition-colors"
+                className="px-3 py-1.5 text-xs text-forge-text-dim hover:text-forge-text hover:bg-forge-surface rounded-lg transition-colors"
               >
                 Retry
               </button>
+              {onFix && (
+                <button
+                  onClick={() => { onFix(errorMessage); onClose() }}
+                  className="px-4 py-1.5 text-xs font-medium bg-forge-accent text-white rounded-lg hover:bg-forge-accent-hover transition-colors"
+                >
+                  Fix with AI
+                </button>
+              )}
             </div>
           </div>
         )}

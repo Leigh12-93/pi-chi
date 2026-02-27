@@ -108,11 +108,42 @@ async function executeDeploy(taskId: string, params: { projectName: string; file
         } else if (state === 'READY') {
           await updateProgress(taskId, 'Deployment ready!')
         } else if (state === 'ERROR') {
-          throw new Error('Build failed on Vercel')
+          // Fetch actual build errors from Vercel
+          await updateProgress(taskId, 'Build failed — fetching error logs...')
+          let errorLog = 'Build failed on Vercel'
+          try {
+            const logsRes = await fetch(
+              `https://api.vercel.com/v2/deployments/${deployId}/events${teamParam}`,
+              { headers: { Authorization: `Bearer ${VERCEL_TOKEN}` } },
+            )
+            if (logsRes.ok) {
+              const events = await logsRes.json()
+              const errorLines = (Array.isArray(events) ? events : [])
+                .filter((e: Record<string, unknown>) =>
+                  e.type === 'error' ||
+                  (typeof e.payload === 'object' && e.payload !== null &&
+                    typeof (e.payload as Record<string, unknown>).text === 'string' &&
+                    ((e.payload as Record<string, string>).text.includes('Error') ||
+                     (e.payload as Record<string, string>).text.includes('error') ||
+                     (e.payload as Record<string, string>).text.includes('failed')))
+                )
+                .map((e: Record<string, unknown>) =>
+                  typeof e.payload === 'object' && e.payload !== null
+                    ? (e.payload as Record<string, string>).text || ''
+                    : ''
+                )
+                .filter(Boolean)
+                .slice(-15)
+              if (errorLines.length > 0) {
+                errorLog = errorLines.join('\n')
+              }
+            }
+          } catch { /* ignore log fetch errors */ }
+          throw new Error(errorLog)
         }
       }
     } catch (e) {
-      if (e instanceof Error && e.message === 'Build failed on Vercel') throw e
+      if (e instanceof Error && (e.message.includes('Build failed') || e.message.includes('Error') || e.message.includes('error'))) throw e
       // network error — keep polling
     }
   }
