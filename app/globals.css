@@ -1,0 +1,64 @@
+@import "tailwindcss";
+
+@theme {
+  --color-forge-bg: #0a0a0a;
+  --color-forge-surface: #111118;
+  --color-forge-panel: #16161e;
+  --color-forge-border: #2a2a3a;
+  --color-forge-border-bright: #3a3a5a;
+  --color-forge-accent: #6366f1;
+  --color-forge-accent-hover: #818cf8;
+  --color-forge-text: #e0e0f0;
+  --color-forge-text-dim: #888899;
+  --color-forge-success: #22c55e;
+  --color-forge-warning: #f59e0b;
+  --color-forge-danger: #ef4444;
+}
+
+/* Scrollbar */
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: #2a2a3a; border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: #3a3a5a; }
+
+/* Selection */
+::selection { background: rgba(99, 102, 241, 0.3); }
+
+/* Panel resize handle */
+[data-panel-group-direction="horizontal"] > [data-resize-handle] {
+  width: 2px !important;
+  background: var(--color-forge-border);
+  transition: background 0.15s;
+}
+[data-panel-group-direction="horizontal"] > [data-resize-handle]:hover,
+[data-panel-group-direction="horizontal"] > [data-resize-handle][data-resize-handle-active] {
+  background: var(--color-forge-accent);
+}
+
+/* Monaco overrides */
+.monaco-editor, .monaco-editor .margin, .monaco-editor-background {
+  background-color: #111118 !important;
+}
+
+/* Animations */
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(4px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+.animate-fade-in { animation: fadeIn 0.2s ease-out; }
+
+@keyframes pulse-dot {
+  0%, 100% { opacity: 0.4; }
+  50% { opacity: 1; }
+}
+.animate-pulse-dot { animation: pulse-dot 1.4s ease-in-out infinite; }
+
+@keyframes shimmer {
+  0% { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+.animate-shimmer {
+  background: linear-gradient(90deg, transparent 25%, rgba(99,102,241,0.08) 50%, transparent 75%);
+  background-size: 200% 100%;
+  animation: shimmer 2s infinite;
+}
