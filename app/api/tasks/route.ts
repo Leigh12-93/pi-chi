@@ -50,10 +50,30 @@ async function updateProgress(taskId: string, progress: string) {
   })
 }
 
+// ─── Helpers ──────────────────────────────────────────────────
+
+/** Run async operations in parallel batches */
+async function batchParallel<T, R>(
+  items: T[],
+  batchSize: number,
+  fn: (item: T, index: number) => Promise<R>,
+): Promise<R[]> {
+  const results: R[] = []
+  for (let i = 0; i < items.length; i += batchSize) {
+    const batch = items.slice(i, i + batchSize)
+    const batchResults = await Promise.all(
+      batch.map((item, j) => fn(item, i + j)),
+    )
+    results.push(...batchResults)
+  }
+  return results
+}
+
 // ─── Task executors ────────────────────────────────────────────
 
 async function executeDeploy(taskId: string, params: { projectName: string; files: Record<string, string>; framework?: string }) {
   if (!VERCEL_TOKEN) throw new Error('VERCEL_TOKEN not configured')
+  const startTime = Date.now()
 
   const fileCount = Object.keys(params.files).length
   await updateProgress(taskId, `Uploading ${fileCount} files to Vercel...`)
@@ -61,13 +81,19 @@ async function executeDeploy(taskId: string, params: { projectName: string; file
   const fileEntries = Object.entries(params.files).map(([file, data]) => ({ file, data }))
   let fw = params.framework
   if (!fw) {
-    if (params.files['next.config.ts'] || params.files['next.config.js']) fw = 'nextjs'
-    else if (params.files['vite.config.ts'] || params.files['vite.config.js']) fw = 'vite'
+    if (params.files['next.config.ts'] || params.files['next.config.js'] || params.files['next.config.mjs']) fw = 'nextjs'
+    else if (params.files['vite.config.ts'] || params.files['vite.config.js'] || params.files['vite.config.mjs']) fw = 'vite'
+    else if (params.files['nuxt.config.ts'] || params.files['nuxt.config.js']) fw = 'nuxtjs'
+    else if (params.files['astro.config.mjs'] || params.files['astro.config.ts']) fw = 'astro'
+    else if (params.files['svelte.config.js'] || params.files['svelte.config.ts']) fw = 'sveltekit'
+    else if (params.files['remix.config.js'] || params.files['remix.config.ts']) fw = 'remix'
     else fw = 'static'
   }
 
   const teamParam = VERCEL_TEAM ? `?teamId=${VERCEL_TEAM}` : ''
   await updateProgress(taskId, `Creating ${fw} deployment...`)
+
+  const deployName = params.projectName.replace(/\s+/g, '-').toLowerCase().replace(/[^a-z0-9-]/g, '').slice(0, 52)
 
   const res = await fetch(`https://api.vercel.com/v13/deployments${teamParam}`, {
     method: 'POST',
@@ -76,25 +102,26 @@ async function executeDeploy(taskId: string, params: { projectName: string; file
       'Content-Type': 'application/json',
     },
     body: JSON.stringify({
-      name: params.projectName,
+      name: deployName,
       files: fileEntries,
       projectSettings: { framework: fw === 'static' ? undefined : fw },
     }),
   })
 
   const data = await res.json()
-  if (!res.ok) throw new Error(data.error?.message || `Vercel API ${res.status}`)
+  if (!res.ok) throw new Error(data.error?.message || `Vercel API error (HTTP ${res.status})`)
 
   const deployId = data.id
   const deployUrl = `https://${data.url}`
   let state = data.readyState || 'QUEUED'
 
-  // Poll for build completion (up to 90s)
+  // Poll for build completion (up to 120s)
   let attempts = 0
-  while (['QUEUED', 'BUILDING', 'INITIALIZING'].includes(state) && attempts < 18) {
+  while (['QUEUED', 'BUILDING', 'INITIALIZING'].includes(state) && attempts < 24) {
     await new Promise(r => setTimeout(r, 5000))
     attempts++
-    await updateProgress(taskId, `Building... (${attempts * 5}s)`)
+    const elapsed = Math.round((Date.now() - startTime) / 1000)
+    await updateProgress(taskId, `Building... (${elapsed}s)`)
 
     try {
       const check = await fetch(`https://api.vercel.com/v13/deployments/${deployId}${teamParam}`, {
@@ -103,11 +130,9 @@ async function executeDeploy(taskId: string, params: { projectName: string; file
       if (check.ok) {
         const checkData = await check.json()
         state = checkData.readyState || state
-        if (state === 'BUILDING') {
-          await updateProgress(taskId, `Building... (${attempts * 5}s)`)
-        } else if (state === 'READY') {
+        if (state === 'READY') {
           await updateProgress(taskId, 'Deployment ready!')
-        } else if (state === 'ERROR') {
+        } else if (state === 'ERROR' || state === 'CANCELED') {
           // Fetch actual build errors from Vercel
           await updateProgress(taskId, 'Build failed — fetching error logs...')
           let errorLog = 'Build failed on Vercel'
@@ -118,22 +143,25 @@ async function executeDeploy(taskId: string, params: { projectName: string; file
             )
             if (logsRes.ok) {
               const events = await logsRes.json()
-              const errorLines = (Array.isArray(events) ? events : [])
-                .filter((e: Record<string, unknown>) =>
-                  e.type === 'error' ||
-                  (typeof e.payload === 'object' && e.payload !== null &&
-                    typeof (e.payload as Record<string, unknown>).text === 'string' &&
-                    ((e.payload as Record<string, string>).text.includes('Error') ||
-                     (e.payload as Record<string, string>).text.includes('error') ||
-                     (e.payload as Record<string, string>).text.includes('failed')))
-                )
-                .map((e: Record<string, unknown>) =>
-                  typeof e.payload === 'object' && e.payload !== null
-                    ? (e.payload as Record<string, string>).text || ''
-                    : ''
-                )
+              const allEvents = Array.isArray(events) ? events : []
+              // Extract error events and stderr output
+              const errorLines = allEvents
+                .filter((e: Record<string, unknown>) => {
+                  if (e.type === 'error') return true
+                  const payload = e.payload as Record<string, unknown> | undefined
+                  if (!payload || typeof payload.text !== 'string') return false
+                  const text = payload.text as string
+                  return text.includes('Error') || text.includes('error') ||
+                    text.includes('failed') || text.includes('FAIL') ||
+                    text.includes('Module not found') || text.includes('Cannot find') ||
+                    text.includes('SyntaxError') || text.includes('TypeError')
+                })
+                .map((e: Record<string, unknown>) => {
+                  const payload = e.payload as Record<string, string> | undefined
+                  return payload?.text || ''
+                })
                 .filter(Boolean)
-                .slice(-15)
+                .slice(-30)
               if (errorLines.length > 0) {
                 errorLog = errorLines.join('\n')
               }
@@ -143,12 +171,17 @@ async function executeDeploy(taskId: string, params: { projectName: string; file
         }
       }
     } catch (e) {
-      if (e instanceof Error && (e.message.includes('Build failed') || e.message.includes('Error') || e.message.includes('error'))) throw e
+      if (e instanceof Error && (e.message.includes('Build failed') || e.message.includes('Error') || e.message.includes('error') || e.message.includes('Module not found'))) throw e
       // network error — keep polling
     }
   }
 
-  return { url: deployUrl, id: deployId, readyState: state }
+  if (['QUEUED', 'BUILDING', 'INITIALIZING'].includes(state)) {
+    throw new Error(`Deployment timed out after ${Math.round((Date.now() - startTime) / 1000)}s (state: ${state}). Check Vercel dashboard.`)
+  }
+
+  const duration = Math.round((Date.now() - startTime) / 1000)
+  return { url: deployUrl, id: deployId, readyState: state, framework: fw, fileCount, duration }
 }
 
 async function executeGithubCreate(taskId: string, params: {
@@ -156,6 +189,7 @@ async function executeGithubCreate(taskId: string, params: {
 }) {
   const token = params.githubToken || GITHUB_TOKEN
   if (!token) throw new Error('Not authenticated. Sign in with GitHub.')
+  const startTime = Date.now()
 
   await updateProgress(taskId, `Creating repository ${params.repoName}...`)
 
@@ -168,28 +202,41 @@ async function executeGithubCreate(taskId: string, params: {
       auto_init: true,
     }),
   })
-  if (repo.error) throw new Error(`Failed to create repo: ${repo.error}`)
+  if (repo.error) {
+    if (repo.status === 422) throw new Error(`Repository "${params.repoName}" already exists. Choose a different name.`)
+    throw new Error(`Failed to create repo: ${repo.error}`)
+  }
 
   const owner = repo.owner.login
   await updateProgress(taskId, 'Waiting for repo initialization...')
-  await new Promise(resolve => setTimeout(resolve, 1500))
+  await new Promise(resolve => setTimeout(resolve, 2000))
 
-  const ref = await githubFetch(`/repos/${owner}/${params.repoName}/git/refs/heads/main`, token)
+  // Retry getting the initial ref (GitHub can be slow to initialize)
+  let ref: any
+  for (let attempt = 0; attempt < 3; attempt++) {
+    ref = await githubFetch(`/repos/${owner}/${params.repoName}/git/refs/heads/main`, token)
+    if (!ref.error) break
+    await new Promise(resolve => setTimeout(resolve, 1500))
+  }
   if (ref.error) throw new Error(`Repo created but failed to get initial ref: ${ref.error}`)
   const parentSha = ref.object.sha
 
   const fileEntries = Object.entries(params.files)
-  const blobs = []
-  for (let i = 0; i < fileEntries.length; i++) {
-    const [path, content] = fileEntries[i]
-    await updateProgress(taskId, `Uploading files (${i + 1}/${fileEntries.length}): ${path.split('/').pop()}`)
+  const totalFiles = fileEntries.length
+  await updateProgress(taskId, `Uploading ${totalFiles} files...`)
+
+  // Upload blobs in parallel batches of 5
+  const blobs = await batchParallel(fileEntries, 5, async ([path, content], index) => {
+    if (index % 5 === 0) {
+      await updateProgress(taskId, `Uploading files (${Math.min(index + 5, totalFiles)}/${totalFiles})...`)
+    }
     const blob = await githubFetch(`/repos/${owner}/${params.repoName}/git/blobs`, token, {
       method: 'POST',
       body: JSON.stringify({ content, encoding: 'utf-8' }),
     })
     if (blob.error) throw new Error(`Failed to create blob for ${path}: ${blob.error}`)
-    blobs.push({ path, mode: '100644', type: 'blob', sha: blob.sha })
-  }
+    return { path, mode: '100644' as const, type: 'blob' as const, sha: blob.sha as string }
+  })
 
   await updateProgress(taskId, 'Creating commit tree...')
   const tree = await githubFetch(`/repos/${owner}/${params.repoName}/git/trees`, token, {
@@ -205,13 +252,22 @@ async function executeGithubCreate(taskId: string, params: {
   })
   if (commit.error) throw new Error(`Failed to create commit: ${commit.error}`)
 
-  await githubFetch(`/repos/${owner}/${params.repoName}/git/refs/heads/main`, token, {
+  const updateRef = await githubFetch(`/repos/${owner}/${params.repoName}/git/refs/heads/main`, token, {
     method: 'PATCH',
     body: JSON.stringify({ sha: commit.sha }),
   })
+  if (updateRef.error) throw new Error(`Failed to update branch ref: ${updateRef.error}`)
 
+  const duration = Math.round((Date.now() - startTime) / 1000)
   await updateProgress(taskId, 'Done!')
-  return { url: repo.html_url, owner, repoName: params.repoName, filesCount: Object.keys(params.files).length }
+  return {
+    url: repo.html_url,
+    owner,
+    repoName: params.repoName,
+    commitSha: commit.sha,
+    filesCount: totalFiles,
+    duration,
+  }
 }
 
 async function executeGithubPush(taskId: string, params: {
@@ -219,25 +275,35 @@ async function executeGithubPush(taskId: string, params: {
 }) {
   const token = params.githubToken || GITHUB_TOKEN
   if (!token) throw new Error('Not authenticated. Sign in with GitHub.')
+  const startTime = Date.now()
   const branchName = params.branch || 'main'
 
   await updateProgress(taskId, `Fetching ${branchName} branch...`)
-  const ref = await githubFetch(`/repos/${params.owner}/${params.repo}/git/refs/heads/${branchName}`, token)
-  if (ref.error) throw new Error(`Failed to get branch: ${ref.error}`)
+
+  // Try specified branch, fall back to main/master
+  let ref = await githubFetch(`/repos/${params.owner}/${params.repo}/git/refs/heads/${branchName}`, token)
+  if (ref.error && branchName === 'main') {
+    ref = await githubFetch(`/repos/${params.owner}/${params.repo}/git/refs/heads/master`, token)
+  }
+  if (ref.error) throw new Error(`Failed to get branch "${branchName}": ${ref.error}`)
   const parentSha = ref.object.sha
 
   const fileEntries = Object.entries(params.files)
-  const blobs = []
-  for (let i = 0; i < fileEntries.length; i++) {
-    const [path, content] = fileEntries[i]
-    await updateProgress(taskId, `Uploading files (${i + 1}/${fileEntries.length}): ${path.split('/').pop()}`)
+  const totalFiles = fileEntries.length
+  await updateProgress(taskId, `Uploading ${totalFiles} files...`)
+
+  // Upload blobs in parallel batches of 5
+  const blobs = await batchParallel(fileEntries, 5, async ([path, content], index) => {
+    if (index % 5 === 0) {
+      await updateProgress(taskId, `Uploading files (${Math.min(index + 5, totalFiles)}/${totalFiles})...`)
+    }
     const blob = await githubFetch(`/repos/${params.owner}/${params.repo}/git/blobs`, token, {
       method: 'POST',
       body: JSON.stringify({ content, encoding: 'utf-8' }),
     })
     if (blob.error) throw new Error(`Failed to create blob for ${path}: ${blob.error}`)
-    blobs.push({ path, mode: '100644' as const, type: 'blob' as const, sha: blob.sha as string })
-  }
+    return { path, mode: '100644' as const, type: 'blob' as const, sha: blob.sha as string }
+  })
 
   await updateProgress(taskId, 'Creating commit tree...')
   const tree = await githubFetch(`/repos/${params.owner}/${params.repo}/git/trees`, token, {
@@ -259,8 +325,15 @@ async function executeGithubPush(taskId: string, params: {
   })
   if (update.error) throw new Error(`Failed to update ref: ${update.error}`)
 
+  const duration = Math.round((Date.now() - startTime) / 1000)
   await updateProgress(taskId, 'Done!')
-  return { commitSha: commit.sha, filesCount: Object.keys(params.files).length }
+  return {
+    commitSha: commit.sha,
+    filesCount: totalFiles,
+    repoUrl: `https://github.com/${params.owner}/${params.repo}`,
+    commitUrl: `https://github.com/${params.owner}/${params.repo}/commit/${commit.sha}`,
+    duration,
+  }
 }
 
 // ─── POST: Start a new background task ────────────────────────

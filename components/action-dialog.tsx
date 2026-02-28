@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect, useRef, useCallback } from 'react'
-import { X, Loader2, CheckCircle, XCircle, ExternalLink } from 'lucide-react'
+import { X, Loader2, CheckCircle, XCircle, ExternalLink, Copy, Check, RefreshCw } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
 interface ActionField {
@@ -259,8 +259,11 @@ export function TaskPollingDialog({
   const [errorMessage, setErrorMessage] = useState('')
   const [progressText, setProgressText] = useState('')
   const [resultData, setResultData] = useState<Record<string, unknown> | null>(null)
+  const [elapsed, setElapsed] = useState(0)
+  const [copied, setCopied] = useState(false)
   const overlayRef = useRef<HTMLDivElement>(null)
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null)
+  const timerRef = useRef<ReturnType<typeof setInterval> | null>(null)
 
   useEffect(() => {
     if (open) {
@@ -268,6 +271,8 @@ export function TaskPollingDialog({
       setErrorMessage('')
       setProgressText('')
       setResultData(null)
+      setElapsed(0)
+      setCopied(false)
       const defaults: Record<string, string> = {}
       fields?.forEach(f => {
         if (f.defaultValue) defaults[f.name] = f.defaultValue
@@ -276,8 +281,20 @@ export function TaskPollingDialog({
     }
     return () => {
       if (pollRef.current) clearInterval(pollRef.current)
+      if (timerRef.current) clearInterval(timerRef.current)
     }
   }, [open, fields])
+
+  // Elapsed timer during running state
+  useEffect(() => {
+    if (state === 'running') {
+      setElapsed(0)
+      timerRef.current = setInterval(() => setElapsed(e => e + 1), 1000)
+    } else {
+      if (timerRef.current) clearInterval(timerRef.current)
+    }
+    return () => { if (timerRef.current) clearInterval(timerRef.current) }
+  }, [state])
 
   useEffect(() => {
     const handleEsc = (e: KeyboardEvent) => {
@@ -421,9 +438,21 @@ export function TaskPollingDialog({
             <p className="text-xs text-forge-text font-medium mb-1">
               {progressText || 'Starting...'}
             </p>
-            <div className="w-full max-w-xs mt-2">
-              <div className="h-1 bg-forge-surface rounded-full overflow-hidden">
-                <div className="h-full bg-forge-accent rounded-full animate-pulse" style={{ width: '60%' }} />
+            <p className="text-[10px] text-forge-text-dim tabular-nums">{elapsed}s</p>
+            <div className="w-full max-w-xs mt-3">
+              <div className="h-1.5 bg-forge-surface rounded-full overflow-hidden">
+                <div
+                  className="h-full bg-gradient-to-r from-forge-accent to-blue-500 rounded-full transition-all duration-1000"
+                  style={{
+                    width: progressText.includes('Done') ? '100%'
+                      : progressText.includes('commit') || progressText.includes('Pushing') ? '85%'
+                      : progressText.includes('tree') ? '75%'
+                      : progressText.includes('Uploading') ? `${Math.min(30 + elapsed * 2, 65)}%`
+                      : progressText.includes('Building') ? `${Math.min(40 + elapsed, 80)}%`
+                      : progressText.includes('Creating') ? '25%'
+                      : `${Math.min(10 + elapsed, 30)}%`
+                  }}
+                />
               </div>
             </div>
           </div>
@@ -433,27 +462,64 @@ export function TaskPollingDialog({
         {state === 'success' && (
           <div className="flex flex-col items-center py-4">
             <CheckCircle className="w-8 h-8 text-emerald-500 mb-2" />
-            <p className="text-xs text-forge-text font-medium mb-1">Done!</p>
+            <p className="text-xs text-forge-text font-medium mb-1">
+              {taskType === 'deploy' ? 'Deployed!' : taskType === 'github_create' ? 'Repository Created!' : 'Pushed!'}
+            </p>
+
+            {/* URL with copy + open buttons */}
             {typeof resultData?.url === 'string' && (
-              <a
-                href={String(resultData.url)}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="flex items-center gap-1.5 text-[11px] text-forge-accent hover:underline mt-1"
-              >
-                {String(resultData.url)} <ExternalLink className="w-3 h-3" />
-              </a>
+              <div className="flex items-center gap-1.5 mt-2 px-3 py-1.5 bg-forge-surface rounded-lg border border-forge-border">
+                <span className="text-[11px] text-forge-text font-mono truncate max-w-[240px]">
+                  {String(resultData.url)}
+                </span>
+                <button
+                  onClick={() => {
+                    navigator.clipboard.writeText(String(resultData.url))
+                    setCopied(true)
+                    setTimeout(() => setCopied(false), 2000)
+                  }}
+                  className="p-1 text-forge-text-dim hover:text-forge-text rounded transition-colors shrink-0"
+                  title="Copy URL"
+                >
+                  {copied ? <Check className="w-3 h-3 text-emerald-500" /> : <Copy className="w-3 h-3" />}
+                </button>
+                <a
+                  href={String(resultData.url)}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="p-1 text-forge-text-dim hover:text-forge-accent rounded transition-colors shrink-0"
+                  title="Open in new tab"
+                >
+                  <ExternalLink className="w-3 h-3" />
+                </a>
+              </div>
             )}
+
+            {/* Git details */}
             {typeof resultData?.commitSha === 'string' && (
-              <p className="text-[11px] text-forge-text-dim mt-1">
-                Commit: {resultData.commitSha.slice(0, 7)}
-              </p>
+              <div className="flex items-center gap-2 mt-2 text-[11px] text-forge-text-dim">
+                <span>Commit: <code className="text-forge-text">{String(resultData.commitSha).slice(0, 7)}</code></span>
+                {typeof resultData?.commitUrl === 'string' && (
+                  <a href={String(resultData.commitUrl)} target="_blank" rel="noopener noreferrer" className="text-forge-accent hover:underline">
+                    view <ExternalLink className="w-2.5 h-2.5 inline" />
+                  </a>
+                )}
+              </div>
             )}
-            {resultData?.filesCount != null && (
-              <p className="text-[11px] text-forge-text-dim">
-                {String(resultData.filesCount)} files pushed
-              </p>
-            )}
+
+            {/* Stats */}
+            <div className="flex items-center gap-3 mt-2 text-[10px] text-forge-text-dim">
+              {resultData?.filesCount != null && (
+                <span>{String(resultData.filesCount)} files</span>
+              )}
+              {resultData?.framework != null && (
+                <span>{String(resultData.framework)}</span>
+              )}
+              {resultData?.duration != null && (
+                <span>{String(resultData.duration)}s</span>
+              )}
+            </div>
+
             <button
               onClick={onClose}
               className="mt-4 px-4 py-1.5 text-xs font-medium text-forge-text-dim hover:text-forge-text hover:bg-forge-surface rounded-lg transition-colors"
@@ -468,12 +534,24 @@ export function TaskPollingDialog({
           <div className="flex flex-col py-4">
             <div className="flex items-center gap-2 mb-3">
               <XCircle className="w-5 h-5 text-forge-danger shrink-0" />
-              <p className="text-xs text-forge-text font-medium">Build Failed</p>
+              <div>
+                <p className="text-xs text-forge-text font-medium">
+                  {taskType === 'deploy' ? 'Build Failed' : 'Operation Failed'}
+                </p>
+                {elapsed > 0 && (
+                  <p className="text-[10px] text-forge-text-dim">after {elapsed}s</p>
+                )}
+              </div>
             </div>
-            {/* Scrollable error log */}
-            <div className="bg-[#1e1e1e] rounded-lg p-3 max-h-[200px] overflow-y-auto mb-3">
+            {/* Scrollable error log with line numbers */}
+            <div className="bg-[#1e1e1e] rounded-lg p-3 max-h-[240px] overflow-y-auto mb-3 border border-[#333]">
               <pre className="text-[10px] text-red-400 font-mono whitespace-pre-wrap break-words leading-relaxed">
-                {errorMessage}
+                {errorMessage.split('\n').map((line, i) => (
+                  <div key={i} className="flex gap-2">
+                    <span className="text-gray-600 select-none shrink-0 w-4 text-right">{i + 1}</span>
+                    <span>{line}</span>
+                  </div>
+                ))}
               </pre>
             </div>
             <div className="flex justify-end gap-2">
@@ -485,8 +563,9 @@ export function TaskPollingDialog({
               </button>
               <button
                 onClick={() => setState('confirm')}
-                className="px-3 py-1.5 text-xs text-forge-text-dim hover:text-forge-text hover:bg-forge-surface rounded-lg transition-colors"
+                className="flex items-center gap-1.5 px-3 py-1.5 text-xs text-forge-text-dim hover:text-forge-text hover:bg-forge-surface rounded-lg transition-colors"
               >
+                <RefreshCw className="w-3 h-3" />
                 Retry
               </button>
               {onFix && (

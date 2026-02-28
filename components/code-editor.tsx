@@ -1,7 +1,7 @@
 'use client'
 
 import { useRef, useCallback, useEffect, useState } from 'react'
-import Editor, { type OnMount } from '@monaco-editor/react'
+import Editor, { type OnMount, type BeforeMount } from '@monaco-editor/react'
 import { getLanguageFromPath } from '@/lib/utils'
 import { FileText, Save } from 'lucide-react'
 
@@ -15,6 +15,36 @@ interface CodeEditorProps {
 export function CodeEditor({ path, content, onSave, onChange }: CodeEditorProps) {
   const editorRef = useRef<any>(null)
   const [modified, setModified] = useState(false)
+
+  const handleBeforeMount: BeforeMount = (monaco) => {
+    // Enable syntax error detection (red squiggles) — semantic validation disabled
+    // to avoid false positives from missing node_modules in virtual FS
+    monaco.languages.typescript.typescriptDefaults.setDiagnosticsOptions({
+      noSemanticValidation: true,
+      noSyntaxValidation: false,
+      noSuggestionDiagnostics: true,
+    })
+    monaco.languages.typescript.javascriptDefaults.setDiagnosticsOptions({
+      noSemanticValidation: true,
+      noSyntaxValidation: false,
+      noSuggestionDiagnostics: true,
+    })
+    // JSX support
+    monaco.languages.typescript.typescriptDefaults.setCompilerOptions({
+      target: monaco.languages.typescript.ScriptTarget.Latest,
+      allowNonTsExtensions: true,
+      jsx: monaco.languages.typescript.JsxEmit.React,
+      moduleResolution: monaco.languages.typescript.ModuleResolutionKind.NodeJs,
+      module: monaco.languages.typescript.ModuleKind.ESNext,
+      allowJs: true,
+    })
+    monaco.languages.typescript.javascriptDefaults.setCompilerOptions({
+      target: monaco.languages.typescript.ScriptTarget.Latest,
+      allowNonTsExtensions: true,
+      jsx: monaco.languages.typescript.JsxEmit.React,
+      allowJs: true,
+    })
+  }
 
   const handleMount: OnMount = (editor) => {
     editorRef.current = editor
@@ -90,6 +120,7 @@ export function CodeEditor({ path, content, onSave, onChange }: CodeEditorProps)
           language={language}
           value={content}
           theme="vs"
+          beforeMount={handleBeforeMount}
           onMount={handleMount}
           onChange={handleChange}
           options={{

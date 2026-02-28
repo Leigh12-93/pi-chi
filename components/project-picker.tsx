@@ -4,8 +4,9 @@ import { useState, useEffect } from 'react'
 import {
   Hammer, Sparkles, FolderOpen, Trash2,
   Github, Clock, Globe, ExternalLink, Loader2,
-  Lock, Star, GitBranch, Download,
+  Lock, Star, GitBranch, Download, GitFork, Archive,
 } from 'lucide-react'
+import { toast } from 'sonner'
 
 interface SavedProject {
   id: string
@@ -25,10 +26,13 @@ interface GitHubRepo {
   description: string
   language: string
   private: boolean
+  fork: boolean
+  archived: boolean
   default_branch: string
   updated_at: string
   html_url: string
   stargazers_count: number
+  size: number
 }
 
 interface ProjectPickerProps {
@@ -117,6 +121,10 @@ export function ProjectPicker({ onSelect, savedProjects, loadingProjects, onDele
   }
 
   const handleImportRepo = async (repo: GitHubRepo) => {
+    if (repo.archived) {
+      toast.error('Cannot import archived repository')
+      return
+    }
     setImportingRepo(repo.full_name)
     try {
       const res = await fetch('/api/github/import', {
@@ -129,13 +137,25 @@ export function ProjectPicker({ onSelect, savedProjects, loadingProjects, onDele
         }),
       })
 
-      if (!res.ok) throw new Error('Import failed')
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}))
+        throw new Error(data.error || `Import failed (HTTP ${res.status})`)
+      }
 
       const data = await res.json()
+      if (!data.files || Object.keys(data.files).length === 0) {
+        toast.error('No importable files found', { description: 'Repository may only contain binary files or be empty.' })
+        return
+      }
+      toast.success(`Imported ${data.fileCount} files`, {
+        description: `From ${repo.full_name} (${data.branch || repo.default_branch})`,
+      })
       onSelect(repo.name, undefined, data.files)
     } catch (err) {
       console.error('Failed to import repo:', err)
-      alert('Failed to import repository. It may be too large or contain no text files.')
+      toast.error('Import failed', {
+        description: err instanceof Error ? err.message : 'Repository may be too large or inaccessible.',
+      })
     } finally {
       setImportingRepo(null)
     }
@@ -345,13 +365,20 @@ export function ProjectPicker({ onSelect, savedProjects, loadingProjects, onDele
                         <div className="flex items-start justify-between mb-1.5">
                           <h3 className="text-sm font-medium text-forge-text group-hover:text-forge-accent transition-colors truncate pr-2 flex items-center gap-1.5">
                             {repo.private && <Lock className="w-3 h-3 text-forge-text-dim shrink-0" />}
+                            {repo.fork && <GitFork className="w-3 h-3 text-forge-text-dim shrink-0" />}
+                            {repo.archived && <Archive className="w-3 h-3 text-amber-500 shrink-0" />}
                             {repo.name}
                           </h3>
-                          {repo.language && (
-                            <span className={`text-[9px] font-medium px-1.5 py-0.5 rounded shrink-0 ${LANG_COLORS[repo.language] || 'bg-gray-500/20 text-gray-400'}`}>
-                              {repo.language}
-                            </span>
-                          )}
+                          <div className="flex items-center gap-1 shrink-0">
+                            {repo.archived && (
+                              <span className="text-[9px] font-medium px-1.5 py-0.5 rounded bg-amber-100 text-amber-700">archived</span>
+                            )}
+                            {repo.language && (
+                              <span className={`text-[9px] font-medium px-1.5 py-0.5 rounded ${LANG_COLORS[repo.language] || 'bg-gray-500/20 text-gray-400'}`}>
+                                {repo.language}
+                              </span>
+                            )}
+                          </div>
                         </div>
 
                         {repo.description && (

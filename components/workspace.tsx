@@ -7,10 +7,10 @@ import { CodeEditor } from './code-editor'
 import { FileTree } from './file-tree'
 import { PreviewPanel } from './preview-panel'
 import { Header } from './header'
-import { TaskPollingDialog } from './action-dialog'
+import { ActionDialog, TaskPollingDialog } from './action-dialog'
 import { CommandPalette } from './command-palette'
 import { useKeyboardShortcuts } from '@/lib/keyboard-shortcuts'
-import { MessageSquare, FolderTree, Code2, Eye, Loader2, Save, Rocket, Upload, GitBranch, Download, SidebarOpen } from 'lucide-react'
+import { MessageSquare, FolderTree, Code2, Eye, Loader2, Save, Rocket, Upload, GitBranch, Download, SidebarOpen, FolderInput } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { toast } from 'sonner'
 import type { FileNode } from '@/lib/types'
@@ -65,7 +65,7 @@ interface WorkspaceProps {
 }
 
 type MobileTab = 'chat' | 'files' | 'code' | 'preview'
-type DialogType = 'deploy' | 'push' | 'create-repo' | null
+type DialogType = 'deploy' | 'push' | 'create-repo' | 'import' | null
 
 export function Workspace({
   projectName, projectId, files, activeFile,
@@ -208,6 +208,7 @@ export function Workspace({
       case 'deploy':
       case 'push':
       case 'create-repo':
+      case 'import':
         setActiveDialog(action as DialogType)
         break
     }
@@ -261,6 +262,7 @@ export function Workspace({
     { id: 'deploy', label: 'Deploy to Vercel', description: 'Create production deployment', icon: Rocket, category: 'actions' as const, action: () => setActiveDialog('deploy') },
     { id: 'push', label: 'Push to GitHub', description: 'Push files to a repository', icon: Upload, category: 'actions' as const, action: () => setActiveDialog('push') },
     { id: 'create-repo', label: 'Create GitHub Repo', description: 'Create a new repository', icon: GitBranch, category: 'actions' as const, action: () => setActiveDialog('create-repo') },
+    { id: 'import', label: 'Import from GitHub', description: 'Import files from a GitHub repository', icon: FolderInput, category: 'actions' as const, action: () => setActiveDialog('import') },
     { id: 'download', label: 'Download as ZIP', description: 'Download all project files', icon: Download, category: 'actions' as const, action: handleDownload },
     { id: 'toggle-preview', label: 'Toggle Preview', description: 'Switch between code and preview', shortcut: 'Ctrl+Shift+P', icon: Eye, category: 'view' as const, action: () => setRightTab(prev => prev === 'code' ? 'preview' : 'code') },
     { id: 'toggle-sidebar', label: 'Toggle File Sidebar', description: 'Show or hide the file tree', shortcut: 'Ctrl+B', icon: SidebarOpen, category: 'view' as const, action: () => setShowSidebar(prev => !prev) },
@@ -358,7 +360,7 @@ export function Workspace({
             onChange={(content) => activeFile && onFileChange(activeFile, content)}
           />
         ) : (
-          <PreviewPanel files={files} projectId={projectId} />
+          <PreviewPanel files={files} projectId={projectId} onFixErrors={(msg) => setPendingChatMessage(msg)} />
         )}
       </div>
     </div>
@@ -429,7 +431,7 @@ export function Workspace({
               </div>
             </div>
           )}
-          {mobileTab === 'preview' && <PreviewPanel files={files} projectId={projectId} />}
+          {mobileTab === 'preview' && <PreviewPanel files={files} projectId={projectId} onFixErrors={(msg) => { setPendingChatMessage(msg); setMobileTab('chat') }} />}
         </div>
 
         <div className="flex items-center justify-around border-t border-forge-border bg-forge-panel py-2 shrink-0 safe-bottom">
@@ -515,6 +517,44 @@ export function Workspace({
         })}
         onSuccess={handleDialogSuccess}
         onFix={handleDialogFix}
+      />
+
+      {/* Import from GitHub Dialog */}
+      <ActionDialog
+        open={activeDialog === 'import'}
+        onClose={() => setActiveDialog(null)}
+        title="Import from GitHub"
+        description={`Import files from a GitHub repository into "${projectName}". Existing files with the same path will be overwritten.`}
+        confirmLabel="Import"
+        fields={[
+          { name: 'owner', label: 'Owner', placeholder: 'username or org', required: true },
+          { name: 'repo', label: 'Repository', placeholder: 'my-project', required: true },
+          { name: 'branch', label: 'Branch', placeholder: 'main (auto-detected if empty)' },
+        ]}
+        onConfirm={async (fieldValues) => {
+          const res = await fetch('/api/github/import', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              owner: fieldValues.owner,
+              repo: fieldValues.repo,
+              branch: fieldValues.branch || undefined,
+            }),
+          })
+          if (!res.ok) {
+            const data = await res.json()
+            throw new Error(data.error || `Import failed (HTTP ${res.status})`)
+          }
+          const data = await res.json()
+          if (data.files && Object.keys(data.files).length > 0) {
+            onBulkFileUpdate({ ...files, ...data.files })
+            toast.success(`Imported ${data.fileCount} files`, {
+              description: `From ${fieldValues.owner}/${fieldValues.repo}${data.branch ? ` (${data.branch})` : ''}`,
+            })
+          } else {
+            throw new Error('No importable files found in repository')
+          }
+        }}
       />
 
       {/* Command Palette */}

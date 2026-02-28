@@ -8,9 +8,17 @@ import {
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
+interface ConsoleEntry {
+  timestamp: string
+  level: 'log' | 'warn' | 'error' | 'info' | 'system'
+  message: string
+  source?: 'preview' | 'sandbox' | 'forge'
+}
+
 interface PreviewPanelProps {
   files: Record<string, string>
   projectId?: string | null
+  onFixErrors?: (errorSummary: string) => void
 }
 
 /** Fast djb2 hash of files map — avoids serializing entire VFS */
@@ -35,6 +43,31 @@ const STATUS_LABELS: Record<SandboxStatus, string> = {
   error: 'Error',
 }
 
+/** Script injected into static preview iframes to capture console output and runtime errors */
+const PREVIEW_ERROR_SCRIPT = `<script>
+(function(){
+  window.onerror=function(msg,url,line,col,err){
+    window.parent.postMessage({type:'forge-preview',level:'error',
+      message:String(msg),line:line,col:col,stack:err&&err.stack||''},'*');
+    return false;
+  };
+  window.addEventListener('unhandledrejection',function(e){
+    window.parent.postMessage({type:'forge-preview',level:'error',
+      message:'Unhandled Promise: '+(e.reason&&e.reason.message||String(e.reason))},'*');
+  });
+  ['log','warn','error','info'].forEach(function(m){
+    var o=console[m];
+    console[m]=function(){
+      var a=[].slice.call(arguments).map(function(v){
+        try{return typeof v==='object'?JSON.stringify(v):String(v)}catch(e){return String(v)}
+      });
+      window.parent.postMessage({type:'forge-preview',level:m,message:a.join(' ')},'*');
+      o.apply(console,arguments);
+    };
+  });
+})();
+</script>`
+
 // Minimum files needed before auto-starting sandbox
 function isProjectReady(files: Record<string, string>): boolean {
   const paths = Object.keys(files)
@@ -48,13 +81,13 @@ function isProjectReady(files: Record<string, string>): boolean {
   return hasPackageJson && hasMainFile
 }
 
-export function PreviewPanel({ files, projectId }: PreviewPanelProps) {
+export function PreviewPanel({ files, projectId, onFixErrors }: PreviewPanelProps) {
   const [viewMode, setViewMode] = useState<ViewMode>('desktop')
   const [refreshKey, setRefreshKey] = useState(0)
   const [previewError, setPreviewError] = useState<string | null>(null)
   const [isFullscreen, setIsFullscreen] = useState(false)
   const [showConsole, setShowConsole] = useState(false)
-  const [consoleLogs, setConsoleLogs] = useState<string[]>([])
+  const [consoleLogs, setConsoleLogs] = useState<ConsoleEntry[]>([])
 
   // Sandbox state
   const [sandboxStatus, setSandboxStatus] = useState<SandboxStatus>('idle')
@@ -75,11 +108,10 @@ export function PreviewPanel({ files, projectId }: PreviewPanelProps) {
   const [iframeLoading, setIframeLoading] = useState(false) // iframe load indicator
   const sandboxUrlRef = useRef<string | null>(null) // stable ref for sync effect
 
-  const addLog = useCallback((msg: string) => {
+  const addLog = useCallback((msg: string, level: ConsoleEntry['level'] = 'system', source: ConsoleEntry['source'] = 'forge') => {
     const ts = new Date().toLocaleTimeString('en-AU', { hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit' })
     setConsoleLogs(prev => {
-      const next = [...prev.slice(-99), `[${ts}] ${msg}`]
-      // Auto-scroll on next tick
+      const next = [...prev.slice(-199), { timestamp: ts, level, message: msg, source }]
       requestAnimationFrame(() => consoleEndRef.current?.scrollIntoView({ behavior: 'smooth' }))
       return next
     })
@@ -119,13 +151,13 @@ export function PreviewPanel({ files, projectId }: PreviewPanelProps) {
   useEffect(() => {
     if (sandboxStatus !== 'idle') {
       const label = STATUS_LABELS[sandboxStatus]
-      if (label) addLog(`[sandbox] ${label}`)
+      if (label) addLog(label, 'system', 'sandbox')
     }
   }, [sandboxStatus, addLog])
 
   // Log errors to console
   useEffect(() => {
-    if (sandboxError) addLog(`[error] ${sandboxError}`)
+    if (sandboxError) addLog(sandboxError, 'error', 'sandbox')
   }, [sandboxError, addLog])
 
   // Helper to create empty state HTML
@@ -155,7 +187,13 @@ export function PreviewPanel({ files, projectId }: PreviewPanelProps) {
       }
 
       if (projectType === 'static' && files['index.html']) {
-        return files['index.html']
+        const html = files['index.html']
+        // Inject error capture script after <head> tag
+        const headIdx = html.toLowerCase().indexOf('<head>')
+        if (headIdx !== -1) {
+          return html.slice(0, headIdx + 6) + PREVIEW_ERROR_SCRIPT + html.slice(headIdx + 6)
+        }
+        return PREVIEW_ERROR_SCRIPT + html
       }
 
       const appFile = files['src/App.tsx'] || files['src/App.jsx'] || files['app/page.tsx'] || files['app/page.jsx']
@@ -185,6 +223,7 @@ export function PreviewPanel({ files, projectId }: PreviewPanelProps) {
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Preview</title>
+  ${PREVIEW_ERROR_SCRIPT}
   ${hasTailwind ? '<script src="https://cdn.tailwindcss.com"></script>' : ''}
   <style>
     ${css.replace(/@import\s+"tailwindcss";\s*/g, '').replace(/@import\s+'tailwindcss';\s*/g, '')}
@@ -219,7 +258,7 @@ export function PreviewPanel({ files, projectId }: PreviewPanelProps) {
     setSandboxUrl(null)
 
     const fileCount = Object.keys(files).length
-    addLog(`[sandbox] Uploading ${fileCount} files...`)
+    addLog(`Uploading ${fileCount} files...`, 'info', 'sandbox')
 
     try {
       const res = await fetch('/api/sandbox', {
@@ -243,7 +282,7 @@ export function PreviewPanel({ files, projectId }: PreviewPanelProps) {
           const delay = res.status === 429
             ? (parseInt(res.headers.get('Retry-After') || '5', 10) * 1000)
             : (2000 * retryCountRef.current)
-          addLog(`[sandbox] Retrying in ${delay / 1000}s (attempt ${retryCountRef.current}/2)...`)
+          addLog(`Retrying in ${delay / 1000}s (attempt ${retryCountRef.current}/2)...`, 'warn', 'sandbox')
           retryTimerRef.current = setTimeout(() => {
             startingRef.current = false
             startSandbox()
@@ -263,7 +302,7 @@ export function PreviewPanel({ files, projectId }: PreviewPanelProps) {
         data.fileCount && `${data.fileCount} files uploaded`,
         data.skippedCount && `${data.skippedCount} skipped`,
       ].filter(Boolean).join(', ')
-      if (meta) addLog(`[sandbox] ${meta}`)
+      if (meta) addLog(meta, 'info', 'sandbox')
     } catch (error) {
       if (controller.signal.aborted) return
       setSandboxStatus('error')
@@ -295,7 +334,7 @@ export function PreviewPanel({ files, projectId }: PreviewPanelProps) {
     setIsSyncing(false)
     hasAutoStartedRef.current = false // allow re-auto-start if user manually stops
     retryCountRef.current = 0
-    addLog('[sandbox] Stopped')
+    addLog('Stopped', 'system', 'sandbox')
   }, [projectId, addLog])
 
   // ─── AUTO-START: launch sandbox when project looks ready ──────
@@ -359,13 +398,13 @@ export function PreviewPanel({ files, projectId }: PreviewPanelProps) {
           setSandboxUrl(data.demoUrl)
           sandboxUrlRef.current = data.demoUrl
           setIframeLoading(true)
-          addLog('[sync] Preview URL updated')
+          addLog('Preview URL updated', 'info', 'sandbox')
         }
         if (data.synced > 0) {
-          addLog(`[sync] ${data.synced} files synced`)
+          addLog(`${data.synced} files synced`, 'info', 'sandbox')
         }
       } catch {
-        addLog('[sync] Failed — will retry on next change')
+        addLog('Sync failed — will retry on next change', 'warn', 'sandbox')
       } finally {
         setIsSyncing(false)
       }
@@ -392,6 +431,22 @@ export function PreviewPanel({ files, projectId }: PreviewPanelProps) {
       }
     }
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Listen for console/error messages from preview iframe
+  useEffect(() => {
+    const handler = (event: MessageEvent) => {
+      const d = event.data
+      if (!d || typeof d !== 'object' || d.type !== 'forge-preview') return
+      const level = (['log', 'warn', 'error', 'info'].includes(d.level) ? d.level : 'log') as ConsoleEntry['level']
+      const message = typeof d.message === 'string' ? d.message.slice(0, 1000) : String(d.message)
+      if (!message) return
+      addLog(message, level, 'preview')
+      // Auto-open console on errors
+      if (level === 'error') setShowConsole(true)
+    }
+    window.addEventListener('message', handler)
+    return () => window.removeEventListener('message', handler)
+  }, [addLog])
 
   // Escape exits fullscreen
   useEffect(() => {
@@ -523,7 +578,7 @@ export function PreviewPanel({ files, projectId }: PreviewPanelProps) {
             <button
               onClick={() => {
                 setRefreshKey(k => k + 1)
-                if (isSandboxActive) addLog('[sandbox] Refreshed')
+                if (isSandboxActive) addLog('Refreshed', 'system', 'sandbox')
               }}
               className="p-1.5 rounded-md text-forge-text-dim hover:text-forge-text hover:bg-forge-surface transition-colors"
               title="Refresh preview"
@@ -548,7 +603,7 @@ export function PreviewPanel({ files, projectId }: PreviewPanelProps) {
             <button
               onClick={() => setShowConsole(prev => !prev)}
               className={cn(
-                'p-1.5 rounded-md transition-colors',
+                'p-1.5 rounded-md transition-colors relative',
                 showConsole
                   ? 'bg-forge-accent/15 text-forge-accent'
                   : 'text-forge-text-dim hover:text-forge-text hover:bg-forge-surface',
@@ -556,6 +611,11 @@ export function PreviewPanel({ files, projectId }: PreviewPanelProps) {
               title="Toggle console"
             >
               <Terminal className="w-3.5 h-3.5" />
+              {!showConsole && consoleLogs.some(e => e.level === 'error') && (
+                <span className="absolute -top-1 -right-1 w-3.5 h-3.5 rounded-full bg-red-500 text-white text-[7px] font-bold flex items-center justify-center">
+                  {Math.min(consoleLogs.filter(e => e.level === 'error').length, 9)}
+                </span>
+              )}
             </button>
 
             {/* Fullscreen toggle */}
@@ -794,6 +854,20 @@ export function PreviewPanel({ files, projectId }: PreviewPanelProps) {
               )}
             </div>
             <div className="flex items-center gap-1">
+              {consoleLogs.some(e => e.level === 'error') && onFixErrors && (
+                <button
+                  onClick={() => {
+                    const errors = consoleLogs
+                      .filter(e => e.level === 'error')
+                      .map(e => e.message)
+                      .join('\n')
+                    onFixErrors(`The preview has runtime errors. Please fix them:\n\n\`\`\`\n${errors}\n\`\`\``)
+                  }}
+                  className="text-[10px] text-red-400 hover:text-red-300 px-1.5 py-0.5 rounded hover:bg-red-900/30 transition-colors"
+                >
+                  Fix with AI
+                </button>
+              )}
               <button
                 onClick={() => setConsoleLogs([])}
                 className="text-[10px] text-gray-500 hover:text-gray-300 px-1.5 py-0.5 rounded hover:bg-[#333] transition-colors"
@@ -814,15 +888,24 @@ export function PreviewPanel({ files, projectId }: PreviewPanelProps) {
               <div className="text-gray-600 text-center py-4">No logs yet</div>
             ) : (
               <>
-                {consoleLogs.map((log, i) => (
+                {consoleLogs.map((entry, i) => (
                   <div key={i} className={cn(
                     'py-0.5 px-1 rounded',
-                    log.includes('[error]') ? 'text-red-400'
-                      : log.includes('[sync]') ? 'text-blue-400'
-                      : log.includes('[sandbox]') ? 'text-green-400'
+                    entry.level === 'error' ? 'text-red-400 bg-red-950/20'
+                      : entry.level === 'warn' ? 'text-yellow-400'
+                      : entry.level === 'info' ? 'text-blue-400'
+                      : entry.source === 'sandbox' ? 'text-green-400'
                       : 'text-gray-300',
                   )}>
-                    {log}
+                    <span className="text-gray-600 select-none">[{entry.timestamp}]</span>
+                    {entry.level !== 'system' && (
+                      <span className={cn('ml-1 text-[9px] uppercase font-medium',
+                        entry.level === 'error' ? 'text-red-500'
+                        : entry.level === 'warn' ? 'text-yellow-500'
+                        : 'text-gray-500'
+                      )}>{entry.level}</span>
+                    )}
+                    <span className="ml-1">{entry.message}</span>
                   </div>
                 ))}
                 <div ref={consoleEndRef} />

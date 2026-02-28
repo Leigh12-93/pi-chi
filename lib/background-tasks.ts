@@ -13,6 +13,7 @@ export interface TaskStatus {
   id: string
   type: string
   status: 'running' | 'completed' | 'failed'
+  progress?: string
   result?: unknown
   error?: string
   created_at?: string
@@ -133,6 +134,7 @@ export class TaskStore {
       id: row.id as string,
       type: row.type as string,
       status: row.status as TaskStatus['status'],
+      progress: row.progress as string | undefined,
       result: row.result,
       error: row.error as string | undefined,
       created_at: row.created_at as string,

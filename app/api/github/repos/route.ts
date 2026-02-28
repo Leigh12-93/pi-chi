@@ -25,7 +25,7 @@ export async function GET() {
 
     const repos = await res.json()
 
-    // Return slim data
+    // Return slim data with all useful fields
     const slim = repos.map((r: any) => ({
       id: r.id,
       name: r.name,
@@ -33,10 +33,13 @@ export async function GET() {
       description: r.description || '',
       language: r.language || '',
       private: r.private,
+      fork: r.fork || false,
+      archived: r.archived || false,
       default_branch: r.default_branch,
       updated_at: r.pushed_at || r.updated_at,
       html_url: r.html_url,
       stargazers_count: r.stargazers_count,
+      size: r.size || 0,
     }))
 
     return NextResponse.json(slim)
