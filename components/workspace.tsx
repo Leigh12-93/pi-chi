@@ -82,24 +82,28 @@ export function Workspace({
   const [showCommandPalette, setShowCommandPalette] = useState(false)
   const chatSendRef = useRef<((message: string) => void) | null>(null)
 
-  const fileTree = useMemo(() => buildTreeFromMap(files), [files])
-  const prevFileKeysRef = useRef<Set<string>>(new Set())
+  // Only recompute tree when file PATHS change, not on content edits
+  const filePathsKey = useMemo(() => Object.keys(files).sort().join('\0'), [files])
+  const fileTree = useMemo(() => buildTreeFromMap(files), [filePathsKey]) // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Track file changes — auto-select first file, notify on new files from AI
+  const prevFileKeysRef = useRef<Set<string>>(new Set())
+  const pendingNewFilesRef = useRef<string[]>([])
+  const pendingDeletedFilesRef = useRef<string[]>([])
+  const toastTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  // Track file changes — auto-select first file, batch toast notifications
   useEffect(() => {
     const fileKeys = Object.keys(files)
     const currentSet = new Set(fileKeys)
     const prevSet = prevFileKeysRef.current
     const wasEmpty = prevSet.size === 0
 
-    // Find newly added files
     const newFiles = fileKeys.filter(f => !prevSet.has(f))
-    // Find deleted files
     const deletedFiles = [...prevSet].filter(f => !currentSet.has(f))
 
     prevFileKeysRef.current = currentSet
 
-    // Auto-select first meaningful file when project is first scaffolded
+    // Auto-select first meaningful file when project is first scaffolded (immediate)
     if (wasEmpty && fileKeys.length > 0 && !activeFile) {
       const mainFile = fileKeys.find(f => f === 'app/page.tsx')
         || fileKeys.find(f => f === 'src/App.tsx')
@@ -112,22 +116,38 @@ export function Workspace({
       }
     }
 
-    // Toast for new files (skip initial scaffold — too noisy)
-    if (!wasEmpty && newFiles.length > 0 && newFiles.length <= 5) {
-      toast.success(`${newFiles.length} file${newFiles.length > 1 ? 's' : ''} created`, {
-        description: newFiles.map(f => f.split('/').pop()).join(', '),
-        duration: 2500,
-      })
-    } else if (!wasEmpty && newFiles.length > 5) {
-      toast.success(`${newFiles.length} files created`, { duration: 2500 })
+    // Batch toast notifications — accumulate during rapid AI writes, fire once after 2s of stability
+    if (!wasEmpty && (newFiles.length > 0 || deletedFiles.length > 0)) {
+      pendingNewFilesRef.current.push(...newFiles)
+      pendingDeletedFilesRef.current.push(...deletedFiles)
+
+      if (toastTimerRef.current) clearTimeout(toastTimerRef.current)
+      toastTimerRef.current = setTimeout(() => {
+        const created = [...new Set(pendingNewFilesRef.current)]
+        const deleted = [...new Set(pendingDeletedFilesRef.current)]
+        pendingNewFilesRef.current = []
+        pendingDeletedFilesRef.current = []
+
+        if (created.length > 0 && created.length <= 5) {
+          toast.success(`${created.length} file${created.length > 1 ? 's' : ''} created`, {
+            description: created.map(f => f.split('/').pop()).join(', '),
+            duration: 2500,
+          })
+        } else if (created.length > 5) {
+          toast.success(`${created.length} files created`, { duration: 2500 })
+        }
+
+        if (deleted.length > 0 && deleted.length <= 3) {
+          toast(`${deleted.length} file${deleted.length > 1 ? 's' : ''} deleted`, {
+            description: deleted.map(f => f.split('/').pop()).join(', '),
+            duration: 2500,
+          })
+        }
+      }, 2000)
     }
 
-    // Toast for deleted files
-    if (deletedFiles.length > 0 && deletedFiles.length <= 3) {
-      toast(`${deletedFiles.length} file${deletedFiles.length > 1 ? 's' : ''} deleted`, {
-        description: deletedFiles.map(f => f.split('/').pop()).join(', '),
-        duration: 2500,
-      })
+    return () => {
+      if (toastTimerRef.current) clearTimeout(toastTimerRef.current)
     }
   }, [files, activeFile, onFileSelect])
 

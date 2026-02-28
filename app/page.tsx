@@ -54,7 +54,17 @@ export default function ForgePage() {
   useEffect(() => {
     if (!projectId || Object.keys(files).length === 0) return
 
-    const hash = JSON.stringify(files)
+    // Lightweight hash — avoids JSON.stringify of entire VFS on every file change
+    const keys = Object.keys(files).sort()
+    let h = 5381
+    for (const k of keys) {
+      for (let i = 0; i < k.length; i++) h = ((h << 5) + h + k.charCodeAt(i)) | 0
+      h = ((h << 5) + h + files[k].length) | 0
+      // Sample first 64 chars of content for change detection
+      const sample = files[k].slice(0, 64)
+      for (let i = 0; i < sample.length; i++) h = ((h << 5) + h + sample.charCodeAt(i)) | 0
+    }
+    const hash = h.toString(36)
     if (hash === lastSavedHash.current) return
 
     if (autoSaveTimer.current) clearTimeout(autoSaveTimer.current)
@@ -126,8 +136,8 @@ export default function ForgePage() {
       delete next[path]
       return next
     })
-    if (activeFile === path) setActiveFile(null)
-  }, [activeFile])
+    setActiveFile(prev => prev === path ? null : prev)
+  }, [])
 
   const handleBulkFileUpdate = useCallback((newFiles: Record<string, string>) => {
     setFiles(prev => ({ ...prev, ...newFiles }))

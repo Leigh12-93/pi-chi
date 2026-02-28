@@ -137,15 +137,21 @@ export function PreviewPanel({ files, projectId, onFixErrors }: PreviewPanelProp
     }
   }, [projectId]) // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Detect project type
+  // Stable boolean deps for project type — avoids recomputation on content-only file changes
+  const hasNextConfig = !!files['next.config.ts'] || !!files['next.config.js']
+  const hasViteConfig = !!files['vite.config.ts'] || !!files['vite.config.js']
+  const hasStaticIndex = !!files['index.html']
+  const hasViteMain = !!files['src/main.tsx'] || !!files['src/main.jsx']
+  const hasNextPage = !!files['app/page.tsx'] || !!files['app/page.jsx']
+
   const projectType = useMemo(() => {
-    if (files['next.config.ts'] || files['next.config.js']) return 'nextjs'
-    if (files['vite.config.ts'] || files['vite.config.js']) return 'vite'
-    if (files['index.html'] && !files['src/main.tsx'] && !files['app/page.tsx']) return 'static'
-    if (files['src/main.tsx'] || files['src/main.jsx']) return 'vite'
-    if (files['app/page.tsx'] || files['app/page.jsx']) return 'nextjs'
+    if (hasNextConfig) return 'nextjs'
+    if (hasViteConfig) return 'vite'
+    if (hasStaticIndex && !hasViteMain && !hasNextPage) return 'static'
+    if (hasViteMain) return 'vite'
+    if (hasNextPage) return 'nextjs'
     return 'unknown'
-  }, [files])
+  }, [hasNextConfig, hasViteConfig, hasStaticIndex, hasViteMain, hasNextPage])
 
   // Log status changes to console
   useEffect(() => {
@@ -177,33 +183,35 @@ export function PreviewPanel({ files, projectId, onFixErrors }: PreviewPanelProp
 </body></html>`
   }
 
-  // Build static preview HTML (instant, shown while sandbox boots)
-  const previewHtml = useMemo(() => {
-    setPreviewError(null)
+  // Extract only the content that affects static preview — stable primitive deps
+  // Writing components/button.tsx won't trigger a preview recomputation
+  const previewMainFile = files['src/App.tsx'] || files['src/App.jsx'] || files['app/page.tsx'] || files['app/page.jsx'] || ''
+  const previewIndexHtml = files['index.html'] || ''
+  const previewCss = files['app/globals.css'] || files['src/index.css'] || ''
+  const previewFileCount = Object.keys(files).length
 
+  // Compute preview HTML — only reruns when preview-relevant content actually changes
+  const computedPreviewHtml = useMemo(() => {
     try {
-      if (Object.keys(files).length === 0) {
+      if (previewFileCount === 0) {
         return createEmptyState('No preview available', 'Start building to see a preview')
       }
 
-      if (projectType === 'static' && files['index.html']) {
-        const html = files['index.html']
-        // Inject error capture script after <head> tag
-        const headIdx = html.toLowerCase().indexOf('<head>')
+      if (projectType === 'static' && previewIndexHtml) {
+        const headIdx = previewIndexHtml.toLowerCase().indexOf('<head>')
         if (headIdx !== -1) {
-          return html.slice(0, headIdx + 6) + PREVIEW_ERROR_SCRIPT + html.slice(headIdx + 6)
+          return previewIndexHtml.slice(0, headIdx + 6) + PREVIEW_ERROR_SCRIPT + previewIndexHtml.slice(headIdx + 6)
         }
-        return PREVIEW_ERROR_SCRIPT + html
+        return PREVIEW_ERROR_SCRIPT + previewIndexHtml
       }
 
-      const appFile = files['src/App.tsx'] || files['src/App.jsx'] || files['app/page.tsx'] || files['app/page.jsx']
-      if (!appFile) {
+      if (!previewMainFile) {
         if (projectType === 'nextjs') return createEmptyState('Next.js project', 'Waiting for app/page.tsx...')
         if (projectType === 'vite') return createEmptyState('Vite project', 'Waiting for src/App.tsx...')
         return createEmptyState('Building...', 'Preview will appear when ready')
       }
 
-      const jsxMatch = appFile.match(/return\s*\(\s*([\s\S]*)\s*\)\s*\}?\s*$/m)
+      const jsxMatch = previewMainFile.match(/return\s*\(\s*([\s\S]*)\s*\)\s*\}?\s*$/m)
       let jsx = jsxMatch ? jsxMatch[1] : '<div class="p-8 text-center">Building...</div>'
 
       jsx = jsx
@@ -214,8 +222,7 @@ export function PreviewPanel({ files, projectId, onFixErrors }: PreviewPanelProp
         .replace(/<(\w+)\s*\/>/g, '<$1></$1>')
         .replace(/\{[^}]*\}/g, '')
 
-      const css = files['app/globals.css'] || files['src/index.css'] || ''
-      const hasTailwind = css.includes('tailwindcss') || css.includes('tailwind')
+      const hasTailwind = previewCss.includes('tailwindcss') || previewCss.includes('tailwind')
 
       return `<!DOCTYPE html>
 <html lang="en">
@@ -226,7 +233,7 @@ export function PreviewPanel({ files, projectId, onFixErrors }: PreviewPanelProp
   ${PREVIEW_ERROR_SCRIPT}
   ${hasTailwind ? '<script src="https://cdn.tailwindcss.com"></script>' : ''}
   <style>
-    ${css.replace(/@import\s+"tailwindcss";\s*/g, '').replace(/@import\s+'tailwindcss';\s*/g, '')}
+    ${previewCss.replace(/@import\s+"tailwindcss";\s*/g, '').replace(/@import\s+'tailwindcss';\s*/g, '')}
     body { margin: 0; font-family: system-ui, -apple-system, sans-serif; }
   </style>
 </head>
@@ -236,10 +243,25 @@ export function PreviewPanel({ files, projectId, onFixErrors }: PreviewPanelProp
 </html>`
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Unknown error'
-      setPreviewError(errorMessage)
       return createEmptyState('Preview Error', errorMessage)
     }
-  }, [files, projectType]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [previewFileCount, projectType, previewMainFile, previewIndexHtml, previewCss])
+
+  // Debounced preview — prevents iframe from flickering during rapid AI file writes
+  // The iframe srcDoc only updates after 800ms of stability
+  const [previewHtml, setPreviewHtml] = useState(computedPreviewHtml)
+  const previewDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  useEffect(() => {
+    if (previewDebounceRef.current) clearTimeout(previewDebounceRef.current)
+    previewDebounceRef.current = setTimeout(() => {
+      setPreviewHtml(computedPreviewHtml)
+      setPreviewError(computedPreviewHtml.includes('>Preview Error<') ? 'Preview rendering failed' : null)
+    }, 800)
+    return () => {
+      if (previewDebounceRef.current) clearTimeout(previewDebounceRef.current)
+    }
+  }, [computedPreviewHtml])
 
   // ─── Sandbox lifecycle ─────────────────────────────────────────
 
@@ -422,6 +444,7 @@ export function PreviewPanel({ files, projectId, onFixErrors }: PreviewPanelProp
       if (syncTimeoutRef.current) clearTimeout(syncTimeoutRef.current)
       if (autoStartTimeoutRef.current) clearTimeout(autoStartTimeoutRef.current)
       if (retryTimerRef.current) clearTimeout(retryTimerRef.current)
+      if (previewDebounceRef.current) clearTimeout(previewDebounceRef.current)
       if (projectId && (sandboxStatus === 'running' || startingRef.current)) {
         fetch('/api/sandbox', {
           method: 'DELETE',
@@ -578,6 +601,9 @@ export function PreviewPanel({ files, projectId, onFixErrors }: PreviewPanelProp
             <button
               onClick={() => {
                 setRefreshKey(k => k + 1)
+                // Flush any pending preview debounce immediately
+                if (previewDebounceRef.current) clearTimeout(previewDebounceRef.current)
+                setPreviewHtml(computedPreviewHtml)
                 if (isSandboxActive) addLog('Refreshed', 'system', 'sandbox')
               }}
               className="p-1.5 rounded-md text-forge-text-dim hover:text-forge-text hover:bg-forge-surface transition-colors"
