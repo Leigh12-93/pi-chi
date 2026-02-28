@@ -4,7 +4,7 @@ import { useSession } from '@/components/session-provider'
 import {
   Hammer, FolderOpen, FileText, Github, LogOut,
   Rocket, Upload, Save, GitBranch, Download, FolderInput,
-  Loader2, Check, Search,
+  Loader2, Check, Search, ChevronRight,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
@@ -39,11 +39,16 @@ export function Header({ projectName, onSwitchProject, fileCount, onAction, save
     <header className="h-11 flex items-center justify-between px-2 sm:px-4 border-b border-forge-border bg-forge-panel shrink-0">
       {/* Left: Logo + Project */}
       <div className="flex items-center gap-2 sm:gap-3 min-w-0">
-        <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
+        <button
+          onClick={onSwitchProject}
+          className="flex items-center gap-1.5 sm:gap-2 shrink-0 hover:opacity-80 transition-opacity"
+          aria-label="Back to projects"
+          title="Back to projects"
+        >
           <Hammer className="w-4 h-4 text-forge-accent" />
           <span className="font-bold text-sm text-forge-text hidden sm:inline">Forge</span>
-        </div>
-        <div className="w-px h-4 bg-forge-border hidden sm:block" />
+        </button>
+        <ChevronRight className="w-3 h-3 text-forge-text-dim hidden sm:block" />
         <button
           onClick={onSwitchProject}
           className="flex items-center gap-1 sm:gap-1.5 px-1.5 sm:px-2 py-1 text-xs text-forge-text-dim hover:text-forge-text hover:bg-forge-surface rounded transition-colors min-w-0"
