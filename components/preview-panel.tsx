@@ -4,7 +4,7 @@ import { useMemo, useState, useCallback, useRef, useEffect } from 'react'
 import {
   RefreshCw, Monitor, Smartphone, Tablet, AlertTriangle,
   Square, Loader2, Zap, ExternalLink, Maximize2, Minimize2,
-  Globe, Terminal, X,
+  Globe, Terminal, X, ArrowUpFromLine,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
@@ -50,12 +50,20 @@ export function PreviewPanel({ files, projectId }: PreviewPanelProps) {
   const [sandboxUrl, setSandboxUrl] = useState<string | null>(null)
   const [sandboxError, setSandboxError] = useState<string | null>(null)
   const [cachedSandboxUrl, setCachedSandboxUrl] = useState<string | null>(null)
+  const [isSyncing, setIsSyncing] = useState(false)
   const syncTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const autoStartTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const lastSyncedFilesRef = useRef<string>('')
   const startingRef = useRef(false) // prevent double-starts
   const hasAutoStartedRef = useRef(false) // only auto-start once per session
   const sandboxAvailableRef = useRef<boolean | null>(null) // cached sandbox availability check
+  const abortRef = useRef<AbortController | null>(null) // cancel inflight requests
+  const retryCountRef = useRef(0) // auto-retry counter
+
+  const addLog = useCallback((msg: string) => {
+    const ts = new Date().toLocaleTimeString('en-AU', { hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit' })
+    setConsoleLogs(prev => [...prev.slice(-99), `[${ts}] ${msg}`])
+  }, [])
 
   // Cache sandbox URL when it's live so we can show it after sandbox dies
   useEffect(() => {
@@ -91,18 +99,14 @@ export function PreviewPanel({ files, projectId }: PreviewPanelProps) {
   useEffect(() => {
     if (sandboxStatus !== 'idle') {
       const label = STATUS_LABELS[sandboxStatus]
-      if (label) {
-        setConsoleLogs(prev => [...prev.slice(-49), `[sandbox] ${label}`])
-      }
+      if (label) addLog(`[sandbox] ${label}`)
     }
-  }, [sandboxStatus])
+  }, [sandboxStatus, addLog])
 
   // Log errors to console
   useEffect(() => {
-    if (sandboxError) {
-      setConsoleLogs(prev => [...prev.slice(-49), `[error] ${sandboxError}`])
-    }
-  }, [sandboxError])
+    if (sandboxError) addLog(`[error] ${sandboxError}`)
+  }, [sandboxError, addLog])
 
   // Helper to create empty state HTML
   const createEmptyState = (title: string, subtitle: string) => {
@@ -184,39 +188,77 @@ export function PreviewPanel({ files, projectId }: PreviewPanelProps) {
     if (!projectId || startingRef.current) return
     if (Object.keys(files).length === 0) return
 
+    // Abort any inflight request
+    abortRef.current?.abort()
+    const controller = new AbortController()
+    abortRef.current = controller
+
     startingRef.current = true
     setSandboxStatus('initializing')
     setSandboxError(null)
     setSandboxUrl(null)
+
+    const fileCount = Object.keys(files).length
+    addLog(`[sandbox] Uploading ${fileCount} files...`)
 
     try {
       const res = await fetch('/api/sandbox', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ projectId, files }),
+        signal: controller.signal,
       })
 
       const data = await res.json()
 
+      if (controller.signal.aborted) return
+
       if (!res.ok || !data.ok) {
         setSandboxStatus('error')
-        setSandboxError(data.error || 'Failed to create sandbox')
+        setSandboxError(data.error || `Failed to create sandbox (HTTP ${res.status})`)
+
+        // Auto-retry on transient errors (429, 500, 502, 503) up to 2 times
+        if (retryCountRef.current < 2 && (res.status === 429 || res.status >= 500)) {
+          retryCountRef.current++
+          const delay = res.status === 429
+            ? (parseInt(res.headers.get('Retry-After') || '5', 10) * 1000)
+            : (2000 * retryCountRef.current)
+          addLog(`[sandbox] Retrying in ${delay / 1000}s (attempt ${retryCountRef.current}/2)...`)
+          setTimeout(() => {
+            startingRef.current = false
+            startSandbox()
+          }, delay)
+          return
+        }
         return
       }
 
+      retryCountRef.current = 0 // reset on success
       setSandboxUrl(data.demoUrl)
       setSandboxStatus('running')
       lastSyncedFilesRef.current = JSON.stringify(files)
+
+      const meta = [
+        data.fileCount && `${data.fileCount} files uploaded`,
+        data.skippedCount && `${data.skippedCount} skipped`,
+      ].filter(Boolean).join(', ')
+      if (meta) addLog(`[sandbox] ${meta}`)
     } catch (error) {
+      if (controller.signal.aborted) return
       setSandboxStatus('error')
       setSandboxError(error instanceof Error ? error.message : 'Network error')
     } finally {
-      startingRef.current = false
+      if (!controller.signal.aborted) {
+        startingRef.current = false
+      }
     }
-  }, [projectId, files, projectType])
+  }, [projectId, files, addLog])
 
   const stopSandbox = useCallback(async () => {
     if (!projectId) return
+
+    // Abort any inflight request
+    abortRef.current?.abort()
 
     try {
       await fetch('/api/sandbox', {
@@ -229,8 +271,11 @@ export function PreviewPanel({ files, projectId }: PreviewPanelProps) {
     setSandboxStatus('idle')
     setSandboxUrl(null)
     setSandboxError(null)
+    setIsSyncing(false)
     hasAutoStartedRef.current = false // allow re-auto-start if user manually stops
-  }, [projectId])
+    retryCountRef.current = 0
+    addLog('[sandbox] Stopped')
+  }, [projectId, addLog])
 
   // ─── AUTO-START: launch sandbox when project looks ready ──────
   // Check sandbox availability first, then debounce 3s after files stabilize
@@ -279,6 +324,7 @@ export function PreviewPanel({ files, projectId }: PreviewPanelProps) {
     if (syncTimeoutRef.current) clearTimeout(syncTimeoutRef.current)
 
     syncTimeoutRef.current = setTimeout(async () => {
+      setIsSyncing(true)
       try {
         const res = await fetch('/api/sandbox', {
           method: 'PUT',
@@ -290,18 +336,29 @@ export function PreviewPanel({ files, projectId }: PreviewPanelProps) {
         // Update sandbox URL if sync returned a new one (e.g. from re-init)
         if (data.demoUrl && data.demoUrl !== sandboxUrl) {
           setSandboxUrl(data.demoUrl)
+          addLog('[sync] Preview URL updated')
         }
-      } catch { /* sync failed — will retry on next change */ }
+        if (data.synced > 0) {
+          addLog(`[sync] ${data.synced} files synced`)
+        }
+      } catch {
+        addLog('[sync] Failed — will retry on next change')
+      } finally {
+        setIsSyncing(false)
+      }
     }, 2000)
 
     return () => {
       if (syncTimeoutRef.current) clearTimeout(syncTimeoutRef.current)
     }
-  }, [files, sandboxStatus, projectId])
+  }, [files, sandboxStatus, projectId, sandboxUrl, addLog])
 
   // Cleanup on unmount
   useEffect(() => {
     return () => {
+      abortRef.current?.abort()
+      if (syncTimeoutRef.current) clearTimeout(syncTimeoutRef.current)
+      if (autoStartTimeoutRef.current) clearTimeout(autoStartTimeoutRef.current)
       if (projectId && (sandboxStatus === 'running' || startingRef.current)) {
         fetch('/api/sandbox', {
           method: 'DELETE',
@@ -385,10 +442,13 @@ export function PreviewPanel({ files, projectId }: PreviewPanelProps) {
               showCachedPreview && 'border-gray-300 bg-gray-50/50',
             )}>
               {/* Status indicator */}
-              {isSandboxActive && (
+              {isSandboxActive && !isSyncing && (
                 <div className="shrink-0 flex items-center gap-1 text-green-600">
                   <Zap className="w-3 h-3" />
                 </div>
+              )}
+              {isSandboxActive && isSyncing && (
+                <ArrowUpFromLine className="w-3 h-3 shrink-0 animate-pulse text-blue-500" />
               )}
               {isSandboxLoading && (
                 <Loader2 className="w-3 h-3 shrink-0 animate-spin text-amber-600" />
@@ -417,6 +477,13 @@ export function PreviewPanel({ files, projectId }: PreviewPanelProps) {
                 {displayUrl}
               </span>
 
+              {/* Sync badge */}
+              {isSyncing && isSandboxActive && (
+                <span className="shrink-0 px-1.5 py-0.5 text-[9px] font-medium bg-blue-100 text-blue-600 rounded animate-pulse">
+                  SYNCING
+                </span>
+              )}
+
               {/* Offline badge */}
               {showCachedPreview && (
                 <span className="shrink-0 px-1.5 py-0.5 text-[9px] font-medium bg-gray-200 text-gray-500 rounded">
@@ -430,7 +497,10 @@ export function PreviewPanel({ files, projectId }: PreviewPanelProps) {
           <div className="flex items-center gap-0.5 shrink-0">
             {/* Refresh */}
             <button
-              onClick={() => setRefreshKey(k => k + 1)}
+              onClick={() => {
+                setRefreshKey(k => k + 1)
+                if (isSandboxActive) addLog('[sandbox] Refreshed')
+              }}
               className="p-1.5 rounded-md text-forge-text-dim hover:text-forge-text hover:bg-forge-surface transition-colors"
               title="Refresh preview"
             >
@@ -480,11 +550,9 @@ export function PreviewPanel({ files, projectId }: PreviewPanelProps) {
             {(isSandboxActive || isSandboxLoading) && (
               <button
                 onClick={stopSandbox}
-                disabled={isSandboxLoading}
                 className={cn(
                   'p-1.5 rounded-md transition-colors',
                   'text-red-500 hover:text-red-700 hover:bg-red-50',
-                  isSandboxLoading && 'opacity-50 cursor-not-allowed',
                 )}
                 title="Stop sandbox"
               >
@@ -531,7 +599,7 @@ export function PreviewPanel({ files, projectId }: PreviewPanelProps) {
                     <p className="text-[10px] text-forge-text-dim mt-0.5">Showing cached preview</p>
                   </div>
                   <button
-                    onClick={() => { hasAutoStartedRef.current = false; sandboxAvailableRef.current = null; startSandbox() }}
+                    onClick={() => { hasAutoStartedRef.current = false; sandboxAvailableRef.current = null; retryCountRef.current = 0; startSandbox() }}
                     className="px-3 py-1.5 text-[11px] font-medium bg-forge-accent text-white rounded-lg hover:bg-forge-accent-hover transition-colors"
                   >
                     Restart Sandbox
@@ -546,7 +614,12 @@ export function PreviewPanel({ files, projectId }: PreviewPanelProps) {
             <div className="absolute top-3 left-1/2 -translate-x-1/2 z-10 animate-fade-in">
               <div className="flex items-center gap-2 px-3 py-1.5 bg-white/90 backdrop-blur border border-amber-200 rounded-full shadow-sm">
                 <Loader2 className="w-3.5 h-3.5 animate-spin text-amber-600" />
-                <span className="text-xs font-medium text-amber-800">{STATUS_LABELS[sandboxStatus]}</span>
+                <span className="text-xs font-medium text-amber-800">
+                  {STATUS_LABELS[sandboxStatus]}
+                  {Object.keys(files).length > 0 && (
+                    <span className="text-amber-500 ml-1">({Object.keys(files).length} files)</span>
+                  )}
+                </span>
               </div>
             </div>
           )}
@@ -562,7 +635,7 @@ export function PreviewPanel({ files, projectId }: PreviewPanelProps) {
                 </div>
                 <div className="flex gap-1 shrink-0">
                   <button
-                    onClick={() => { hasAutoStartedRef.current = false; sandboxAvailableRef.current = null; startSandbox() }}
+                    onClick={() => { hasAutoStartedRef.current = false; sandboxAvailableRef.current = null; retryCountRef.current = 0; startSandbox() }}
                     className="px-2 py-1 bg-red-600 text-white text-[10px] rounded hover:bg-red-700 transition-colors"
                   >
                     Retry
@@ -626,7 +699,10 @@ export function PreviewPanel({ files, projectId }: PreviewPanelProps) {
               consoleLogs.map((log, i) => (
                 <div key={i} className={cn(
                   'py-0.5 px-1 rounded',
-                  log.startsWith('[error]') ? 'text-red-400' : 'text-gray-300',
+                  log.includes('[error]') ? 'text-red-400'
+                    : log.includes('[sync]') ? 'text-blue-400'
+                    : log.includes('[sandbox]') ? 'text-green-400'
+                    : 'text-gray-300',
                 )}>
                   {log}
                 </div>
