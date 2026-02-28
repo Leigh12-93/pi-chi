@@ -227,6 +227,11 @@ function extractFileUpdates(
     case 'edit_file':
       if (inv.state === 'result' && inv.result && !('error' in inv.result)) {
         const path = args.path as string
+        // Prefer authoritative content from server (solves chained edit race condition)
+        if (typeof inv.result.content === 'string') {
+          return { updates: { [path]: inv.result.content } }
+        }
+        // Fallback: re-apply locally (old behavior, for backwards compat)
         const oldStr = args.old_string as string
         const newStr = args.new_string as string
         const current = currentFiles[path]
@@ -359,6 +364,12 @@ export function ChatPanel({ projectName, projectId, files, onFileChange, onFileD
           (processAtResult && inv.state === 'result')
 
         if (!shouldProcess) continue
+
+        // Skip if the tool result is an error (e.g. write_file to invalid path)
+        if (inv.state === 'result' && inv.result && typeof inv.result === 'object' && 'error' in inv.result) {
+          processedInvs.current.add(key)
+          continue
+        }
 
         const changes = extractFileUpdates(inv, localFiles.current)
         if (!changes) continue
@@ -540,7 +551,7 @@ export function ChatPanel({ projectName, projectId, files, onFileChange, onFileD
                         if (part.type === 'tool-invocation' && part.toolInvocation) {
                           const inv = part.toolInvocation
                           const info = TOOL_LABELS[inv.toolName] || { label: inv.toolName.replace(/_/g, ' '), Icon: Terminal, color: 'gray' }
-                          const isRunning = inv.state === 'call' || inv.state === 'partial-call'
+                          const isRunning = inv.state !== 'result'
                           const hasError = inv.result && typeof inv.result === 'object' && 'error' in inv.result
                           const summary = getToolSummary(inv.toolName, inv.args || {}, inv.result)
 

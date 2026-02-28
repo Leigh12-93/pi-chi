@@ -832,7 +832,7 @@ export async function POST(req: Request) {
             }
             const updated = content.replace(old_string, new_string)
             vfs.write(path, updated)
-            return { ok: true, path, lines: updated.split('\n').length }
+            return { ok: true, path, lines: updated.split('\n').length, content: updated }
           }
 
           // ── Helper: strip each line's indent and collapse runs ───
@@ -886,7 +886,7 @@ export async function POST(req: Request) {
             const after = fileRawLines.slice(bestMatch.end).join('\n')
             const updated = [before, new_string, after].filter(s => s !== '').join('\n')
             vfs.write(path, updated)
-            return { ok: true, path, lines: updated.split('\n').length, note: 'Matched with indent-insensitive fuzzy matching' }
+            return { ok: true, path, lines: updated.split('\n').length, content: updated, note: 'Matched with indent-insensitive fuzzy matching' }
           }
 
           // ── Pass 3: Single-line whitespace-normalized match ──────
@@ -901,9 +901,10 @@ export async function POST(req: Request) {
                   return { error: `Found ${matches} fuzzy matches for this single line. Provide more context lines to make it unique.` }
                 }
                 const updated = [...fileRawLines]
-                updated[i] = new_string.includes('\n') ? new_string : new_string
-                vfs.write(path, updated.join('\n'))
-                return { ok: true, path, lines: updated.length, note: 'Matched single line with whitespace normalization' }
+                updated[i] = new_string
+                const joined = updated.join('\n')
+                vfs.write(path, joined)
+                return { ok: true, path, lines: updated.length, content: joined, note: 'Matched single line with whitespace normalization' }
               }
             }
           }
@@ -935,7 +936,7 @@ export async function POST(req: Request) {
                   const after = fileRawLines.slice(endIdx + 1).join('\n')
                   const updated = [before, new_string, after].filter(s => s !== '').join('\n')
                   vfs.write(path, updated)
-                  return { ok: true, path, lines: updated.split('\n').length, note: 'Matched via subsequence (anchor lines found in order)' }
+                  return { ok: true, path, lines: updated.split('\n').length, content: updated, note: 'Matched via subsequence (anchor lines found in order)' }
                 }
                 break // only try first matching end
               }
