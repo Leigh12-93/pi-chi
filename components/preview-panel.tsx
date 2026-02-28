@@ -4,7 +4,7 @@ import { useMemo, useState, useCallback, useRef, useEffect } from 'react'
 import {
   RefreshCw, Monitor, Smartphone, Tablet, AlertTriangle,
   Square, Loader2, Zap, ExternalLink, Maximize2, Minimize2,
-  Globe, Terminal, X, ArrowUpFromLine,
+  Globe, Terminal, X, ArrowUpFromLine, Play,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
@@ -200,7 +200,7 @@ export function PreviewPanel({ files, projectId }: PreviewPanelProps) {
       setPreviewError(errorMessage)
       return createEmptyState('Preview Error', errorMessage)
     }
-  }, [files, refreshKey, projectType])
+  }, [files, projectType]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // ─── Sandbox lifecycle ─────────────────────────────────────────
 
@@ -590,9 +590,8 @@ export function PreviewPanel({ files, projectId }: PreviewPanelProps) {
       {/* ─── Preview Body ──────────────────────────────────────── */}
       <div className="flex-1 overflow-hidden bg-white relative">
         <div className={cn('h-full transition-all', widthClasses[viewMode])}>
-          {/* Static preview iframe — always present as base layer */}
+          {/* Static preview iframe — always present as base layer, srcDoc updates reactively */}
           <iframe
-            key={`static-${refreshKey}`}
             srcDoc={previewHtml}
             className={cn(
               'w-full h-full border-0 absolute inset-0 transition-opacity duration-300',
@@ -633,64 +632,77 @@ export function PreviewPanel({ files, projectId }: PreviewPanelProps) {
             </div>
           )}
 
-          {/* Building animation — full-area overlay while sandbox initializes */}
+          {/* Building animation — shows a miniature page being painted */}
           {isSandboxLoading && (
             <div className="forge-building-scene animate-fade-in">
-              {/* Blueprint grid */}
-              <div className="forge-grid" />
-
-              {/* Ambient glow */}
+              <div className="forge-dots" />
               <div className="forge-glow" />
 
-              {/* Scaffold lines rising from bottom */}
-              <div className="forge-scaffold-line" style={{ left: '10%', ['--height' as string]: '70%', ['--delay' as string]: '0.2s', ['--duration' as string]: '2.5s' } as React.CSSProperties} />
-              <div className="forge-scaffold-line" style={{ left: '12%', ['--height' as string]: '55%', ['--delay' as string]: '0.5s', ['--duration' as string]: '2s' } as React.CSSProperties} />
-              <div className="forge-scaffold-line" style={{ right: '10%', ['--height' as string]: '65%', ['--delay' as string]: '0.3s', ['--duration' as string]: '2.2s' } as React.CSSProperties} />
-              <div className="forge-scaffold-line" style={{ right: '12%', ['--height' as string]: '50%', ['--delay' as string]: '0.6s', ['--duration' as string]: '1.8s' } as React.CSSProperties} />
+              {/* Mini browser frame */}
+              <div className="forge-browser">
+                {/* Browser title bar */}
+                <div className="forge-browser-bar">
+                  <div className="forge-traffic-dot" style={{ background: '#ff5f57' }} />
+                  <div className="forge-traffic-dot" style={{ background: '#ffbd2e' }} />
+                  <div className="forge-traffic-dot" style={{ background: '#28c840' }} />
+                  <div className="forge-browser-url" />
+                </div>
 
-              {/* Cross-braces */}
-              <div className="forge-scaffold-brace" style={{ left: '9%', bottom: '35%', ['--delay' as string]: '1.2s', ['--angle' as string]: '45deg' } as React.CSSProperties} />
-              <div className="forge-scaffold-brace" style={{ left: '9%', bottom: '25%', ['--delay' as string]: '1.5s', ['--angle' as string]: '-45deg' } as React.CSSProperties} />
-              <div className="forge-scaffold-brace" style={{ right: '9%', bottom: '30%', ['--delay' as string]: '1.3s', ['--angle' as string]: '-45deg' } as React.CSSProperties} />
-              <div className="forge-scaffold-brace" style={{ right: '9%', bottom: '20%', ['--delay' as string]: '1.6s', ['--angle' as string]: '45deg' } as React.CSSProperties} />
+                {/* Navbar — paints in first */}
+                <div className="forge-ui-row" style={{ ['--delay' as string]: '0.4s' } as React.CSSProperties}>
+                  <div className="forge-navbar">
+                    <div className="forge-nav-logo" />
+                    <div className="forge-nav-links">
+                      <div className="forge-nav-link" style={{ ['--w' as string]: '28px' } as React.CSSProperties} />
+                      <div className="forge-nav-link" style={{ ['--w' as string]: '32px' } as React.CSSProperties} />
+                      <div className="forge-nav-link" style={{ ['--w' as string]: '24px' } as React.CSSProperties} />
+                    </div>
+                  </div>
+                </div>
 
-              {/* Crane */}
-              <div className="forge-crane">
-                <div className="forge-crane-hook" />
+                {/* Hero section */}
+                <div className="forge-ui-row" style={{ ['--delay' as string]: '0.9s', ['--duration' as string]: '0.6s' } as React.CSSProperties}>
+                  <div className="forge-hero">
+                    <div className="forge-hero-title" />
+                    <div className="forge-hero-sub" />
+                    <div className="forge-hero-sub" style={{ width: '60%' }} />
+                    <div className="forge-hero-btn" />
+                  </div>
+                </div>
+
+                {/* Card grid */}
+                <div className="forge-ui-row" style={{ ['--delay' as string]: '1.6s', ['--duration' as string]: '0.5s' } as React.CSSProperties}>
+                  <div className="forge-cards">
+                    {[
+                      { color: '#eef2ff', delay: '1.8s' },
+                      { color: '#f0fdf4', delay: '2.0s' },
+                      { color: '#fef3c7', delay: '2.2s' },
+                    ].map((card, i) => (
+                      <div key={i} className="forge-card" style={{ ['--delay' as string]: card.delay } as React.CSSProperties}>
+                        <div className="forge-card-icon" style={{ background: card.color }} />
+                        <div className="forge-card-line" style={{ width: '80%' }} />
+                        <div className="forge-card-line" style={{ width: '55%' }} />
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Typing cursor */}
+                <div className="forge-cursor" />
               </div>
 
-              {/* Assembling code blocks — staggered from bottom to top */}
-              <div className="forge-block" style={{ left: '20%', top: '55%', width: '120px', height: '28px', ['--delay' as string]: '0.3s', ['--duration' as string]: '2.5s', ['--rot' as string]: '-3deg' } as React.CSSProperties} />
-              <div className="forge-block" style={{ left: '25%', top: '45%', width: '160px', height: '32px', ['--delay' as string]: '0.8s', ['--duration' as string]: '2.8s', ['--rot' as string]: '2deg' } as React.CSSProperties} />
-              <div className="forge-block" style={{ left: '22%', top: '36%', width: '140px', height: '24px', ['--delay' as string]: '1.3s', ['--duration' as string]: '2.6s', ['--rot' as string]: '-1deg' } as React.CSSProperties} />
-              <div className="forge-block" style={{ right: '20%', top: '50%', width: '100px', height: '36px', ['--delay' as string]: '0.6s', ['--duration' as string]: '2.7s', ['--rot' as string]: '3deg' } as React.CSSProperties} />
-              <div className="forge-block" style={{ right: '22%', top: '38%', width: '130px', height: '28px', ['--delay' as string]: '1.1s', ['--duration' as string]: '2.5s', ['--rot' as string]: '-2deg' } as React.CSSProperties} />
-              <div className="forge-block" style={{ left: '35%', top: '28%', width: '180px', height: '30px', ['--delay' as string]: '1.6s', ['--duration' as string]: '3s', ['--rot' as string]: '1deg' } as React.CSSProperties} />
-
-              {/* Connector lines between blocks */}
-              <div className="forge-connector" style={{ left: '28%', top: '52%', width: '80px', ['--delay' as string]: '2s' } as React.CSSProperties} />
-              <div className="forge-connector" style={{ right: '25%', top: '46%', width: '60px', ['--delay' as string]: '2.3s' } as React.CSSProperties} />
-              <div className="forge-connector" style={{ left: '35%', top: '34%', width: '100px', ['--delay' as string]: '2.6s' } as React.CSSProperties} />
-
-              {/* Sparkle particles */}
-              <div className="forge-particle" style={{ left: '30%', top: '50%', ['--delay' as string]: '1s', ['--duration' as string]: '2.5s' } as React.CSSProperties} />
-              <div className="forge-particle" style={{ left: '55%', top: '40%', ['--delay' as string]: '1.8s', ['--duration' as string]: '3s' } as React.CSSProperties} />
-              <div className="forge-particle" style={{ right: '30%', top: '45%', ['--delay' as string]: '2.2s', ['--duration' as string]: '2.8s' } as React.CSSProperties} />
-              <div className="forge-particle" style={{ left: '45%', top: '55%', ['--delay' as string]: '0.5s', ['--duration' as string]: '2.2s' } as React.CSSProperties} />
-              <div className="forge-particle" style={{ right: '40%', top: '35%', ['--delay' as string]: '3s', ['--duration' as string]: '2.6s' } as React.CSSProperties} />
-
-              {/* Central status */}
+              {/* Status below browser */}
               <div className="forge-build-status">
                 <div className="forge-build-dots">
                   <span />
                   <span />
                   <span />
                 </div>
-                <span className="text-xs font-medium text-indigo-500/80 tracking-wide">
-                  Building preview
+                <span className="text-xs font-medium text-indigo-500/70 tracking-wide">
+                  Building your preview
                 </span>
                 {Object.keys(files).length > 0 && (
-                  <span className="text-[10px] text-indigo-400/60">
+                  <span className="text-[10px] text-indigo-400/50">
                     {Object.keys(files).length} files
                   </span>
                 )}
@@ -699,6 +711,24 @@ export function PreviewPanel({ files, projectId }: PreviewPanelProps) {
               {/* Progress track */}
               <div className="forge-progress-track">
                 <div className="forge-progress-bar" />
+              </div>
+            </div>
+          )}
+
+          {/* Start Preview button — shown when sandbox is idle and project looks ready */}
+          {sandboxStatus === 'idle' && !showCachedPreview && isProjectReady(files) && (
+            <div className="absolute inset-0 z-10 flex items-center justify-center">
+              <div className="flex flex-col items-center gap-3 animate-fade-in">
+                <button
+                  onClick={() => { hasAutoStartedRef.current = false; sandboxAvailableRef.current = null; retryCountRef.current = 0; startSandbox() }}
+                  className="group flex items-center gap-2 px-5 py-2.5 bg-forge-accent text-white text-sm font-medium rounded-xl hover:bg-forge-accent-hover transition-all shadow-md hover:shadow-lg hover:scale-[1.02] active:scale-[0.98]"
+                >
+                  <Play className="w-4 h-4 transition-transform group-hover:scale-110" />
+                  Start Live Preview
+                </button>
+                <span className="text-[10px] text-forge-text-dim">
+                  Opens a full sandbox with {Object.keys(files).length} files
+                </span>
               </div>
             </div>
           )}

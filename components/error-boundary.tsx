@@ -42,16 +42,21 @@ export class ErrorBoundary extends React.Component<
                 {this.state.error.message}
               </pre>
             )}
-            <button
-              onClick={() => {
-                this.setState({ hasError: false, error: null })
-                window.location.reload()
-              }}
-              className="inline-flex items-center gap-2 px-4 py-2.5 bg-forge-accent text-white text-sm font-medium rounded-xl hover:bg-forge-accent-hover transition-colors shadow-sm"
-            >
-              <RefreshCw className="w-4 h-4" />
-              Reload
-            </button>
+            <div className="flex items-center gap-3">
+              <button
+                onClick={() => this.setState({ hasError: false, error: null })}
+                className="inline-flex items-center gap-2 px-4 py-2.5 bg-forge-accent text-white text-sm font-medium rounded-xl hover:bg-forge-accent-hover transition-colors shadow-sm"
+              >
+                Try to Recover
+              </button>
+              <button
+                onClick={() => window.location.reload()}
+                className="inline-flex items-center gap-2 px-4 py-2.5 bg-forge-surface text-forge-text text-sm font-medium rounded-xl border border-forge-border hover:bg-forge-panel transition-colors"
+              >
+                <RefreshCw className="w-4 h-4" />
+                Full Reload
+              </button>
+            </div>
           </div>
         </div>
       )

@@ -296,6 +296,7 @@ export function ChatPanel({ projectName, projectId, files, onFileChange, onFileD
   const [input, setInput] = useState('')
   const [copiedId, setCopiedId] = useState<string | null>(null)
   const [historyLoaded, setHistoryLoaded] = useState(false)
+  const [loadingHistory, setLoadingHistory] = useState(false)
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLTextAreaElement>(null)
   const processedInvs = useRef(new Set<string>())
@@ -315,6 +316,7 @@ export function ChatPanel({ projectName, projectId, files, onFileChange, onFileD
   useEffect(() => {
     if (!projectId || historyLoaded) return
     setHistoryLoaded(true)
+    setLoadingHistory(true)
 
     fetch(`/api/projects/${projectId}/messages`)
       .then(res => res.json())
@@ -329,6 +331,7 @@ export function ChatPanel({ projectName, projectId, files, onFileChange, onFileD
         }
       })
       .catch(() => {})
+      .finally(() => setLoadingHistory(false))
   }, [projectId, historyLoaded, setMessages])
 
   // Live file extraction — works with both parts[] and legacy toolInvocations[]
@@ -460,7 +463,23 @@ export function ChatPanel({ projectName, projectId, files, onFileChange, onFileD
 
       {/* Messages */}
       <div className="flex-1 overflow-y-auto">
-        {isEmpty ? (
+        {loadingHistory ? (
+          <div className="px-3 py-3 space-y-3 animate-fade-in">
+            {/* Skeleton loading messages */}
+            {[1, 2, 3].map(i => (
+              <div key={i} className={cn('flex', i % 2 === 0 ? 'justify-end' : 'justify-start')}>
+                <div className={cn(
+                  'rounded-2xl p-3 space-y-2',
+                  i % 2 === 0 ? 'bg-forge-accent/10 w-2/3' : 'bg-forge-surface w-3/4',
+                )}>
+                  <div className="h-3 rounded animate-skeleton w-full" />
+                  <div className="h-3 rounded animate-skeleton w-4/5" />
+                  {i % 2 !== 0 && <div className="h-3 rounded animate-skeleton w-3/5" />}
+                </div>
+              </div>
+            ))}
+          </div>
+        ) : isEmpty ? (
           <div className="flex flex-col items-center justify-center h-full px-6">
             <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-forge-accent/20 to-purple-500/20 flex items-center justify-center mb-5 shadow-sm">
               <Sparkles className="w-7 h-7 text-forge-accent" />

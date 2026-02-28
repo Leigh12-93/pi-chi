@@ -83,14 +83,23 @@ export function Workspace({
   const chatSendRef = useRef<((message: string) => void) | null>(null)
 
   const fileTree = useMemo(() => buildTreeFromMap(files), [files])
-  const prevFileCount = useRef(0)
+  const prevFileKeysRef = useRef<Set<string>>(new Set())
 
-  // Auto-select first meaningful file when project is scaffolded
+  // Track file changes — auto-select first file, notify on new files from AI
   useEffect(() => {
     const fileKeys = Object.keys(files)
-    const wasEmpty = prevFileCount.current === 0
-    prevFileCount.current = fileKeys.length
+    const currentSet = new Set(fileKeys)
+    const prevSet = prevFileKeysRef.current
+    const wasEmpty = prevSet.size === 0
 
+    // Find newly added files
+    const newFiles = fileKeys.filter(f => !prevSet.has(f))
+    // Find deleted files
+    const deletedFiles = [...prevSet].filter(f => !currentSet.has(f))
+
+    prevFileKeysRef.current = currentSet
+
+    // Auto-select first meaningful file when project is first scaffolded
     if (wasEmpty && fileKeys.length > 0 && !activeFile) {
       const mainFile = fileKeys.find(f => f === 'app/page.tsx')
         || fileKeys.find(f => f === 'src/App.tsx')
@@ -101,6 +110,24 @@ export function Workspace({
         onFileSelect(mainFile)
         setOpenFiles([mainFile])
       }
+    }
+
+    // Toast for new files (skip initial scaffold — too noisy)
+    if (!wasEmpty && newFiles.length > 0 && newFiles.length <= 5) {
+      toast.success(`${newFiles.length} file${newFiles.length > 1 ? 's' : ''} created`, {
+        description: newFiles.map(f => f.split('/').pop()).join(', '),
+        duration: 2500,
+      })
+    } else if (!wasEmpty && newFiles.length > 5) {
+      toast.success(`${newFiles.length} files created`, { duration: 2500 })
+    }
+
+    // Toast for deleted files
+    if (deletedFiles.length > 0 && deletedFiles.length <= 3) {
+      toast(`${deletedFiles.length} file${deletedFiles.length > 1 ? 's' : ''} deleted`, {
+        description: deletedFiles.map(f => f.split('/').pop()).join(', '),
+        duration: 2500,
+      })
     }
   }, [files, activeFile, onFileSelect])
 
@@ -239,7 +266,7 @@ export function Workspace({
     { id: 'toggle-sidebar', label: 'Toggle File Sidebar', description: 'Show or hide the file tree', shortcut: 'Ctrl+B', icon: SidebarOpen, category: 'view' as const, action: () => setShowSidebar(prev => !prev) },
     { id: 'close-file', label: 'Close Current File', shortcut: 'Ctrl+W', icon: Code2, category: 'view' as const, action: () => { if (activeFile) handleCloseFile(activeFile) } },
     { id: 'switch-project', label: 'Switch Project', description: 'Go back to project picker', icon: FolderTree, category: 'navigation' as const, action: onSwitchProject },
-  ], [handleSave, handleDownload, activeFile, onSwitchProject])
+  ], [handleSave, handleDownload, activeFile, onSwitchProject]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const chatPanel = (
     <ChatPanel
@@ -267,21 +294,27 @@ export function Workspace({
   )
 
   const fileTabBar = (openFilesList: string[]) => (
-    <div className="flex items-center overflow-x-auto">
+    <div className="flex items-center overflow-x-auto gap-0.5">
       {openFilesList.map(f => {
         const name = f.split('/').pop() || f
+        const isActive = activeFile === f
         return (
           <div
             key={f}
-            className={`flex items-center gap-1 px-2 py-1 text-xs rounded cursor-pointer transition-colors whitespace-nowrap ${
-              activeFile === f ? 'bg-forge-surface text-forge-text' : 'text-forge-text-dim hover:text-forge-text'
-            }`}
+            className={cn(
+              'flex items-center gap-1 px-2.5 py-1.5 text-xs rounded-md cursor-pointer transition-all whitespace-nowrap border',
+              isActive
+                ? 'bg-forge-surface text-forge-text border-forge-border shadow-sm'
+                : 'text-forge-text-dim hover:text-forge-text border-transparent hover:bg-forge-surface/50',
+            )}
             onClick={() => onFileSelect(f)}
           >
             <span>{name}</span>
             <button
               onClick={(e) => { e.stopPropagation(); handleCloseFile(f) }}
-              className="ml-1 hover:text-forge-danger text-[10px]"
+              className="ml-0.5 opacity-0 group-hover:opacity-100 hover:text-forge-danger text-[10px] transition-opacity"
+              style={{ opacity: isActive ? 0.6 : undefined }}
+              aria-label={`Close ${name}`}
             >
               ×
             </button>

@@ -110,158 +110,258 @@
 }
 
 /* ─── Forge Building Animation ─────────────────────────────────── */
+/* Shows a miniature webpage being "painted" — navbar, hero, cards materialize */
 
 .forge-building-scene {
   position: absolute;
   inset: 0;
-  background: linear-gradient(180deg, #f8fafc 0%, #eef2ff 40%, #e0e7ff 100%);
+  background: #f8fafc;
   overflow: hidden;
+  z-index: 5;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+}
+
+/* Subtle dot pattern background */
+.forge-dots {
+  position: absolute;
+  inset: 0;
+  background-image: radial-gradient(circle, rgba(99,102,241,0.07) 1px, transparent 1px);
+  background-size: 20px 20px;
+}
+
+/* Ambient glow behind the browser frame */
+.forge-glow {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 340px;
+  height: 260px;
+  border-radius: 50%;
+  background: radial-gradient(ellipse, rgba(99,102,241,0.1) 0%, rgba(139,92,246,0.05) 40%, transparent 70%);
+  animation: glowPulse 4s ease-in-out infinite;
+  filter: blur(20px);
+}
+
+@keyframes glowPulse {
+  0%, 100% { opacity: 0.6; transform: translate(-50%, -50%) scale(0.9); }
+  50% { opacity: 1; transform: translate(-50%, -50%) scale(1.1); }
+}
+
+/* Mini browser frame */
+.forge-browser {
+  position: relative;
+  width: min(80%, 360px);
+  border-radius: 12px;
+  background: white;
+  border: 1px solid #e2e8f0;
+  box-shadow: 0 4px 24px rgba(0,0,0,0.06), 0 1px 3px rgba(0,0,0,0.04);
+  overflow: hidden;
+  animation: browserAppear 0.6s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  opacity: 0;
+}
+
+@keyframes browserAppear {
+  0% { opacity: 0; transform: translateY(20px) scale(0.95); }
+  100% { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+/* Browser title bar with traffic lights */
+.forge-browser-bar {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 12px;
+  background: #f8fafc;
+  border-bottom: 1px solid #e2e8f0;
+}
+
+.forge-traffic-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+}
+
+.forge-browser-url {
+  flex: 1;
+  margin-left: 8px;
+  height: 18px;
+  border-radius: 4px;
+  background: #f1f5f9;
+  position: relative;
+  overflow: hidden;
+}
+
+.forge-browser-url::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(90deg, transparent 0%, rgba(99,102,241,0.08) 50%, transparent 100%);
+  background-size: 200% 100%;
+  animation: shimmer 2s ease-in-out infinite;
+}
+
+@keyframes shimmerUrl {
+  0% { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+
+/* UI component rows that paint in from top to bottom */
+.forge-ui-row {
+  padding: 0 12px;
+  opacity: 0;
+  animation: paintIn var(--duration, 0.5s) var(--delay, 0s) cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+@keyframes paintIn {
+  0% {
+    opacity: 0;
+    transform: translateY(6px);
+    filter: blur(2px);
+  }
+  60% {
+    opacity: 1;
+    filter: blur(0);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0);
+    filter: blur(0);
+  }
+}
+
+/* Navbar skeleton */
+.forge-navbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 12px;
+  border-bottom: 1px solid #f1f5f9;
+}
+
+.forge-nav-logo {
+  width: 50px;
+  height: 10px;
+  border-radius: 3px;
+  background: linear-gradient(90deg, var(--color-forge-accent), #818cf8);
+  opacity: 0.7;
+}
+
+.forge-nav-links {
+  display: flex;
+  gap: 10px;
+}
+
+.forge-nav-link {
+  width: var(--w, 28px);
+  height: 6px;
+  border-radius: 3px;
+  background: #e2e8f0;
+}
+
+/* Hero section skeleton */
+.forge-hero {
+  padding: 16px 12px 12px;
+  text-align: center;
+}
+
+.forge-hero-title {
+  width: 65%;
+  height: 12px;
+  border-radius: 4px;
+  background: #1e293b;
+  opacity: 0.15;
+  margin: 0 auto 8px;
+}
+
+.forge-hero-sub {
+  width: 80%;
+  height: 6px;
+  border-radius: 3px;
+  background: #94a3b8;
+  opacity: 0.3;
+  margin: 0 auto 6px;
+}
+
+.forge-hero-btn {
+  display: inline-block;
+  width: 64px;
+  height: 20px;
+  border-radius: 6px;
+  background: linear-gradient(135deg, var(--color-forge-accent), #818cf8);
+  opacity: 0.8;
+  margin-top: 8px;
+  animation: btnPulse 2s ease-in-out infinite;
+}
+
+@keyframes btnPulse {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(99,102,241,0.3); }
+  50% { box-shadow: 0 0 0 6px rgba(99,102,241,0); }
+}
+
+/* Card grid skeleton */
+.forge-cards {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+  padding: 8px 12px 12px;
+}
+
+.forge-card {
+  border-radius: 8px;
+  border: 1px solid #f1f5f9;
+  padding: 8px;
+  background: #fafbfc;
+  opacity: 0;
+  animation: cardSlide 0.4s var(--delay, 0s) cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+@keyframes cardSlide {
+  0% { opacity: 0; transform: translateY(8px) scale(0.95); }
+  100% { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+.forge-card-icon {
+  width: 20px;
+  height: 20px;
+  border-radius: 5px;
+  margin-bottom: 6px;
+}
+
+.forge-card-line {
+  height: 4px;
+  border-radius: 2px;
+  background: #e2e8f0;
+  margin-bottom: 4px;
+}
+
+/* Typing cursor that moves across the page */
+.forge-cursor {
+  position: absolute;
+  width: 2px;
+  height: 14px;
+  background: var(--color-forge-accent);
+  border-radius: 1px;
+  opacity: 0;
+  animation: cursorBlink 1s step-end infinite, cursorMove 6s ease-in-out infinite;
   z-index: 5;
 }
 
-/* Blueprint grid background */
-.forge-grid {
-  position: absolute;
-  inset: 0;
-  background-image:
-    linear-gradient(rgba(99,102,241,0.06) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(99,102,241,0.06) 1px, transparent 1px);
-  background-size: 24px 24px;
-  animation: gridPan 20s linear infinite;
+@keyframes cursorBlink {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0; }
 }
 
-@keyframes gridPan {
-  0% { background-position: 0 0; }
-  100% { background-position: 24px 24px; }
-}
-
-/* Floating code blocks that drift up and assemble */
-.forge-block {
-  position: absolute;
-  border-radius: 6px;
-  background: white;
-  border: 1px solid rgba(99,102,241,0.15);
-  box-shadow: 0 1px 3px rgba(99,102,241,0.08);
-  opacity: 0;
-  animation: blockAssemble var(--duration, 3s) var(--delay, 0s) cubic-bezier(0.16, 1, 0.3, 1) forwards;
-}
-
-.forge-block::before {
-  content: '';
-  position: absolute;
-  inset: 4px;
-  border-radius: 3px;
-  background: repeating-linear-gradient(
-    0deg,
-    transparent,
-    transparent 5px,
-    rgba(99,102,241,0.04) 5px,
-    rgba(99,102,241,0.04) 6px
-  );
-}
-
-@keyframes blockAssemble {
-  0% {
-    opacity: 0;
-    transform: translateY(40px) scale(0.8) rotate(var(--rot, -2deg));
-  }
-  40% {
-    opacity: 1;
-    transform: translateY(-5px) scale(1.02) rotate(0deg);
-  }
-  60% {
-    transform: translateY(2px) scale(0.99) rotate(0deg);
-  }
-  100% {
-    opacity: 1;
-    transform: translateY(0) scale(1) rotate(0deg);
-  }
-}
-
-/* Glowing connector lines between blocks */
-.forge-connector {
-  position: absolute;
-  height: 1px;
-  background: linear-gradient(90deg, transparent 0%, rgba(99,102,241,0.3) 50%, transparent 100%);
-  opacity: 0;
-  animation: connectorDraw 0.8s var(--delay, 1.5s) ease-out forwards;
-  transform-origin: left center;
-}
-
-@keyframes connectorDraw {
-  0% {
-    opacity: 0;
-    transform: scaleX(0);
-  }
-  100% {
-    opacity: 1;
-    transform: scaleX(1);
-  }
-}
-
-/* Particle sparkles */
-.forge-particle {
-  position: absolute;
-  width: 3px;
-  height: 3px;
-  border-radius: 50%;
-  background: var(--color-forge-accent);
-  opacity: 0;
-  animation: particleFloat var(--duration, 2.5s) var(--delay, 0s) ease-out infinite;
-}
-
-@keyframes particleFloat {
-  0% {
-    opacity: 0;
-    transform: translateY(0) scale(0);
-  }
-  15% {
-    opacity: 0.8;
-    transform: translateY(-8px) scale(1);
-  }
-  100% {
-    opacity: 0;
-    transform: translateY(-50px) scale(0.3);
-  }
-}
-
-/* Crane arm swinging */
-.forge-crane {
-  position: absolute;
-  top: 8%;
-  right: 15%;
-  width: 2px;
-  height: 60px;
-  background: rgba(99,102,241,0.2);
-  transform-origin: top center;
-  animation: craneSwing 4s ease-in-out infinite;
-}
-
-.forge-crane::after {
-  content: '';
-  position: absolute;
-  top: 0;
-  left: -20px;
-  width: 42px;
-  height: 2px;
-  background: rgba(99,102,241,0.2);
-}
-
-.forge-crane-hook {
-  position: absolute;
-  bottom: -4px;
-  left: 50%;
-  transform: translateX(-50%);
-  width: 6px;
-  height: 6px;
-  border: 1.5px solid rgba(99,102,241,0.3);
-  border-top: none;
-  border-radius: 0 0 3px 3px;
-}
-
-@keyframes craneSwing {
-  0%, 100% { transform: rotate(-8deg); }
-  50% { transform: rotate(8deg); }
+@keyframes cursorMove {
+  0% { top: 25%; left: 30%; }
+  20% { top: 25%; left: 60%; }
+  40% { top: 40%; left: 40%; }
+  60% { top: 55%; left: 35%; }
+  80% { top: 55%; left: 65%; }
+  100% { top: 25%; left: 30%; }
 }
 
 /* Progress bar at bottom */
@@ -271,12 +371,12 @@
   left: 0;
   right: 0;
   height: 3px;
-  background: rgba(99,102,241,0.08);
+  background: rgba(99,102,241,0.06);
 }
 
 .forge-progress-bar {
   height: 100%;
-  background: linear-gradient(90deg, var(--color-forge-accent), #818cf8);
+  background: linear-gradient(90deg, var(--color-forge-accent), #818cf8, #a78bfa);
   border-radius: 0 2px 2px 0;
   animation: buildProgress 8s ease-out forwards;
 }
@@ -290,17 +390,16 @@
   100% { width: 95%; }
 }
 
-/* Central status text */
+/* Status text below browser */
 .forge-build-status {
-  position: absolute;
-  bottom: 32px;
-  left: 50%;
-  transform: translateX(-50%);
+  position: relative;
+  margin-top: 20px;
   display: flex;
   flex-direction: column;
   align-items: center;
   gap: 8px;
   z-index: 10;
+  animation: fadeIn 0.4s 0.3s ease-out both;
 }
 
 .forge-build-dots {
@@ -322,54 +421,4 @@
 @keyframes dotBounce {
   0%, 80%, 100% { transform: scale(0.6); opacity: 0.4; }
   40% { transform: scale(1.2); opacity: 1; }
-}
-
-/* Scaffold rising lines on sides */
-.forge-scaffold-line {
-  position: absolute;
-  width: 1px;
-  bottom: 0;
-  background: linear-gradient(0deg, rgba(99,102,241,0.15), transparent);
-  animation: scaffoldRise var(--duration, 2s) var(--delay, 0s) ease-out forwards;
-  opacity: 0;
-}
-
-@keyframes scaffoldRise {
-  0% { height: 0; opacity: 0; }
-  30% { opacity: 0.6; }
-  100% { height: var(--height, 60%); opacity: 0.4; }
-}
-
-/* Cross-braces on scaffold */
-.forge-scaffold-brace {
-  position: absolute;
-  width: 20px;
-  height: 1px;
-  background: rgba(99,102,241,0.1);
-  opacity: 0;
-  animation: braceAppear 0.4s var(--delay, 1s) ease-out forwards;
-  transform: rotate(var(--angle, 45deg));
-}
-
-@keyframes braceAppear {
-  0% { opacity: 0; transform: rotate(var(--angle, 45deg)) scaleX(0); }
-  100% { opacity: 1; transform: rotate(var(--angle, 45deg)) scaleX(1); }
-}
-
-/* Pulsing glow behind center */
-.forge-glow {
-  position: absolute;
-  top: 50%;
-  left: 50%;
-  transform: translate(-50%, -50%);
-  width: 200px;
-  height: 200px;
-  border-radius: 50%;
-  background: radial-gradient(circle, rgba(99,102,241,0.08) 0%, transparent 70%);
-  animation: glowPulse 3s ease-in-out infinite;
-}
-
-@keyframes glowPulse {
-  0%, 100% { transform: translate(-50%, -50%) scale(0.8); opacity: 0.5; }
-  50% { transform: translate(-50%, -50%) scale(1.2); opacity: 1; }
 }

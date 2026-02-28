@@ -63,7 +63,10 @@ export function CodeEditor({ path, content, onSave, onChange }: CodeEditorProps)
     <div className="h-full flex flex-col">
       {/* File path bar */}
       <div className="flex items-center justify-between px-3 py-1.5 bg-forge-panel border-b border-forge-border text-[11px]">
-        <span className="text-forge-text-dim font-mono">{path}</span>
+        <span className="text-forge-text-dim font-mono">
+          {path}
+          {modified && <span className="text-forge-accent ml-1">●</span>}
+        </span>
         {modified && (
           <button
             onClick={() => {
