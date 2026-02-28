@@ -8,9 +8,11 @@ import { FileTree } from './file-tree'
 import { PreviewPanel } from './preview-panel'
 import { Header } from './header'
 import { TaskPollingDialog } from './action-dialog'
+import { CommandPalette } from './command-palette'
 import { useKeyboardShortcuts } from '@/lib/keyboard-shortcuts'
-import { MessageSquare, FolderTree, Code2, Eye, Loader2 } from 'lucide-react'
+import { MessageSquare, FolderTree, Code2, Eye, Loader2, Save, Rocket, Upload, GitBranch, Download, SidebarOpen } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { toast } from 'sonner'
 import type { FileNode } from '@/lib/types'
 
 // Build tree structure from flat file map
@@ -77,6 +79,7 @@ export function Workspace({
   const [activeDialog, setActiveDialog] = useState<DialogType>(null)
   const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle')
   const [pendingChatMessage, setPendingChatMessage] = useState<string | null>(null)
+  const [showCommandPalette, setShowCommandPalette] = useState(false)
   const chatSendRef = useRef<((message: string) => void) | null>(null)
 
   const fileTree = useMemo(() => buildTreeFromMap(files), [files])
@@ -115,24 +118,32 @@ export function Workspace({
 
   const handleDownload = useCallback(async () => {
     const fileEntries = Object.entries(files)
-    if (fileEntries.length === 0) return
-
-    const JSZip = (await import('jszip')).default
-    const zip = new JSZip()
-
-    for (const [path, content] of fileEntries) {
-      zip.file(path, content)
+    if (fileEntries.length === 0) {
+      toast.error('No files to download')
+      return
     }
 
-    const blob = await zip.generateAsync({ type: 'blob' })
-    const url = URL.createObjectURL(blob)
-    const a = document.createElement('a')
-    a.href = url
-    a.download = `${projectName || 'project'}.zip`
-    document.body.appendChild(a)
-    a.click()
-    document.body.removeChild(a)
-    URL.revokeObjectURL(url)
+    try {
+      const JSZip = (await import('jszip')).default
+      const zip = new JSZip()
+
+      for (const [path, content] of fileEntries) {
+        zip.file(path, content)
+      }
+
+      const blob = await zip.generateAsync({ type: 'blob' })
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = `${projectName || 'project'}.zip`
+      document.body.appendChild(a)
+      a.click()
+      document.body.removeChild(a)
+      URL.revokeObjectURL(url)
+      toast.success('Download started', { description: `${fileEntries.length} files in ${projectName}.zip` })
+    } catch {
+      toast.error('Download failed')
+    }
   }, [files, projectName])
 
   const handleSave = useCallback(async () => {
@@ -144,10 +155,17 @@ export function Workspace({
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ files }),
       })
-      setSaveStatus(res.ok ? 'saved' : 'error')
+      if (res.ok) {
+        setSaveStatus('saved')
+        toast.success('Project saved', { description: `${Object.keys(files).length} files saved` })
+      } else {
+        setSaveStatus('error')
+        toast.error('Save failed', { description: 'Could not save to database' })
+      }
       setTimeout(() => setSaveStatus('idle'), 2000)
     } catch {
       setSaveStatus('error')
+      toast.error('Save failed', { description: 'Network error' })
       setTimeout(() => setSaveStatus('idle'), 2000)
     }
   }, [projectId, files])
@@ -170,8 +188,13 @@ export function Workspace({
 
   const handleDialogSuccess = useCallback((result: Record<string, unknown>) => {
     if (result.url) {
+      toast.success('Deployed successfully', {
+        description: String(result.url),
+        action: { label: 'Open', onClick: () => window.open(String(result.url), '_blank') },
+      })
       setPendingChatMessage(`[System] Operation completed successfully. URL: ${result.url}`)
     } else if (result.commitSha) {
+      toast.success('Pushed to GitHub', { description: `Commit: ${String(result.commitSha).slice(0, 7)}` })
       setPendingChatMessage(`[System] Pushed to GitHub. Commit: ${String(result.commitSha).slice(0, 7)}`)
     }
   }, [])
@@ -200,10 +223,23 @@ export function Workspace({
 
   // Keyboard shortcuts
   useKeyboardShortcuts([
+    { key: 'k', ctrlKey: true, action: () => setShowCommandPalette(prev => !prev), description: 'Command palette' },
     { key: 'p', ctrlKey: true, shiftKey: true, action: () => setRightTab(prev => prev === 'code' ? 'preview' : 'code'), description: 'Toggle preview' },
     { key: 'b', ctrlKey: true, action: () => setShowSidebar(prev => !prev), description: 'Toggle sidebar' },
     { key: 'w', ctrlKey: true, action: () => { if (activeFile) handleCloseFile(activeFile) }, description: 'Close current file' },
   ])
+
+  const paletteCommands = useMemo(() => [
+    { id: 'save', label: 'Save Project', description: 'Save all files to database', shortcut: 'Ctrl+S', icon: Save, category: 'actions' as const, action: handleSave },
+    { id: 'deploy', label: 'Deploy to Vercel', description: 'Create production deployment', icon: Rocket, category: 'actions' as const, action: () => setActiveDialog('deploy') },
+    { id: 'push', label: 'Push to GitHub', description: 'Push files to a repository', icon: Upload, category: 'actions' as const, action: () => setActiveDialog('push') },
+    { id: 'create-repo', label: 'Create GitHub Repo', description: 'Create a new repository', icon: GitBranch, category: 'actions' as const, action: () => setActiveDialog('create-repo') },
+    { id: 'download', label: 'Download as ZIP', description: 'Download all project files', icon: Download, category: 'actions' as const, action: handleDownload },
+    { id: 'toggle-preview', label: 'Toggle Preview', description: 'Switch between code and preview', shortcut: 'Ctrl+Shift+P', icon: Eye, category: 'view' as const, action: () => setRightTab(prev => prev === 'code' ? 'preview' : 'code') },
+    { id: 'toggle-sidebar', label: 'Toggle File Sidebar', description: 'Show or hide the file tree', shortcut: 'Ctrl+B', icon: SidebarOpen, category: 'view' as const, action: () => setShowSidebar(prev => !prev) },
+    { id: 'close-file', label: 'Close Current File', shortcut: 'Ctrl+W', icon: Code2, category: 'view' as const, action: () => { if (activeFile) handleCloseFile(activeFile) } },
+    { id: 'switch-project', label: 'Switch Project', description: 'Go back to project picker', icon: FolderTree, category: 'navigation' as const, action: onSwitchProject },
+  ], [handleSave, handleDownload, activeFile, onSwitchProject])
 
   const chatPanel = (
     <ChatPanel
@@ -310,6 +346,7 @@ export function Workspace({
         fileCount={Object.keys(files).length}
         onAction={handleAction}
         saveStatus={saveStatus}
+        onOpenCommandPalette={() => setShowCommandPalette(true)}
       />
 
       {/* Desktop layout */}
@@ -362,18 +399,20 @@ export function Workspace({
           {mobileTab === 'preview' && <PreviewPanel files={files} projectId={projectId} />}
         </div>
 
-        <div className="flex items-center justify-around border-t border-forge-border bg-forge-panel py-1.5 shrink-0 safe-bottom">
+        <div className="flex items-center justify-around border-t border-forge-border bg-forge-panel py-2 shrink-0 safe-bottom">
           {MOBILE_TABS.map(tab => (
             <button
               key={tab.id}
               onClick={() => setMobileTab(tab.id)}
               className={cn(
-                'flex flex-col items-center gap-0.5 px-3 py-1 rounded-lg transition-colors min-w-[60px]',
-                mobileTab === tab.id ? 'text-forge-accent bg-forge-accent/10' : 'text-forge-text-dim'
+                'flex flex-col items-center gap-1 px-4 py-1.5 rounded-xl transition-all min-w-[64px] min-h-[44px]',
+                mobileTab === tab.id
+                  ? 'text-forge-accent bg-forge-accent/10 shadow-sm'
+                  : 'text-forge-text-dim active:bg-forge-surface',
               )}
             >
-              <tab.Icon className="w-4 h-4" />
-              <span className="text-[10px] font-medium">{tab.label}</span>
+              <tab.Icon className={cn('w-5 h-5', mobileTab === tab.id && 'scale-110')} />
+              <span className="text-[11px] font-medium">{tab.label}</span>
             </button>
           ))}
         </div>
@@ -443,6 +482,13 @@ export function Workspace({
         })}
         onSuccess={handleDialogSuccess}
         onFix={handleDialogFix}
+      />
+
+      {/* Command Palette */}
+      <CommandPalette
+        open={showCommandPalette}
+        onClose={() => setShowCommandPalette(false)}
+        commands={paletteCommands}
       />
     </div>
   )

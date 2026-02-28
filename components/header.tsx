@@ -4,7 +4,7 @@ import { useSession } from '@/components/session-provider'
 import {
   Hammer, FolderOpen, FileText, Github, LogOut,
   Rocket, Upload, Save, GitBranch, Download,
-  Loader2, Check,
+  Loader2, Check, Search,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
@@ -14,9 +14,10 @@ interface HeaderProps {
   fileCount: number
   onAction?: (action: string) => void
   saveStatus?: 'idle' | 'saving' | 'saved' | 'error'
+  onOpenCommandPalette?: () => void
 }
 
-export function Header({ projectName, onSwitchProject, fileCount, onAction, saveStatus = 'idle' }: HeaderProps) {
+export function Header({ projectName, onSwitchProject, fileCount, onAction, saveStatus = 'idle', onOpenCommandPalette }: HeaderProps) {
   const { session, status } = useSession()
 
   const actions = [
@@ -82,8 +83,18 @@ export function Header({ projectName, onSwitchProject, fileCount, onAction, save
         })}
       </div>
 
-      {/* Right: Auth */}
+      {/* Right: Search + Auth */}
       <div className="flex items-center gap-2 sm:gap-3 shrink-0">
+        {onOpenCommandPalette && (
+          <button
+            onClick={onOpenCommandPalette}
+            className="hidden sm:flex items-center gap-2 px-2.5 py-1 text-[11px] text-forge-text-dim bg-forge-surface border border-forge-border rounded-lg hover:border-forge-accent/50 hover:text-forge-text transition-all"
+          >
+            <Search className="w-3 h-3" />
+            <span>Commands</span>
+            <kbd className="px-1 py-0.5 text-[9px] font-mono bg-white border border-forge-border rounded">Ctrl+K</kbd>
+          </button>
+        )}
         <span className="text-[10px] text-forge-text-dim hidden lg:inline">Claude Sonnet 4</span>
 
         {status === 'loading' ? (

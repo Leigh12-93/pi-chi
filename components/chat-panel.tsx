@@ -79,10 +79,76 @@ const QUICK_ACTIONS = [
 // Markdown renderer (light theme)
 // ═══════════════════════════════════════════════════════════════════
 
+// Language label map for code blocks
+const LANG_LABELS: Record<string, string> = {
+  ts: 'TypeScript', tsx: 'TSX', js: 'JavaScript', jsx: 'JSX',
+  css: 'CSS', html: 'HTML', json: 'JSON', md: 'Markdown',
+  bash: 'Bash', sh: 'Shell', sql: 'SQL', py: 'Python',
+  yaml: 'YAML', yml: 'YAML', xml: 'XML', graphql: 'GraphQL',
+  typescript: 'TypeScript', javascript: 'JavaScript',
+}
+
+// Lightweight syntax highlighting (no external deps)
+function highlightCode(code: string, lang: string): string {
+  const l = lang.toLowerCase()
+  let html = code
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+
+  // Comments (single-line)
+  html = html.replace(/(\/\/.*?)$/gm, '<span class="text-gray-400 italic">$1</span>')
+  // Multi-line comments
+  html = html.replace(/(\/\*[\s\S]*?\*\/)/g, '<span class="text-gray-400 italic">$1</span>')
+  // Strings (double/single/template)
+  html = html.replace(/("(?:[^"\\]|\\.)*")/g, '<span class="text-emerald-600">$1</span>')
+  html = html.replace(/('(?:[^'\\]|\\.)*')/g, '<span class="text-emerald-600">$1</span>')
+  html = html.replace(/(`(?:[^`\\]|\\.)*`)/g, '<span class="text-emerald-600">$1</span>')
+
+  if (['ts', 'tsx', 'js', 'jsx', 'typescript', 'javascript'].includes(l)) {
+    // Keywords
+    html = html.replace(/\b(import|export|from|default|const|let|var|function|return|if|else|for|while|class|extends|new|this|typeof|instanceof|async|await|try|catch|throw|switch|case|break|continue|interface|type|enum|implements|abstract|declare|readonly|as|is|in|of|yield)\b/g, '<span class="text-purple-600 font-medium">$1</span>')
+    // Built-ins
+    html = html.replace(/\b(true|false|null|undefined|console|document|window|Promise|Array|Object|Map|Set|Error|React|useState|useEffect|useRef|useCallback|useMemo)\b/g, '<span class="text-blue-600">$1</span>')
+    // Numbers
+    html = html.replace(/\b(\d+\.?\d*)\b/g, '<span class="text-amber-600">$1</span>')
+    // JSX tags
+    html = html.replace(/(&lt;\/?)([\w.]+)/g, '$1<span class="text-rose-600">$2</span>')
+  } else if (['css', 'scss'].includes(l)) {
+    html = html.replace(/([\w-]+)(?=\s*:)/g, '<span class="text-blue-600">$1</span>')
+    html = html.replace(/(@[\w-]+)/g, '<span class="text-purple-600 font-medium">$1</span>')
+    html = html.replace(/(#[\da-fA-F]{3,8})\b/g, '<span class="text-amber-600">$1</span>')
+  } else if (['json'].includes(l)) {
+    html = html.replace(/("[\w-]+")\s*:/g, '<span class="text-blue-600">$1</span>:')
+    html = html.replace(/:\s*(\d+\.?\d*)/g, ': <span class="text-amber-600">$1</span>')
+    html = html.replace(/:\s*(true|false|null)\b/g, ': <span class="text-purple-600">$1</span>')
+  } else if (['bash', 'sh'].includes(l)) {
+    html = html.replace(/(#.*?)$/gm, '<span class="text-gray-400 italic">$1</span>')
+    html = html.replace(/\b(npm|npx|yarn|pnpm|git|cd|ls|rm|mkdir|cp|mv|echo|export|sudo|curl|wget)\b/g, '<span class="text-purple-600 font-medium">$1</span>')
+  } else if (['html'].includes(l)) {
+    html = html.replace(/(&lt;\/?)([\w-]+)/g, '$1<span class="text-rose-600">$2</span>')
+    html = html.replace(/\b(class|id|src|href|style|type|name|value|placeholder)=/g, '<span class="text-amber-600">$1</span>=')
+  }
+
+  return html
+}
+
+let _codeBlockId = 0
 function renderMarkdown(text: string): string {
   return text
-    .replace(/```(\w*)\n([\s\S]*?)```/g, '<pre class="bg-gray-100 text-gray-800 rounded-lg p-3 my-2 overflow-x-auto text-[12px] font-mono leading-relaxed border border-gray-200"><code>$2</code></pre>')
-    .replace(/`([^`]+)`/g, '<code class="bg-indigo-50 px-1.5 py-0.5 rounded text-[12px] font-mono text-indigo-600">$1</code>')
+    .replace(/```(\w*)\n([\s\S]*?)```/g, (_match, lang: string, code: string) => {
+      const id = `code-block-${++_codeBlockId}`
+      const label = LANG_LABELS[lang] || lang || 'Code'
+      const highlighted = lang ? highlightCode(code.trimEnd(), lang) : code.trimEnd().replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+      return `<div class="code-block-wrapper relative group/code my-2 rounded-lg border border-gray-200 overflow-hidden">
+        <div class="flex items-center justify-between px-3 py-1 bg-gray-50 border-b border-gray-200">
+          <span class="text-[10px] font-medium text-gray-400 uppercase tracking-wider">${label}</span>
+          <button onclick="navigator.clipboard.writeText(document.getElementById('${id}').textContent).then(()=>{this.textContent='Copied!';setTimeout(()=>this.textContent='Copy',1500)})" class="text-[10px] text-gray-400 hover:text-gray-600 transition-colors px-1.5 py-0.5 rounded hover:bg-gray-100">Copy</button>
+        </div>
+        <pre class="bg-gray-50/50 text-gray-800 p-3 overflow-x-auto text-[12px] font-mono leading-relaxed"><code id="${id}">${highlighted}</code></pre>
+      </div>`
+    })
+    .replace(/`([^`]+)`/g, '<code class="bg-indigo-50/80 px-1.5 py-0.5 rounded text-[12px] font-mono text-indigo-600 border border-indigo-100">$1</code>')
     .replace(/^### (.+)$/gm, '<h3 class="text-[13px] font-bold mt-3 mb-1 text-gray-800">$1</h3>')
     .replace(/^## (.+)$/gm, '<h2 class="text-sm font-bold mt-3 mb-1.5 text-gray-900">$1</h2>')
     .replace(/\*\*(.+?)\*\*/g, '<strong class="font-semibold text-gray-900">$1</strong>')
@@ -391,20 +457,22 @@ export function ChatPanel({ projectName, projectId, files, onFileChange, onFileD
       <div className="flex-1 overflow-y-auto">
         {isEmpty ? (
           <div className="flex flex-col items-center justify-center h-full px-6">
-            <div className="w-12 h-12 rounded-xl bg-forge-accent/10 flex items-center justify-center mb-4">
-              <Sparkles className="w-6 h-6 text-forge-accent" />
+            <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-forge-accent/20 to-purple-500/20 flex items-center justify-center mb-5 shadow-sm">
+              <Sparkles className="w-7 h-7 text-forge-accent" />
             </div>
             <h2 className="text-lg font-semibold text-forge-text mb-1">What shall we build?</h2>
             <p className="text-xs text-forge-text-dim text-center mb-6">Describe your idea and Forge builds it</p>
-            <div className="grid grid-cols-1 gap-2 w-full max-w-xs">
+            <div className="grid grid-cols-2 gap-2 w-full max-w-sm">
               {QUICK_ACTIONS.map(action => (
                 <button
                   key={action.label}
                   onClick={() => handleSend(action.query)}
-                  className="flex items-center gap-2 p-2.5 text-left text-xs rounded-lg border border-forge-border bg-forge-surface hover:border-forge-accent/50 hover:bg-forge-accent/5 transition-all group"
+                  className="flex flex-col items-center gap-1.5 p-3 text-center text-xs rounded-xl border border-forge-border bg-forge-surface hover:border-forge-accent/50 hover:bg-forge-accent/5 hover:shadow-sm transition-all group"
                 >
-                  <action.icon className="w-3.5 h-3.5 text-forge-text-dim group-hover:text-forge-accent shrink-0 transition-colors" />
-                  <span className="text-forge-text-dim group-hover:text-forge-text transition-colors">{action.label}</span>
+                  <div className="w-8 h-8 rounded-lg bg-forge-accent/10 flex items-center justify-center group-hover:bg-forge-accent/20 transition-colors">
+                    <action.icon className="w-4 h-4 text-forge-text-dim group-hover:text-forge-accent transition-colors" />
+                  </div>
+                  <span className="text-forge-text-dim group-hover:text-forge-text font-medium transition-colors">{action.label}</span>
                 </button>
               ))}
             </div>
@@ -419,7 +487,7 @@ export function ChatPanel({ projectName, projectId, files, onFileChange, onFileD
               return (
                 <div key={message.id} className={cn('animate-fade-in', isUser ? 'flex justify-end' : '')}>
                   {isUser ? (
-                    <div className="max-w-[85%] px-3 py-2 rounded-xl bg-forge-accent/20 text-sm text-forge-text">
+                    <div className="max-w-[85%] px-3.5 py-2.5 rounded-2xl rounded-br-sm bg-forge-accent text-sm text-white shadow-sm">
                       {textContent}
                     </div>
                   ) : parts && parts.length > 0 ? (
@@ -544,16 +612,27 @@ export function ChatPanel({ projectName, projectId, files, onFileChange, onFileD
             })}
 
             {isLoading && (
-              <div className="flex items-center gap-2 text-forge-text-dim text-xs py-2">
-                <Loader2 className="w-3.5 h-3.5 animate-spin text-forge-accent" />
-                <span>Building{stepCount > 0 ? ` (step ${stepCount})` : ''}...</span>
+              <div className="flex items-center gap-3 text-xs py-3 px-2 animate-fade-in">
+                <div className="flex items-center gap-1.5">
+                  <div className="w-1.5 h-1.5 rounded-full bg-forge-accent animate-pulse-dot" />
+                  <div className="w-1.5 h-1.5 rounded-full bg-forge-accent animate-pulse-dot" style={{ animationDelay: '0.2s' }} />
+                  <div className="w-1.5 h-1.5 rounded-full bg-forge-accent animate-pulse-dot" style={{ animationDelay: '0.4s' }} />
+                </div>
+                <span className="text-forge-text-dim">
+                  {stepCount > 0 ? `Building (step ${stepCount})...` : 'Thinking...'}
+                </span>
               </div>
             )}
 
             {error && (
-              <div className="flex items-center gap-2 text-xs text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2">
-                <AlertTriangle className="w-3.5 h-3.5 shrink-0" />
-                <span>{error.message}</span>
+              <div className="flex items-start gap-2.5 text-xs bg-red-50 border border-red-200 rounded-xl px-3.5 py-3 animate-fade-in">
+                <div className="w-6 h-6 rounded-full bg-red-100 flex items-center justify-center shrink-0 mt-0.5">
+                  <AlertTriangle className="w-3.5 h-3.5 text-red-500" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="font-medium text-red-700 mb-0.5">Something went wrong</p>
+                  <p className="text-red-500 leading-relaxed">{error.message}</p>
+                </div>
               </div>
             )}
 
@@ -578,20 +657,23 @@ export function ChatPanel({ projectName, projectId, files, onFileChange, onFileD
             }}
             placeholder={isEmpty ? 'Describe what you want to build...' : 'Ask for changes, new features, fixes...'}
             rows={1}
-            className="w-full bg-forge-surface border border-forge-border rounded-lg pl-3 pr-10 py-2.5 text-sm text-forge-text placeholder:text-forge-text-dim/50 outline-none focus:border-forge-accent/50 resize-none transition-colors"
+            className="w-full bg-forge-surface border border-forge-border rounded-xl pl-3.5 pr-12 py-2.5 text-sm text-forge-text placeholder:text-forge-text-dim/50 outline-none focus:border-forge-accent/50 focus:ring-2 focus:ring-forge-accent/10 resize-none transition-all"
           />
-          <div className="absolute right-2 bottom-2">
+          <div className="absolute right-2 bottom-1.5">
             {isLoading ? (
-              <button onClick={stop} className="p-1.5 rounded-md bg-forge-danger/20 text-forge-danger hover:bg-forge-danger/30 transition-colors" title="Stop">
+              <button onClick={stop} className="p-2 rounded-lg bg-red-100 text-forge-danger hover:bg-red-200 transition-colors" title="Stop generating">
                 <StopCircle className="w-4 h-4" />
               </button>
             ) : (
-              <button onClick={() => handleSend()} disabled={!input.trim()} className="p-1.5 rounded-md bg-forge-accent text-white hover:bg-forge-accent-hover disabled:opacity-30 disabled:cursor-not-allowed transition-colors">
+              <button onClick={() => handleSend()} disabled={!input.trim()} className="p-2 rounded-lg bg-forge-accent text-white hover:bg-forge-accent-hover disabled:opacity-20 disabled:cursor-not-allowed transition-all shadow-sm hover:shadow">
                 <Send className="w-4 h-4" />
               </button>
             )}
           </div>
         </div>
+        <p className="text-[10px] text-forge-text-dim/60 text-center mt-1.5">
+          Enter to send &middot; Shift+Enter for new line
+        </p>
       </div>
     </div>
   )

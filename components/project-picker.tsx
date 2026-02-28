@@ -145,11 +145,11 @@ export function ProjectPicker({ onSelect, savedProjects, loadingProjects, onDele
     <div className="min-h-screen bg-forge-bg flex items-center justify-center p-8">
       <div className="max-w-3xl w-full">
         {/* Logo */}
-        <div className="text-center mb-8">
-          <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-forge-accent/10 mb-4">
+        <div className="text-center mb-10">
+          <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-gradient-to-br from-forge-accent/20 to-purple-500/20 mb-5 shadow-sm">
             <Hammer className="w-8 h-8 text-forge-accent" />
           </div>
-          <h1 className="text-3xl font-bold text-forge-text mb-2">Forge</h1>
+          <h1 className="text-3xl font-bold text-forge-text mb-2 tracking-tight">Forge</h1>
           <p className="text-forge-text-dim text-sm">AI-powered website builder with superpowers</p>
         </div>
 
@@ -170,8 +170,8 @@ export function ProjectPicker({ onSelect, savedProjects, loadingProjects, onDele
         )}
 
         {/* New project */}
-        <div className="bg-forge-panel border border-forge-border rounded-xl p-6 mb-6">
-          <label className="block text-xs font-medium text-forge-text-dim mb-2">New Project</label>
+        <div className="bg-forge-panel border border-forge-border rounded-2xl p-6 mb-6">
+          <label className="block text-xs font-medium text-forge-text-dim mb-2.5">New Project</label>
           <div className="flex gap-2">
             <input
               type="text"
@@ -179,13 +179,13 @@ export function ProjectPicker({ onSelect, savedProjects, loadingProjects, onDele
               onChange={e => setName(e.target.value)}
               onKeyDown={e => e.key === 'Enter' && handleCreate()}
               placeholder="my-awesome-app"
-              className="flex-1 bg-forge-surface border border-forge-border rounded-lg px-4 py-2.5 text-sm text-forge-text placeholder:text-forge-text-dim/50 outline-none focus:border-forge-accent/50 transition-colors"
+              className="flex-1 bg-forge-surface border border-forge-border rounded-xl px-4 py-2.5 text-sm text-forge-text placeholder:text-forge-text-dim/50 outline-none focus:border-forge-accent/50 focus:ring-2 focus:ring-forge-accent/10 transition-all"
               autoFocus
             />
             <button
               onClick={handleCreate}
               disabled={creating}
-              className="flex items-center gap-2 px-5 py-2.5 bg-forge-accent hover:bg-forge-accent-hover text-white text-sm font-medium rounded-lg disabled:opacity-50 transition-colors"
+              className="flex items-center gap-2 px-5 py-2.5 bg-forge-accent hover:bg-forge-accent-hover text-white text-sm font-medium rounded-xl disabled:opacity-50 transition-all shadow-sm hover:shadow"
             >
               <Sparkles className="w-4 h-4" />
               Create
@@ -193,7 +193,8 @@ export function ProjectPicker({ onSelect, savedProjects, loadingProjects, onDele
           </div>
 
           {/* Quick starts */}
-          <div className="flex flex-wrap gap-2 mt-3">
+          <div className="flex flex-wrap gap-2 mt-4">
+            <span className="text-[10px] text-forge-text-dim/60 self-center mr-1">Quick start:</span>
             {QUICK_STARTS.map(qs => (
               <button
                 key={qs.label}
@@ -201,7 +202,7 @@ export function ProjectPicker({ onSelect, savedProjects, loadingProjects, onDele
                   const pName = qs.label.toLowerCase().replace(/\s+/g, '-')
                   onSelect(pName)
                 }}
-                className="px-2.5 py-1 text-[11px] rounded-md border border-forge-border text-forge-text-dim hover:text-forge-text hover:border-forge-accent/50 hover:bg-forge-accent/5 transition-all"
+                className="px-3 py-1.5 text-[11px] rounded-lg border border-forge-border text-forge-text-dim hover:text-forge-text hover:border-forge-accent/50 hover:bg-forge-accent/5 hover:shadow-sm transition-all"
               >
                 {qs.label}
               </button>
@@ -249,9 +250,26 @@ export function ProjectPicker({ onSelect, savedProjects, loadingProjects, onDele
             {/* Saved Projects Tab */}
             {tab === 'projects' && (
               <>
-                {savedProjects.length === 0 && !loadingProjects ? (
-                  <div className="text-center py-8 text-forge-text-dim text-sm border border-dashed border-forge-border rounded-xl">
-                    No saved projects yet. Create one above or import from GitHub.
+                {loadingProjects ? (
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    {[1, 2, 3, 4].map(i => (
+                      <div key={i} className="rounded-xl border border-forge-border p-4 space-y-3">
+                        <div className="flex items-center justify-between">
+                          <div className="h-4 w-32 rounded animate-skeleton" />
+                          <div className="h-4 w-14 rounded animate-skeleton" />
+                        </div>
+                        <div className="h-3 w-48 rounded animate-skeleton" />
+                        <div className="h-3 w-24 rounded animate-skeleton" />
+                      </div>
+                    ))}
+                  </div>
+                ) : savedProjects.length === 0 ? (
+                  <div className="flex flex-col items-center py-12 border border-dashed border-forge-border rounded-2xl">
+                    <div className="w-12 h-12 rounded-xl bg-forge-surface flex items-center justify-center mb-3">
+                      <FolderOpen className="w-6 h-6 text-forge-text-dim/40" />
+                    </div>
+                    <p className="text-sm text-forge-text-dim font-medium mb-1">No saved projects</p>
+                    <p className="text-xs text-forge-text-dim/60">Create one above or import from GitHub</p>
                   </div>
                 ) : (
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
@@ -296,7 +314,7 @@ export function ProjectPicker({ onSelect, savedProjects, loadingProjects, onDele
                         <button
                           onClick={e => handleDelete(e, project.id)}
                           disabled={deletingId === project.id}
-                          className="absolute top-3 right-3 p-1 rounded opacity-0 group-hover:opacity-100 text-forge-text-dim hover:text-forge-danger hover:bg-forge-danger/10 transition-all"
+                          className="absolute top-3 right-3 p-1.5 rounded-lg opacity-0 group-hover:opacity-100 text-forge-text-dim hover:text-forge-danger hover:bg-forge-danger/10 transition-all"
                           title="Delete project"
                         >
                           {deletingId === project.id ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Trash2 className="w-3.5 h-3.5" />}
@@ -380,8 +398,8 @@ export function ProjectPicker({ onSelect, savedProjects, loadingProjects, onDele
         )}
 
         {/* Footer */}
-        <p className="text-center text-[10px] text-forge-text-dim mt-8">
-          Powered by Claude Sonnet 4 &middot; Self-improving AI &middot; Full database + GitHub + Vercel access
+        <p className="text-center text-[11px] text-forge-text-dim/60 mt-10">
+          Powered by Claude Sonnet 4 &middot; Self-improving AI &middot; GitHub + Vercel + Database
         </p>
       </div>
     </div>

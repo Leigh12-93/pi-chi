@@ -1,7 +1,7 @@
 'use client'
 
-import { useState, useRef, useEffect } from 'react'
-import { ChevronRight, ChevronDown, FolderOpen, Folder, MoreHorizontal, Trash2, Edit3, Copy, FileText } from 'lucide-react'
+import { useState, useRef, useEffect, useMemo } from 'react'
+import { ChevronRight, ChevronDown, FolderOpen, Folder, MoreHorizontal, Trash2, Edit3, Copy, FileText, Search, X } from 'lucide-react'
 import { cn, getFileIcon } from '@/lib/utils'
 import type { FileNode } from '@/lib/types'
 
@@ -13,27 +13,118 @@ interface FileTreeProps {
   onFileRename?: (oldPath: string, newPath: string) => void
 }
 
+/** Recursively filter nodes matching search query */
+function filterNodes(nodes: FileNode[], query: string): FileNode[] {
+  const q = query.toLowerCase()
+  const result: FileNode[] = []
+  for (const node of nodes) {
+    if (node.type === 'directory') {
+      const filteredChildren = filterNodes(node.children || [], query)
+      if (filteredChildren.length > 0) {
+        result.push({ ...node, children: filteredChildren })
+      }
+    } else if (node.name.toLowerCase().includes(q) || node.path.toLowerCase().includes(q)) {
+      result.push(node)
+    }
+  }
+  return result
+}
+
 export function FileTree({ files, activeFile, onFileSelect, onFileDelete, onFileRename }: FileTreeProps) {
+  const [searchQuery, setSearchQuery] = useState('')
+  const [showSearch, setShowSearch] = useState(false)
+  const searchRef = useRef<HTMLInputElement>(null)
+
+  const filteredFiles = useMemo(() => {
+    if (!searchQuery.trim()) return files
+    return filterNodes(files, searchQuery.trim())
+  }, [files, searchQuery])
+
+  useEffect(() => {
+    if (showSearch) requestAnimationFrame(() => searchRef.current?.focus())
+  }, [showSearch])
+
+  // Ctrl+F to search files
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      if ((e.ctrlKey || e.metaKey) && e.key === 'f' && !e.shiftKey) {
+        // Only if file tree is likely visible
+        const el = document.querySelector('[data-file-tree]')
+        if (el) {
+          e.preventDefault()
+          setShowSearch(true)
+        }
+      }
+    }
+    document.addEventListener('keydown', handler)
+    return () => document.removeEventListener('keydown', handler)
+  }, [])
+
   return (
-    <div className="h-full bg-forge-panel border-r border-forge-border flex flex-col">
-      <div className="px-3 py-2.5 border-b border-forge-border shrink-0">
+    <div className="h-full bg-forge-panel border-r border-forge-border flex flex-col" data-file-tree>
+      <div className="flex items-center justify-between px-3 py-2.5 border-b border-forge-border shrink-0">
         <span className="text-[10px] uppercase tracking-wider text-forge-text-dim font-semibold">
           Files
         </span>
+        <button
+          onClick={() => { setShowSearch(prev => !prev); if (showSearch) setSearchQuery('') }}
+          className={cn(
+            'p-1 rounded transition-colors',
+            showSearch ? 'text-forge-accent bg-forge-accent/10' : 'text-forge-text-dim hover:text-forge-text hover:bg-forge-surface',
+          )}
+          title="Search files (Ctrl+F)"
+        >
+          <Search className="w-3 h-3" />
+        </button>
       </div>
+
+      {/* Search input */}
+      {showSearch && (
+        <div className="px-2 py-1.5 border-b border-forge-border animate-fade-in">
+          <div className="relative">
+            <Search className="absolute left-2 top-1/2 -translate-y-1/2 w-3 h-3 text-forge-text-dim" />
+            <input
+              ref={searchRef}
+              value={searchQuery}
+              onChange={e => setSearchQuery(e.target.value)}
+              onKeyDown={e => { if (e.key === 'Escape') { setShowSearch(false); setSearchQuery('') } }}
+              placeholder="Filter files..."
+              className="w-full pl-6 pr-6 py-1 text-[11px] bg-forge-surface border border-forge-border rounded-md text-forge-text outline-none focus:border-forge-accent/50 placeholder:text-forge-text-dim/50"
+            />
+            {searchQuery && (
+              <button
+                onClick={() => setSearchQuery('')}
+                className="absolute right-1.5 top-1/2 -translate-y-1/2 p-0.5 text-forge-text-dim hover:text-forge-text"
+              >
+                <X className="w-3 h-3" />
+              </button>
+            )}
+          </div>
+        </div>
+      )}
+
       <div className="flex-1 overflow-y-auto py-1">
         {files.length === 0 ? (
-          <div className="px-3 py-8 text-center text-forge-text-dim text-xs">
-            No files yet. Start a conversation to create your project.
+          <div className="flex flex-col items-center justify-center h-full px-4 py-8">
+            <div className="w-10 h-10 rounded-xl bg-forge-surface flex items-center justify-center mb-3">
+              <FileText className="w-5 h-5 text-forge-text-dim/50" />
+            </div>
+            <p className="text-xs text-forge-text-dim text-center">No files yet</p>
+            <p className="text-[10px] text-forge-text-dim/60 text-center mt-0.5">Start a conversation to create your project</p>
+          </div>
+        ) : filteredFiles.length === 0 ? (
+          <div className="px-3 py-6 text-center text-forge-text-dim text-[11px]">
+            No files matching &ldquo;{searchQuery}&rdquo;
           </div>
         ) : (
-          <TreeNodes 
-            nodes={files} 
-            activeFile={activeFile} 
-            onFileSelect={onFileSelect} 
+          <TreeNodes
+            nodes={filteredFiles}
+            activeFile={activeFile}
+            onFileSelect={onFileSelect}
             onFileDelete={onFileDelete}
             onFileRename={onFileRename}
-            depth={0} 
+            depth={0}
+            forceExpand={!!searchQuery}
           />
         )}
       </div>
@@ -42,7 +133,7 @@ export function FileTree({ files, activeFile, onFileSelect, onFileDelete, onFile
 }
 
 function TreeNodes({
-  nodes, activeFile, onFileSelect, onFileDelete, onFileRename, depth,
+  nodes, activeFile, onFileSelect, onFileDelete, onFileRename, depth, forceExpand,
 }: {
   nodes: FileNode[]
   activeFile: string | null
@@ -50,18 +141,20 @@ function TreeNodes({
   onFileDelete?: (path: string) => void
   onFileRename?: (oldPath: string, newPath: string) => void
   depth: number
+  forceExpand?: boolean
 }) {
   return (
     <>
       {nodes.map(node => (
-        <TreeItem 
-          key={node.path} 
-          node={node} 
-          activeFile={activeFile} 
+        <TreeItem
+          key={node.path}
+          node={node}
+          activeFile={activeFile}
           onFileSelect={onFileSelect}
           onFileDelete={onFileDelete}
           onFileRename={onFileRename}
-          depth={depth} 
+          depth={depth}
+          forceExpand={forceExpand}
         />
       ))}
     </>
@@ -69,7 +162,7 @@ function TreeNodes({
 }
 
 function TreeItem({
-  node, activeFile, onFileSelect, onFileDelete, onFileRename, depth,
+  node, activeFile, onFileSelect, onFileDelete, onFileRename, depth, forceExpand,
 }: {
   node: FileNode
   activeFile: string | null
@@ -77,8 +170,10 @@ function TreeItem({
   onFileDelete?: (path: string) => void
   onFileRename?: (oldPath: string, newPath: string) => void
   depth: number
+  forceExpand?: boolean
 }) {
   const [expanded, setExpanded] = useState(depth < 2)
+  const isExpanded = forceExpand || expanded
   const [showContextMenu, setShowContextMenu] = useState(false)
   const [isRenaming, setIsRenaming] = useState(false)
   const [newName, setNewName] = useState(node.name)
@@ -145,15 +240,15 @@ function TreeItem({
         >
           {isDir ? (
             <>
-              {expanded ? (
-                <ChevronDown className="w-3 h-3 shrink-0 text-forge-text-dim" />
+              {isExpanded ? (
+                <ChevronDown className="w-3 h-3 shrink-0 text-forge-text-dim transition-transform" />
               ) : (
-                <ChevronRight className="w-3 h-3 shrink-0 text-forge-text-dim" />
+                <ChevronRight className="w-3 h-3 shrink-0 text-forge-text-dim transition-transform" />
               )}
-              {expanded ? (
-                <FolderOpen className="w-3.5 h-3.5 shrink-0 text-yellow-500/70" />
+              {isExpanded ? (
+                <FolderOpen className="w-3.5 h-3.5 shrink-0 text-amber-500" />
               ) : (
-                <Folder className="w-3.5 h-3.5 shrink-0 text-yellow-500/50" />
+                <Folder className="w-3.5 h-3.5 shrink-0 text-amber-400" />
               )}
             </>
           ) : (
@@ -234,14 +329,15 @@ function TreeItem({
         </div>
       )}
 
-      {isDir && expanded && node.children && (
-        <TreeNodes 
-          nodes={node.children} 
-          activeFile={activeFile} 
+      {isDir && isExpanded && node.children && (
+        <TreeNodes
+          nodes={node.children}
+          activeFile={activeFile}
           onFileSelect={onFileSelect}
           onFileDelete={onFileDelete}
           onFileRename={onFileRename}
-          depth={depth + 1} 
+          depth={depth + 1}
+          forceExpand={forceExpand}
         />
       )}
     </div>
