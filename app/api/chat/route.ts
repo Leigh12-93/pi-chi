@@ -766,6 +766,7 @@ export async function POST(req: Request) {
   const body = await req.json()
   const projectName = body.projectName || 'untitled'
   const projectId = body.projectId || null
+  const selectedModel = body.model || 'claude-sonnet-4-20250514'
 
   // Use user's GitHub token from OAuth if available, fall back to server PAT
   const userGithubToken = body.githubToken ? String(body.githubToken).trim() : ''
@@ -845,7 +846,7 @@ export async function POST(req: Request) {
   const result = streamText({
     // Prompt caching: system prompt + tool definitions cached by Anthropic.
     // 90% input token discount on cached prefix for subsequent requests in same session.
-    model: anthropic('claude-sonnet-4-20250514', { cacheControl: true }),
+    model: anthropic(selectedModel, { cacheControl: true }),
     system: SYSTEM_PROMPT + `\n\n---\nProject: "${projectName}"${projectId ? ` (id: ${projectId})` : ''}\nFile manifest:\n${manifestStr}`,
     messages,
     maxSteps: 25,

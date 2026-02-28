@@ -4,8 +4,9 @@ import { useSession } from '@/components/session-provider'
 import {
   Hammer, FolderOpen, FileText, Github, LogOut,
   Rocket, Upload, Save, GitBranch, Download, FolderInput,
-  Loader2, Check, Search, ChevronRight,
+  Loader2, Check, Search, ChevronRight, Sun, Moon, Share2,
 } from 'lucide-react'
+import { useTheme } from '@/components/theme-provider'
 import { cn } from '@/lib/utils'
 
 interface HeaderProps {
@@ -15,6 +16,7 @@ interface HeaderProps {
   onAction?: (action: string) => void
   saveStatus?: 'idle' | 'saving' | 'saved' | 'error'
   onOpenCommandPalette?: () => void
+  notificationSlot?: React.ReactNode
 }
 
 const actions = [
@@ -24,10 +26,12 @@ const actions = [
   { id: 'create-repo', icon: GitBranch, label: 'New Repo', tip: 'Create GitHub repo' },
   { id: 'import', icon: FolderInput, label: 'Import', tip: 'Import from GitHub repo' },
   { id: 'download', icon: Download, label: 'Download', tip: 'Download project as ZIP' },
+  { id: 'share', icon: Share2, label: 'Share', tip: 'Copy share link' },
 ]
 
-export function Header({ projectName, onSwitchProject, fileCount, onAction, saveStatus = 'idle', onOpenCommandPalette }: HeaderProps) {
+export function Header({ projectName, onSwitchProject, fileCount, onAction, saveStatus = 'idle', onOpenCommandPalette, notificationSlot }: HeaderProps) {
   const { session, status } = useSession()
+  const { theme, toggleTheme } = useTheme()
 
   const getSaveIcon = () => {
     if (saveStatus === 'saving') return <Loader2 className="w-3.5 h-3.5 animate-spin" />
@@ -101,6 +105,15 @@ export function Header({ projectName, onSwitchProject, fileCount, onAction, save
             <kbd className="px-1 py-0.5 text-[9px] font-mono bg-white border border-forge-border rounded">Ctrl+K</kbd>
           </button>
         )}
+        {notificationSlot}
+        <button
+          onClick={toggleTheme}
+          className="p-2 sm:p-1.5 rounded-lg text-forge-text-dim hover:text-forge-text hover:bg-forge-surface transition-colors"
+          title={theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}
+          aria-label="Toggle theme"
+        >
+          {theme === 'dark' ? <Sun className="w-3.5 h-3.5" /> : <Moon className="w-3.5 h-3.5" />}
+        </button>
         <span className="text-[10px] text-forge-text-dim hidden lg:inline">Claude Sonnet 4</span>
 
         {status === 'loading' ? (

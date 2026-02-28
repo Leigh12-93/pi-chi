@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react'
 import {
   Hammer, Sparkles, FolderOpen, Trash2,
   Github, Clock, Globe, ExternalLink, Loader2,
-  Lock, Star, GitBranch, Download, GitFork, Archive,
+  Lock, Star, GitBranch, Download, GitFork, Archive, Search,
 } from 'lucide-react'
 import { toast } from 'sonner'
 
@@ -91,6 +91,7 @@ export function ProjectPicker({ onSelect, savedProjects, loadingProjects, onDele
   const [loadingRepos, setLoadingRepos] = useState(false)
   const [importingRepo, setImportingRepo] = useState<string | null>(null)
   const [tab, setTab] = useState<'projects' | 'github'>('projects')
+  const [searchQuery, setSearchQuery] = useState('')
 
   // Load GitHub repos when logged in
   useEffect(() => {
@@ -267,6 +268,20 @@ export function ProjectPicker({ onSelect, savedProjects, loadingProjects, onDele
               )}
             </div>
 
+            {/* Search filter */}
+            {((tab === 'projects' && savedProjects.length > 0) || (tab === 'github' && githubRepos.length > 0)) && (
+              <div className="relative mb-4">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-forge-text-dim" />
+                <input
+                  type="text"
+                  value={searchQuery}
+                  onChange={e => setSearchQuery(e.target.value)}
+                  placeholder={tab === 'projects' ? 'Filter projects...' : 'Filter repositories...'}
+                  className="w-full pl-9 pr-3 py-2 text-xs bg-forge-surface border border-forge-border rounded-lg text-forge-text placeholder:text-forge-text-dim/50 outline-none focus:border-forge-accent/50 focus:ring-2 focus:ring-forge-accent/10 transition-all"
+                />
+              </div>
+            )}
+
             {/* Saved Projects Tab */}
             {tab === 'projects' && (
               <>
@@ -293,7 +308,7 @@ export function ProjectPicker({ onSelect, savedProjects, loadingProjects, onDele
                   </div>
                 ) : (
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                    {savedProjects.map(project => (
+                    {savedProjects.filter(p => !searchQuery || p.name.toLowerCase().includes(searchQuery.toLowerCase()) || p.description?.toLowerCase().includes(searchQuery.toLowerCase())).map(project => (
                       <button
                         key={project.id}
                         onClick={() => onSelect(project.name, project.id)}
@@ -355,7 +370,7 @@ export function ProjectPicker({ onSelect, savedProjects, loadingProjects, onDele
                   </div>
                 ) : (
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                    {githubRepos.map(repo => (
+                    {githubRepos.filter(r => !searchQuery || r.name.toLowerCase().includes(searchQuery.toLowerCase()) || r.description?.toLowerCase().includes(searchQuery.toLowerCase())).map(repo => (
                       <button
                         key={repo.id}
                         onClick={() => handleImportRepo(repo)}

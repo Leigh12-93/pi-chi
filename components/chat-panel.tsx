@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useRef, useEffect, useCallback } from 'react'
+import { useState, useRef, useEffect, useCallback, useMemo } from 'react'
 import { useChat } from '@ai-sdk/react'
 import {
   Send, Loader2, Bot, Copy, Check, Trash2,
@@ -10,6 +10,7 @@ import {
   StopCircle, Sparkles, ArrowUp, Lightbulb,
   Brain, Database, Wrench, RefreshCw,
   BookOpen, Save, Plug, ImageIcon,
+  ChevronDown,
   type LucideIcon,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
@@ -67,6 +68,12 @@ const TOOL_LABELS: Record<string, { label: string; Icon: LucideIcon; color: stri
   add_image: { label: 'Finding image', Icon: ImageIcon, color: 'cyan' },
   check_task_status: { label: 'Checking task', Icon: RefreshCw, color: 'blue' },
 }
+
+const MODEL_OPTIONS = [
+  { id: 'claude-sonnet-4-20250514', label: 'Sonnet 4', description: 'Fast & capable' },
+  { id: 'claude-haiku-35-20241022', label: 'Haiku 3.5', description: 'Fastest' },
+  { id: 'claude-opus-4-20250514', label: 'Opus 4', description: 'Most capable' },
+] as const
 
 const QUICK_ACTIONS = [
   { label: 'Landing Page', query: 'Build a modern landing page with hero section, features grid, testimonials with avatars, pricing table, and footer. Use a cohesive color palette with gradients and animations. Make it look like a real SaaS product.', icon: Sparkles },
@@ -296,6 +303,9 @@ interface ChatPanelProps {
 }
 
 export function ChatPanel({ projectName, projectId, files, onFileChange, onFileDelete, onBulkFileUpdate, githubToken, onRegisterSend, pendingMessage, onPendingMessageSent }: ChatPanelProps) {
+  const [selectedModel, setSelectedModel] = useState<string>(MODEL_OPTIONS[0].id)
+  const [showModelPicker, setShowModelPicker] = useState(false)
+
   const {
     messages,
     setMessages,
@@ -305,7 +315,7 @@ export function ChatPanel({ projectName, projectId, files, onFileChange, onFileD
     append,
   } = useChat({
     api: '/api/chat',
-    body: { projectName, projectId, files, githubToken },
+    body: { projectName, projectId, files, githubToken, model: selectedModel },
     onError: (err) => console.error('Chat error:', err),
   })
 
@@ -313,6 +323,8 @@ export function ChatPanel({ projectName, projectId, files, onFileChange, onFileD
   const [copiedId, setCopiedId] = useState<string | null>(null)
   const [historyLoaded, setHistoryLoaded] = useState(false)
   const [loadingHistory, setLoadingHistory] = useState(false)
+  const [editingMessageId, setEditingMessageId] = useState<string | null>(null)
+  const [editingContent, setEditingContent] = useState('')
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLTextAreaElement>(null)
   const processedInvs = useRef(new Set<string>())
@@ -438,15 +450,55 @@ export function ChatPanel({ projectName, projectId, files, onFileChange, onFileD
     setTimeout(() => setCopiedId(null), 2000)
   }
 
-  const stepCount = messages.reduce((acc, msg) => {
-    if (msg.role !== 'assistant') return acc
-    const parts = (msg as any).parts as Array<{ type: string }> | undefined
-    if (parts) {
-      return acc + parts.filter(p => p.type === 'tool-invocation').length
+  const handleEditMessage = (messageId: string, content: string) => {
+    setEditingMessageId(messageId)
+    setEditingContent(content)
+  }
+
+  const handleSaveEdit = () => {
+    if (!editingMessageId || !editingContent.trim()) return
+    // Remove all messages from this point forward and resend
+    const msgIndex = messages.findIndex(m => m.id === editingMessageId)
+    if (msgIndex === -1) return
+    const newMessages = messages.slice(0, msgIndex)
+    setMessages(newMessages)
+    processedInvs.current.clear()
+    setEditingMessageId(null)
+    // Re-send with edited content
+    setTimeout(() => append({ role: 'user', content: editingContent.trim() }), 100)
+  }
+
+  const handleRegenerate = (messageId: string) => {
+    // Find the assistant message and the preceding user message
+    const msgIndex = messages.findIndex(m => m.id === messageId)
+    if (msgIndex <= 0) return
+    const userMsg = messages[msgIndex - 1]
+    if (userMsg.role !== 'user') return
+    // Remove from the assistant message onward
+    const newMessages = messages.slice(0, msgIndex)
+    setMessages(newMessages)
+    processedInvs.current.clear()
+    // Resend the user message
+    setTimeout(() => append({ role: 'user', content: typeof userMsg.content === 'string' ? userMsg.content : '' }), 100)
+  }
+
+  const { stepCount, estimatedTokens } = useMemo(() => {
+    let steps = 0
+    let tokens = 0
+    for (const msg of messages) {
+      const textLen = typeof msg.content === 'string' ? msg.content.length : 0
+      tokens += Math.ceil(textLen / 4) // rough estimate: ~4 chars per token
+      if (msg.role !== 'assistant') continue
+      const parts = (msg as any).parts as Array<{ type: string }> | undefined
+      if (parts) {
+        steps += parts.filter(p => p.type === 'tool-invocation').length
+      } else {
+        const invs = (msg as any).toolInvocations as ToolInvocation[] | undefined
+        steps += invs?.length || 0
+      }
     }
-    const invs = (msg as any).toolInvocations as ToolInvocation[] | undefined
-    return acc + (invs?.length || 0)
-  }, 0)
+    return { stepCount: steps, estimatedTokens: tokens }
+  }, [messages])
 
   const isEmpty = messages.length === 0
 
@@ -461,16 +513,48 @@ export function ChatPanel({ projectName, projectId, files, onFileChange, onFileD
             <span className="text-[10px] text-forge-accent animate-pulse" title="Tool invocations processed">Step {stepCount}</span>
           )}
         </div>
-        {messages.length > 0 && (
-          <button
-            onClick={() => { setMessages([]); processedInvs.current.clear() }}
-            className="p-2 sm:p-0 text-forge-text-dim hover:text-forge-danger transition-colors rounded"
-            title="Clear chat"
-            aria-label="Clear chat"
-          >
-            <Trash2 className="w-4 h-4 sm:w-3.5 sm:h-3.5" />
-          </button>
-        )}
+        <div className="flex items-center gap-1">
+          {/* Model picker */}
+          <div className="relative">
+            <button
+              onClick={() => setShowModelPicker(prev => !prev)}
+              className="flex items-center gap-1 px-2 py-1 text-[10px] font-medium text-forge-text-dim bg-forge-surface border border-forge-border rounded-md hover:border-forge-accent/50 hover:text-forge-text transition-all"
+            >
+              {MODEL_OPTIONS.find(m => m.id === selectedModel)?.label || 'Sonnet 4'}
+              <ChevronDown className="w-3 h-3" />
+            </button>
+            {showModelPicker && (
+              <>
+                <div className="fixed inset-0 z-40" onClick={() => setShowModelPicker(false)} />
+                <div className="absolute right-0 top-full mt-1 z-50 w-44 bg-forge-bg border border-forge-border rounded-lg shadow-lg overflow-hidden animate-slide-down">
+                  {MODEL_OPTIONS.map(model => (
+                    <button
+                      key={model.id}
+                      onClick={() => { setSelectedModel(model.id); setShowModelPicker(false) }}
+                      className={cn(
+                        'flex items-center justify-between w-full px-3 py-2 text-xs hover:bg-forge-surface transition-colors',
+                        selectedModel === model.id && 'bg-forge-accent/10 text-forge-accent',
+                      )}
+                    >
+                      <span className="font-medium">{model.label}</span>
+                      <span className="text-[10px] text-forge-text-dim">{model.description}</span>
+                    </button>
+                  ))}
+                </div>
+              </>
+            )}
+          </div>
+          {messages.length > 0 && (
+            <button
+              onClick={() => { setMessages([]); processedInvs.current.clear() }}
+              className="p-2 sm:p-0 text-forge-text-dim hover:text-forge-danger transition-colors rounded"
+              title="Clear chat"
+              aria-label="Clear chat"
+            >
+              <Trash2 className="w-4 h-4 sm:w-3.5 sm:h-3.5" />
+            </button>
+          )}
+        </div>
       </div>
 
       {/* Messages */}
@@ -523,12 +607,37 @@ export function ChatPanel({ projectName, projectId, files, onFileChange, onFileD
               return (
                 <div key={message.id} className={cn('animate-fade-in', isUser ? 'flex justify-end' : '')}>
                   {isUser ? (
-                    <div className="max-w-[85%] px-3.5 py-2.5 rounded-2xl rounded-br-sm bg-forge-accent text-sm text-white shadow-sm">
-                      {textContent}
-                    </div>
+                    editingMessageId === message.id ? (
+                      <div className="max-w-[85%] w-full">
+                        <textarea
+                          value={editingContent}
+                          onChange={e => setEditingContent(e.target.value)}
+                          className="w-full bg-forge-surface border border-forge-accent/50 rounded-xl px-3.5 py-2.5 text-sm text-forge-text outline-none resize-none"
+                          rows={3}
+                          autoFocus
+                        />
+                        <div className="flex justify-end gap-1.5 mt-1">
+                          <button onClick={() => setEditingMessageId(null)} className="px-2 py-1 text-[10px] text-forge-text-dim hover:text-forge-text rounded transition-colors">Cancel</button>
+                          <button onClick={handleSaveEdit} className="px-2 py-1 text-[10px] font-medium text-white bg-forge-accent rounded hover:bg-forge-accent-hover transition-colors">Resend</button>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="group/user flex items-start gap-1 max-w-[85%]">
+                        <button
+                          onClick={() => handleEditMessage(message.id, textContent)}
+                          className="p-1 mt-1.5 rounded opacity-0 group-hover/user:opacity-100 text-forge-text-dim hover:text-forge-text hover:bg-forge-surface transition-all"
+                          title="Edit message"
+                        >
+                          <Pencil className="w-3 h-3" />
+                        </button>
+                        <div className="px-3.5 py-2.5 rounded-2xl rounded-br-sm bg-forge-accent text-sm text-white shadow-sm">
+                          {textContent}
+                        </div>
+                      </div>
+                    )
                   ) : parts && parts.length > 0 ? (
                     /* Render parts in order — text and tool calls interleaved */
-                    <div className="space-y-1.5">
+                    <div className="space-y-1.5 group/assistant">
                       {parts.map((part, partIdx) => {
                         // Collapse consecutive check_task_status polls — only show the last one
                         if (part.type === 'tool-invocation' && part.toolInvocation?.toolName === 'check_task_status') {
@@ -632,10 +741,20 @@ export function ChatPanel({ projectName, projectId, files, onFileChange, onFileD
 
                         return null
                       })}
+                      {!isLoading && (
+                        <button
+                          onClick={() => handleRegenerate(message.id)}
+                          className="flex items-center gap-1 mt-1 px-2 py-1 text-[10px] text-forge-text-dim hover:text-forge-accent opacity-0 group-hover/assistant:opacity-100 transition-all rounded hover:bg-forge-surface"
+                          title="Regenerate response"
+                        >
+                          <RefreshCw className="w-3 h-3" />
+                          Regenerate
+                        </button>
+                      )}
                     </div>
                   ) : (
                     /* Fallback for messages without parts (e.g. loaded from DB) */
-                    <div className="space-y-1.5">
+                    <div className="space-y-1.5 group/assistant">
                       {textContent && (
                         <div className="relative group">
                           <div
@@ -651,6 +770,16 @@ export function ChatPanel({ projectName, projectId, files, onFileChange, onFileD
                             {copiedId === message.id ? <Check className="w-4 h-4 sm:w-3 sm:h-3 text-emerald-500" /> : <Copy className="w-4 h-4 sm:w-3 sm:h-3 text-forge-text-dim" />}
                           </button>
                         </div>
+                      )}
+                      {!isLoading && (
+                        <button
+                          onClick={() => handleRegenerate(message.id)}
+                          className="flex items-center gap-1 mt-1 px-2 py-1 text-[10px] text-forge-text-dim hover:text-forge-accent opacity-0 group-hover/assistant:opacity-100 transition-all rounded hover:bg-forge-surface"
+                          title="Regenerate response"
+                        >
+                          <RefreshCw className="w-3 h-3" />
+                          Regenerate
+                        </button>
                       )}
                     </div>
                   )}
@@ -718,9 +847,16 @@ export function ChatPanel({ projectName, projectId, files, onFileChange, onFileD
             )}
           </div>
         </div>
-        <p className="text-[10px] text-forge-text-dim/60 text-center mt-1.5 hidden sm:block">
-          Enter to send &middot; Shift+Enter for new line
-        </p>
+        <div className="flex items-center justify-between mt-1.5 px-1 hidden sm:flex">
+          <span className="text-[10px] text-forge-text-dim/60">
+            Enter to send &middot; Shift+Enter for new line
+          </span>
+          {estimatedTokens > 0 && (
+            <span className="text-[10px] text-forge-text-dim/60" title="Estimated token usage">
+              ~{estimatedTokens > 1000 ? `${(estimatedTokens / 1000).toFixed(1)}k` : estimatedTokens} tokens
+            </span>
+          )}
+        </div>
       </div>
     </div>
   )

@@ -3,7 +3,8 @@
 import { useRef, useCallback, useEffect, useState } from 'react'
 import Editor, { type OnMount, type BeforeMount } from '@monaco-editor/react'
 import { getLanguageFromPath } from '@/lib/utils'
-import { FileText, Save } from 'lucide-react'
+import { useTheme } from '@/components/theme-provider'
+import { FileText, Save, ChevronRight } from 'lucide-react'
 
 interface CodeEditorProps {
   path: string | null
@@ -15,6 +16,7 @@ interface CodeEditorProps {
 export function CodeEditor({ path, content, onSave, onChange }: CodeEditorProps) {
   const editorRef = useRef<Parameters<OnMount>[0] | null>(null)
   const [modified, setModified] = useState(false)
+  const { theme } = useTheme()
 
   const handleBeforeMount: BeforeMount = (monaco) => {
     // Enable syntax error detection (red squiggles) — semantic validation disabled
@@ -91,12 +93,17 @@ export function CodeEditor({ path, content, onSave, onChange }: CodeEditorProps)
 
   return (
     <div className="h-full flex flex-col">
-      {/* File path bar */}
+      {/* Breadcrumb path bar */}
       <div className="flex items-center justify-between px-3 py-2.5 sm:py-2 bg-forge-panel border-b border-forge-border text-xs sm:text-[11px]">
-        <span className="text-forge-text-dim font-mono truncate min-w-0">
-          {path}
+        <div className="flex items-center gap-0.5 text-forge-text-dim font-mono truncate min-w-0">
+          {path.split('/').map((segment, i, arr) => (
+            <span key={i} className="flex items-center gap-0.5">
+              {i > 0 && <ChevronRight className="w-3 h-3 shrink-0 opacity-40" />}
+              <span className={i === arr.length - 1 ? 'text-forge-text font-medium' : ''}>{segment}</span>
+            </span>
+          ))}
           {modified && <span className="text-forge-accent ml-1">●</span>}
-        </span>
+        </div>
         {modified && (
           <button
             onClick={() => {
@@ -120,7 +127,7 @@ export function CodeEditor({ path, content, onSave, onChange }: CodeEditorProps)
           height="100%"
           language={language}
           value={content}
-          theme="vs"
+          theme={theme === 'dark' ? 'vs-dark' : 'vs'}
           beforeMount={handleBeforeMount}
           onMount={handleMount}
           onChange={handleChange}

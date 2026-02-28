@@ -15,6 +15,26 @@
   --color-forge-danger: #dc2626;
 }
 
+/* Dark mode overrides (class-based) */
+html.dark {
+  --color-forge-bg: #0f1117;
+  --color-forge-surface: #1a1d27;
+  --color-forge-panel: #141620;
+  --color-forge-border: #2a2d3a;
+  --color-forge-border-bright: #3a3d4a;
+  --color-forge-accent: #818cf8;
+  --color-forge-accent-hover: #6366f1;
+  --color-forge-text: #e5e7eb;
+  --color-forge-text-dim: #9ca3af;
+  --color-forge-success: #34d399;
+  --color-forge-warning: #fbbf24;
+  --color-forge-danger: #f87171;
+}
+
+html.dark ::-webkit-scrollbar-thumb { background: #3a3d4a; }
+html.dark ::-webkit-scrollbar-thumb:hover { background: #4a4d5a; }
+html.dark ::selection { background: rgba(129, 140, 248, 0.3); }
+
 /* Scrollbar */
 ::-webkit-scrollbar { width: 6px; height: 6px; }
 ::-webkit-scrollbar-track { background: transparent; }
@@ -54,10 +74,25 @@
 
 /* Monaco overrides */
 .monaco-editor, .monaco-editor .margin, .monaco-editor-background {
-  background-color: #ffffff !important;
+  background-color: var(--color-forge-bg) !important;
 }
 .monaco-editor .current-line {
-  background-color: #f8f9fa !important;
+  background-color: var(--color-forge-surface) !important;
+}
+
+/* Dark toast overrides (sonner) */
+html.dark [data-sonner-toast] {
+  background: #1a1d27 !important;
+  border-color: #2a2d3a !important;
+  color: #e5e7eb !important;
+}
+html.dark [data-sonner-toast] [data-description] {
+  color: #9ca3af !important;
+}
+
+/* Dark code block hover */
+html.dark .code-block-wrapper:hover > div:first-child {
+  background-color: #1a1d27;
 }
 
 /* Animations */
@@ -78,6 +113,18 @@
   to { opacity: 1; transform: translateX(0); }
 }
 .animate-slide-in-right { animation: slideInRight 0.2s ease-out; }
+
+@keyframes scaleIn {
+  from { opacity: 0; transform: scale(0.95); }
+  to { opacity: 1; transform: scale(1); }
+}
+.animate-scale-in { animation: scaleIn 0.1s ease-out; }
+
+@keyframes slideDown {
+  from { opacity: 0; transform: translateY(-4px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+.animate-slide-down { animation: slideDown 0.15s ease-out; }
 
 @keyframes pulse-dot {
   0%, 100% { opacity: 0.4; }

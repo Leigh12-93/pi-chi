@@ -9,8 +9,17 @@ import { PreviewPanel } from './preview-panel'
 import { Header } from './header'
 import { ActionDialog, TaskPollingDialog } from './action-dialog'
 import { CommandPalette } from './command-palette'
+import { StatusBar } from './status-bar'
+import { KeyboardShortcutsOverlay } from './keyboard-shortcuts-overlay'
+import { ProjectSettingsDialog } from './project-settings-dialog'
+import { FileSearch } from './file-search'
+import { ConsolePanel, type ConsoleEntry } from './console-panel'
+import { OnboardingTour } from './onboarding-tour'
+import { VersionHistory, type Snapshot } from './version-history'
+import { DiffViewer } from './diff-viewer'
+import { NotificationCenter, type Notification } from './notification-center'
 import { useKeyboardShortcuts } from '@/lib/keyboard-shortcuts'
-import { MessageSquare, FolderTree, Code2, Eye, Loader2, Save, Rocket, Upload, GitBranch, Download, SidebarOpen, FolderInput } from 'lucide-react'
+import { MessageSquare, FolderTree, Code2, Eye, Loader2, Save, Rocket, Upload, GitBranch, Download, SidebarOpen, FolderInput, Keyboard, Settings2, Search, History } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { toast } from 'sonner'
 import type { FileNode } from '@/lib/types'
@@ -72,7 +81,7 @@ export function Workspace({
   onFileSelect, onFileChange, onFileDelete, onBulkFileUpdate, onSwitchProject,
   githubToken,
 }: WorkspaceProps) {
-  const [rightTab, setRightTab] = useState<'code' | 'preview'>('code')
+  const [rightTab, setRightTab] = useState<'code' | 'preview' | 'split'>('code')
   const [mobileTab, setMobileTab] = useState<MobileTab>('chat')
   const [openFiles, setOpenFiles] = useState<string[]>([])
   const [showSidebar, setShowSidebar] = useState(true)
@@ -80,6 +89,17 @@ export function Workspace({
   const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle')
   const [pendingChatMessage, setPendingChatMessage] = useState<string | null>(null)
   const [showCommandPalette, setShowCommandPalette] = useState(false)
+  const [showShortcuts, setShowShortcuts] = useState(false)
+  const [showSettings, setShowSettings] = useState(false)
+  const [showFileSearch, setShowFileSearch] = useState(false)
+  const [isDragging, setIsDragging] = useState(false)
+  const [consoleOpen, setConsoleOpen] = useState(false)
+  const [consoleEntries, setConsoleEntries] = useState<ConsoleEntry[]>([])
+  const [notifications, setNotifications] = useState<Notification[]>([])
+  const [snapshots, setSnapshots] = useState<Snapshot[]>([])
+  const [showVersionHistory, setShowVersionHistory] = useState(false)
+  const [diffState, setDiffState] = useState<{ open: boolean; path: string; oldContent: string; newContent: string } | null>(null)
+  const dragCounterRef = useRef(0)
   const chatSendRef = useRef<((message: string) => void) | null>(null)
 
   // Only recompute tree when file PATHS change, not on content edits
@@ -159,6 +179,57 @@ export function Workspace({
     setMobileTab('code')
   }
 
+  const handleFileCreate = (path: string) => {
+    onFileChange(path, '')
+    handleFileSelect(path)
+  }
+
+  const handleDragEnter = useCallback((e: React.DragEvent) => {
+    e.preventDefault()
+    dragCounterRef.current++
+    if (e.dataTransfer.types.includes('Files')) setIsDragging(true)
+  }, [])
+
+  const handleDragLeave = useCallback((e: React.DragEvent) => {
+    e.preventDefault()
+    dragCounterRef.current--
+    if (dragCounterRef.current === 0) setIsDragging(false)
+  }, [])
+
+  const handleDragOver = useCallback((e: React.DragEvent) => {
+    e.preventDefault()
+  }, [])
+
+  const handleDrop = useCallback(async (e: React.DragEvent) => {
+    e.preventDefault()
+    setIsDragging(false)
+    dragCounterRef.current = 0
+
+    const items = e.dataTransfer.files
+    if (!items.length) return
+
+    let count = 0
+    for (let i = 0; i < items.length; i++) {
+      const file = items[i]
+      // Only accept text-based files (skip binary like images > 100kb)
+      if (file.size > 500_000) {
+        toast.error(`Skipped ${file.name}`, { description: 'File too large (max 500KB)' })
+        continue
+      }
+      try {
+        const text = await file.text()
+        onFileChange(file.name, text)
+        count++
+      } catch {
+        toast.error(`Failed to read ${file.name}`)
+      }
+    }
+    if (count > 0) {
+      toast.success(`${count} file${count > 1 ? 's' : ''} imported`, { duration: 2500 })
+      if (count === 1) handleFileSelect(items[0].name)
+    }
+  }, [onFileChange, handleFileSelect])
+
   const handleRegisterSend = useCallback((sendFn: (message: string) => void) => {
     chatSendRef.current = sendFn
   }, [])
@@ -204,6 +275,13 @@ export function Workspace({
       })
       if (res.ok) {
         setSaveStatus('saved')
+        // Create a snapshot for version history
+        setSnapshots(prev => [{
+          id: `snap-${Date.now()}`,
+          label: `Save ${prev.length + 1}`,
+          timestamp: Date.now(),
+          files: { ...files },
+        }, ...prev].slice(0, 50))
         toast.success('Project saved', { description: `${Object.keys(files).length} files saved` })
       } else {
         setSaveStatus('error')
@@ -224,6 +302,15 @@ export function Workspace({
         break
       case 'save':
         handleSave()
+        break
+      case 'share':
+        if (projectId) {
+          const url = `${window.location.origin}?project=${projectId}`
+          navigator.clipboard.writeText(url)
+          toast.success('Share link copied', { description: url })
+        } else {
+          toast.error('Save the project first to get a share link')
+        }
         break
       case 'deploy':
       case 'push':
@@ -272,9 +359,11 @@ export function Workspace({
   // Keyboard shortcuts
   useKeyboardShortcuts([
     { key: 'k', ctrlKey: true, action: () => setShowCommandPalette(prev => !prev), description: 'Command palette' },
-    { key: 'p', ctrlKey: true, shiftKey: true, action: () => setRightTab(prev => prev === 'code' ? 'preview' : 'code'), description: 'Toggle preview' },
+    { key: 'p', ctrlKey: true, shiftKey: true, action: () => setRightTab(prev => prev === 'code' ? 'split' : prev === 'split' ? 'preview' : 'code'), description: 'Cycle view mode' },
     { key: 'b', ctrlKey: true, action: () => setShowSidebar(prev => !prev), description: 'Toggle sidebar' },
     { key: 'w', ctrlKey: true, action: () => { if (activeFile) handleCloseFile(activeFile) }, description: 'Close current file' },
+    { key: '/', ctrlKey: true, action: () => setShowShortcuts(prev => !prev), description: 'Keyboard shortcuts' },
+    { key: 'f', ctrlKey: true, action: () => setShowFileSearch(prev => !prev), description: 'Search in files' },
   ])
 
   const paletteCommands = useMemo(() => [
@@ -288,6 +377,11 @@ export function Workspace({
     { id: 'toggle-sidebar', label: 'Toggle File Sidebar', description: 'Show or hide the file tree', shortcut: 'Ctrl+B', icon: SidebarOpen, category: 'view' as const, action: () => setShowSidebar(prev => !prev) },
     { id: 'close-file', label: 'Close Current File', shortcut: 'Ctrl+W', icon: Code2, category: 'view' as const, action: () => { if (activeFile) handleCloseFile(activeFile) } },
     { id: 'switch-project', label: 'Switch Project', description: 'Go back to project picker', icon: FolderTree, category: 'navigation' as const, action: onSwitchProject },
+    { id: 'shortcuts', label: 'Keyboard Shortcuts', description: 'View all keyboard shortcuts', shortcut: 'Ctrl+/', icon: Keyboard, category: 'view' as const, action: () => setShowShortcuts(true) },
+    { id: 'settings', label: 'Project Settings', description: 'Edit project name and settings', icon: Settings2, category: 'actions' as const, action: () => setShowSettings(true) },
+    { id: 'search-files', label: 'Search in Files', description: 'Search text across all project files', shortcut: 'Ctrl+F', icon: Search, category: 'navigation' as const, action: () => setShowFileSearch(true) },
+    { id: 'split-view', label: 'Split View', description: 'Show code and preview side by side', icon: Code2, category: 'view' as const, action: () => setRightTab('split') },
+    { id: 'version-history', label: 'Version History', description: 'View and restore previous snapshots', icon: History, category: 'navigation' as const, action: () => setShowVersionHistory(true) },
   ], [handleSave, handleDownload, activeFile, onSwitchProject]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const chatPanel = (
@@ -312,6 +406,8 @@ export function Workspace({
       onFileSelect={handleFileSelect}
       onFileDelete={onFileDelete}
       onFileRename={handleFileRename}
+      onFileCreate={handleFileCreate}
+      fileContents={files}
     />
   )
 
@@ -357,6 +453,14 @@ export function Workspace({
           Code
         </button>
         <button
+          onClick={() => setRightTab('split')}
+          className={`px-4 py-2 text-xs font-medium transition-colors ${
+            rightTab === 'split' ? 'text-forge-accent border-b-2 border-forge-accent bg-forge-surface' : 'text-forge-text-dim hover:text-forge-text'
+          }`}
+        >
+          Split
+        </button>
+        <button
           onClick={() => setRightTab('preview')}
           className={`px-4 py-2 text-xs font-medium transition-colors ${
             rightTab === 'preview' ? 'text-forge-accent border-b-2 border-forge-accent bg-forge-surface' : 'text-forge-text-dim hover:text-forge-text'
@@ -364,7 +468,7 @@ export function Workspace({
         >
           Preview
         </button>
-        {rightTab === 'code' && openFiles.length > 0 && (
+        {(rightTab === 'code' || rightTab === 'split') && openFiles.length > 0 && (
           <div className="ml-2 border-l border-forge-border pl-2">
             {fileTabBar(openFiles)}
           </div>
@@ -378,6 +482,21 @@ export function Workspace({
             onSave={(path, content) => onFileChange(path, content)}
             onChange={(content) => activeFile && onFileChange(activeFile, content)}
           />
+        ) : rightTab === 'split' ? (
+          <PanelGroup direction="horizontal">
+            <Panel defaultSize={50} minSize={30}>
+              <CodeEditor
+                path={activeFile}
+                content={activeFile ? files[activeFile] || '' : ''}
+                onSave={(path, content) => onFileChange(path, content)}
+                onChange={(content) => activeFile && onFileChange(activeFile, content)}
+              />
+            </Panel>
+            <PanelResizeHandle />
+            <Panel defaultSize={50} minSize={30}>
+              <PreviewPanel files={files} projectId={projectId} onFixErrors={(msg) => setPendingChatMessage(msg)} />
+            </Panel>
+          </PanelGroup>
         ) : (
           <PreviewPanel files={files} projectId={projectId} onFixErrors={(msg) => setPendingChatMessage(msg)} />
         )}
@@ -393,7 +512,23 @@ export function Workspace({
   ]
 
   return (
-    <div className="h-screen flex flex-col bg-forge-bg">
+    <div
+      className="h-screen flex flex-col bg-forge-bg relative"
+      onDragEnter={handleDragEnter}
+      onDragLeave={handleDragLeave}
+      onDragOver={handleDragOver}
+      onDrop={handleDrop}
+    >
+      {/* Drag overlay */}
+      {isDragging && (
+        <div className="absolute inset-0 z-[90] bg-forge-accent/10 border-2 border-dashed border-forge-accent rounded-lg flex items-center justify-center backdrop-blur-sm animate-fade-in pointer-events-none">
+          <div className="text-center">
+            <Upload className="w-10 h-10 text-forge-accent mx-auto mb-2" />
+            <p className="text-sm font-medium text-forge-accent">Drop files to import</p>
+            <p className="text-xs text-forge-text-dim mt-1">Text files up to 500KB</p>
+          </div>
+        </div>
+      )}
       <Header
         projectName={projectName}
         onSwitchProject={onSwitchProject}
@@ -401,31 +536,52 @@ export function Workspace({
         onAction={handleAction}
         saveStatus={saveStatus}
         onOpenCommandPalette={() => setShowCommandPalette(true)}
+        notificationSlot={
+          <NotificationCenter
+            notifications={notifications}
+            onMarkAllRead={() => setNotifications(prev => prev.map(n => ({ ...n, read: true })))}
+            onDismiss={(id) => setNotifications(prev => prev.filter(n => n.id !== id))}
+          />
+        }
       />
 
       {/* Desktop layout */}
-      <div className="flex-1 hidden md:flex overflow-hidden">
-        <PanelGroup direction="horizontal">
-          <Panel defaultSize={30} minSize={20} maxSize={50}>
-            {chatPanel}
-          </Panel>
-          <PanelResizeHandle />
-          <Panel defaultSize={70} minSize={40}>
-            <PanelGroup direction="horizontal">
-              {showSidebar && (
-                <>
-                  <Panel defaultSize={20} minSize={12} maxSize={35}>
-                    {fileTreePanel}
-                  </Panel>
-                  <PanelResizeHandle />
-                </>
-              )}
-              <Panel defaultSize={showSidebar ? 80 : 100} minSize={40}>
-                {editorPanel}
-              </Panel>
-            </PanelGroup>
-          </Panel>
-        </PanelGroup>
+      <div className="flex-1 hidden md:flex flex-col overflow-hidden">
+        <div className="flex-1 flex overflow-hidden">
+          <PanelGroup direction="horizontal">
+            <Panel defaultSize={30} minSize={20} maxSize={50}>
+              {chatPanel}
+            </Panel>
+            <PanelResizeHandle />
+            <Panel defaultSize={70} minSize={40}>
+              <PanelGroup direction="horizontal">
+                {showSidebar && (
+                  <>
+                    <Panel defaultSize={20} minSize={12} maxSize={35}>
+                      {fileTreePanel}
+                    </Panel>
+                    <PanelResizeHandle />
+                  </>
+                )}
+                <Panel defaultSize={showSidebar ? 80 : 100} minSize={40}>
+                  {editorPanel}
+                </Panel>
+              </PanelGroup>
+            </Panel>
+          </PanelGroup>
+        </div>
+        <ConsolePanel
+          entries={consoleEntries}
+          onClear={() => setConsoleEntries([])}
+          open={consoleOpen}
+          onToggle={() => setConsoleOpen(prev => !prev)}
+        />
+        <StatusBar
+          activeFile={activeFile}
+          fileCount={Object.keys(files).length}
+          framework={files['package.json'] ? 'Next.js' : files['index.html'] ? 'Static' : undefined}
+          saveStatus={saveStatus}
+        />
       </div>
 
       {/* Mobile layout */}
@@ -582,6 +738,69 @@ export function Workspace({
         onClose={() => setShowCommandPalette(false)}
         commands={paletteCommands}
       />
+
+      {/* Keyboard Shortcuts Overlay */}
+      <KeyboardShortcutsOverlay
+        open={showShortcuts}
+        onClose={() => setShowShortcuts(false)}
+      />
+
+      {/* File Search */}
+      <FileSearch
+        files={files}
+        onResultClick={handleFileSelect}
+        open={showFileSearch}
+        onClose={() => setShowFileSearch(false)}
+      />
+
+      {/* Project Settings */}
+      <ProjectSettingsDialog
+        open={showSettings}
+        onClose={() => setShowSettings(false)}
+        projectName={projectName}
+        projectId={projectId}
+        framework={files['package.json'] ? 'Next.js' : files['index.html'] ? 'Static' : undefined}
+        onUpdateSettings={() => {}}
+      />
+
+      {/* Version History */}
+      <VersionHistory
+        open={showVersionHistory}
+        onClose={() => setShowVersionHistory(false)}
+        snapshots={snapshots}
+        currentFiles={files}
+        onRestore={(snapshot) => {
+          onBulkFileUpdate(snapshot.files)
+          toast.success('Snapshot restored', { description: snapshot.label })
+        }}
+        onViewDiff={(snapshotId, path) => {
+          const snapshot = snapshots.find(s => s.id === snapshotId)
+          if (snapshot) {
+            setDiffState({
+              open: true,
+              path,
+              oldContent: snapshot.files[path] || '',
+              newContent: files[path] || '',
+            })
+          }
+        }}
+      />
+
+      {/* Diff Viewer */}
+      {diffState && (
+        <DiffViewer
+          open={diffState.open}
+          onClose={() => setDiffState(null)}
+          path={diffState.path}
+          oldContent={diffState.oldContent}
+          newContent={diffState.newContent}
+          oldLabel="Snapshot"
+          newLabel="Current"
+        />
+      )}
+
+      {/* Onboarding Tour */}
+      <OnboardingTour />
     </div>
   )
 }
