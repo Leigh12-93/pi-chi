@@ -1,4 +1,4 @@
-import { NextResponse } from 'next/server'
+import { NextResponse, after } from 'next/server'
 
 const SUPABASE_URL = (process.env.NEXT_PUBLIC_SUPABASE_URL || '').trim()
 const SUPABASE_KEY = (process.env.SUPABASE_SERVICE_ROLE_KEY || '').trim()
@@ -399,8 +399,8 @@ export async function POST(req: Request) {
     }
   }
 
-  // Don't await — fire and forget
-  execute()
+  // Run after response is sent — keeps serverless function alive until execute() completes
+  after(execute)
 
   return NextResponse.json({ taskId, status: 'running' })
 }

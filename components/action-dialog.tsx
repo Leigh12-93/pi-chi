@@ -332,8 +332,19 @@ export function TaskPollingDialog({
 
       const { taskId } = await res.json()
 
-      // Poll for completion
+      // Poll for completion (timeout after 5 minutes)
+      const pollStart = Date.now()
+      const POLL_TIMEOUT = 5 * 60 * 1000 // 5 minutes
+
       pollRef.current = setInterval(async () => {
+        // Safety timeout — stop polling after 5 minutes
+        if (Date.now() - pollStart > POLL_TIMEOUT) {
+          if (pollRef.current) clearInterval(pollRef.current)
+          setState('error')
+          setErrorMessage('Task timed out. Check the Vercel dashboard for deployment status.')
+          return
+        }
+
         try {
           const statusRes = await fetch(`/api/tasks/${taskId}`)
           if (!statusRes.ok) return
