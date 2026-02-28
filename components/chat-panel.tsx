@@ -75,6 +75,17 @@ const QUICK_ACTIONS = [
   { label: 'E-commerce', query: 'Build an e-commerce product page with image gallery, size/color selector, add to cart, reviews section, and related products. Clean, modern design like Apple Store.', icon: FileText },
 ]
 
+const colorClasses: Record<string, string> = {
+  green: 'text-emerald-600 bg-emerald-50',
+  blue: 'text-blue-600 bg-blue-50',
+  yellow: 'text-amber-600 bg-amber-50',
+  red: 'text-red-600 bg-red-50',
+  purple: 'text-purple-600 bg-purple-50',
+  indigo: 'text-indigo-600 bg-indigo-50',
+  orange: 'text-orange-600 bg-orange-50',
+  gray: 'text-gray-600 bg-gray-100',
+}
+
 // ═══════════════════════════════════════════════════════════════════
 // Markdown renderer (light theme)
 // ═══════════════════════════════════════════════════════════════════
@@ -439,26 +450,15 @@ export function ChatPanel({ projectName, projectId, files, onFileChange, onFileD
 
   const isEmpty = messages.length === 0
 
-  const colorClasses: Record<string, string> = {
-    green: 'text-emerald-600 bg-emerald-50',
-    blue: 'text-blue-600 bg-blue-50',
-    yellow: 'text-amber-600 bg-amber-50',
-    red: 'text-red-600 bg-red-50',
-    purple: 'text-purple-600 bg-purple-50',
-    indigo: 'text-indigo-600 bg-indigo-50',
-    orange: 'text-orange-600 bg-orange-50',
-    gray: 'text-gray-600 bg-gray-100',
-  }
-
   return (
     <div className="h-full flex flex-col bg-forge-panel border-r border-forge-border">
       {/* Header */}
-      <div className="flex items-center justify-between px-4 py-2.5 border-b border-forge-border shrink-0">
+      <div className="flex items-center justify-between px-3 py-2 border-b border-forge-border shrink-0">
         <div className="flex items-center gap-2">
           <Bot className="w-4 h-4 text-forge-accent" />
           <span className="text-xs font-medium text-forge-text">Forge AI</span>
           {isLoading && stepCount > 0 && (
-            <span className="text-[10px] text-forge-accent animate-pulse">Step {stepCount}</span>
+            <span className="text-[10px] text-forge-accent animate-pulse" title="Tool invocations processed">Step {stepCount}</span>
           )}
         </div>
         {messages.length > 0 && (
@@ -466,6 +466,7 @@ export function ChatPanel({ projectName, projectId, files, onFileChange, onFileD
             onClick={() => { setMessages([]); processedInvs.current.clear() }}
             className="text-forge-text-dim hover:text-forge-danger transition-colors"
             title="Clear chat"
+            aria-label="Clear chat"
           >
             <Trash2 className="w-3.5 h-3.5" />
           </button>

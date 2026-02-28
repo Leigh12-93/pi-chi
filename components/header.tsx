@@ -17,17 +17,17 @@ interface HeaderProps {
   onOpenCommandPalette?: () => void
 }
 
+const actions = [
+  { id: 'save', icon: Save, label: 'Save', tip: 'Save project to database' },
+  { id: 'deploy', icon: Rocket, label: 'Deploy', tip: 'Deploy to Vercel' },
+  { id: 'push', icon: Upload, label: 'Push', tip: 'Push to GitHub' },
+  { id: 'create-repo', icon: GitBranch, label: 'New Repo', tip: 'Create GitHub repo' },
+  { id: 'import', icon: FolderInput, label: 'Import', tip: 'Import from GitHub repo' },
+  { id: 'download', icon: Download, label: 'Download', tip: 'Download project as ZIP' },
+]
+
 export function Header({ projectName, onSwitchProject, fileCount, onAction, saveStatus = 'idle', onOpenCommandPalette }: HeaderProps) {
   const { session, status } = useSession()
-
-  const actions = [
-    { id: 'save', icon: Save, label: 'Save', tip: 'Save project to database', color: 'hover:text-green-600' },
-    { id: 'deploy', icon: Rocket, label: 'Deploy', tip: 'Deploy to Vercel', color: 'hover:text-blue-600' },
-    { id: 'push', icon: Upload, label: 'Push', tip: 'Push to GitHub', color: 'hover:text-purple-600' },
-    { id: 'create-repo', icon: GitBranch, label: 'New Repo', tip: 'Create GitHub repo', color: 'hover:text-orange-600' },
-    { id: 'import', icon: FolderInput, label: 'Import', tip: 'Import from GitHub repo', color: 'hover:text-teal-600' },
-    { id: 'download', icon: Download, label: 'Download', tip: 'Download project as ZIP', color: 'hover:text-cyan-600' },
-  ]
 
   const getSaveIcon = () => {
     if (saveStatus === 'saving') return <Loader2 className="w-3.5 h-3.5 animate-spin" />
@@ -69,13 +69,13 @@ export function Header({ projectName, onSwitchProject, fileCount, onAction, save
               onClick={() => onAction?.(action.id)}
               disabled={action.id === 'save' && saveStatus === 'saving'}
               className={cn(
-                'flex items-center gap-1.5 p-1.5 sm:px-2.5 sm:py-1.5 text-[11px] font-medium text-forge-text-dim hover:bg-forge-surface rounded transition-all',
-                action.color,
-                action.id === 'save' && saveStatus === 'saving' && 'opacity-70',
+                'flex items-center gap-1.5 p-1.5 sm:px-2.5 sm:py-1.5 text-[11px] font-medium text-forge-text-dim hover:text-forge-accent hover:bg-forge-surface rounded transition-colors',
+                action.id === 'save' && saveStatus === 'saving' && 'opacity-50 cursor-not-allowed',
                 action.id === 'save' && saveStatus === 'saved' && 'text-green-600',
                 action.id === 'save' && saveStatus === 'error' && 'text-red-600',
               )}
               title={action.tip}
+              aria-label={action.label}
             >
               {saveIcon || <action.icon className="w-3.5 h-3.5" />}
               <span className="hidden lg:inline">{action.label}</span>

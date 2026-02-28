@@ -6,7 +6,7 @@ import {
   Square, Loader2, Zap, ExternalLink, Maximize2, Minimize2,
   Globe, Terminal, X, ArrowUpFromLine, Play,
 } from 'lucide-react'
-import { cn } from '@/lib/utils'
+import { cn, hashFileMap } from '@/lib/utils'
 
 interface ConsoleEntry {
   timestamp: string
@@ -19,17 +19,6 @@ interface PreviewPanelProps {
   files: Record<string, string>
   projectId?: string | null
   onFixErrors?: (errorSummary: string) => void
-}
-
-/** Fast djb2 hash of files map — avoids serializing entire VFS */
-function hashFilesForSync(files: Record<string, string>): string {
-  const keys = Object.keys(files).sort()
-  let h = 5381
-  for (const k of keys) {
-    for (let i = 0; i < k.length; i++) h = ((h << 5) + h + k.charCodeAt(i)) | 0
-    h = ((h << 5) + h + files[k].length) | 0
-  }
-  return h.toString(36)
 }
 
 type ViewMode = 'desktop' | 'tablet' | 'mobile'
@@ -318,7 +307,7 @@ export function PreviewPanel({ files, projectId, onFixErrors }: PreviewPanelProp
       setSandboxUrl(data.demoUrl)
       sandboxUrlRef.current = data.demoUrl
       setSandboxStatus('running')
-      lastSyncedFilesRef.current = hashFilesForSync(files)
+      lastSyncedFilesRef.current = hashFileMap(files)
 
       const meta = [
         data.fileCount && `${data.fileCount} files uploaded`,
@@ -400,7 +389,7 @@ export function PreviewPanel({ files, projectId, onFixErrors }: PreviewPanelProp
   useEffect(() => {
     if (sandboxStatus !== 'running' || !projectId) return
 
-    const currentHash = hashFilesForSync(files)
+    const currentHash = hashFileMap(files)
     if (currentHash === lastSyncedFilesRef.current) return
 
     if (syncTimeoutRef.current) clearTimeout(syncTimeoutRef.current)
@@ -608,6 +597,7 @@ export function PreviewPanel({ files, projectId, onFixErrors }: PreviewPanelProp
               }}
               className="p-1.5 rounded-md text-forge-text-dim hover:text-forge-text hover:bg-forge-surface transition-colors"
               title="Refresh preview"
+              aria-label="Refresh preview"
             >
               <RefreshCw className="w-3.5 h-3.5" />
             </button>
@@ -620,6 +610,7 @@ export function PreviewPanel({ files, projectId, onFixErrors }: PreviewPanelProp
                 rel="noopener noreferrer"
                 className="p-1.5 rounded-md text-forge-text-dim hover:text-forge-text hover:bg-forge-surface transition-colors"
                 title="Open in new tab"
+                aria-label="Open in new tab"
               >
                 <ExternalLink className="w-3.5 h-3.5" />
               </a>
@@ -635,6 +626,7 @@ export function PreviewPanel({ files, projectId, onFixErrors }: PreviewPanelProp
                   : 'text-forge-text-dim hover:text-forge-text hover:bg-forge-surface',
               )}
               title="Toggle console"
+              aria-label={showConsole ? 'Hide console' : 'Show console'}
             >
               <Terminal className="w-3.5 h-3.5" />
               {!showConsole && consoleLogs.some(e => e.level === 'error') && (
@@ -649,6 +641,7 @@ export function PreviewPanel({ files, projectId, onFixErrors }: PreviewPanelProp
               onClick={() => setIsFullscreen(prev => !prev)}
               className="p-1.5 rounded-md text-forge-text-dim hover:text-forge-text hover:bg-forge-surface transition-colors"
               title={isFullscreen ? 'Exit fullscreen' : 'Fullscreen'}
+              aria-label={isFullscreen ? 'Exit fullscreen' : 'Enter fullscreen'}
             >
               {isFullscreen
                 ? <Minimize2 className="w-3.5 h-3.5" />
@@ -665,6 +658,7 @@ export function PreviewPanel({ files, projectId, onFixErrors }: PreviewPanelProp
                   'text-red-500 hover:text-red-700 hover:bg-red-50',
                 )}
                 title="Stop sandbox"
+                aria-label="Stop sandbox"
               >
                 <Square className="w-3.5 h-3.5" />
               </button>

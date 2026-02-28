@@ -205,7 +205,7 @@ export function ProjectPicker({ onSelect, savedProjects, loadingProjects, onDele
             <button
               onClick={handleCreate}
               disabled={creating}
-              className="flex items-center gap-2 px-5 py-2.5 bg-forge-accent hover:bg-forge-accent-hover text-white text-sm font-medium rounded-xl disabled:opacity-50 transition-all shadow-sm hover:shadow"
+              className="flex items-center gap-2 px-5 py-2.5 bg-forge-accent hover:bg-forge-accent-hover text-white text-sm font-medium rounded-xl disabled:opacity-50 disabled:cursor-not-allowed transition-all shadow-sm hover:shadow"
             >
               <Sparkles className="w-4 h-4" />
               Create
@@ -360,7 +360,7 @@ export function ProjectPicker({ onSelect, savedProjects, loadingProjects, onDele
                         key={repo.id}
                         onClick={() => handleImportRepo(repo)}
                         disabled={importingRepo === repo.full_name}
-                        className="group relative bg-forge-panel border border-forge-border rounded-xl p-4 text-left hover:border-forge-accent/50 hover:bg-forge-accent/5 transition-all disabled:opacity-60"
+                        className="group relative bg-forge-panel border border-forge-border rounded-xl p-4 text-left hover:border-forge-accent/50 hover:bg-forge-accent/5 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
                       >
                         <div className="flex items-start justify-between mb-1.5">
                           <h3 className="text-sm font-medium text-forge-text group-hover:text-forge-accent transition-colors truncate pr-2 flex items-center gap-1.5">

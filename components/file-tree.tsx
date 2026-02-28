@@ -62,7 +62,7 @@ export function FileTree({ files, activeFile, onFileSelect, onFileDelete, onFile
 
   return (
     <div className="h-full bg-forge-panel border-r border-forge-border flex flex-col" data-file-tree>
-      <div className="flex items-center justify-between px-3 py-2.5 border-b border-forge-border shrink-0">
+      <div className="flex items-center justify-between px-3 py-2 border-b border-forge-border shrink-0">
         <span className="text-[10px] uppercase tracking-wider text-forge-text-dim font-semibold">
           Files
         </span>
@@ -73,6 +73,7 @@ export function FileTree({ files, activeFile, onFileSelect, onFileDelete, onFile
             showSearch ? 'text-forge-accent bg-forge-accent/10' : 'text-forge-text-dim hover:text-forge-text hover:bg-forge-surface',
           )}
           title="Search files (Ctrl+F)"
+          aria-label="Search files"
         >
           <Search className="w-3 h-3" />
         </button>
@@ -265,10 +266,10 @@ function TreeItem({
               onChange={(e) => setNewName(e.target.value)}
               onBlur={handleRename}
               onKeyDown={handleKeyDown}
-              className="ml-1 bg-forge-surface border border-forge-accent rounded px-1 py-0 text-[12px] text-forge-text outline-none flex-1 min-w-0"
+              className="ml-1 bg-forge-surface border border-forge-accent rounded px-1 py-0 text-[12px] text-forge-text outline-none focus:ring-2 focus:ring-forge-accent/30 flex-1 min-w-0"
             />
           ) : (
-            <span className="truncate ml-1">{node.name}</span>
+            <span className="truncate ml-1" title={node.path}>{node.name}</span>
           )}
         </button>
 
@@ -308,7 +309,7 @@ function TreeItem({
           )}
           <button
             onClick={() => {
-              navigator.clipboard.writeText(node.path)
+              navigator.clipboard.writeText(node.path).catch(() => {})
               setShowContextMenu(false)
             }}
             className="flex items-center gap-2 w-full px-3 py-1.5 text-xs text-forge-text hover:bg-forge-surface transition-colors"

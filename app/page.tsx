@@ -5,6 +5,7 @@ import { useSession } from '@/components/session-provider'
 import { Workspace } from '@/components/workspace'
 import { ProjectPicker } from '@/components/project-picker'
 import { ErrorBoundary } from '@/components/error-boundary'
+import { hashFileMapDeep } from '@/lib/utils'
 
 interface SavedProject {
   id: string
@@ -54,17 +55,7 @@ export default function ForgePage() {
   useEffect(() => {
     if (!projectId || Object.keys(files).length === 0) return
 
-    // Lightweight djb2 hash — avoids JSON.stringify allocation on every file change
-    // Hashes path + length separator + full content (~0.5ms for 60 files at 2KB avg)
-    const keys = Object.keys(files).sort()
-    let h = 5381
-    for (const k of keys) {
-      for (let i = 0; i < k.length; i++) h = ((h << 5) + h + k.charCodeAt(i)) | 0
-      const c = files[k]
-      h = ((h << 5) + h + c.length) | 0 // length separates key from value (prevents boundary collisions)
-      for (let i = 0; i < c.length; i++) h = ((h << 5) + h + c.charCodeAt(i)) | 0
-    }
-    const hash = h.toString(36)
+    const hash = hashFileMapDeep(files)
     if (hash === lastSavedHash.current) return
 
     if (autoSaveTimer.current) clearTimeout(autoSaveTimer.current)

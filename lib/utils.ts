@@ -39,6 +39,30 @@ export function getFileIcon(filename: string): string {
   }
 }
 
+/** Fast djb2 hash of file paths + content lengths. For sync/change detection. */
+export function hashFileMap(files: Record<string, string>): string {
+  const keys = Object.keys(files).sort()
+  let h = 5381
+  for (const k of keys) {
+    for (let i = 0; i < k.length; i++) h = ((h << 5) + h + k.charCodeAt(i)) | 0
+    h = ((h << 5) + h + files[k].length) | 0
+  }
+  return h.toString(36)
+}
+
+/** Deep djb2 hash of file paths + full content. For auto-save dedup. */
+export function hashFileMapDeep(files: Record<string, string>): string {
+  const keys = Object.keys(files).sort()
+  let h = 5381
+  for (const k of keys) {
+    for (let i = 0; i < k.length; i++) h = ((h << 5) + h + k.charCodeAt(i)) | 0
+    const c = files[k]
+    h = ((h << 5) + h + c.length) | 0
+    for (let i = 0; i < c.length; i++) h = ((h << 5) + h + c.charCodeAt(i)) | 0
+  }
+  return h.toString(36)
+}
+
 export function getLanguageFromPath(path: string): string {
   const ext = path.split('.').pop()?.toLowerCase()
   switch (ext) {

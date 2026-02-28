@@ -451,7 +451,7 @@ export function TaskPollingDialog({
             </p>
             <p className="text-[10px] text-forge-text-dim tabular-nums">{elapsed}s</p>
             <div className="w-full max-w-xs mt-3">
-              <div className="h-1.5 bg-forge-surface rounded-full overflow-hidden">
+              <div className="h-1.5 bg-forge-surface rounded-full overflow-hidden" role="progressbar" aria-label="Operation progress">
                 <div
                   className="h-full bg-gradient-to-r from-forge-accent to-blue-500 rounded-full transition-all duration-1000"
                   style={{

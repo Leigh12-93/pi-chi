@@ -324,7 +324,7 @@ export function Workspace({
           <div
             key={f}
             className={cn(
-              'flex items-center gap-1 px-2.5 py-1.5 text-xs rounded-md cursor-pointer transition-all whitespace-nowrap border',
+              'group flex items-center gap-1 px-2.5 py-1.5 text-xs rounded-md cursor-pointer transition-all whitespace-nowrap border',
               isActive
                 ? 'bg-forge-surface text-forge-text border-forge-border shadow-sm'
                 : 'text-forge-text-dim hover:text-forge-text border-transparent hover:bg-forge-surface/50',
@@ -460,7 +460,7 @@ export function Workspace({
               key={tab.id}
               onClick={() => setMobileTab(tab.id)}
               className={cn(
-                'flex flex-col items-center gap-1 px-4 py-1.5 rounded-xl transition-all min-w-[64px] min-h-[44px]',
+                'flex flex-col items-center gap-1 px-4 py-1.5 rounded-xl transition-all min-w-[64px] min-h-[44px] focus:outline-none focus-visible:ring-2 focus-visible:ring-forge-accent/50',
                 mobileTab === tab.id
                   ? 'text-forge-accent bg-forge-accent/10 shadow-sm'
                   : 'text-forge-text-dim active:bg-forge-surface',
