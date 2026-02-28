@@ -7,66 +7,94 @@ import {
   getV0SandboxStats,
   isV0SandboxConfigured,
 } from '@/lib/v0-sandbox'
-import { sandboxLimiter } from '@/lib/rate-limit'
+import { sandboxLimiter, sandboxSyncLimiter } from '@/lib/rate-limit'
 
 const MAX_FILES = 200    // reject absurdly large projects
 const MAX_BODY = 8 << 20 // 8MB request body guard
 
+/** Validate all file values are strings (not objects, nulls, etc.) */
+function validateFileValues(files: Record<string, unknown>): files is Record<string, string> {
+  for (const [key, val] of Object.entries(files)) {
+    if (typeof val !== 'string') {
+      return false
+    }
+  }
+  return true
+}
+
+/** Timed JSON response wrapper — adds X-Duration-Ms header */
+function timedJson(data: unknown, init: { status?: number; headers?: Record<string, string> } = {}, startMs: number) {
+  const duration = Date.now() - startMs
+  return NextResponse.json(data, {
+    ...init,
+    headers: { ...init.headers, 'X-Duration-Ms': String(duration) },
+  })
+}
+
 // POST /api/sandbox — Create sandbox with project files
 export async function POST(req: NextRequest) {
+  const start = Date.now()
   try {
     // Rate limit — 5 sandbox creations/minute per IP
     const ip = req.headers.get('x-forwarded-for')?.split(',')[0]?.trim() || 'unknown'
     const limit = sandboxLimiter(ip)
     if (!limit.ok) {
-      return NextResponse.json(
+      return timedJson(
         { error: 'Rate limited. Too many sandbox requests.', retryAfter: Math.ceil(limit.resetIn / 1000) },
         { status: 429, headers: { 'Retry-After': String(Math.ceil(limit.resetIn / 1000)) } },
+        start,
       )
     }
 
     // Content-length guard
     const contentLength = parseInt(req.headers.get('content-length') || '0', 10)
     if (contentLength > MAX_BODY) {
-      return NextResponse.json(
+      return timedJson(
         { error: `Request too large (${(contentLength / 1024 / 1024).toFixed(1)}MB). Max ${MAX_BODY / 1024 / 1024}MB.` },
         { status: 413 },
+        start,
       )
     }
 
     const { projectId, files } = await req.json()
 
     if (!projectId || typeof projectId !== 'string') {
-      return NextResponse.json({ error: 'projectId (string) is required' }, { status: 400 })
+      return timedJson({ error: 'projectId (string) is required' }, { status: 400 }, start)
     }
     if (!files || typeof files !== 'object' || Array.isArray(files)) {
-      return NextResponse.json({ error: 'files (Record<string, string>) is required' }, { status: 400 })
+      return timedJson({ error: 'files (Record<string, string>) is required' }, { status: 400 }, start)
+    }
+    if (!validateFileValues(files)) {
+      return timedJson({ error: 'All file values must be strings' }, { status: 400 }, start)
     }
 
     const fileCount = Object.keys(files).length
     if (fileCount === 0) {
-      return NextResponse.json({ error: 'No files provided' }, { status: 400 })
+      return timedJson({ error: 'No files provided' }, { status: 400 }, start)
     }
     if (fileCount > MAX_FILES) {
-      return NextResponse.json(
+      return timedJson(
         { error: `Too many files (${fileCount}). Max ${MAX_FILES}.` },
         { status: 400 },
+        start,
       )
     }
 
     if (!isV0SandboxConfigured()) {
-      return NextResponse.json(
+      return timedJson(
         { error: 'v0 Sandbox not configured. Set V0_API_KEY environment variable.' },
         { status: 503 },
+        start,
       )
     }
 
     const result = await createV0Sandbox(projectId, files)
-    return NextResponse.json(result)
+    return timedJson(result, {}, start)
   } catch (error) {
-    return NextResponse.json(
+    return timedJson(
       { error: error instanceof Error ? error.message : 'Failed to create sandbox' },
       { status: 500 },
+      start,
     )
   }
 }
@@ -100,22 +128,38 @@ export async function GET(req: NextRequest) {
 
 // PUT /api/sandbox — Sync files to running sandbox
 export async function PUT(req: NextRequest) {
+  const start = Date.now()
   try {
+    // Rate limit sync — 20/minute per IP (higher than create since it's debounced)
+    const ip = req.headers.get('x-forwarded-for')?.split(',')[0]?.trim() || 'unknown'
+    const limit = sandboxSyncLimiter(ip)
+    if (!limit.ok) {
+      return timedJson(
+        { error: 'Rate limited. Too many sync requests.', retryAfter: Math.ceil(limit.resetIn / 1000) },
+        { status: 429, headers: { 'Retry-After': String(Math.ceil(limit.resetIn / 1000)) } },
+        start,
+      )
+    }
+
     const { projectId, files } = await req.json()
 
     if (!projectId || typeof projectId !== 'string') {
-      return NextResponse.json({ error: 'projectId (string) is required' }, { status: 400 })
+      return timedJson({ error: 'projectId (string) is required' }, { status: 400 }, start)
     }
     if (!files || typeof files !== 'object' || Array.isArray(files)) {
-      return NextResponse.json({ error: 'files (Record<string, string>) is required' }, { status: 400 })
+      return timedJson({ error: 'files (Record<string, string>) is required' }, { status: 400 }, start)
+    }
+    if (!validateFileValues(files)) {
+      return timedJson({ error: 'All file values must be strings' }, { status: 400 }, start)
     }
 
     const result = await syncV0Files(projectId, files)
-    return NextResponse.json(result)
+    return timedJson(result, {}, start)
   } catch (error) {
-    return NextResponse.json(
+    return timedJson(
       { error: error instanceof Error ? error.message : 'Failed to sync files' },
       { status: 500 },
+      start,
     )
   }
 }
@@ -123,7 +167,15 @@ export async function PUT(req: NextRequest) {
 // DELETE /api/sandbox — Destroy sandbox
 export async function DELETE(req: NextRequest) {
   try {
-    const { projectId } = await req.json()
+    // Safe body parsing — DELETE might have empty body
+    let projectId: string | undefined
+    try {
+      const body = await req.json()
+      projectId = body?.projectId
+    } catch {
+      return NextResponse.json({ error: 'projectId is required (JSON body)' }, { status: 400 })
+    }
+
     if (!projectId) {
       return NextResponse.json({ error: 'projectId is required' }, { status: 400 })
     }

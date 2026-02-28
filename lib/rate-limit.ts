@@ -48,5 +48,6 @@ export function rateLimit(
 }
 
 // Pre-configured limiters
-export const chatLimiter = rateLimit('chat', 20, 60_000)       // 20 req/min
-export const sandboxLimiter = rateLimit('sandbox', 5, 60_000)  // 5 req/min
+export const chatLimiter = rateLimit('chat', 20, 60_000)           // 20 req/min
+export const sandboxLimiter = rateLimit('sandbox', 5, 60_000)      // 5 req/min (create)
+export const sandboxSyncLimiter = rateLimit('sandbox-sync', 20, 60_000) // 20 req/min (sync)

@@ -13,6 +13,17 @@ interface PreviewPanelProps {
   projectId?: string | null
 }
 
+/** Fast djb2 hash of files map — avoids serializing entire VFS */
+function hashFilesForSync(files: Record<string, string>): string {
+  const keys = Object.keys(files).sort()
+  let h = 5381
+  for (const k of keys) {
+    for (let i = 0; i < k.length; i++) h = ((h << 5) + h + k.charCodeAt(i)) | 0
+    h = ((h << 5) + h + files[k].length) | 0
+  }
+  return h.toString(36)
+}
+
 type ViewMode = 'desktop' | 'tablet' | 'mobile'
 
 type SandboxStatus = 'idle' | 'initializing' | 'running' | 'error'
@@ -53,16 +64,25 @@ export function PreviewPanel({ files, projectId }: PreviewPanelProps) {
   const [isSyncing, setIsSyncing] = useState(false)
   const syncTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const autoStartTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
-  const lastSyncedFilesRef = useRef<string>('')
+  const lastSyncedFilesRef = useRef<string>('0')  // hash, not JSON
   const startingRef = useRef(false) // prevent double-starts
   const hasAutoStartedRef = useRef(false) // only auto-start once per session
   const sandboxAvailableRef = useRef<boolean | null>(null) // cached sandbox availability check
   const abortRef = useRef<AbortController | null>(null) // cancel inflight requests
   const retryCountRef = useRef(0) // auto-retry counter
+  const retryTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null) // clear retry on unmount
+  const consoleEndRef = useRef<HTMLDivElement | null>(null) // auto-scroll console
+  const [iframeLoading, setIframeLoading] = useState(false) // iframe load indicator
+  const sandboxUrlRef = useRef<string | null>(null) // stable ref for sync effect
 
   const addLog = useCallback((msg: string) => {
     const ts = new Date().toLocaleTimeString('en-AU', { hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit' })
-    setConsoleLogs(prev => [...prev.slice(-99), `[${ts}] ${msg}`])
+    setConsoleLogs(prev => {
+      const next = [...prev.slice(-99), `[${ts}] ${msg}`]
+      // Auto-scroll on next tick
+      requestAnimationFrame(() => consoleEndRef.current?.scrollIntoView({ behavior: 'smooth' }))
+      return next
+    })
   }, [])
 
   // Cache sandbox URL when it's live so we can show it after sandbox dies
@@ -224,7 +244,7 @@ export function PreviewPanel({ files, projectId }: PreviewPanelProps) {
             ? (parseInt(res.headers.get('Retry-After') || '5', 10) * 1000)
             : (2000 * retryCountRef.current)
           addLog(`[sandbox] Retrying in ${delay / 1000}s (attempt ${retryCountRef.current}/2)...`)
-          setTimeout(() => {
+          retryTimerRef.current = setTimeout(() => {
             startingRef.current = false
             startSandbox()
           }, delay)
@@ -235,8 +255,9 @@ export function PreviewPanel({ files, projectId }: PreviewPanelProps) {
 
       retryCountRef.current = 0 // reset on success
       setSandboxUrl(data.demoUrl)
+      sandboxUrlRef.current = data.demoUrl
       setSandboxStatus('running')
-      lastSyncedFilesRef.current = JSON.stringify(files)
+      lastSyncedFilesRef.current = hashFilesForSync(files)
 
       const meta = [
         data.fileCount && `${data.fileCount} files uploaded`,
@@ -318,7 +339,7 @@ export function PreviewPanel({ files, projectId }: PreviewPanelProps) {
   useEffect(() => {
     if (sandboxStatus !== 'running' || !projectId) return
 
-    const currentHash = JSON.stringify(files)
+    const currentHash = hashFilesForSync(files)
     if (currentHash === lastSyncedFilesRef.current) return
 
     if (syncTimeoutRef.current) clearTimeout(syncTimeoutRef.current)
@@ -334,8 +355,10 @@ export function PreviewPanel({ files, projectId }: PreviewPanelProps) {
         const data = await res.json()
         lastSyncedFilesRef.current = currentHash
         // Update sandbox URL if sync returned a new one (e.g. from re-init)
-        if (data.demoUrl && data.demoUrl !== sandboxUrl) {
+        if (data.demoUrl && data.demoUrl !== sandboxUrlRef.current) {
           setSandboxUrl(data.demoUrl)
+          sandboxUrlRef.current = data.demoUrl
+          setIframeLoading(true)
           addLog('[sync] Preview URL updated')
         }
         if (data.synced > 0) {
@@ -351,7 +374,7 @@ export function PreviewPanel({ files, projectId }: PreviewPanelProps) {
     return () => {
       if (syncTimeoutRef.current) clearTimeout(syncTimeoutRef.current)
     }
-  }, [files, sandboxStatus, projectId, sandboxUrl, addLog])
+  }, [files, sandboxStatus, projectId, addLog])
 
   // Cleanup on unmount
   useEffect(() => {
@@ -359,6 +382,7 @@ export function PreviewPanel({ files, projectId }: PreviewPanelProps) {
       abortRef.current?.abort()
       if (syncTimeoutRef.current) clearTimeout(syncTimeoutRef.current)
       if (autoStartTimeoutRef.current) clearTimeout(autoStartTimeoutRef.current)
+      if (retryTimerRef.current) clearTimeout(retryTimerRef.current)
       if (projectId && (sandboxStatus === 'running' || startingRef.current)) {
         fetch('/api/sandbox', {
           method: 'DELETE',
@@ -653,13 +677,21 @@ export function PreviewPanel({ files, projectId }: PreviewPanelProps) {
 
           {/* Live sandbox iframe */}
           {isSandboxActive && (
-            <iframe
-              key={`sandbox-${refreshKey}`}
-              src={sandboxUrl}
-              className="w-full h-full border-0 absolute inset-0"
-              title="Live Preview"
-              allow="cross-origin-isolated"
-            />
+            <>
+              {iframeLoading && (
+                <div className="absolute top-3 right-3 z-10">
+                  <Loader2 className="w-4 h-4 animate-spin text-green-500" />
+                </div>
+              )}
+              <iframe
+                key={`sandbox-${refreshKey}`}
+                src={sandboxUrl}
+                className="w-full h-full border-0 absolute inset-0"
+                title="Live Preview"
+                allow="cross-origin-isolated"
+                onLoad={() => setIframeLoading(false)}
+              />
+            </>
           )}
         </div>
       </div>
@@ -696,17 +728,20 @@ export function PreviewPanel({ files, projectId }: PreviewPanelProps) {
             {consoleLogs.length === 0 ? (
               <div className="text-gray-600 text-center py-4">No logs yet</div>
             ) : (
-              consoleLogs.map((log, i) => (
-                <div key={i} className={cn(
-                  'py-0.5 px-1 rounded',
-                  log.includes('[error]') ? 'text-red-400'
-                    : log.includes('[sync]') ? 'text-blue-400'
-                    : log.includes('[sandbox]') ? 'text-green-400'
-                    : 'text-gray-300',
-                )}>
-                  {log}
-                </div>
-              ))
+              <>
+                {consoleLogs.map((log, i) => (
+                  <div key={i} className={cn(
+                    'py-0.5 px-1 rounded',
+                    log.includes('[error]') ? 'text-red-400'
+                      : log.includes('[sync]') ? 'text-blue-400'
+                      : log.includes('[sandbox]') ? 'text-green-400'
+                      : 'text-gray-300',
+                  )}>
+                    {log}
+                  </div>
+                ))}
+                <div ref={consoleEndRef} />
+              </>
             )}
           </div>
         </div>
