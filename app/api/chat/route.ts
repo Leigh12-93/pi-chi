@@ -716,12 +716,41 @@ export async function POST(req: Request) {
     ? manifest.map(f => `  ${f.path} (${f.lines}L, ${(f.size / 1024).toFixed(1)}kb)`).join('\n')
     : '  (empty project)'
 
+  // ── Cost optimization: trim conversation history ──────────────
+  // Tool invocations in old messages contain full file contents (write_file args)
+  // that get re-sent every request. Strip them from old messages, keep recent ones intact.
+  const MAX_HISTORY = 40       // max messages to keep total
+  const FULL_DETAIL_WINDOW = 8 // last N messages keep full tool invocation data
+
+  const rawMessages = body.messages || []
+  let trimmedMessages = rawMessages.length > MAX_HISTORY
+    ? [...rawMessages.slice(0, 2), ...rawMessages.slice(-(MAX_HISTORY - 2))]
+    : rawMessages
+
+  trimmedMessages = trimmedMessages.map((m: any, i: number) => {
+    // Keep recent messages fully intact (they need tool data for context)
+    if (i >= trimmedMessages.length - FULL_DETAIL_WINDOW) return m
+    // Strip tool invocations from old assistant messages (saves massive tokens)
+    if (m.role === 'assistant' && m.toolInvocations?.length > 0) {
+      const summary = m.toolInvocations.map((inv: any) => {
+        const name = inv.toolName
+        const path = inv.args?.path || inv.args?.query || ''
+        return path ? `${name}(${path})` : name
+      }).join(', ')
+      return {
+        role: 'assistant',
+        content: (m.content || '') + (summary ? `\n[Tools used: ${summary}]` : ''),
+      }
+    }
+    return m
+  })
+
   // Convert messages
   let messages
   try {
-    messages = convertToCoreMessages(body.messages)
+    messages = convertToCoreMessages(trimmedMessages)
   } catch {
-    messages = (body.messages || []).map((m: { role: string; content?: string }) => ({
+    messages = trimmedMessages.map((m: { role: string; content?: string }) => ({
       role: m.role as 'user' | 'assistant',
       content: m.content || '',
     }))
@@ -747,7 +776,9 @@ export async function POST(req: Request) {
   }
 
   const result = streamText({
-    model: anthropic('claude-sonnet-4-20250514'),
+    // Prompt caching: system prompt + tool definitions cached by Anthropic.
+    // 90% input token discount on cached prefix for subsequent requests in same session.
+    model: anthropic('claude-sonnet-4-20250514', { cacheControl: true }),
     system: SYSTEM_PROMPT + `\n\n---\nProject: "${projectName}"${projectId ? ` (id: ${projectId})` : ''}\nFile manifest:\n${manifestStr}`,
     messages,
     maxSteps: 25,
