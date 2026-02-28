@@ -5,7 +5,13 @@ import { createClient } from 'v0-sdk'
 // Uses v0's chats.init() to create instant preview sandboxes.
 // Free (no tokens consumed), uploads files to Vercel Sandbox VM,
 // returns a demoUrl for iframe embedding.
+//
+// v0 limits chats.init() to 20 files per call. For larger projects,
+// we init with the 20 highest-priority files then batch the rest
+// via chats.updateVersion() in chunks of 20.
 // ═══════════════════════════════════════════════════════════════════
+
+const V0_FILE_LIMIT = 20
 
 export interface V0SandboxSession {
   chatId: string
@@ -26,6 +32,45 @@ function getClient() {
 }
 
 /**
+ * Prioritize files so the most critical ones go in the init batch.
+ * Config + entry points first, then components, then everything else.
+ */
+function prioritizeFiles(files: Record<string, string>): Array<{ name: string; content: string }> {
+  const entries = Object.entries(files).map(([name, content]) => ({ name, content }))
+
+  const priority = (name: string): number => {
+    if (name === 'package.json') return 0
+    if (name === 'tsconfig.json') return 1
+    if (name.match(/^(next|vite)\.config\./)) return 2
+    if (name === 'tailwind.config.ts' || name === 'tailwind.config.js') return 3
+    if (name === 'postcss.config.mjs' || name === 'postcss.config.js') return 4
+    if (name === 'app/layout.tsx' || name === 'app/layout.jsx') return 5
+    if (name === 'app/page.tsx' || name === 'app/page.jsx') return 6
+    if (name === 'app/globals.css' || name === 'src/index.css') return 7
+    if (name === 'src/App.tsx' || name === 'src/App.jsx') return 8
+    if (name === 'src/main.tsx' || name === 'src/main.jsx') return 9
+    if (name === 'index.html') return 10
+    if (name.startsWith('app/') || name.startsWith('src/')) return 20
+    if (name.startsWith('components/') || name.startsWith('lib/')) return 30
+    if (name.startsWith('public/')) return 50
+    return 40
+  }
+
+  return entries.sort((a, b) => priority(a.name) - priority(b.name))
+}
+
+/**
+ * Split an array into chunks of a given size.
+ */
+function chunk<T>(arr: T[], size: number): T[][] {
+  const chunks: T[][] = []
+  for (let i = 0; i < arr.length; i += size) {
+    chunks.push(arr.slice(i, i + size))
+  }
+  return chunks
+}
+
+/**
  * Check if v0 sandbox is configured (V0_API_KEY env var present).
  */
 export function isV0SandboxConfigured(): boolean {
@@ -35,6 +80,7 @@ export function isV0SandboxConfigured(): boolean {
 /**
  * Create a v0 sandbox by initializing a chat with files.
  * chats.init({ type: 'files', files }) is FREE — no tokens consumed.
+ * If >20 files, inits with the top 20 then batches the rest via updateVersion.
  */
 export async function createV0Sandbox(
   projectId: string,
@@ -54,15 +100,14 @@ export async function createV0Sandbox(
   try {
     const client = getClient()
 
-    // Convert Record<path, content> to v0 file format
-    const v0Files = Object.entries(files).map(([name, content]) => ({
-      name,
-      content,
-    }))
+    // Prioritize and split files into init batch + overflow batches
+    const sorted = prioritizeFiles(files)
+    const initFiles = sorted.slice(0, V0_FILE_LIMIT)
+    const overflowFiles = sorted.slice(V0_FILE_LIMIT)
 
     const chat = await client.chats.init({
       type: 'files',
-      files: v0Files,
+      files: initFiles,
       chatPrivacy: 'private',
     })
 
@@ -72,6 +117,28 @@ export async function createV0Sandbox(
     session.status = session.demoUrl ? 'running' : 'initializing'
 
     activeSessions.set(projectId, session)
+
+    // Upload overflow files in batches of 20 via updateVersion
+    if (overflowFiles.length > 0 && session.chatId && session.versionId) {
+      const batches = chunk(overflowFiles, V0_FILE_LIMIT)
+      for (const batch of batches) {
+        try {
+          const version = await client.chats.updateVersion({
+            chatId: session.chatId,
+            versionId: session.versionId,
+            files: batch,
+          })
+          if (version.id) session.versionId = version.id
+          if (version.demoUrl) {
+            session.demoUrl = version.demoUrl
+            session.status = 'running'
+          }
+        } catch (err) {
+          // Log but don't fail — partial upload is better than none
+          console.error('[v0-sandbox] overflow batch failed:', err)
+        }
+      }
+    }
 
     // If no demoUrl yet, poll briefly (version may still be building)
     if (!session.demoUrl && session.versionId) {
@@ -121,7 +188,7 @@ export async function createV0Sandbox(
 
 /**
  * Sync files to a running v0 sandbox.
- * Uses chats.updateVersion() to update files in-place.
+ * Uses chats.updateVersion() in batches of 20.
  * Falls back to re-init if updateVersion fails.
  */
 export async function syncV0Files(
@@ -135,27 +202,27 @@ export async function syncV0Files(
 
   try {
     const client = getClient()
-    const v0Files = Object.entries(files).map(([name, content]) => ({
-      name,
-      content,
-    }))
+    const v0Files = Object.entries(files).map(([name, content]) => ({ name, content }))
 
-    // Try updateVersion first (updates files in-place, keeps same demoUrl)
     if (session.chatId && session.versionId) {
       try {
-        const version = await client.chats.updateVersion({
-          chatId: session.chatId,
-          versionId: session.versionId,
-          files: v0Files,
-        })
+        const batches = chunk(v0Files, V0_FILE_LIMIT)
+        let synced = 0
 
-        if (version.demoUrl) {
-          session.demoUrl = version.demoUrl
+        for (const batch of batches) {
+          const version = await client.chats.updateVersion({
+            chatId: session.chatId,
+            versionId: session.versionId,
+            files: batch,
+          })
+          synced += batch.length
+          if (version.id) session.versionId = version.id
+          if (version.demoUrl) session.demoUrl = version.demoUrl
         }
 
         return {
           ok: true,
-          synced: v0Files.length,
+          synced,
           demoUrl: session.demoUrl,
         }
       } catch {
