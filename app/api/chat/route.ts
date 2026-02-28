@@ -4,7 +4,7 @@ import { z } from 'zod'
 import { supabase } from '@/lib/supabase'
 import { SYSTEM_PROMPT } from '@/lib/system-prompt'
 import { mcpClient } from '@/lib/mcp-client'
-import { createSandbox, getSandboxStatus, destroySandbox } from '@/lib/vercel-sandbox'
+import { createV0Sandbox, getV0SandboxStatus, destroyV0Sandbox } from '@/lib/v0-sandbox'
 import { chatLimiter } from '@/lib/rate-limit'
 import { TaskStore } from '@/lib/background-tasks'
 
@@ -2296,15 +2296,13 @@ export function ${name}({ variant = 'default', size = 'default', className, chil
       // ─── Sandbox Preview ────────────────────────────────────────
 
       start_sandbox: tool({
-        description: 'Start a live preview sandbox for the current project. Creates a real Linux VM with Node.js, installs dependencies, and starts the dev server. Returns a live URL. Use this when the user wants to see a real running preview of their app (not just static HTML).',
-        parameters: z.object({
-          framework: z.enum(['nextjs', 'vite', 'static']).optional().describe('Framework hint (auto-detected if omitted)'),
-        }),
-        execute: async ({ framework }) => {
+        description: 'Start a live preview sandbox for the current project. Uploads files to v0 Platform API and returns a live preview URL. Free — no tokens consumed. Use when the user wants to see their app running live.',
+        parameters: z.object({}),
+        execute: async () => {
           if (!projectId) return { error: 'No project ID — save the project first.' }
           const files = vfs.toRecord()
           if (Object.keys(files).length === 0) return { error: 'No files to preview.' }
-          const result = await createSandbox(projectId, files, framework)
+          const result = await createV0Sandbox(projectId, files)
           return result
         },
       }),
@@ -2314,7 +2312,7 @@ export function ${name}({ variant = 'default', size = 'default', className, chil
         parameters: z.object({}),
         execute: async () => {
           if (!projectId) return { error: 'No project ID.' }
-          return destroySandbox(projectId)
+          return destroyV0Sandbox(projectId)
         },
       }),
 
@@ -2323,7 +2321,7 @@ export function ${name}({ variant = 'default', size = 'default', className, chil
         parameters: z.object({}),
         execute: async () => {
           if (!projectId) return { error: 'No project ID.' }
-          const status = getSandboxStatus(projectId)
+          const status = getV0SandboxStatus(projectId)
           if (!status) return { active: false, note: 'No sandbox running. Use start_sandbox to create one.' }
           return { active: true, ...status }
         },

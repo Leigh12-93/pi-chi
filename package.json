@@ -14,7 +14,6 @@
     "@ai-sdk/react": "^1.2.12",
     "@monaco-editor/react": "^4.7.0",
     "@supabase/supabase-js": "^2.97.0",
-    "@vercel/sandbox": "^1.7.1",
     "ai": "^4.3.16",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
@@ -30,6 +29,7 @@
     "react-resizable-panels": "^3.0.2",
     "sonner": "^2.0.3",
     "tailwind-merge": "^3.3.0",
+    "v0-sdk": "^0.16.2",
     "zod": "^3.25.36"
   },
   "devDependencies": {

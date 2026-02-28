@@ -15,14 +15,11 @@ interface PreviewPanelProps {
 
 type ViewMode = 'desktop' | 'tablet' | 'mobile'
 
-type SandboxStatus = 'idle' | 'booting' | 'writing' | 'installing' | 'starting' | 'running' | 'error'
+type SandboxStatus = 'idle' | 'initializing' | 'running' | 'error'
 
 const STATUS_LABELS: Record<SandboxStatus, string> = {
   idle: '',
-  booting: 'Creating VM...',
-  writing: 'Writing files...',
-  installing: 'Installing deps...',
-  starting: 'Starting server...',
+  initializing: 'Creating preview...',
   running: 'Live',
   error: 'Error',
 }
@@ -188,7 +185,7 @@ export function PreviewPanel({ files, projectId }: PreviewPanelProps) {
     if (Object.keys(files).length === 0) return
 
     startingRef.current = true
-    setSandboxStatus('booting')
+    setSandboxStatus('initializing')
     setSandboxError(null)
     setSandboxUrl(null)
 
@@ -196,11 +193,7 @@ export function PreviewPanel({ files, projectId }: PreviewPanelProps) {
       const res = await fetch('/api/sandbox', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          projectId,
-          files,
-          framework: projectType !== 'unknown' ? projectType : undefined,
-        }),
+        body: JSON.stringify({ projectId, files }),
       })
 
       const data = await res.json()
@@ -211,7 +204,7 @@ export function PreviewPanel({ files, projectId }: PreviewPanelProps) {
         return
       }
 
-      setSandboxUrl(data.url)
+      setSandboxUrl(data.demoUrl)
       setSandboxStatus('running')
       lastSyncedFilesRef.current = JSON.stringify(files)
     } catch (error) {
@@ -287,14 +280,19 @@ export function PreviewPanel({ files, projectId }: PreviewPanelProps) {
 
     syncTimeoutRef.current = setTimeout(async () => {
       try {
-        await fetch('/api/sandbox', {
+        const res = await fetch('/api/sandbox', {
           method: 'PUT',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ projectId, files }),
         })
+        const data = await res.json()
         lastSyncedFilesRef.current = currentHash
+        // Update sandbox URL if sync returned a new one (e.g. from re-init)
+        if (data.demoUrl && data.demoUrl !== sandboxUrl) {
+          setSandboxUrl(data.demoUrl)
+        }
       } catch { /* sync failed — will retry on next change */ }
-    }, 1500)
+    }, 2000)
 
     return () => {
       if (syncTimeoutRef.current) clearTimeout(syncTimeoutRef.current)
@@ -331,7 +329,7 @@ export function PreviewPanel({ files, projectId }: PreviewPanelProps) {
   }
 
   const isSandboxActive = sandboxStatus === 'running' && sandboxUrl
-  const isSandboxLoading = ['booting', 'writing', 'installing', 'starting'].includes(sandboxStatus)
+  const isSandboxLoading = sandboxStatus === 'initializing'
   const isSandboxOffline = !isSandboxActive && !isSandboxLoading && !!cachedSandboxUrl
   const showCachedPreview = isSandboxOffline && sandboxStatus !== 'error'
 

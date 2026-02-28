@@ -1,11 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server'
 import {
-  createSandbox,
-  syncFiles,
-  destroySandbox,
-  getSandboxStatus,
-  isVercelSandboxConfigured,
-} from '@/lib/vercel-sandbox'
+  createV0Sandbox,
+  syncV0Files,
+  destroyV0Sandbox,
+  getV0SandboxStatus,
+  isV0SandboxConfigured,
+} from '@/lib/v0-sandbox'
 import { sandboxLimiter } from '@/lib/rate-limit'
 
 // POST /api/sandbox — Create sandbox with project files
@@ -21,20 +21,20 @@ export async function POST(req: NextRequest) {
       )
     }
 
-    const { projectId, files, framework } = await req.json()
+    const { projectId, files } = await req.json()
 
     if (!projectId || !files) {
       return NextResponse.json({ error: 'projectId and files are required' }, { status: 400 })
     }
 
-    if (!isVercelSandboxConfigured()) {
+    if (!isV0SandboxConfigured()) {
       return NextResponse.json(
-        { error: 'Vercel Sandbox not configured. Run `vercel link && vercel env pull` for local dev.' },
+        { error: 'v0 Sandbox not configured. Set V0_API_KEY environment variable.' },
         { status: 503 },
       )
     }
 
-    const result = await createSandbox(projectId, files, framework)
+    const result = await createV0Sandbox(projectId, files)
     return NextResponse.json(result)
   } catch (error) {
     return NextResponse.json(
@@ -45,11 +45,11 @@ export async function POST(req: NextRequest) {
 }
 
 // GET /api/sandbox?projectId=xxx — Get sandbox status
-// GET /api/sandbox?check=true — Check if Vercel Sandbox is configured
+// GET /api/sandbox?check=true — Check if v0 Sandbox is configured
 export async function GET(req: NextRequest) {
   const check = req.nextUrl.searchParams.get('check')
   if (check) {
-    return NextResponse.json({ available: isVercelSandboxConfigured() })
+    return NextResponse.json({ available: isV0SandboxConfigured() })
   }
 
   const projectId = req.nextUrl.searchParams.get('projectId')
@@ -57,7 +57,7 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: 'projectId is required' }, { status: 400 })
   }
 
-  const status = getSandboxStatus(projectId)
+  const status = getV0SandboxStatus(projectId)
   if (!status) {
     return NextResponse.json({ active: false })
   }
@@ -74,7 +74,7 @@ export async function PUT(req: NextRequest) {
       return NextResponse.json({ error: 'projectId and files are required' }, { status: 400 })
     }
 
-    const result = await syncFiles(projectId, files)
+    const result = await syncV0Files(projectId, files)
     return NextResponse.json(result)
   } catch (error) {
     return NextResponse.json(
@@ -92,7 +92,7 @@ export async function DELETE(req: NextRequest) {
       return NextResponse.json({ error: 'projectId is required' }, { status: 400 })
     }
 
-    const result = await destroySandbox(projectId)
+    const result = await destroyV0Sandbox(projectId)
     return NextResponse.json(result)
   } catch (error) {
     return NextResponse.json(
