@@ -23,7 +23,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         </SessionProvider>
         <Toaster
           theme="light"
-          position="bottom-right"
+          position="top-center"
           richColors
           toastOptions={{
             style: {

@@ -120,7 +120,7 @@ export function ActionDialog({
               <div className="space-y-3 mb-4">
                 {fields.map(field => (
                   <div key={field.name}>
-                    <label className="block text-[11px] font-medium text-forge-text mb-1">
+                    <label className="block text-xs sm:text-[11px] font-medium text-forge-text mb-1.5 sm:mb-1">
                       {field.label}
                       {field.required && <span className="text-forge-danger ml-0.5">*</span>}
                     </label>
@@ -129,7 +129,7 @@ export function ActionDialog({
                       value={fieldValues[field.name] || ''}
                       onChange={e => setFieldValues(prev => ({ ...prev, [field.name]: e.target.value }))}
                       placeholder={field.placeholder}
-                      className="w-full px-3 py-2 text-xs bg-forge-surface border border-forge-border rounded-lg text-forge-text placeholder:text-forge-text-dim/50 outline-none focus:border-forge-accent/50 transition-colors"
+                      className="w-full px-3 py-3 sm:py-2 text-sm sm:text-xs bg-forge-surface border border-forge-border rounded-lg text-forge-text placeholder:text-forge-text-dim/50 outline-none focus:border-forge-accent/50 transition-colors"
                     />
                   </div>
                 ))}
@@ -137,20 +137,20 @@ export function ActionDialog({
             )}
 
             {errorMessage && (
-              <p className="text-[11px] text-forge-danger mb-3">{errorMessage}</p>
+              <p className="text-xs sm:text-[11px] text-forge-danger mb-3">{errorMessage}</p>
             )}
 
             <div className="flex justify-end gap-2">
               <button
                 onClick={onClose}
-                className="px-3 py-1.5 text-xs text-forge-text-dim hover:text-forge-text hover:bg-forge-surface rounded-lg transition-colors"
+                className="px-4 py-2.5 sm:px-3 sm:py-1.5 text-sm sm:text-xs text-forge-text-dim hover:text-forge-text hover:bg-forge-surface rounded-lg transition-colors"
               >
                 Cancel
               </button>
               <button
                 onClick={handleConfirm}
                 className={cn(
-                  'px-4 py-1.5 text-xs font-medium rounded-lg transition-colors',
+                  'px-5 py-2.5 sm:px-4 sm:py-1.5 text-sm sm:text-xs font-medium rounded-lg transition-colors',
                   confirmVariant === 'danger'
                     ? 'bg-forge-danger text-white hover:bg-red-700'
                     : 'bg-forge-accent text-white hover:bg-forge-accent-hover'
@@ -166,7 +166,7 @@ export function ActionDialog({
         {state === 'running' && (
           <div className="flex flex-col items-center py-6">
             <Loader2 className="w-8 h-8 text-forge-accent animate-spin mb-3" />
-            <p className="text-xs text-forge-text-dim">Working on it...</p>
+            <p className="text-sm sm:text-xs text-forge-text-dim">Working on it...</p>
           </div>
         )}
 
@@ -174,20 +174,20 @@ export function ActionDialog({
         {state === 'success' && (
           <div className="flex flex-col items-center py-4">
             <CheckCircle className="w-8 h-8 text-emerald-500 mb-2" />
-            <p className="text-xs text-forge-text font-medium mb-1">Done!</p>
+            <p className="text-sm sm:text-xs text-forge-text font-medium mb-1">Done!</p>
             {typeof resultData?.url === 'string' && (
               <a
                 href={String(resultData.url)}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="flex items-center gap-1.5 text-[11px] text-forge-accent hover:underline mt-1"
+                className="flex items-center gap-1.5 text-xs sm:text-[11px] text-forge-accent hover:underline mt-1"
               >
                 {String(resultData.url)} <ExternalLink className="w-3 h-3" />
               </a>
             )}
             <button
               onClick={onClose}
-              className="mt-4 px-4 py-1.5 text-xs font-medium text-forge-text-dim hover:text-forge-text hover:bg-forge-surface rounded-lg transition-colors"
+              className="mt-4 px-5 py-2.5 sm:px-4 sm:py-1.5 text-sm sm:text-xs font-medium text-forge-text-dim hover:text-forge-text hover:bg-forge-surface rounded-lg transition-colors"
             >
               Close
             </button>
@@ -198,18 +198,18 @@ export function ActionDialog({
         {state === 'error' && (
           <div className="flex flex-col items-center py-4">
             <XCircle className="w-8 h-8 text-forge-danger mb-2" />
-            <p className="text-xs text-forge-text font-medium mb-1">Failed</p>
-            <p className="text-[11px] text-forge-text-dim text-center max-w-sm">{errorMessage}</p>
+            <p className="text-sm sm:text-xs text-forge-text font-medium mb-1">Failed</p>
+            <p className="text-xs sm:text-[11px] text-forge-text-dim text-center max-w-sm">{errorMessage}</p>
             <div className="flex gap-2 mt-4">
               <button
                 onClick={onClose}
-                className="px-3 py-1.5 text-xs text-forge-text-dim hover:text-forge-text hover:bg-forge-surface rounded-lg transition-colors"
+                className="px-4 py-2.5 sm:px-3 sm:py-1.5 text-sm sm:text-xs text-forge-text-dim hover:text-forge-text hover:bg-forge-surface rounded-lg transition-colors"
               >
                 Close
               </button>
               <button
                 onClick={() => setState('confirm')}
-                className="px-4 py-1.5 text-xs font-medium bg-forge-accent text-white rounded-lg hover:bg-forge-accent-hover transition-colors"
+                className="px-5 py-2.5 sm:px-4 sm:py-1.5 text-sm sm:text-xs font-medium bg-forge-accent text-white rounded-lg hover:bg-forge-accent-hover transition-colors"
               >
                 Retry
               </button>
@@ -407,7 +407,7 @@ export function TaskPollingDialog({
               <div className="space-y-3 mb-4">
                 {fields.map(field => (
                   <div key={field.name}>
-                    <label className="block text-[11px] font-medium text-forge-text mb-1">
+                    <label className="block text-xs sm:text-[11px] font-medium text-forge-text mb-1.5 sm:mb-1">
                       {field.label}
                       {field.required && <span className="text-forge-danger ml-0.5">*</span>}
                     </label>
@@ -416,25 +416,25 @@ export function TaskPollingDialog({
                       value={fieldValues[field.name] || ''}
                       onChange={e => setFieldValues(prev => ({ ...prev, [field.name]: e.target.value }))}
                       placeholder={field.placeholder}
-                      className="w-full px-3 py-2 text-xs bg-forge-surface border border-forge-border rounded-lg text-forge-text placeholder:text-forge-text-dim/50 outline-none focus:border-forge-accent/50 transition-colors"
+                      className="w-full px-3 py-3 sm:py-2 text-sm sm:text-xs bg-forge-surface border border-forge-border rounded-lg text-forge-text placeholder:text-forge-text-dim/50 outline-none focus:border-forge-accent/50 transition-colors"
                     />
                   </div>
                 ))}
               </div>
             )}
             {errorMessage && (
-              <p className="text-[11px] text-forge-danger mb-3">{errorMessage}</p>
+              <p className="text-xs sm:text-[11px] text-forge-danger mb-3">{errorMessage}</p>
             )}
             <div className="flex justify-end gap-2">
               <button
                 onClick={onClose}
-                className="px-3 py-1.5 text-xs text-forge-text-dim hover:text-forge-text hover:bg-forge-surface rounded-lg transition-colors"
+                className="px-4 py-2.5 sm:px-3 sm:py-1.5 text-sm sm:text-xs text-forge-text-dim hover:text-forge-text hover:bg-forge-surface rounded-lg transition-colors"
               >
                 Cancel
               </button>
               <button
                 onClick={handleConfirm}
-                className="px-4 py-1.5 text-xs font-medium bg-forge-accent text-white rounded-lg hover:bg-forge-accent-hover transition-colors"
+                className="px-5 py-2.5 sm:px-4 sm:py-1.5 text-sm sm:text-xs font-medium bg-forge-accent text-white rounded-lg hover:bg-forge-accent-hover transition-colors"
               >
                 {confirmLabel}
               </button>
@@ -565,24 +565,24 @@ export function TaskPollingDialog({
                 ))}
               </pre>
             </div>
-            <div className="flex justify-end gap-2">
+            <div className="flex flex-wrap justify-end gap-2">
               <button
                 onClick={onClose}
-                className="px-3 py-1.5 text-xs text-forge-text-dim hover:text-forge-text hover:bg-forge-surface rounded-lg transition-colors"
+                className="px-4 py-2.5 sm:px-3 sm:py-1.5 text-sm sm:text-xs text-forge-text-dim hover:text-forge-text hover:bg-forge-surface rounded-lg transition-colors"
               >
                 Close
               </button>
               <button
                 onClick={() => setState('confirm')}
-                className="flex items-center gap-1.5 px-3 py-1.5 text-xs text-forge-text-dim hover:text-forge-text hover:bg-forge-surface rounded-lg transition-colors"
+                className="flex items-center gap-1.5 px-4 py-2.5 sm:px-3 sm:py-1.5 text-sm sm:text-xs text-forge-text-dim hover:text-forge-text hover:bg-forge-surface rounded-lg transition-colors"
               >
-                <RefreshCw className="w-3 h-3" />
+                <RefreshCw className="w-3.5 h-3.5 sm:w-3 sm:h-3" />
                 Retry
               </button>
               {onFix && (
                 <button
                   onClick={() => { onFix(errorMessage); onClose() }}
-                  className="px-4 py-1.5 text-xs font-medium bg-forge-accent text-white rounded-lg hover:bg-forge-accent-hover transition-colors"
+                  className="px-5 py-2.5 sm:px-4 sm:py-1.5 text-sm sm:text-xs font-medium bg-forge-accent text-white rounded-lg hover:bg-forge-accent-hover transition-colors"
                 >
                   Fix with AI
                 </button>

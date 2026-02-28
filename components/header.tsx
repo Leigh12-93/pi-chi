@@ -36,7 +36,7 @@ export function Header({ projectName, onSwitchProject, fileCount, onAction, save
   }
 
   return (
-    <header className="h-11 flex items-center justify-between px-2 sm:px-4 border-b border-forge-border bg-forge-panel shrink-0">
+    <header className="h-12 sm:h-11 flex items-center justify-between px-2 sm:px-4 border-b border-forge-border bg-forge-panel shrink-0">
       {/* Left: Logo + Project */}
       <div className="flex items-center gap-2 sm:gap-3 min-w-0">
         <button
@@ -54,7 +54,7 @@ export function Header({ projectName, onSwitchProject, fileCount, onAction, save
           className="flex items-center gap-1 sm:gap-1.5 px-1.5 sm:px-2 py-1 text-xs text-forge-text-dim hover:text-forge-text hover:bg-forge-surface rounded transition-colors min-w-0"
         >
           <FolderOpen className="w-3.5 h-3.5 shrink-0" />
-          <span className="truncate max-w-[80px] sm:max-w-none">{projectName}</span>
+          <span className="truncate max-w-[120px] sm:max-w-none">{projectName}</span>
         </button>
         {fileCount > 0 && (
           <span className="text-[10px] text-forge-text-dim items-center gap-1 hidden sm:flex">
@@ -74,7 +74,7 @@ export function Header({ projectName, onSwitchProject, fileCount, onAction, save
               onClick={() => onAction?.(action.id)}
               disabled={action.id === 'save' && saveStatus === 'saving'}
               className={cn(
-                'flex items-center gap-1.5 p-1.5 sm:px-2.5 sm:py-1.5 text-[11px] font-medium text-forge-text-dim hover:text-forge-accent hover:bg-forge-surface rounded transition-colors',
+                'flex items-center gap-1.5 p-2.5 sm:px-2.5 sm:py-1.5 text-xs sm:text-[11px] font-medium text-forge-text-dim hover:text-forge-accent hover:bg-forge-surface rounded transition-colors',
                 action.id === 'save' && saveStatus === 'saving' && 'opacity-50 cursor-not-allowed',
                 action.id === 'save' && saveStatus === 'saved' && 'text-green-600',
                 action.id === 'save' && saveStatus === 'error' && 'text-red-600',
@@ -114,12 +114,12 @@ export function Header({ projectName, onSwitchProject, fileCount, onAction, save
             {session.user.image && (
               <img src={session.user.image} alt="" className="w-6 h-6 rounded-full border border-forge-border" />
             )}
-            <a href="/api/auth/logout" className="p-1 text-forge-text-dim hover:text-forge-danger transition-colors" title="Sign out" aria-label="Sign out">
+            <a href="/api/auth/logout" className="p-2 sm:p-1 text-forge-text-dim hover:text-forge-danger transition-colors" title="Sign out" aria-label="Sign out">
               <LogOut className="w-3.5 h-3.5" />
             </a>
           </div>
         ) : (
-          <a href="/api/auth/login" className="flex items-center gap-1.5 px-2 sm:px-2.5 py-1 rounded bg-forge-surface hover:bg-forge-accent/20 text-xs text-forge-text-dim hover:text-forge-text transition-colors">
+          <a href="/api/auth/login" className="flex items-center gap-1.5 px-3 sm:px-2.5 py-2 sm:py-1 rounded bg-forge-surface hover:bg-forge-accent/20 text-xs text-forge-text-dim hover:text-forge-text transition-colors">
             <Github className="w-3.5 h-3.5" />
             <span className="hidden sm:inline">Sign in</span>
           </a>

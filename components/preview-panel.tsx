@@ -64,6 +64,8 @@ function isProjectReady(files: Record<string, string>): boolean {
   const hasPackageJson = paths.includes('package.json')
   const hasMainFile = paths.some(p =>
     p === 'app/page.tsx' || p === 'app/page.jsx' ||
+    p === 'src/app/page.tsx' || p === 'src/app/page.jsx' ||
+    p === 'pages/index.tsx' || p === 'pages/index.jsx' ||
     p === 'src/App.tsx' || p === 'src/App.jsx' ||
     p === 'index.html'
   )
@@ -131,7 +133,7 @@ export function PreviewPanel({ files, projectId, onFixErrors }: PreviewPanelProp
   const hasViteConfig = !!files['vite.config.ts'] || !!files['vite.config.js']
   const hasStaticIndex = !!files['index.html']
   const hasViteMain = !!files['src/main.tsx'] || !!files['src/main.jsx']
-  const hasNextPage = !!files['app/page.tsx'] || !!files['app/page.jsx']
+  const hasNextPage = !!files['app/page.tsx'] || !!files['app/page.jsx'] || !!files['src/app/page.tsx'] || !!files['src/app/page.jsx'] || !!files['pages/index.tsx'] || !!files['pages/index.jsx']
 
   const projectType = useMemo(() => {
     if (hasNextConfig) return 'nextjs'
@@ -174,7 +176,7 @@ export function PreviewPanel({ files, projectId, onFixErrors }: PreviewPanelProp
 
   // Extract only the content that affects static preview — stable primitive deps
   // Writing components/button.tsx won't trigger a preview recomputation
-  const previewMainFile = files['src/App.tsx'] || files['src/App.jsx'] || files['app/page.tsx'] || files['app/page.jsx'] || ''
+  const previewMainFile = files['src/App.tsx'] || files['src/App.jsx'] || files['app/page.tsx'] || files['app/page.jsx'] || files['src/app/page.tsx'] || files['src/app/page.jsx'] || files['pages/index.tsx'] || files['pages/index.jsx'] || ''
   const previewIndexHtml = files['index.html'] || ''
   const previewCss = files['app/globals.css'] || files['src/index.css'] || ''
   const previewFileCount = Object.keys(files).length
@@ -200,18 +202,31 @@ export function PreviewPanel({ files, projectId, onFixErrors }: PreviewPanelProp
         return createEmptyState('Building...', 'Preview will appear when ready')
       }
 
-      const jsxMatch = previewMainFile.match(/return\s*\(\s*([\s\S]*)\s*\)\s*\}?\s*$/m)
-      let jsx = jsxMatch ? jsxMatch[1] : '<div class="p-8 text-center">Building...</div>'
+      // Multi-pattern JSX extraction — handles return(), return <>, arrow => (), arrow => <>
+      const jsxPatterns = [
+        /return\s*\(\s*([\s\S]*)\s*\)\s*;?\s*\}?\s*$/m,           // return ( ... )
+        /return\s*(<[\s\S]*>)\s*;?\s*\}?\s*$/m,                   // return <...>
+        /=>\s*\(\s*([\s\S]*)\s*\)\s*;?\s*$/m,                     // => ( ... )
+        /=>\s*(<[\s\S]*>)\s*;?\s*$/m,                             // => <...>
+      ]
+      let jsx = '<div class="p-8 text-center">Building...</div>'
+      for (const pattern of jsxPatterns) {
+        const match = previewMainFile.match(pattern)
+        if (match) { jsx = match[1]; break }
+      }
 
       jsx = jsx
         .replace(/className=/g, 'class=')
-        .replace(/\{\/\*.*?\*\/\}/g, '')
-        .replace(/\{`([^`]*)`\}/g, '$1')
-        .replace(/\{'([^']*)'\}/g, '$1')
-        .replace(/<(\w+)\s*\/>/g, '<$1></$1>')
-        .replace(/\{[^}]*\}/g, '')
+        .replace(/\{\/\*[\s\S]*?\*\/\}/g, '')                     // strip JSX comments
+        .replace(/\{`([^`]*)`\}/g, '$1')                          // template literals → text
+        .replace(/\{"([^"]*)"\}/g, '$1')                           // double-quoted strings → text
+        .replace(/\{'([^']*)'\}/g, '$1')                           // single-quoted strings → text
+        .replace(/<([A-Z]\w*)\s*\/>/g, '')                         // remove self-closing custom components
+        .replace(/<([a-z][a-z0-9]*)\s*\/>/g, '<$1></$1>')          // expand self-closing HTML tags
+        .replace(/<([A-Z]\w*)[\s\S]*?<\/\1>/g, '')                 // remove custom component blocks
+        .replace(/\{[^}]*\}/g, '')                                 // strip remaining expressions
 
-      const hasTailwind = previewCss.includes('tailwindcss') || previewCss.includes('tailwind')
+      const hasTailwind = projectType === 'nextjs' || projectType === 'vite' || previewCss.includes('tailwindcss') || previewCss.includes('tailwind')
 
       return `<!DOCTYPE html>
 <html lang="en">
@@ -511,13 +526,13 @@ export function PreviewPanel({ files, projectId, onFixErrors }: PreviewPanelProp
                 onClick={() => setViewMode(mode)}
                 title={label}
                 className={cn(
-                  'p-1.5 rounded-md transition-colors',
+                  'p-2.5 sm:p-1.5 rounded-md transition-colors',
                   viewMode === mode
                     ? 'bg-forge-accent/15 text-forge-accent'
                     : 'text-forge-text-dim hover:text-forge-text hover:bg-forge-surface',
                 )}
               >
-                <Icon className="w-3.5 h-3.5" />
+                <Icon className="w-4 h-4 sm:w-3.5 sm:h-3.5" />
               </button>
             ))}
           </div>
@@ -595,11 +610,11 @@ export function PreviewPanel({ files, projectId, onFixErrors }: PreviewPanelProp
                 setPreviewHtml(computedPreviewHtml)
                 if (isSandboxActive) addLog('Refreshed', 'system', 'sandbox')
               }}
-              className="p-1.5 rounded-md text-forge-text-dim hover:text-forge-text hover:bg-forge-surface transition-colors"
+              className="p-2.5 sm:p-1.5 rounded-md text-forge-text-dim hover:text-forge-text hover:bg-forge-surface transition-colors"
               title="Refresh preview"
               aria-label="Refresh preview"
             >
-              <RefreshCw className="w-3.5 h-3.5" />
+              <RefreshCw className="w-4 h-4 sm:w-3.5 sm:h-3.5" />
             </button>
 
             {/* Open in new tab */}
@@ -608,11 +623,11 @@ export function PreviewPanel({ files, projectId, onFixErrors }: PreviewPanelProp
                 href={sandboxUrl}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="p-1.5 rounded-md text-forge-text-dim hover:text-forge-text hover:bg-forge-surface transition-colors"
+                className="p-2.5 sm:p-1.5 rounded-md text-forge-text-dim hover:text-forge-text hover:bg-forge-surface transition-colors"
                 title="Open in new tab"
                 aria-label="Open in new tab"
               >
-                <ExternalLink className="w-3.5 h-3.5" />
+                <ExternalLink className="w-4 h-4 sm:w-3.5 sm:h-3.5" />
               </a>
             )}
 
@@ -620,7 +635,7 @@ export function PreviewPanel({ files, projectId, onFixErrors }: PreviewPanelProp
             <button
               onClick={() => setShowConsole(prev => !prev)}
               className={cn(
-                'p-1.5 rounded-md transition-colors relative',
+                'p-2.5 sm:p-1.5 rounded-md transition-colors relative',
                 showConsole
                   ? 'bg-forge-accent/15 text-forge-accent'
                   : 'text-forge-text-dim hover:text-forge-text hover:bg-forge-surface',
@@ -628,7 +643,7 @@ export function PreviewPanel({ files, projectId, onFixErrors }: PreviewPanelProp
               title="Toggle console"
               aria-label={showConsole ? 'Hide console' : 'Show console'}
             >
-              <Terminal className="w-3.5 h-3.5" />
+              <Terminal className="w-4 h-4 sm:w-3.5 sm:h-3.5" />
               {!showConsole && consoleLogs.some(e => e.level === 'error') && (
                 <span className="absolute -top-1 -right-1 w-3.5 h-3.5 rounded-full bg-red-500 text-white text-[7px] font-bold flex items-center justify-center">
                   {Math.min(consoleLogs.filter(e => e.level === 'error').length, 9)}
@@ -639,13 +654,13 @@ export function PreviewPanel({ files, projectId, onFixErrors }: PreviewPanelProp
             {/* Fullscreen toggle */}
             <button
               onClick={() => setIsFullscreen(prev => !prev)}
-              className="p-1.5 rounded-md text-forge-text-dim hover:text-forge-text hover:bg-forge-surface transition-colors"
+              className="p-2.5 sm:p-1.5 rounded-md text-forge-text-dim hover:text-forge-text hover:bg-forge-surface transition-colors"
               title={isFullscreen ? 'Exit fullscreen' : 'Fullscreen'}
               aria-label={isFullscreen ? 'Exit fullscreen' : 'Enter fullscreen'}
             >
               {isFullscreen
-                ? <Minimize2 className="w-3.5 h-3.5" />
-                : <Maximize2 className="w-3.5 h-3.5" />
+                ? <Minimize2 className="w-4 h-4 sm:w-3.5 sm:h-3.5" />
+                : <Maximize2 className="w-4 h-4 sm:w-3.5 sm:h-3.5" />
               }
             </button>
 
@@ -654,13 +669,13 @@ export function PreviewPanel({ files, projectId, onFixErrors }: PreviewPanelProp
               <button
                 onClick={stopSandbox}
                 className={cn(
-                  'p-1.5 rounded-md transition-colors',
+                  'p-2.5 sm:p-1.5 rounded-md transition-colors',
                   'text-red-500 hover:text-red-700 hover:bg-red-50',
                 )}
                 title="Stop sandbox"
                 aria-label="Stop sandbox"
               >
-                <Square className="w-3.5 h-3.5" />
+                <Square className="w-4 h-4 sm:w-3.5 sm:h-3.5" />
               </button>
             )}
           </div>
@@ -703,7 +718,7 @@ export function PreviewPanel({ files, projectId, onFixErrors }: PreviewPanelProp
                   </div>
                   <button
                     onClick={() => { hasAutoStartedRef.current = false; sandboxAvailableRef.current = null; retryCountRef.current = 0; startSandbox() }}
-                    className="px-3 py-1.5 text-[11px] font-medium bg-forge-accent text-white rounded-lg hover:bg-forge-accent-hover transition-colors"
+                    className="px-4 py-2.5 sm:px-3 sm:py-1.5 text-xs sm:text-[11px] font-medium bg-forge-accent text-white rounded-lg hover:bg-forge-accent-hover transition-colors"
                   >
                     Restart Sandbox
                   </button>
@@ -863,7 +878,7 @@ export function PreviewPanel({ files, projectId, onFixErrors }: PreviewPanelProp
 
       {/* ─── Console Panel ─────────────────────────────────────── */}
       {showConsole && (
-        <div className="shrink-0 border-t border-forge-border bg-[#1e1e1e] max-h-[200px] flex flex-col">
+        <div className="shrink-0 border-t border-forge-border bg-[#1e1e1e] max-h-[40vh] sm:max-h-[200px] flex flex-col">
           {/* Console header */}
           <div className="flex items-center justify-between px-3 py-1.5 border-b border-[#333]">
             <div className="flex items-center gap-2">
@@ -903,7 +918,7 @@ export function PreviewPanel({ files, projectId, onFixErrors }: PreviewPanelProp
             </div>
           </div>
           {/* Console body */}
-          <div className="flex-1 overflow-y-auto p-2 font-mono text-[11px] leading-relaxed">
+          <div className="flex-1 overflow-y-auto p-2 font-mono text-xs sm:text-[11px] leading-relaxed">
             {consoleLogs.length === 0 ? (
               <div className="text-gray-600 text-center py-4">No logs yet</div>
             ) : (

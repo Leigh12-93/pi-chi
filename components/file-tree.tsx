@@ -62,20 +62,20 @@ export function FileTree({ files, activeFile, onFileSelect, onFileDelete, onFile
 
   return (
     <div className="h-full bg-forge-panel border-r border-forge-border flex flex-col" data-file-tree>
-      <div className="flex items-center justify-between px-3 py-2 border-b border-forge-border shrink-0">
-        <span className="text-[10px] uppercase tracking-wider text-forge-text-dim font-semibold">
+      <div className="flex items-center justify-between px-3 py-2.5 sm:py-2 border-b border-forge-border shrink-0">
+        <span className="text-xs sm:text-[10px] uppercase tracking-wider text-forge-text-dim font-semibold">
           Files
         </span>
         <button
           onClick={() => { setShowSearch(prev => !prev); if (showSearch) setSearchQuery('') }}
           className={cn(
-            'p-1 rounded transition-colors',
+            'p-2 sm:p-1 rounded transition-colors',
             showSearch ? 'text-forge-accent bg-forge-accent/10' : 'text-forge-text-dim hover:text-forge-text hover:bg-forge-surface',
           )}
           title="Search files (Ctrl+F)"
           aria-label="Search files"
         >
-          <Search className="w-3 h-3" />
+          <Search className="w-4 h-4 sm:w-3 sm:h-3" />
         </button>
       </div>
 
@@ -90,7 +90,7 @@ export function FileTree({ files, activeFile, onFileSelect, onFileDelete, onFile
               onChange={e => setSearchQuery(e.target.value)}
               onKeyDown={e => { if (e.key === 'Escape') { setShowSearch(false); setSearchQuery('') } }}
               placeholder="Filter files..."
-              className="w-full pl-6 pr-6 py-1 text-[11px] bg-forge-surface border border-forge-border rounded-md text-forge-text outline-none focus:border-forge-accent/50 placeholder:text-forge-text-dim/50"
+              className="w-full pl-7 pr-7 py-2 sm:py-1 text-xs sm:text-[11px] bg-forge-surface border border-forge-border rounded-md text-forge-text outline-none focus:border-forge-accent/50 placeholder:text-forge-text-dim/50"
             />
             {searchQuery && (
               <button
@@ -233,7 +233,7 @@ function TreeItem({
             }
           }}
           className={cn(
-            'flex items-center gap-1 flex-1 text-left px-2 py-[3px] text-[12px] hover:bg-forge-surface/80 transition-colors',
+            'flex items-center gap-1.5 sm:gap-1 flex-1 text-left px-2 py-2 sm:py-[5px] text-xs sm:text-[12px] hover:bg-forge-surface/80 transition-colors min-h-[36px] sm:min-h-0',
             isActive && !isDir && 'bg-forge-accent/10 text-forge-accent',
             !isActive && 'text-forge-text-dim hover:text-forge-text',
           )}
@@ -280,11 +280,11 @@ function TreeItem({
               e.stopPropagation()
               setShowContextMenu(!showContextMenu)
             }}
-            className="opacity-0 group-hover:opacity-100 p-1 hover:bg-forge-surface rounded transition-all mr-1"
+            className="opacity-60 sm:opacity-0 sm:group-hover:opacity-100 p-2 sm:p-1 hover:bg-forge-surface rounded transition-all mr-1"
             aria-label="File options"
             title="More options"
           >
-            <MoreHorizontal className="w-3 h-3 text-forge-text-dim" />
+            <MoreHorizontal className="w-4 h-4 sm:w-3 sm:h-3 text-forge-text-dim" />
           </button>
         )}
       </div>
@@ -301,9 +301,9 @@ function TreeItem({
                 setIsRenaming(true)
                 setShowContextMenu(false)
               }}
-              className="flex items-center gap-2 w-full px-3 py-1.5 text-xs text-forge-text hover:bg-forge-surface transition-colors"
+              className="flex items-center gap-2 w-full px-3 py-2.5 sm:py-1.5 text-sm sm:text-xs text-forge-text hover:bg-forge-surface transition-colors"
             >
-              <Edit3 className="w-3 h-3" />
+              <Edit3 className="w-4 h-4 sm:w-3 sm:h-3" />
               Rename
             </button>
           )}
@@ -312,9 +312,9 @@ function TreeItem({
               navigator.clipboard.writeText(node.path).catch(() => {})
               setShowContextMenu(false)
             }}
-            className="flex items-center gap-2 w-full px-3 py-1.5 text-xs text-forge-text hover:bg-forge-surface transition-colors"
+            className="flex items-center gap-2 w-full px-3 py-2.5 sm:py-1.5 text-sm sm:text-xs text-forge-text hover:bg-forge-surface transition-colors"
           >
-            <Copy className="w-3 h-3" />
+            <Copy className="w-4 h-4 sm:w-3 sm:h-3" />
             Copy path
           </button>
           {onFileDelete && (
@@ -323,9 +323,9 @@ function TreeItem({
                 onFileDelete(node.path)
                 setShowContextMenu(false)
               }}
-              className="flex items-center gap-2 w-full px-3 py-1.5 text-xs text-forge-danger hover:bg-forge-danger/10 transition-colors"
+              className="flex items-center gap-2 w-full px-3 py-2.5 sm:py-1.5 text-sm sm:text-xs text-forge-danger hover:bg-forge-danger/10 transition-colors"
             >
-              <Trash2 className="w-3 h-3" />
+              <Trash2 className="w-4 h-4 sm:w-3 sm:h-3" />
               Delete
             </button>
           )}

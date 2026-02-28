@@ -92,8 +92,8 @@ export function CodeEditor({ path, content, onSave, onChange }: CodeEditorProps)
   return (
     <div className="h-full flex flex-col">
       {/* File path bar */}
-      <div className="flex items-center justify-between px-3 py-2 bg-forge-panel border-b border-forge-border text-[11px]">
-        <span className="text-forge-text-dim font-mono">
+      <div className="flex items-center justify-between px-3 py-2.5 sm:py-2 bg-forge-panel border-b border-forge-border text-xs sm:text-[11px]">
+        <span className="text-forge-text-dim font-mono truncate min-w-0">
           {path}
           {modified && <span className="text-forge-accent ml-1">●</span>}
         </span>
@@ -105,11 +105,11 @@ export function CodeEditor({ path, content, onSave, onChange }: CodeEditorProps)
                 setModified(false)
               }
             }}
-            className="flex items-center gap-1 text-forge-accent hover:text-forge-accent-hover transition-colors"
+            className="flex items-center gap-1 px-2 py-1.5 sm:p-0 text-forge-accent hover:text-forge-accent-hover transition-colors shrink-0 ml-2"
             aria-label="Save file"
           >
-            <Save className="w-3 h-3" />
-            Save
+            <Save className="w-4 h-4 sm:w-3 sm:h-3" />
+            <span className="hidden sm:inline">Save</span>
           </button>
         )}
       </div>

@@ -96,7 +96,7 @@ export function CommandPalette({ open, onClose, commands }: CommandPaletteProps)
   let flatIndex = 0
 
   return (
-    <div className="fixed inset-0 z-[100] flex items-start justify-center pt-[20vh]" onClick={onClose}>
+    <div className="fixed inset-0 z-[100] flex items-start justify-center pt-[10vh] sm:pt-[20vh]" onClick={onClose}>
       {/* Backdrop */}
       <div className="absolute inset-0 bg-black/40 backdrop-blur-sm animate-fade-in" />
 
@@ -144,25 +144,25 @@ export function CommandPalette({ open, onClose, commands }: CommandPaletteProps)
                       onClick={() => { cmd.action(); onClose() }}
                       onMouseEnter={() => setSelectedIndex(idx)}
                       className={cn(
-                        'w-full flex items-center gap-3 px-4 py-2 text-left transition-colors',
+                        'w-full flex items-center gap-3 px-4 py-3 sm:py-2 text-left transition-colors',
                         isSelected ? 'bg-forge-accent/10' : 'hover:bg-forge-surface',
                       )}
                     >
                       <div className={cn(
-                        'w-7 h-7 rounded-lg flex items-center justify-center shrink-0',
+                        'w-9 h-9 sm:w-7 sm:h-7 rounded-lg flex items-center justify-center shrink-0',
                         isSelected ? 'bg-forge-accent/20 text-forge-accent' : 'bg-forge-surface text-forge-text-dim',
                       )}>
-                        <cmd.icon className="w-3.5 h-3.5" />
+                        <cmd.icon className="w-4 h-4 sm:w-3.5 sm:h-3.5" />
                       </div>
                       <div className="flex-1 min-w-0">
                         <p className={cn(
-                          'text-xs font-medium truncate',
+                          'text-sm sm:text-xs font-medium truncate',
                           isSelected ? 'text-forge-accent' : 'text-forge-text',
                         )}>
                           {cmd.label}
                         </p>
                         {cmd.description && (
-                          <p className="text-[10px] text-forge-text-dim truncate">{cmd.description}</p>
+                          <p className="text-xs sm:text-[10px] text-forge-text-dim truncate">{cmd.description}</p>
                         )}
                       </div>
                       {cmd.shortcut && (

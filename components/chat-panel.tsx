@@ -464,11 +464,11 @@ export function ChatPanel({ projectName, projectId, files, onFileChange, onFileD
         {messages.length > 0 && (
           <button
             onClick={() => { setMessages([]); processedInvs.current.clear() }}
-            className="text-forge-text-dim hover:text-forge-danger transition-colors"
+            className="p-2 sm:p-0 text-forge-text-dim hover:text-forge-danger transition-colors rounded"
             title="Clear chat"
             aria-label="Clear chat"
           >
-            <Trash2 className="w-3.5 h-3.5" />
+            <Trash2 className="w-4 h-4 sm:w-3.5 sm:h-3.5" />
           </button>
         )}
       </div>
@@ -503,10 +503,10 @@ export function ChatPanel({ projectName, projectId, files, onFileChange, onFileD
                 <button
                   key={action.label}
                   onClick={() => handleSend(action.query)}
-                  className="flex flex-col items-center gap-1.5 p-3 text-center text-xs rounded-xl border border-forge-border bg-forge-surface hover:border-forge-accent/50 hover:bg-forge-accent/5 hover:shadow-sm transition-all group"
+                  className="flex flex-col items-center gap-1.5 p-4 sm:p-3 text-center text-xs rounded-xl border border-forge-border bg-forge-surface hover:border-forge-accent/50 hover:bg-forge-accent/5 hover:shadow-sm active:scale-[0.98] transition-all group"
                 >
-                  <div className="w-8 h-8 rounded-lg bg-forge-accent/10 flex items-center justify-center group-hover:bg-forge-accent/20 transition-colors">
-                    <action.icon className="w-4 h-4 text-forge-text-dim group-hover:text-forge-accent transition-colors" />
+                  <div className="w-10 h-10 sm:w-8 sm:h-8 rounded-lg bg-forge-accent/10 flex items-center justify-center group-hover:bg-forge-accent/20 transition-colors">
+                    <action.icon className="w-5 h-5 sm:w-4 sm:h-4 text-forge-text-dim group-hover:text-forge-accent transition-colors" />
                   </div>
                   <span className="text-forge-text-dim group-hover:text-forge-text font-medium transition-colors">{action.label}</span>
                 </button>
@@ -534,16 +534,16 @@ export function ChatPanel({ projectName, projectId, files, onFileChange, onFileD
                           return (
                             <div key={partIdx} className="relative group">
                               <div
-                                className="text-[13px] leading-relaxed text-gray-700 [&_pre]:my-2 [&_code]:text-[12px]"
+                                className="text-sm sm:text-[13px] leading-relaxed text-gray-700 [&_pre]:my-2 [&_code]:text-xs sm:[&_code]:text-[12px]"
                                 dangerouslySetInnerHTML={{ __html: renderMarkdown(part.text) }}
                               />
                               <button
                                 onClick={() => handleCopy(`${message.id}-${partIdx}`, part.text!)}
-                                className="absolute top-0 right-0 opacity-0 group-hover:opacity-100 transition-opacity p-1 rounded hover:bg-forge-surface"
+                                className="absolute top-0 right-0 opacity-0 group-hover:opacity-100 sm:transition-opacity p-2 sm:p-1 rounded hover:bg-forge-surface"
                                 aria-label="Copy message"
                                 title="Copy"
                               >
-                                {copiedId === `${message.id}-${partIdx}` ? <Check className="w-3 h-3 text-emerald-500" /> : <Copy className="w-3 h-3 text-forge-text-dim" />}
+                                {copiedId === `${message.id}-${partIdx}` ? <Check className="w-4 h-4 sm:w-3 sm:h-3 text-emerald-500" /> : <Copy className="w-4 h-4 sm:w-3 sm:h-3 text-forge-text-dim" />}
                               </button>
                             </div>
                           )
@@ -632,16 +632,16 @@ export function ChatPanel({ projectName, projectId, files, onFileChange, onFileD
                       {textContent && (
                         <div className="relative group">
                           <div
-                            className="text-[13px] leading-relaxed text-gray-700 [&_pre]:my-2 [&_code]:text-[12px]"
+                            className="text-sm sm:text-[13px] leading-relaxed text-gray-700 [&_pre]:my-2 [&_code]:text-xs sm:[&_code]:text-[12px]"
                             dangerouslySetInnerHTML={{ __html: renderMarkdown(textContent) }}
                           />
                           <button
                             onClick={() => handleCopy(message.id, textContent)}
-                            className="absolute top-0 right-0 opacity-0 group-hover:opacity-100 transition-opacity p-1 rounded hover:bg-forge-surface"
+                            className="absolute top-0 right-0 opacity-0 group-hover:opacity-100 sm:transition-opacity p-2 sm:p-1 rounded hover:bg-forge-surface"
                             aria-label="Copy message"
                             title="Copy"
                           >
-                            {copiedId === message.id ? <Check className="w-3 h-3 text-emerald-500" /> : <Copy className="w-3 h-3 text-forge-text-dim" />}
+                            {copiedId === message.id ? <Check className="w-4 h-4 sm:w-3 sm:h-3 text-emerald-500" /> : <Copy className="w-4 h-4 sm:w-3 sm:h-3 text-forge-text-dim" />}
                           </button>
                         </div>
                       )}
@@ -682,7 +682,7 @@ export function ChatPanel({ projectName, projectId, files, onFileChange, onFileD
       </div>
 
       {/* Input */}
-      <div className="border-t border-forge-border p-3 shrink-0">
+      <div className="border-t border-forge-border p-3 shrink-0 safe-bottom">
         <div className="relative">
           <textarea
             ref={inputRef}
@@ -690,28 +690,28 @@ export function ChatPanel({ projectName, projectId, files, onFileChange, onFileD
             onChange={e => {
               setInput(e.target.value)
               e.target.style.height = 'auto'
-              e.target.style.height = Math.min(e.target.scrollHeight, 120) + 'px'
+              e.target.style.height = Math.min(e.target.scrollHeight, 150) + 'px'
             }}
             onKeyDown={e => {
               if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSend() }
             }}
             placeholder={isEmpty ? 'Describe what you want to build...' : 'Ask for changes, new features, fixes...'}
             rows={1}
-            className="w-full bg-forge-surface border border-forge-border rounded-xl pl-3.5 pr-12 py-2.5 text-sm text-forge-text placeholder:text-forge-text-dim/50 outline-none focus:border-forge-accent/50 focus:ring-2 focus:ring-forge-accent/10 resize-none transition-all"
+            className="w-full bg-forge-surface border border-forge-border rounded-xl pl-3.5 pr-14 py-3 sm:py-2.5 text-sm text-forge-text placeholder:text-forge-text-dim/50 outline-none focus:border-forge-accent/50 focus:ring-2 focus:ring-forge-accent/10 resize-none transition-all"
           />
-          <div className="absolute right-2 bottom-1.5">
+          <div className="absolute right-2 bottom-2 sm:bottom-1.5">
             {isLoading ? (
-              <button onClick={stop} className="p-2 rounded-lg bg-red-100 text-forge-danger hover:bg-red-200 transition-colors" title="Stop generating">
-                <StopCircle className="w-4 h-4" />
+              <button onClick={stop} className="p-2.5 sm:p-2 rounded-lg bg-red-100 text-forge-danger hover:bg-red-200 transition-colors" title="Stop generating">
+                <StopCircle className="w-5 h-5 sm:w-4 sm:h-4" />
               </button>
             ) : (
-              <button onClick={() => handleSend()} disabled={!input.trim()} className="p-2 rounded-lg bg-forge-accent text-white hover:bg-forge-accent-hover disabled:opacity-20 disabled:cursor-not-allowed transition-all shadow-sm hover:shadow">
-                <Send className="w-4 h-4" />
+              <button onClick={() => handleSend()} disabled={!input.trim()} className="p-2.5 sm:p-2 rounded-lg bg-forge-accent text-white hover:bg-forge-accent-hover disabled:opacity-20 disabled:cursor-not-allowed transition-all shadow-sm hover:shadow">
+                <Send className="w-5 h-5 sm:w-4 sm:h-4" />
               </button>
             )}
           </div>
         </div>
-        <p className="text-[10px] text-forge-text-dim/60 text-center mt-1.5">
+        <p className="text-[10px] text-forge-text-dim/60 text-center mt-1.5 hidden sm:block">
           Enter to send &middot; Shift+Enter for new line
         </p>
       </div>

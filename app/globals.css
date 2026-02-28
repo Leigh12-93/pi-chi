@@ -21,6 +21,20 @@
 ::-webkit-scrollbar-thumb { background: #d1d5db; border-radius: 3px; }
 ::-webkit-scrollbar-thumb:hover { background: #9ca3af; }
 
+/* Wider scrollbars on touch devices */
+@media (pointer: coarse) {
+  ::-webkit-scrollbar { width: 10px; height: 10px; }
+}
+
+/* Respect reduced motion */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
 /* Selection */
 ::selection { background: rgba(99, 102, 241, 0.2); }
 

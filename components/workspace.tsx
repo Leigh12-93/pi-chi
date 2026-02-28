@@ -316,7 +316,7 @@ export function Workspace({
   )
 
   const fileTabBar = (openFilesList: string[]) => (
-    <div className="flex items-center overflow-x-auto gap-0.5">
+    <div className="flex items-center overflow-x-auto gap-0.5 -webkit-overflow-scrolling-touch">
       {openFilesList.map(f => {
         const name = f.split('/').pop() || f
         const isActive = activeFile === f
@@ -324,7 +324,7 @@ export function Workspace({
           <div
             key={f}
             className={cn(
-              'group flex items-center gap-1 px-2.5 py-1.5 text-xs rounded-md cursor-pointer transition-all whitespace-nowrap border',
+              'group flex items-center gap-1 px-3 sm:px-2.5 py-2 sm:py-1.5 text-xs rounded-md cursor-pointer transition-all whitespace-nowrap border',
               isActive
                 ? 'bg-forge-surface text-forge-text border-forge-border shadow-sm'
                 : 'text-forge-text-dim hover:text-forge-text border-transparent hover:bg-forge-surface/50',
@@ -334,8 +334,7 @@ export function Workspace({
             <span>{name}</span>
             <button
               onClick={(e) => { e.stopPropagation(); handleCloseFile(f) }}
-              className="ml-0.5 opacity-0 group-hover:opacity-100 hover:text-forge-danger text-[10px] transition-opacity"
-              style={{ opacity: isActive ? 0.6 : undefined }}
+              className="ml-1 p-1 sm:ml-0.5 sm:p-0 opacity-60 sm:opacity-0 sm:group-hover:opacity-100 hover:text-forge-danger text-xs sm:text-[10px] transition-opacity"
               aria-label={`Close ${name}`}
             >
               ×
@@ -454,20 +453,20 @@ export function Workspace({
           {mobileTab === 'preview' && <PreviewPanel files={files} projectId={projectId} onFixErrors={(msg) => { setPendingChatMessage(msg); setMobileTab('chat') }} />}
         </div>
 
-        <div className="flex items-center justify-around border-t border-forge-border bg-forge-panel py-2 shrink-0 safe-bottom">
+        <div className="flex items-center justify-around border-t border-forge-border bg-forge-panel py-1.5 shrink-0 safe-bottom">
           {MOBILE_TABS.map(tab => (
             <button
               key={tab.id}
               onClick={() => setMobileTab(tab.id)}
               className={cn(
-                'flex flex-col items-center gap-1 px-4 py-1.5 rounded-xl transition-all min-w-[64px] min-h-[44px] focus:outline-none focus-visible:ring-2 focus-visible:ring-forge-accent/50',
+                'flex flex-col items-center gap-0.5 px-4 py-2 rounded-xl transition-all min-w-[64px] min-h-[48px] focus:outline-none focus-visible:ring-2 focus-visible:ring-forge-accent/50 active:scale-95',
                 mobileTab === tab.id
                   ? 'text-forge-accent bg-forge-accent/10 shadow-sm'
                   : 'text-forge-text-dim active:bg-forge-surface',
               )}
             >
               <tab.Icon className={cn('w-5 h-5', mobileTab === tab.id && 'scale-110')} />
-              <span className="text-[11px] font-medium">{tab.label}</span>
+              <span className="text-[10px] font-medium">{tab.label}</span>
             </button>
           ))}
         </div>

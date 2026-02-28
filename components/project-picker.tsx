@@ -162,14 +162,14 @@ export function ProjectPicker({ onSelect, savedProjects, loadingProjects, onDele
   }
 
   return (
-    <div className="min-h-screen bg-forge-bg flex items-center justify-center p-8">
+    <div className="min-h-screen bg-forge-bg flex items-center justify-center p-4 sm:p-8">
       <div className="max-w-3xl w-full">
         {/* Logo */}
-        <div className="text-center mb-10">
-          <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-gradient-to-br from-forge-accent/20 to-purple-500/20 mb-5 shadow-sm">
-            <Hammer className="w-8 h-8 text-forge-accent" />
+        <div className="text-center mb-8 sm:mb-10">
+          <div className="inline-flex items-center justify-center w-14 h-14 sm:w-16 sm:h-16 rounded-2xl bg-gradient-to-br from-forge-accent/20 to-purple-500/20 mb-4 sm:mb-5 shadow-sm">
+            <Hammer className="w-7 h-7 sm:w-8 sm:h-8 text-forge-accent" />
           </div>
-          <h1 className="text-3xl font-bold text-forge-text mb-2 tracking-tight">Forge</h1>
+          <h1 className="text-2xl sm:text-3xl font-bold text-forge-text mb-2 tracking-tight">Forge</h1>
           <p className="text-forge-text-dim text-sm">AI-powered website builder with superpowers</p>
         </div>
 
@@ -190,22 +190,22 @@ export function ProjectPicker({ onSelect, savedProjects, loadingProjects, onDele
         )}
 
         {/* New project */}
-        <div className="bg-forge-panel border border-forge-border rounded-2xl p-6 mb-6">
+        <div className="bg-forge-panel border border-forge-border rounded-2xl p-4 sm:p-6 mb-6">
           <label className="block text-xs font-medium text-forge-text-dim mb-2.5">New Project</label>
-          <div className="flex gap-2">
+          <div className="flex flex-col sm:flex-row gap-2">
             <input
               type="text"
               value={name}
               onChange={e => setName(e.target.value)}
               onKeyDown={e => e.key === 'Enter' && handleCreate()}
               placeholder="my-awesome-app"
-              className="flex-1 bg-forge-surface border border-forge-border rounded-xl px-4 py-2.5 text-sm text-forge-text placeholder:text-forge-text-dim/50 outline-none focus:border-forge-accent/50 focus:ring-2 focus:ring-forge-accent/10 transition-all"
+              className="flex-1 bg-forge-surface border border-forge-border rounded-xl px-4 py-3 sm:py-2.5 text-sm text-forge-text placeholder:text-forge-text-dim/50 outline-none focus:border-forge-accent/50 focus:ring-2 focus:ring-forge-accent/10 transition-all"
               autoFocus
             />
             <button
               onClick={handleCreate}
               disabled={creating}
-              className="flex items-center gap-2 px-5 py-2.5 bg-forge-accent hover:bg-forge-accent-hover text-white text-sm font-medium rounded-xl disabled:opacity-50 disabled:cursor-not-allowed transition-all shadow-sm hover:shadow"
+              className="flex items-center justify-center gap-2 px-5 py-3 sm:py-2.5 bg-forge-accent hover:bg-forge-accent-hover text-white text-sm font-medium rounded-xl disabled:opacity-50 disabled:cursor-not-allowed transition-all shadow-sm hover:shadow active:scale-[0.98]"
             >
               <Sparkles className="w-4 h-4" />
               Create
@@ -214,7 +214,7 @@ export function ProjectPicker({ onSelect, savedProjects, loadingProjects, onDele
 
           {/* Quick starts */}
           <div className="flex flex-wrap gap-2 mt-4">
-            <span className="text-[10px] text-forge-text-dim/60 self-center mr-1">Quick start:</span>
+            <span className="text-[10px] text-forge-text-dim/60 self-center mr-1 hidden sm:inline">Quick start:</span>
             {QUICK_STARTS.map(qs => (
               <button
                 key={qs.label}
@@ -222,7 +222,7 @@ export function ProjectPicker({ onSelect, savedProjects, loadingProjects, onDele
                   const pName = qs.label.toLowerCase().replace(/\s+/g, '-')
                   onSelect(pName)
                 }}
-                className="px-3 py-1.5 text-[11px] rounded-lg border border-forge-border text-forge-text-dim hover:text-forge-text hover:border-forge-accent/50 hover:bg-forge-accent/5 hover:shadow-sm transition-all"
+                className="px-4 py-2.5 sm:px-3 sm:py-1.5 text-xs sm:text-[11px] rounded-lg border border-forge-border text-forge-text-dim hover:text-forge-text hover:border-forge-accent/50 hover:bg-forge-accent/5 hover:shadow-sm active:scale-[0.98] transition-all"
               >
                 {qs.label}
               </button>
@@ -312,20 +312,20 @@ export function ProjectPicker({ onSelect, savedProjects, loadingProjects, onDele
                           <p className="text-xs text-forge-text-dim truncate mb-2">{project.description}</p>
                         )}
 
-                        <div className="flex items-center gap-3 text-[10px] text-forge-text-dim">
+                        <div className="flex items-center gap-3 text-xs sm:text-[10px] text-forge-text-dim">
                           <span className="flex items-center gap-1">
                             <Clock className="w-3 h-3" />
                             {formatRelative(project.updated_at)}
                           </span>
 
                           {project.vercel_url && (
-                            <a href={project.vercel_url} target="_blank" rel="noreferrer" onClick={e => e.stopPropagation()} className="flex items-center gap-1 hover:text-forge-accent">
+                            <a href={project.vercel_url} target="_blank" rel="noreferrer" onClick={e => e.stopPropagation()} className="flex items-center gap-1 py-1 hover:text-forge-accent">
                               <Globe className="w-3 h-3" /> Live <ExternalLink className="w-2.5 h-2.5" />
                             </a>
                           )}
 
                           {project.github_repo_url && (
-                            <a href={project.github_repo_url} target="_blank" rel="noreferrer" onClick={e => e.stopPropagation()} className="flex items-center gap-1 hover:text-forge-accent">
+                            <a href={project.github_repo_url} target="_blank" rel="noreferrer" onClick={e => e.stopPropagation()} className="flex items-center gap-1 py-1 hover:text-forge-accent">
                               <Github className="w-3 h-3" /> Repo <ExternalLink className="w-2.5 h-2.5" />
                             </a>
                           )}
