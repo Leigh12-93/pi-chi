@@ -414,6 +414,11 @@ export function ChatPanel({ projectName, projectId, files, onFileChange, onFileD
   }
 
   const stepCount = messages.reduce((acc, msg) => {
+    if (msg.role !== 'assistant') return acc
+    const parts = (msg as any).parts as Array<{ type: string }> | undefined
+    if (parts) {
+      return acc + parts.filter(p => p.type === 'tool-invocation').length
+    }
     const invs = (msg as any).toolInvocations as ToolInvocation[] | undefined
     return acc + (invs?.length || 0)
   }, 0)
@@ -504,6 +509,8 @@ export function ChatPanel({ projectName, projectId, files, onFileChange, onFileD
                               <button
                                 onClick={() => handleCopy(`${message.id}-${partIdx}`, part.text!)}
                                 className="absolute top-0 right-0 opacity-0 group-hover:opacity-100 transition-opacity p-1 rounded hover:bg-forge-surface"
+                                aria-label="Copy message"
+                                title="Copy"
                               >
                                 {copiedId === `${message.id}-${partIdx}` ? <Check className="w-3 h-3 text-emerald-500" /> : <Copy className="w-3 h-3 text-forge-text-dim" />}
                               </button>
@@ -600,6 +607,8 @@ export function ChatPanel({ projectName, projectId, files, onFileChange, onFileD
                           <button
                             onClick={() => handleCopy(message.id, textContent)}
                             className="absolute top-0 right-0 opacity-0 group-hover:opacity-100 transition-opacity p-1 rounded hover:bg-forge-surface"
+                            aria-label="Copy message"
+                            title="Copy"
                           >
                             {copiedId === message.id ? <Check className="w-3 h-3 text-emerald-500" /> : <Copy className="w-3 h-3 text-forge-text-dim" />}
                           </button>

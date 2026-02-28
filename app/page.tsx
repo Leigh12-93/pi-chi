@@ -4,6 +4,7 @@ import { useState, useCallback, useEffect, useRef } from 'react'
 import { useSession } from '@/components/session-provider'
 import { Workspace } from '@/components/workspace'
 import { ProjectPicker } from '@/components/project-picker'
+import { ErrorBoundary } from '@/components/error-boundary'
 
 interface SavedProject {
   id: string
@@ -145,34 +146,38 @@ export default function ForgePage() {
 
   if (!projectName) {
     return (
-      <ProjectPicker
-        onSelect={handleSelectProject}
-        savedProjects={savedProjects}
-        loadingProjects={loadingProjects}
-        onDeleteProject={handleDeleteProject}
-        isLoggedIn={!!session?.user}
-      />
+      <ErrorBoundary>
+        <ProjectPicker
+          onSelect={handleSelectProject}
+          savedProjects={savedProjects}
+          loadingProjects={loadingProjects}
+          onDeleteProject={handleDeleteProject}
+          isLoggedIn={!!session?.user}
+        />
+      </ErrorBoundary>
     )
   }
 
   return (
-    <Workspace
-      projectName={projectName}
-      projectId={projectId}
-      files={files}
-      activeFile={activeFile}
-      onFileSelect={setActiveFile}
-      onFileChange={handleFileChange}
-      onFileDelete={handleFileDelete}
-      onBulkFileUpdate={handleBulkFileUpdate}
-      onSwitchProject={() => {
-        setProjectName(null)
-        setProjectId(null)
-        setFiles({})
-        setActiveFile(null)
-        loadProjects()
-      }}
-      githubToken={githubToken}
-    />
+    <ErrorBoundary>
+      <Workspace
+        projectName={projectName}
+        projectId={projectId}
+        files={files}
+        activeFile={activeFile}
+        onFileSelect={setActiveFile}
+        onFileChange={handleFileChange}
+        onFileDelete={handleFileDelete}
+        onBulkFileUpdate={handleBulkFileUpdate}
+        onSwitchProject={() => {
+          setProjectName(null)
+          setProjectId(null)
+          setFiles({})
+          setActiveFile(null)
+          loadProjects()
+        }}
+        githubToken={githubToken}
+      />
+    </ErrorBoundary>
   )
 }

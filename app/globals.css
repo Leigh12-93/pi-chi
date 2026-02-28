@@ -108,3 +108,268 @@
 .code-block-wrapper:hover > div:first-child {
   background-color: #eef2ff;
 }
+
+/* ─── Forge Building Animation ─────────────────────────────────── */
+
+.forge-building-scene {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(180deg, #f8fafc 0%, #eef2ff 40%, #e0e7ff 100%);
+  overflow: hidden;
+  z-index: 5;
+}
+
+/* Blueprint grid background */
+.forge-grid {
+  position: absolute;
+  inset: 0;
+  background-image:
+    linear-gradient(rgba(99,102,241,0.06) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(99,102,241,0.06) 1px, transparent 1px);
+  background-size: 24px 24px;
+  animation: gridPan 20s linear infinite;
+}
+
+@keyframes gridPan {
+  0% { background-position: 0 0; }
+  100% { background-position: 24px 24px; }
+}
+
+/* Floating code blocks that drift up and assemble */
+.forge-block {
+  position: absolute;
+  border-radius: 6px;
+  background: white;
+  border: 1px solid rgba(99,102,241,0.15);
+  box-shadow: 0 1px 3px rgba(99,102,241,0.08);
+  opacity: 0;
+  animation: blockAssemble var(--duration, 3s) var(--delay, 0s) cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+.forge-block::before {
+  content: '';
+  position: absolute;
+  inset: 4px;
+  border-radius: 3px;
+  background: repeating-linear-gradient(
+    0deg,
+    transparent,
+    transparent 5px,
+    rgba(99,102,241,0.04) 5px,
+    rgba(99,102,241,0.04) 6px
+  );
+}
+
+@keyframes blockAssemble {
+  0% {
+    opacity: 0;
+    transform: translateY(40px) scale(0.8) rotate(var(--rot, -2deg));
+  }
+  40% {
+    opacity: 1;
+    transform: translateY(-5px) scale(1.02) rotate(0deg);
+  }
+  60% {
+    transform: translateY(2px) scale(0.99) rotate(0deg);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0) scale(1) rotate(0deg);
+  }
+}
+
+/* Glowing connector lines between blocks */
+.forge-connector {
+  position: absolute;
+  height: 1px;
+  background: linear-gradient(90deg, transparent 0%, rgba(99,102,241,0.3) 50%, transparent 100%);
+  opacity: 0;
+  animation: connectorDraw 0.8s var(--delay, 1.5s) ease-out forwards;
+  transform-origin: left center;
+}
+
+@keyframes connectorDraw {
+  0% {
+    opacity: 0;
+    transform: scaleX(0);
+  }
+  100% {
+    opacity: 1;
+    transform: scaleX(1);
+  }
+}
+
+/* Particle sparkles */
+.forge-particle {
+  position: absolute;
+  width: 3px;
+  height: 3px;
+  border-radius: 50%;
+  background: var(--color-forge-accent);
+  opacity: 0;
+  animation: particleFloat var(--duration, 2.5s) var(--delay, 0s) ease-out infinite;
+}
+
+@keyframes particleFloat {
+  0% {
+    opacity: 0;
+    transform: translateY(0) scale(0);
+  }
+  15% {
+    opacity: 0.8;
+    transform: translateY(-8px) scale(1);
+  }
+  100% {
+    opacity: 0;
+    transform: translateY(-50px) scale(0.3);
+  }
+}
+
+/* Crane arm swinging */
+.forge-crane {
+  position: absolute;
+  top: 8%;
+  right: 15%;
+  width: 2px;
+  height: 60px;
+  background: rgba(99,102,241,0.2);
+  transform-origin: top center;
+  animation: craneSwing 4s ease-in-out infinite;
+}
+
+.forge-crane::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: -20px;
+  width: 42px;
+  height: 2px;
+  background: rgba(99,102,241,0.2);
+}
+
+.forge-crane-hook {
+  position: absolute;
+  bottom: -4px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 6px;
+  height: 6px;
+  border: 1.5px solid rgba(99,102,241,0.3);
+  border-top: none;
+  border-radius: 0 0 3px 3px;
+}
+
+@keyframes craneSwing {
+  0%, 100% { transform: rotate(-8deg); }
+  50% { transform: rotate(8deg); }
+}
+
+/* Progress bar at bottom */
+.forge-progress-track {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 3px;
+  background: rgba(99,102,241,0.08);
+}
+
+.forge-progress-bar {
+  height: 100%;
+  background: linear-gradient(90deg, var(--color-forge-accent), #818cf8);
+  border-radius: 0 2px 2px 0;
+  animation: buildProgress 8s ease-out forwards;
+}
+
+@keyframes buildProgress {
+  0% { width: 0%; }
+  15% { width: 20%; }
+  40% { width: 45%; }
+  65% { width: 65%; }
+  85% { width: 82%; }
+  100% { width: 95%; }
+}
+
+/* Central status text */
+.forge-build-status {
+  position: absolute;
+  bottom: 32px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  z-index: 10;
+}
+
+.forge-build-dots {
+  display: flex;
+  gap: 4px;
+}
+
+.forge-build-dots span {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: var(--color-forge-accent);
+  animation: dotBounce 1.4s ease-in-out infinite;
+}
+
+.forge-build-dots span:nth-child(2) { animation-delay: 0.16s; }
+.forge-build-dots span:nth-child(3) { animation-delay: 0.32s; }
+
+@keyframes dotBounce {
+  0%, 80%, 100% { transform: scale(0.6); opacity: 0.4; }
+  40% { transform: scale(1.2); opacity: 1; }
+}
+
+/* Scaffold rising lines on sides */
+.forge-scaffold-line {
+  position: absolute;
+  width: 1px;
+  bottom: 0;
+  background: linear-gradient(0deg, rgba(99,102,241,0.15), transparent);
+  animation: scaffoldRise var(--duration, 2s) var(--delay, 0s) ease-out forwards;
+  opacity: 0;
+}
+
+@keyframes scaffoldRise {
+  0% { height: 0; opacity: 0; }
+  30% { opacity: 0.6; }
+  100% { height: var(--height, 60%); opacity: 0.4; }
+}
+
+/* Cross-braces on scaffold */
+.forge-scaffold-brace {
+  position: absolute;
+  width: 20px;
+  height: 1px;
+  background: rgba(99,102,241,0.1);
+  opacity: 0;
+  animation: braceAppear 0.4s var(--delay, 1s) ease-out forwards;
+  transform: rotate(var(--angle, 45deg));
+}
+
+@keyframes braceAppear {
+  0% { opacity: 0; transform: rotate(var(--angle, 45deg)) scaleX(0); }
+  100% { opacity: 1; transform: rotate(var(--angle, 45deg)) scaleX(1); }
+}
+
+/* Pulsing glow behind center */
+.forge-glow {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 200px;
+  height: 200px;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(99,102,241,0.08) 0%, transparent 70%);
+  animation: glowPulse 3s ease-in-out infinite;
+}
+
+@keyframes glowPulse {
+  0%, 100% { transform: translate(-50%, -50%) scale(0.8); opacity: 0.5; }
+  50% { transform: translate(-50%, -50%) scale(1.2); opacity: 1; }
+}

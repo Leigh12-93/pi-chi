@@ -280,6 +280,8 @@ function TreeItem({
               setShowContextMenu(!showContextMenu)
             }}
             className="opacity-0 group-hover:opacity-100 p-1 hover:bg-forge-surface rounded transition-all mr-1"
+            aria-label="File options"
+            title="More options"
           >
             <MoreHorizontal className="w-3 h-3 text-forge-text-dim" />
           </button>

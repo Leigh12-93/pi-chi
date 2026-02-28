@@ -108,7 +108,7 @@ export function Header({ projectName, onSwitchProject, fileCount, onAction, save
             {session.user.image && (
               <img src={session.user.image} alt="" className="w-6 h-6 rounded-full border border-forge-border" />
             )}
-            <a href="/api/auth/logout" className="p-1 text-forge-text-dim hover:text-forge-danger transition-colors" title="Sign out">
+            <a href="/api/auth/logout" className="p-1 text-forge-text-dim hover:text-forge-danger transition-colors" title="Sign out" aria-label="Sign out">
               <LogOut className="w-3.5 h-3.5" />
             </a>
           </div>

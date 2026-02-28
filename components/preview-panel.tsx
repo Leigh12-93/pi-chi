@@ -633,17 +633,72 @@ export function PreviewPanel({ files, projectId }: PreviewPanelProps) {
             </div>
           )}
 
-          {/* Loading banner — non-blocking overlay at top */}
+          {/* Building animation — full-area overlay while sandbox initializes */}
           {isSandboxLoading && (
-            <div className="absolute top-3 left-1/2 -translate-x-1/2 z-10 animate-fade-in">
-              <div className="flex items-center gap-2 px-3 py-1.5 bg-white/90 backdrop-blur border border-amber-200 rounded-full shadow-sm">
-                <Loader2 className="w-3.5 h-3.5 animate-spin text-amber-600" />
-                <span className="text-xs font-medium text-amber-800">
-                  {STATUS_LABELS[sandboxStatus]}
-                  {Object.keys(files).length > 0 && (
-                    <span className="text-amber-500 ml-1">({Object.keys(files).length} files)</span>
-                  )}
+            <div className="forge-building-scene animate-fade-in">
+              {/* Blueprint grid */}
+              <div className="forge-grid" />
+
+              {/* Ambient glow */}
+              <div className="forge-glow" />
+
+              {/* Scaffold lines rising from bottom */}
+              <div className="forge-scaffold-line" style={{ left: '10%', ['--height' as string]: '70%', ['--delay' as string]: '0.2s', ['--duration' as string]: '2.5s' } as React.CSSProperties} />
+              <div className="forge-scaffold-line" style={{ left: '12%', ['--height' as string]: '55%', ['--delay' as string]: '0.5s', ['--duration' as string]: '2s' } as React.CSSProperties} />
+              <div className="forge-scaffold-line" style={{ right: '10%', ['--height' as string]: '65%', ['--delay' as string]: '0.3s', ['--duration' as string]: '2.2s' } as React.CSSProperties} />
+              <div className="forge-scaffold-line" style={{ right: '12%', ['--height' as string]: '50%', ['--delay' as string]: '0.6s', ['--duration' as string]: '1.8s' } as React.CSSProperties} />
+
+              {/* Cross-braces */}
+              <div className="forge-scaffold-brace" style={{ left: '9%', bottom: '35%', ['--delay' as string]: '1.2s', ['--angle' as string]: '45deg' } as React.CSSProperties} />
+              <div className="forge-scaffold-brace" style={{ left: '9%', bottom: '25%', ['--delay' as string]: '1.5s', ['--angle' as string]: '-45deg' } as React.CSSProperties} />
+              <div className="forge-scaffold-brace" style={{ right: '9%', bottom: '30%', ['--delay' as string]: '1.3s', ['--angle' as string]: '-45deg' } as React.CSSProperties} />
+              <div className="forge-scaffold-brace" style={{ right: '9%', bottom: '20%', ['--delay' as string]: '1.6s', ['--angle' as string]: '45deg' } as React.CSSProperties} />
+
+              {/* Crane */}
+              <div className="forge-crane">
+                <div className="forge-crane-hook" />
+              </div>
+
+              {/* Assembling code blocks — staggered from bottom to top */}
+              <div className="forge-block" style={{ left: '20%', top: '55%', width: '120px', height: '28px', ['--delay' as string]: '0.3s', ['--duration' as string]: '2.5s', ['--rot' as string]: '-3deg' } as React.CSSProperties} />
+              <div className="forge-block" style={{ left: '25%', top: '45%', width: '160px', height: '32px', ['--delay' as string]: '0.8s', ['--duration' as string]: '2.8s', ['--rot' as string]: '2deg' } as React.CSSProperties} />
+              <div className="forge-block" style={{ left: '22%', top: '36%', width: '140px', height: '24px', ['--delay' as string]: '1.3s', ['--duration' as string]: '2.6s', ['--rot' as string]: '-1deg' } as React.CSSProperties} />
+              <div className="forge-block" style={{ right: '20%', top: '50%', width: '100px', height: '36px', ['--delay' as string]: '0.6s', ['--duration' as string]: '2.7s', ['--rot' as string]: '3deg' } as React.CSSProperties} />
+              <div className="forge-block" style={{ right: '22%', top: '38%', width: '130px', height: '28px', ['--delay' as string]: '1.1s', ['--duration' as string]: '2.5s', ['--rot' as string]: '-2deg' } as React.CSSProperties} />
+              <div className="forge-block" style={{ left: '35%', top: '28%', width: '180px', height: '30px', ['--delay' as string]: '1.6s', ['--duration' as string]: '3s', ['--rot' as string]: '1deg' } as React.CSSProperties} />
+
+              {/* Connector lines between blocks */}
+              <div className="forge-connector" style={{ left: '28%', top: '52%', width: '80px', ['--delay' as string]: '2s' } as React.CSSProperties} />
+              <div className="forge-connector" style={{ right: '25%', top: '46%', width: '60px', ['--delay' as string]: '2.3s' } as React.CSSProperties} />
+              <div className="forge-connector" style={{ left: '35%', top: '34%', width: '100px', ['--delay' as string]: '2.6s' } as React.CSSProperties} />
+
+              {/* Sparkle particles */}
+              <div className="forge-particle" style={{ left: '30%', top: '50%', ['--delay' as string]: '1s', ['--duration' as string]: '2.5s' } as React.CSSProperties} />
+              <div className="forge-particle" style={{ left: '55%', top: '40%', ['--delay' as string]: '1.8s', ['--duration' as string]: '3s' } as React.CSSProperties} />
+              <div className="forge-particle" style={{ right: '30%', top: '45%', ['--delay' as string]: '2.2s', ['--duration' as string]: '2.8s' } as React.CSSProperties} />
+              <div className="forge-particle" style={{ left: '45%', top: '55%', ['--delay' as string]: '0.5s', ['--duration' as string]: '2.2s' } as React.CSSProperties} />
+              <div className="forge-particle" style={{ right: '40%', top: '35%', ['--delay' as string]: '3s', ['--duration' as string]: '2.6s' } as React.CSSProperties} />
+
+              {/* Central status */}
+              <div className="forge-build-status">
+                <div className="forge-build-dots">
+                  <span />
+                  <span />
+                  <span />
+                </div>
+                <span className="text-xs font-medium text-indigo-500/80 tracking-wide">
+                  Building preview
                 </span>
+                {Object.keys(files).length > 0 && (
+                  <span className="text-[10px] text-indigo-400/60">
+                    {Object.keys(files).length} files
+                  </span>
+                )}
+              </div>
+
+              {/* Progress track */}
+              <div className="forge-progress-track">
+                <div className="forge-progress-bar" />
               </div>
             </div>
           )}
