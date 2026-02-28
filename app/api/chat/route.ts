@@ -824,7 +824,7 @@ export async function POST(req: Request) {
           const content = vfs.read(path)
           if (content === undefined) return { error: `File not found: ${path}` }
 
-          // Exact match — fast path
+          // ── Pass 1: Exact match (fast path) ──────────────────────
           if (content.includes(old_string)) {
             const occurrences = content.split(old_string).length - 1
             if (occurrences > 1) {
@@ -835,32 +835,122 @@ export async function POST(req: Request) {
             return { ok: true, path, lines: updated.split('\n').length }
           }
 
-          // Fuzzy match — normalize whitespace and try again
-          const normalize = (s: string) => s.replace(/[ \t]+/g, ' ').replace(/\r\n/g, '\n').trim()
-          const normOld = normalize(old_string)
-          const lines = content.split('\n')
+          // ── Helper: strip each line's indent and collapse runs ───
+          const normLine = (s: string) => s.replace(/\r\n/g, '\n').replace(/[ \t]+/g, ' ').trim()
+          const normLines = (s: string) => s.split('\n').map(l => l.trim()).filter(l => l.length > 0)
 
-          // Try to find a block of lines that matches when normalized
-          const oldLines = old_string.split('\n')
-          for (let i = 0; i <= lines.length - oldLines.length; i++) {
-            const block = lines.slice(i, i + oldLines.length).join('\n')
-            if (normalize(block) === normOld) {
-              // Found a whitespace-fuzzy match — use the actual content for replacement
-              const updated = content.replace(block, new_string)
-              vfs.write(path, updated)
-              return { ok: true, path, lines: updated.split('\n').length, note: 'Matched with whitespace normalization' }
+          const oldTrimmedLines = normLines(old_string)
+          const fileTrimmedLines = content.split('\n').map(l => l.trim())
+          const fileRawLines = content.split('\n')
+
+          // ── Pass 2: Line-by-line indent-insensitive match ────────
+          // Strips leading/trailing whitespace per line, skips blank lines in old_string,
+          // and uses a sliding window with tolerance for ±2 extra/fewer lines
+          let bestMatch: { start: number; end: number } | null = null
+
+          for (let i = 0; i < fileRawLines.length; i++) {
+            // Does this file line match the first non-empty old line?
+            if (fileTrimmedLines[i] !== oldTrimmedLines[0]) continue
+
+            // Walk forward through old lines, matching against file lines
+            // Allow file to have extra blank lines between content lines
+            let fi = i
+            let oi = 0
+            let matched = true
+
+            while (oi < oldTrimmedLines.length && fi < fileRawLines.length) {
+              // Skip blank lines in file
+              if (fileTrimmedLines[fi] === '') {
+                fi++
+                continue
+              }
+              if (fileTrimmedLines[fi] === oldTrimmedLines[oi]) {
+                oi++
+                fi++
+              } else {
+                matched = false
+                break
+              }
+            }
+
+            if (matched && oi === oldTrimmedLines.length) {
+              // fi is now one past the last matched line; trim trailing blanks
+              while (fi > i && fileRawLines[fi - 1].trim() === '') fi--
+              bestMatch = { start: i, end: fi }
+              break
             }
           }
 
-          // No match — return helpful context from the file
-          // Find the closest matching line to help the AI self-correct
+          if (bestMatch) {
+            const before = fileRawLines.slice(0, bestMatch.start).join('\n')
+            const after = fileRawLines.slice(bestMatch.end).join('\n')
+            const updated = [before, new_string, after].filter(s => s !== '').join('\n')
+            vfs.write(path, updated)
+            return { ok: true, path, lines: updated.split('\n').length, note: 'Matched with indent-insensitive fuzzy matching' }
+          }
+
+          // ── Pass 3: Single-line whitespace-normalized match ──────
+          // For single-line edits where indent is wrong
+          if (oldTrimmedLines.length === 1) {
+            const target = oldTrimmedLines[0]
+            for (let i = 0; i < fileRawLines.length; i++) {
+              if (normLine(fileRawLines[i]) === target) {
+                // Check uniqueness
+                const matches = fileTrimmedLines.filter(l => normLine(l) === target).length
+                if (matches > 1) {
+                  return { error: `Found ${matches} fuzzy matches for this single line. Provide more context lines to make it unique.` }
+                }
+                const updated = [...fileRawLines]
+                updated[i] = new_string.includes('\n') ? new_string : new_string
+                vfs.write(path, updated.join('\n'))
+                return { ok: true, path, lines: updated.length, note: 'Matched single line with whitespace normalization' }
+              }
+            }
+          }
+
+          // ── Pass 4: Subsequence match — find old lines as a subsequence ──
+          // Handles cases where AI omits some lines in old_string but the
+          // key anchor lines are present in order
+          if (oldTrimmedLines.length >= 3) {
+            const firstTarget = oldTrimmedLines[0]
+            const lastTarget = oldTrimmedLines[oldTrimmedLines.length - 1]
+
+            for (let startIdx = 0; startIdx < fileRawLines.length; startIdx++) {
+              if (fileTrimmedLines[startIdx] !== firstTarget) continue
+
+              // Find the last old line after this point
+              for (let endIdx = startIdx + 1; endIdx < fileRawLines.length; endIdx++) {
+                if (fileTrimmedLines[endIdx] !== lastTarget) continue
+
+                // Check if all old lines appear in order between start..end
+                const fileSlice = fileTrimmedLines.slice(startIdx, endIdx + 1).filter(l => l.length > 0)
+                let oi = 0
+                for (const fl of fileSlice) {
+                  if (oi < oldTrimmedLines.length && fl === oldTrimmedLines[oi]) oi++
+                }
+
+                if (oi === oldTrimmedLines.length) {
+                  // All old lines matched as a subsequence — replace the block
+                  const before = fileRawLines.slice(0, startIdx).join('\n')
+                  const after = fileRawLines.slice(endIdx + 1).join('\n')
+                  const updated = [before, new_string, after].filter(s => s !== '').join('\n')
+                  vfs.write(path, updated)
+                  return { ok: true, path, lines: updated.split('\n').length, note: 'Matched via subsequence (anchor lines found in order)' }
+                }
+                break // only try first matching end
+              }
+            }
+          }
+
+          // ── No match — return helpful context ────────────────────
           const firstOldLine = old_string.split('\n')[0].trim()
+          const oldLines = old_string.split('\n')
           const nearLines: string[] = []
-          for (let i = 0; i < lines.length; i++) {
-            if (lines[i].includes(firstOldLine) || (firstOldLine.length > 10 && lines[i].trim().startsWith(firstOldLine.slice(0, 20)))) {
+          for (let i = 0; i < fileRawLines.length; i++) {
+            if (fileRawLines[i].includes(firstOldLine) || (firstOldLine.length > 10 && fileRawLines[i].trim().startsWith(firstOldLine.slice(0, 20)))) {
               const start = Math.max(0, i - 2)
-              const end = Math.min(lines.length, i + oldLines.length + 2)
-              nearLines.push(`Lines ${start + 1}-${end}:\n${lines.slice(start, end).join('\n')}`)
+              const end = Math.min(fileRawLines.length, i + oldLines.length + 2)
+              nearLines.push(`Lines ${start + 1}-${end}:\n${fileRawLines.slice(start, end).join('\n')}`)
               break
             }
           }
@@ -869,7 +959,7 @@ export async function POST(req: Request) {
             error: 'old_string not found in file. You MUST call read_file on this file before retrying. Do NOT guess at the content.',
             hint: 'STOP. Call read_file to see the actual file content, then use the exact text from read_file as old_string.',
             nearMatch: nearLines.length > 0 ? nearLines[0] : undefined,
-            fileLength: `${lines.length} lines`,
+            fileLength: `${fileRawLines.length} lines`,
           }
         },
       }),
