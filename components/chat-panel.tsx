@@ -530,6 +530,13 @@ export function ChatPanel({ projectName, projectId, files, onFileChange, onFileD
                     /* Render parts in order — text and tool calls interleaved */
                     <div className="space-y-1.5">
                       {parts.map((part, partIdx) => {
+                        // Collapse consecutive check_task_status polls — only show the last one
+                        if (part.type === 'tool-invocation' && part.toolInvocation?.toolName === 'check_task_status') {
+                          const nextPart = parts[partIdx + 1]
+                          if (nextPart?.type === 'tool-invocation' && nextPart.toolInvocation?.toolName === 'check_task_status') {
+                            return null // skip — a newer poll follows
+                          }
+                        }
                         if (part.type === 'text' && part.text) {
                           return (
                             <div key={partIdx} className="relative group">
