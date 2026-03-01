@@ -411,12 +411,14 @@ function TreeItem({
               className="ml-1 bg-forge-surface border border-forge-accent rounded px-1 py-0 text-[12px] text-forge-text outline-none focus:ring-2 focus:ring-forge-accent/30 flex-1 min-w-0"
             />
           ) : (
-            <span className={cn('truncate ml-1', isModified && 'text-amber-500 dark:text-amber-400')} title={node.path}>
-              {node.name}
-            </span>
-            {isModified && (
-              <span className="w-1.5 h-1.5 rounded-full bg-amber-500 shrink-0 ml-auto mr-1" title="Modified" />
-            )}
+            <>
+              <span className={cn('truncate ml-1', isModified && 'text-amber-500 dark:text-amber-400')} title={node.path}>
+                {node.name}
+              </span>
+              {isModified && (
+                <span className="w-1.5 h-1.5 rounded-full bg-amber-500 shrink-0 ml-auto mr-1" title="Modified" />
+              )}
+            </>
           )}
         </button>
 

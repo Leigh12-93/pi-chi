@@ -9,7 +9,7 @@ import {
   AlertTriangle, CheckCircle, XCircle,
   StopCircle, Sparkles, ArrowUp, Lightbulb,
   Brain, Database, Wrench, RefreshCw,
-  BookOpen, Save, Plug, ImageIcon,
+  BookOpen, Save, Plug, ImageIcon, Package,
   ChevronDown, ExternalLink, Clock, Key,
   type LucideIcon,
 } from 'lucide-react'
@@ -68,8 +68,8 @@ const TOOL_LABELS: Record<string, { label: string; Icon: LucideIcon; color: stri
   sandbox_status: { label: 'Checking sandbox', Icon: Rocket, color: 'blue' },
   add_image: { label: 'Finding image', Icon: ImageIcon, color: 'cyan' },
   check_task_status: { label: 'Checking task', Icon: RefreshCw, color: 'blue' },
-  grep_files: { label: 'Grepping files', Icon: Search, color: 'purple' },
-  add_dependency: { label: 'Adding dependency', Icon: FolderPlus, color: 'green' },
+  grep_files: { label: 'Grepping files', Icon: BookOpen, color: 'purple' },
+  add_dependency: { label: 'Adding package', Icon: Package, color: 'green' },
 }
 
 const MODEL_OPTIONS = [
@@ -100,7 +100,7 @@ const colorClasses: Record<string, string> = {
 
 // ═══════════════════════════════════════════════════════════════════
 // Markdown renderer (light theme)
-// ═══════════════════════════════════════════════════════════════════
+// ════════════════════════════════════════════════════════════���══════
 
 // Language label map for code blocks
 const LANG_LABELS: Record<string, string> = {
