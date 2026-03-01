@@ -305,9 +305,9 @@ export async function POST(req: Request) {
           totalTokens: event.usage.totalTokens,
         })
       }
-      try { await streamData.close() } catch { /* stream already closed */ }
 
-      // Save assistant message to database if projectId exists
+      // Save assistant message to database BEFORE closing stream
+      // so we can still warn the client if the save fails.
       if (projectId && event.text) {
         try {
           await supabaseFetch('/forge_chat_messages', {
@@ -321,13 +321,13 @@ export async function POST(req: Request) {
           })
         } catch (error) {
           console.error('Failed to save assistant message:', error)
-          // Note: streamData may already be closed at this point, so wrap in try/catch.
-          // This is a non-fatal warning — the user's work is safe in-memory.
           try {
             streamData.append({ type: 'warning', message: 'Chat history could not be saved. Your work is safe but this conversation may not persist.' })
-          } catch { /* stream already closed — non-fatal */ }
+          } catch { /* stream closing race — non-fatal */ }
         }
       }
+
+      try { await streamData.close() } catch { /* stream already closed */ }
     },
   })
 

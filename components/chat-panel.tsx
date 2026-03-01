@@ -1209,6 +1209,8 @@ export function ChatPanel({ projectName, projectId, files, onFileChange, onFileD
   const [loadingHistory, setLoadingHistory] = useState(false)
   const [editingMessageId, setEditingMessageId] = useState<string | null>(null)
   const [editingContent, setEditingContent] = useState('')
+  const [clearConfirm, setClearConfirm] = useState(false)
+  const clearConfirmTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLTextAreaElement>(null)
   const processedInvs = useRef(new Set<string>())
@@ -1639,12 +1641,22 @@ export function ChatPanel({ projectName, projectId, files, onFileChange, onFileD
             )}
             {messages.length > 0 && (
               <button
-                onClick={() => { setMessages([]); processedInvs.current.clear() }}
-                className="p-1 text-forge-text-dim/40 hover:text-forge-danger transition-colors rounded"
-                title="Clear chat"
-                aria-label="Clear chat"
+                onClick={() => {
+                  if (clearConfirm) {
+                    setMessages([]); processedInvs.current.clear(); setClearConfirm(false)
+                    if (clearConfirmTimer.current) clearTimeout(clearConfirmTimer.current)
+                  } else {
+                    setClearConfirm(true)
+                    clearConfirmTimer.current = setTimeout(() => setClearConfirm(false), 3000)
+                  }
+                }}
+                onMouseLeave={() => { if (clearConfirm) { setClearConfirm(false); if (clearConfirmTimer.current) clearTimeout(clearConfirmTimer.current) } }}
+                className={`p-1 transition-colors rounded text-[10px] flex items-center gap-0.5 ${clearConfirm ? 'text-forge-danger' : 'text-forge-text-dim/40 hover:text-forge-danger'}`}
+                title={clearConfirm ? 'Click again to confirm' : 'Clear chat'}
+                aria-label={clearConfirm ? 'Confirm clear chat' : 'Clear chat'}
               >
                 <Trash2 className="w-3.5 h-3.5" />
+                {clearConfirm && <span>Clear?</span>}
               </button>
             )}
           </div>

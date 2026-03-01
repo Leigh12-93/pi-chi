@@ -73,7 +73,8 @@ async function fetchBlobWithRetry(
       )
       if (res.status === 403 || res.status === 429) {
         // Rate limited — wait and retry
-        const retryAfter = parseInt(res.headers.get('retry-after') || '5', 10)
+        // Cap retry delay at 30s to prevent GitHub returning huge Retry-After values (e.g. 300s)
+        const retryAfter = Math.min(parseInt(res.headers.get('retry-after') || '5', 10), 30)
         if (attempt < maxRetries) {
           await new Promise(r => setTimeout(r, retryAfter * 1000))
           continue
