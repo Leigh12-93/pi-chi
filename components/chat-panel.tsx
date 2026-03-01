@@ -327,7 +327,10 @@ function cachedRenderMarkdown(text: string): string {
   if (html) return html
   html = sanitizeHtml(renderMarkdown(text))
   _mdCache.set(text, html)
-  if (_mdCache.size > 300) _mdCache.delete(_mdCache.keys().next().value!)
+  if (_mdCache.size > 300) {
+    const firstKey = _mdCache.keys().next().value
+    if (firstKey !== undefined) _mdCache.delete(firstKey)
+  }
   return html
 }
 
@@ -1214,6 +1217,7 @@ export function ChatPanel({ projectName, projectId, files, onFileChange, onFileD
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLTextAreaElement>(null)
   const processedInvs = useRef(new Set<string>())
+  const historyLoadingRef = useRef(false)
   const localFiles = useRef<Record<string, string>>({})
 
   useEffect(() => {
@@ -1238,26 +1242,35 @@ export function ChatPanel({ projectName, projectId, files, onFileChange, onFileD
   // Load chat history on mount
   useEffect(() => {
     if (!projectId || historyLoaded) return
+    if (historyLoadingRef.current) return
+    historyLoadingRef.current = true
     setHistoryLoaded(true)
     setLoadingHistory(true)
 
-    fetch(`/api/projects/${projectId}/messages`)
-      .then(res => res.json())
-      .then(data => {
-        if (data.messages?.length > 0) {
-          const loaded = data.messages.map((msg: any) => ({
-            id: msg.id,
-            role: msg.role,
-            content: msg.content || '',
-          }))
-          setMessages(loaded)
-        }
-      })
-      .catch((err) => {
-        console.warn('Failed to load chat history:', err)
-        toast.error('Could not load chat history', { description: 'Previous messages may be missing.', duration: 4000 })
-      })
-      .finally(() => setLoadingHistory(false))
+    try {
+      fetch(`/api/projects/${projectId}/messages`)
+        .then(res => res.json())
+        .then(data => {
+          if (data.messages?.length > 0) {
+            const loaded = data.messages.map((msg: any) => ({
+              id: msg.id,
+              role: msg.role,
+              content: msg.content || '',
+            }))
+            setMessages(loaded)
+          }
+        })
+        .catch((err) => {
+          console.warn('Failed to load chat history:', err)
+          toast.error('Could not load chat history', { description: 'Previous messages may be missing.', duration: 4000 })
+        })
+        .finally(() => {
+          setLoadingHistory(false)
+          historyLoadingRef.current = false
+        })
+    } catch {
+      historyLoadingRef.current = false
+    }
   }, [projectId, historyLoaded, setMessages])
 
   // Live file extraction
@@ -1347,6 +1360,7 @@ export function ChatPanel({ projectName, projectId, files, onFileChange, onFileD
 
   const handleCancelTask = useCallback(async (taskId: string) => {
     try {
+      // PATCH endpoint exists at app/api/tasks/[id]/route.ts — sets status to 'cancelled'
       await fetch(`/api/tasks/${taskId}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
@@ -1563,8 +1577,11 @@ export function ChatPanel({ projectName, projectId, files, onFileChange, onFileD
             value={input}
             onChange={e => {
               setInput(e.target.value)
-              e.target.style.height = 'auto'
-              e.target.style.height = Math.min(e.target.scrollHeight, 200) + 'px'
+              const textarea = e.target
+              requestAnimationFrame(() => {
+                textarea.style.height = 'auto'
+                textarea.style.height = Math.min(textarea.scrollHeight, 200) + 'px'
+              })
             }}
             onKeyDown={e => {
               if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSend() }

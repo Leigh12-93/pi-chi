@@ -30,6 +30,13 @@ function getEditFailCounts(projectId: string | null): Map<string, number> {
   for (const [k, v] of editFailCache) {
     if (now - v.ts > 10 * 60 * 1000) editFailCache.delete(k)
   }
+  // Cap at 500 entries to prevent unbounded growth
+  if (editFailCache.size > 500) {
+    const entries = [...editFailCache.entries()].sort((a, b) => a[1].ts - b[1].ts)
+    while (editFailCache.size > 500) {
+      editFailCache.delete(entries.shift()![0])
+    }
+  }
   let entry = editFailCache.get(key)
   if (!entry) {
     entry = { counts: new Map(), ts: now }
@@ -45,6 +52,8 @@ function getEditFailCounts(projectId: string | null): Map<string, number> {
 
 export async function POST(req: Request) {
   // Rate limit — 20 requests/minute per IP
+  // NOTE: x-forwarded-for is trusted here because this runs on Vercel which sets it reliably.
+  // If self-hosting behind a different proxy, configure trusted proxy headers accordingly.
   const ip = req.headers.get('x-forwarded-for')?.split(',')[0]?.trim()
     || req.headers.get('x-real-ip')?.trim()
     || req.headers.get('x-vercel-forwarded-for')?.split(',')[0]?.trim()
@@ -226,6 +235,8 @@ export async function POST(req: Request) {
     }))
   }
 
+  const streamData = new StreamData()
+
   // Save user message to database if projectId exists
   if (projectId && messages.length > 0) {
     const lastMessage = messages[messages.length - 1]
@@ -241,11 +252,10 @@ export async function POST(req: Request) {
         })
       } catch (error) {
         console.error('Failed to save user message:', error)
+        streamData.append({ type: 'warning', message: 'Message history may not be saved for this session.' })
       }
     }
   }
-
-  const streamData = new StreamData()
 
   // Global timeout: abort the entire streamText operation after 5 minutes
   // Prevents indefinitely hanging requests if the model or tool execution stalls.

@@ -52,7 +52,10 @@ async function getDefaultBranch(owner: string, repo: string, token: string): Pro
   if (res.status >= 500) {
     throw new Error(`GitHub server error (${res.status}). Try again later.`)
   }
-  if (!res.ok) return 'main'
+  if (!res.ok) {
+    console.warn(`[github-import] Unexpected status ${res.status} fetching default branch for ${owner}/${repo}, falling back to 'main'`)
+    return 'main'
+  }
   const data = await res.json()
   return data.default_branch || 'main'
 }
@@ -108,6 +111,8 @@ async function fetchInBatches(
   batchSize: number = 10,
 ): Promise<Record<string, string>> {
   const files: Record<string, string> = {}
+  let totalBytes = 0
+  const MAX_IMPORT_BYTES = 50 * 1024 * 1024 // 50MB
 
   for (let i = 0; i < items.length; i += batchSize) {
     const batch = items.slice(i, i + batchSize)
@@ -117,6 +122,10 @@ async function fetchInBatches(
 
     for (const result of results) {
       if (result.status === 'fulfilled' && result.value) {
+        totalBytes += result.value.content.length
+        if (totalBytes > MAX_IMPORT_BYTES) {
+          throw new Error('Repository too large (>50MB). Try importing a specific branch or subdirectory.')
+        }
         files[result.value.path] = result.value.content
       }
     }
@@ -224,7 +233,7 @@ export async function POST(req: Request) {
     const importResult = await Promise.race([
       fetchTree(owner, repo, targetBranch, session.accessToken),
       new Promise<never>((_, reject) =>
-        setTimeout(() => reject(new Error('Import timed out after 2 minutes. The repository may be too large — try importing a specific branch or fork with fewer files.')), 2 * 60 * 1000)
+        setTimeout(() => reject(new Error('Import timed out. For large repositories, try importing a specific branch or use a smaller repo.')), 2 * 60 * 1000)
       ),
     ])
 
@@ -243,7 +252,7 @@ export async function POST(req: Request) {
     }
     return NextResponse.json(response)
   } catch (err: any) {
-    const status = err.message?.includes('timed out') ? 504 : 500
+    const status = err.message?.includes('timed out') ? 504 : err.message?.includes('too large') ? 413 : 500
     return NextResponse.json({ error: err.message }, { status })
   }
 }

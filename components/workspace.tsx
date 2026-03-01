@@ -155,6 +155,11 @@ export function Workspace({
   const pendingDeletedFilesRef = useRef<string[]>([])
   const toastTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
+  // Reset prevFileKeysRef on project switch to prevent phantom "new file" toasts
+  useEffect(() => {
+    prevFileKeysRef.current = new Set(Object.keys(files))
+  }, [projectId]) // eslint-disable-line react-hooks/exhaustive-deps
+
   // Track file changes — auto-select first file, batch toast notifications
   useEffect(() => {
     const fileKeys = Object.keys(files)
@@ -215,13 +220,16 @@ export function Workspace({
     }
   }, [files, activeFile, onFileSelect])
 
-  const handleFileSelect = (path: string) => {
+  // Ref to avoid stale closure in handleDrop
+  const handleFileSelectRef = useRef<(path: string) => void>(() => {})
+
+  const handleFileSelect = useCallback((path: string) => {
     onFileSelect(path)
-    if (!openFiles.includes(path)) {
-      setOpenFiles(prev => [...prev, path])
-    }
+    setOpenFiles(prev => prev.includes(path) ? prev : [...prev, path])
     setMobileTab('code')
-  }
+  }, [onFileSelect])
+
+  handleFileSelectRef.current = handleFileSelect
 
   const handleFileCreate = (path: string) => {
     onFileChange(path, '')
@@ -253,9 +261,8 @@ export function Workspace({
     if (!items.length) return
 
     const binaryExts = new Set(['png','jpg','jpeg','gif','ico','webp','avif','bmp','svg','woff','woff2','ttf','eot','otf','mp3','mp4','wav','ogg','webm','zip','tar','gz','rar','7z','pdf','exe','dll','so','dylib','bin','dat','db','sqlite'])
-    let count = 0
     let skipped = 0
-    const importedPaths: string[] = []
+    const newFiles: Record<string, string> = {}
     for (let i = 0; i < items.length; i++) {
       const file = items[i]
       const ext = file.name.split('.').pop()?.toLowerCase() || ''
@@ -279,21 +286,29 @@ export function Workspace({
         const filePath = file.webkitRelativePath
           ? file.webkitRelativePath.split('/').slice(1).join('/') || file.name
           : file.name
-        onFileChange(filePath, text)
-        importedPaths.push(filePath)
-        count++
+        newFiles[filePath] = text
       } catch {
         toast.error(`Failed to read ${file.name}`)
       }
     }
+
+    const count = Object.keys(newFiles).length
+
+    // File count guard on bulk import
+    if (count > 200) {
+      console.warn(`Bulk import: ${count} files — this may be slow`)
+    }
+
     if (skipped > 0) {
       toast.info(`Skipped ${skipped} binary file${skipped > 1 ? 's' : ''}`, { duration: 2000 })
     }
     if (count > 0) {
+      // Batch state update via onBulkFileUpdate instead of individual onFileChange calls
+      onBulkFileUpdate({ ...filesRef.current, ...newFiles })
       toast.success(`${count} file${count > 1 ? 's' : ''} imported`, { duration: 2500 })
-      if (count === 1) handleFileSelect(importedPaths[0])
+      if (count === 1) handleFileSelectRef.current(Object.keys(newFiles)[0])
     }
-  }, [onFileChange, handleFileSelect])
+  }, [onBulkFileUpdate])
 
   const handleRegisterSend = useCallback((sendFn: (message: string) => void) => {
     chatSendRef.current = sendFn

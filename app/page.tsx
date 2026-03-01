@@ -30,6 +30,7 @@ export default function ForgePage() {
   const lastSavedHash = useRef<string>('')
   const restoredRef = useRef(false)
   const savingRef = useRef(false)
+  const loadingProjectsRef = useRef(false)
   const [autoSaveError, setAutoSaveError] = useState(false)
   const [projectsLoadError, setProjectsLoadError] = useState(false)
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
@@ -147,6 +148,8 @@ export default function ForgePage() {
   }, [session?.githubUsername])
 
   const loadProjects = async () => {
+    if (loadingProjectsRef.current) return
+    loadingProjectsRef.current = true
     setLoadingProjects(true)
     setProjectsLoadError(false)
     try {
@@ -162,6 +165,7 @@ export default function ForgePage() {
       setProjectsLoadError(true)
     } finally {
       setLoadingProjects(false)
+      loadingProjectsRef.current = false
     }
   }
 
@@ -328,6 +332,7 @@ export default function ForgePage() {
       {concurrentTabWarning && (
         <div className="fixed top-4 left-1/2 -translate-x-1/2 z-50 bg-amber-500/10 border border-amber-500/20 text-amber-400 px-4 py-2 rounded-lg text-sm flex items-center gap-2 animate-in fade-in">
           <span>This project is open in another tab. Edits may overwrite each other.</span>
+          <button onClick={() => window.location.reload()} className="text-amber-300 hover:text-amber-100 font-medium ml-1">Reload</button>
           <button onClick={() => setConcurrentTabWarning(false)} className="text-amber-300 hover:text-amber-100 font-medium ml-1">Dismiss</button>
         </div>
       )}
