@@ -1,5 +1,6 @@
 'use client'
 
+import { useEffect, useState } from 'react'
 import { getLanguageFromPath } from '@/lib/utils'
 
 interface StatusBarProps {
@@ -19,9 +20,38 @@ const LANG_DISPLAY: Record<string, string> = {
   plaintext: 'Plain Text',
 }
 
+const SAVE_TEXT: Record<string, { label: string; color: string }> = {
+  saving: { label: 'Saving...', color: 'text-amber-500' },
+  saved:  { label: 'Saved',     color: 'text-green-500' },
+  error:  { label: 'Save failed', color: 'text-red-500' },
+}
+
 export function StatusBar({ activeFile, fileCount, framework, saveStatus = 'idle' }: StatusBarProps) {
   const language = activeFile ? getLanguageFromPath(activeFile) : null
   const langDisplay = language ? LANG_DISPLAY[language] || language : null
+
+  // Track displayed status with crossfade: fade out old, then fade in new
+  const [displayed, setDisplayed] = useState(saveStatus)
+  const [visible, setVisible] = useState(saveStatus !== 'idle')
+
+  useEffect(() => {
+    if (saveStatus === 'idle') {
+      // Fade out then clear
+      setVisible(false)
+    } else if (saveStatus !== displayed) {
+      // Fade out, swap text, fade in
+      setVisible(false)
+      const timer = setTimeout(() => {
+        setDisplayed(saveStatus)
+        setVisible(true)
+      }, 150)
+      return () => clearTimeout(timer)
+    } else {
+      setVisible(true)
+    }
+  }, [saveStatus]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  const info = SAVE_TEXT[displayed]
 
   return (
     <div className="h-6 flex items-center justify-between px-3 border-t border-forge-border bg-forge-panel text-[10px] text-forge-text-dim shrink-0 hidden md:flex select-none">
@@ -39,11 +69,13 @@ export function StatusBar({ activeFile, fileCount, framework, saveStatus = 'idle
         <span>{fileCount} file{fileCount !== 1 ? 's' : ''}</span>
       </div>
       <div className="flex items-center gap-3">
-        <span className="transition-all duration-300">
-          {saveStatus === 'saving' && <span className="text-amber-500">Saving...</span>}
-          {saveStatus === 'saved' && <span className="text-green-500 animate-fade-in">Saved</span>}
-          {saveStatus === 'error' && <span className="text-red-500 animate-fade-in">Save failed</span>}
-        </span>
+        {info && (
+          <span
+            className={`transition-opacity duration-150 ${info.color} ${visible ? 'opacity-100' : 'opacity-0'}`}
+          >
+            {info.label}
+          </span>
+        )}
         {framework && (
           <>
             <span className="w-px h-3 bg-forge-border" />

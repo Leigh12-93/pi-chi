@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { X, ChevronRight, Sparkles, MessageSquare, Code2, Eye, FolderTree, Rocket } from 'lucide-react'
 
 const STEPS = [
@@ -45,9 +45,19 @@ export function OnboardingTour() {
     localStorage.setItem('forge-onboarding-seen', '1')
   }
 
+  const [transitioning, setTransitioning] = useState(false)
+  const pendingStep = useRef<number | null>(null)
+
   const handleNext = () => {
     if (step < STEPS.length - 1) {
-      setStep(step + 1)
+      // Fade out, swap step, fade in
+      setTransitioning(true)
+      pendingStep.current = step + 1
+      setTimeout(() => {
+        setStep(pendingStep.current!)
+        setTransitioning(false)
+        pendingStep.current = null
+      }, 150)
     } else {
       handleDismiss()
     }
@@ -72,7 +82,10 @@ export function OnboardingTour() {
           <X className="w-4 h-4" />
         </button>
 
-        <div className="p-6 text-center">
+        <div
+          className="p-6 text-center transition-all duration-150 ease-out"
+          style={{ opacity: transitioning ? 0 : 1, transform: transitioning ? 'translateY(4px)' : 'translateY(0)' }}
+        >
           <div className="inline-flex items-center justify-center w-14 h-14 rounded-2xl bg-gradient-to-br from-forge-accent/20 to-purple-500/20 mb-4 animate-breathe">
             <StepIcon className="w-7 h-7 text-forge-accent" />
           </div>

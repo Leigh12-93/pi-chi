@@ -6,6 +6,7 @@ import {
   Square, Loader2, Zap, ExternalLink, Maximize2, Minimize2,
   Globe, Terminal, X, ArrowUpFromLine, Camera,
 } from 'lucide-react'
+import { motion } from 'framer-motion'
 import { cn, hashFileMap } from '@/lib/utils'
 
 interface ConsoleEntry {
@@ -721,13 +722,20 @@ export function PreviewPanel({ files, projectId, onFixErrors, onCapturePreview }
                 onClick={() => setViewMode(mode)}
                 title={label}
                 className={cn(
-                  'p-2.5 sm:p-1.5 rounded-md transition-colors',
+                  'relative p-2.5 sm:p-1.5 rounded-md transition-colors',
                   viewMode === mode
                     ? 'bg-forge-accent/15 text-forge-accent'
                     : 'text-forge-text-dim hover:text-forge-text hover:bg-forge-surface',
                 )}
               >
                 <Icon className="w-4 h-4 sm:w-3.5 sm:h-3.5" />
+                {viewMode === mode && (
+                  <motion.div
+                    layoutId="device-indicator"
+                    className="absolute bottom-0 left-1 right-1 h-0.5 bg-forge-accent rounded-full"
+                    transition={{ type: 'spring', stiffness: 400, damping: 30 }}
+                  />
+                )}
               </button>
             ))}
           </div>

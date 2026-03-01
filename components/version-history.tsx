@@ -74,14 +74,15 @@ export function VersionHistory({ open, onClose, snapshots, currentFiles, onResto
                 No snapshots yet. Snapshots are created after each AI interaction.
               </div>
             ) : (
-              snapshots.map(snapshot => (
+              snapshots.map((snapshot, i) => (
                 <button
                   key={snapshot.id}
                   onClick={() => setSelectedSnapshot(snapshot.id)}
                   className={cn(
-                    'w-full text-left px-3 py-2.5 border-b border-forge-border/50 hover:bg-forge-surface/50 transition-colors',
+                    'w-full text-left px-3 py-2.5 border-b border-forge-border/50 hover:bg-forge-surface/50 transition-colors animate-fade-in-up',
                     selectedSnapshot === snapshot.id && 'bg-forge-accent/10 border-l-2 border-l-forge-accent',
                   )}
+                  style={{ animationDelay: `${i * 40}ms`, animationFillMode: 'backwards' }}
                 >
                   <p className="text-[11px] font-medium text-forge-text truncate">{snapshot.label}</p>
                   <div className="flex items-center gap-1 mt-0.5 text-[10px] text-forge-text-dim">

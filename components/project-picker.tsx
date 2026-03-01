@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react'
 import {
   Hammer, Sparkles, FolderOpen, Trash2,
   Github, Clock, Globe, ExternalLink, Loader2,
-  Lock, Star, GitBranch, Download, GitFork, Archive, Search,
+  Lock, Star, GitBranch, Download, GitFork, Archive, Search, X,
 } from 'lucide-react'
 import { toast } from 'sonner'
 
@@ -36,7 +36,7 @@ interface GitHubRepo {
 }
 
 interface ProjectPickerProps {
-  onSelect: (name: string, id?: string, initialFiles?: Record<string, string>) => void
+  onSelect: (name: string, id?: string, initialFiles?: Record<string, string>, query?: string) => void
   savedProjects: SavedProject[]
   loadingProjects: boolean
   onDeleteProject: (id: string) => void
@@ -225,7 +225,7 @@ export function ProjectPicker({ onSelect, savedProjects, loadingProjects, onDele
                 key={qs.label}
                 onClick={() => {
                   const pName = qs.label.toLowerCase().replace(/\s+/g, '-')
-                  onSelect(pName)
+                  onSelect(pName, undefined, undefined, qs.query)
                 }}
                 className={`px-4 py-2.5 sm:px-3 sm:py-1.5 text-xs sm:text-[11px] rounded-lg border border-forge-border text-forge-text-dim hover:text-forge-text hover:border-forge-accent/50 hover:bg-forge-accent/5 hover:shadow-sm transition-all animate-fade-in-up stagger-${i + 1}`}
               >
@@ -287,8 +287,15 @@ export function ProjectPicker({ onSelect, savedProjects, loadingProjects, onDele
                   value={searchQuery}
                   onChange={e => setSearchQuery(e.target.value)}
                   placeholder={tab === 'projects' ? 'Filter projects...' : 'Filter repositories...'}
-                  className="w-full pl-9 pr-3 py-2 text-xs bg-forge-surface border border-forge-border rounded-lg text-forge-text placeholder:text-forge-text-dim/50 outline-none focus:border-forge-accent/50 focus:ring-2 focus:ring-forge-accent/10 transition-all"
+                  className="w-full pl-9 pr-8 py-2 text-xs bg-forge-surface border border-forge-border rounded-lg text-forge-text placeholder:text-forge-text-dim/50 outline-none focus:border-forge-accent/50 focus:ring-2 focus:ring-forge-accent/10 transition-all"
                 />
+                <button
+                  onClick={() => setSearchQuery('')}
+                  className={`absolute right-2.5 top-1/2 -translate-y-1/2 text-forge-text-dim hover:text-forge-text transition-opacity ${searchQuery ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}
+                  tabIndex={searchQuery ? 0 : -1}
+                >
+                  <X className="w-4 h-4" />
+                </button>
               </div>
             )}
 

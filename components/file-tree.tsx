@@ -369,6 +369,15 @@ function TreeItem({
   return (
     <div className="relative">
       <div className="flex items-center group">
+        {/* Indent guide lines — one per ancestor depth level */}
+        {depth > 0 && Array.from({ length: depth }, (_, i) => (
+          <span
+            key={i}
+            className="absolute top-0 bottom-0 border-l border-forge-border/30"
+            style={{ left: `${i * 12 + 13}px` }}
+            aria-hidden="true"
+          />
+        ))}
         <button
           onClick={() => {
             if (isDir) setExpanded(!expanded)

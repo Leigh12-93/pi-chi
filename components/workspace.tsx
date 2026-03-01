@@ -74,6 +74,8 @@ interface WorkspaceProps {
   autoSaveError?: boolean
   onManualSave?: () => Promise<void>
   onUpdateSettings?: (settings: { name?: string; description?: string }) => void
+  initialPendingMessage?: string | null
+  onInitialPendingMessageSent?: () => void
 }
 
 type MobileTab = 'chat' | 'files' | 'code' | 'preview'
@@ -100,6 +102,7 @@ export function Workspace({
   projectName, projectId, files, activeFile,
   onFileSelect, onFileChange, onFileDelete, onBulkFileUpdate, onSwitchProject,
   githubToken, autoSaveError, onManualSave, onUpdateSettings,
+  initialPendingMessage, onInitialPendingMessageSent,
 }: WorkspaceProps) {
   const [rightTab, setRightTab] = useState<'code' | 'preview' | 'split'>('code')
   const [mobileTab, setMobileTab] = useState<MobileTab>('chat')
@@ -125,6 +128,14 @@ export function Workspace({
   const initialFilesRef = useRef<Record<string, string>>({})
   const filesRef = useRef(files)
   filesRef.current = files
+
+  // Forward initial pending message from parent (e.g., Quick Start query)
+  useEffect(() => {
+    if (initialPendingMessage) {
+      setPendingChatMessage(initialPendingMessage)
+      onInitialPendingMessageSent?.()
+    }
+  }, [initialPendingMessage, onInitialPendingMessageSent])
 
   // Capture initial file state on first render to track modifications
   useEffect(() => {

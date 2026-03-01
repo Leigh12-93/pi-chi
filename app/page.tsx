@@ -37,6 +37,7 @@ export default function ForgePage() {
   const [restoringProject, setRestoringProject] = useState(false)
   const [concurrentTabWarning, setConcurrentTabWarning] = useState(false)
   const [isOffline, setIsOffline] = useState(false)
+  const [pendingMessage, setPendingMessage] = useState<string | null>(null)
 
   // Concurrent-tab detection: warn if another tab is editing the same project
   useEffect(() => {
@@ -251,7 +252,7 @@ export default function ForgePage() {
     }
   }, [projectId, files, handleManualSave])
 
-  const handleSelectProject = useCallback(async (name: string, id?: string, initialFiles?: Record<string, string>) => {
+  const handleSelectProject = useCallback(async (name: string, id?: string, initialFiles?: Record<string, string>, query?: string) => {
     if (id) {
       try {
         const res = await fetch(`/api/projects/${id}`)
@@ -300,6 +301,7 @@ export default function ForgePage() {
     setProjectName(name)
     setFiles(initialFiles || {})
     setActiveFile(null)
+    if (query) setPendingMessage(query)
   }, [session])
 
   const handleFileChange = useCallback((path: string, content: string) => {
@@ -415,6 +417,8 @@ export default function ForgePage() {
         onUpdateSettings={(settings) => {
           if (settings.name) setProjectName(settings.name)
         }}
+        initialPendingMessage={pendingMessage}
+        onInitialPendingMessageSent={() => setPendingMessage(null)}
       />
     </ErrorBoundary>
   )

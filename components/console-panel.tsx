@@ -1,7 +1,7 @@
 'use client'
 
-import { useState, useRef, useEffect } from 'react'
-import { Terminal, X, Trash2, ChevronDown, ChevronUp } from 'lucide-react'
+import { useState, useRef, useEffect, useCallback } from 'react'
+import { Terminal, X, Trash2, ChevronDown, ChevronUp, ArrowDown } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
 export interface ConsoleEntry {
@@ -34,12 +34,26 @@ const TYPE_PREFIX: Record<string, string> = {
 
 export function ConsolePanel({ entries, onClear, open, onToggle }: ConsolePanelProps) {
   const scrollRef = useRef<HTMLDivElement>(null)
+  const [isAtBottom, setIsAtBottom] = useState(true)
+
+  const checkIfAtBottom = useCallback(() => {
+    const el = scrollRef.current
+    if (!el) return
+    const threshold = 24
+    setIsAtBottom(el.scrollHeight - el.scrollTop - el.clientHeight < threshold)
+  }, [])
+
+  const scrollToBottom = useCallback(() => {
+    if (scrollRef.current) {
+      scrollRef.current.scrollTo({ top: scrollRef.current.scrollHeight, behavior: 'smooth' })
+    }
+  }, [])
 
   useEffect(() => {
-    if (scrollRef.current) {
+    if (scrollRef.current && isAtBottom) {
       scrollRef.current.scrollTop = scrollRef.current.scrollHeight
     }
-  }, [entries])
+  }, [entries, isAtBottom])
 
   return (
     <div className={cn(
@@ -79,30 +93,43 @@ export function ConsolePanel({ entries, onClear, open, onToggle }: ConsolePanelP
 
       {/* Output */}
       {open && (
-        <div ref={scrollRef} className="h-[calc(100%-28px)] overflow-y-auto px-3 py-1 font-mono text-[11px] leading-relaxed">
-          {entries.length === 0 ? (
-            <div className="flex items-center justify-center h-full text-forge-text-dim/50 text-[10px]">
-              No output yet
-            </div>
-          ) : (
-            entries.map((entry, i) => (
-              <div key={entry.id} className={cn(
-                'flex gap-2 px-1 py-0.5 -mx-1 rounded-sm',
-                entry.type === 'error' && 'border-l-2 border-l-red-500 pl-1.5',
-                entry.type === 'warn' && 'border-l-2 border-l-amber-500 pl-1.5',
-                i % 2 === 0 && 'bg-forge-surface/30',
-              )}>
-                <span className="text-forge-text-dim/40 shrink-0 select-none">
-                  {new Date(entry.timestamp).toLocaleTimeString('en-AU', { hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit' })}
-                </span>
-                <span className={cn('shrink-0 font-medium', TYPE_STYLES[entry.type])}>
-                  {TYPE_PREFIX[entry.type]}
-                </span>
-                <span className={TYPE_STYLES[entry.type]}>
-                  {entry.message}
-                </span>
+        <div className="relative h-[calc(100%-28px)]">
+          <div ref={scrollRef} onScroll={checkIfAtBottom} className="h-full overflow-y-auto px-3 py-1 font-mono text-[11px] leading-relaxed">
+            {entries.length === 0 ? (
+              <div className="flex items-center justify-center h-full text-forge-text-dim/50 text-[10px]">
+                No output yet
               </div>
-            ))
+            ) : (
+              entries.map((entry, i) => (
+                <div key={entry.id} className={cn(
+                  'flex gap-2 px-1 py-0.5 -mx-1 rounded-sm',
+                  entry.type === 'error' && 'border-l-2 border-l-red-500 pl-1.5',
+                  entry.type === 'warn' && 'border-l-2 border-l-amber-500 pl-1.5',
+                  i % 2 === 0 && 'bg-forge-surface/30',
+                )}>
+                  <span className="text-forge-text-dim/40 shrink-0 select-none">
+                    {new Date(entry.timestamp).toLocaleTimeString('en-AU', { hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit' })}
+                  </span>
+                  <span className={cn('shrink-0 font-medium', TYPE_STYLES[entry.type])}>
+                    {TYPE_PREFIX[entry.type]}
+                  </span>
+                  <span className={TYPE_STYLES[entry.type]}>
+                    {entry.message}
+                  </span>
+                </div>
+              ))
+            )}
+          </div>
+
+          {/* Scroll to bottom button */}
+          {!isAtBottom && entries.length > 0 && (
+            <button
+              onClick={scrollToBottom}
+              className="absolute bottom-2 right-3 p-1 rounded-full bg-forge-surface border border-forge-border shadow-md text-forge-text-dim hover:text-forge-text hover:bg-forge-surface-hover transition-all animate-fade-in"
+              title="Scroll to bottom"
+            >
+              <ArrowDown className="w-3 h-3" />
+            </button>
           )}
         </div>
       )}
