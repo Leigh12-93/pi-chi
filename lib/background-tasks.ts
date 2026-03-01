@@ -211,23 +211,45 @@ export class TaskStore {
     maxAgeMinutes: number = 10,
   ): Promise<{ cleaned: number }> {
     const cutoff = new Date(Date.now() - maxAgeMinutes * 60 * 1000).toISOString()
-    const result = await sbFetch(
-      `/forge_tasks?status=eq.running&created_at=lt.${cutoff}`,
-      {
-        method: 'PATCH',
-        body: JSON.stringify({
-          status: 'failed',
-          error: `Stale task: no completion after ${maxAgeMinutes} minutes`,
-        }),
-      },
+
+    // Step 1: Find stale task IDs before patching, so we know which controllers to abort
+    const listResult = await sbFetch(
+      `/forge_tasks?status=eq.running&created_at=lt.${cutoff}&select=id`,
+      { method: 'GET' },
     )
-    // Also clean up any in-memory controllers that no longer have DB rows
-    for (const [id, controller] of persistentControllers) {
-      if (!controller.signal.aborted) {
-        controller.abort('Stale cleanup')
-      }
-      persistentControllers.delete(id)
+    let staleIds: Set<string> = new Set()
+    if (listResult.ok) {
+      try {
+        const rows: Array<{ id: string }> = await listResult.json()
+        staleIds = new Set(rows.map(r => r.id))
+      } catch { /* ignore parse errors */ }
     }
-    return { cleaned: result.ok ? 1 : 0 }
+
+    // Step 2: Patch stale DB rows to "failed"
+    let patched = 0
+    if (staleIds.size > 0) {
+      const patchResult = await sbFetch(
+        `/forge_tasks?status=eq.running&created_at=lt.${cutoff}`,
+        {
+          method: 'PATCH',
+          body: JSON.stringify({
+            status: 'failed',
+            error: `Stale task: no completion after ${maxAgeMinutes} minutes`,
+          }),
+        },
+      )
+      patched = patchResult.ok ? staleIds.size : 0
+    }
+
+    // Step 3: Only abort controllers for tasks we just marked as stale
+    for (const staleId of staleIds) {
+      const controller = persistentControllers.get(staleId)
+      if (controller) {
+        if (!controller.signal.aborted) controller.abort('Stale cleanup')
+        persistentControllers.delete(staleId)
+      }
+    }
+
+    return { cleaned: patched }
   }
 }

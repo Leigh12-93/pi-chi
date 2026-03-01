@@ -41,6 +41,8 @@ interface ProjectPickerProps {
   loadingProjects: boolean
   onDeleteProject: (id: string) => void
   isLoggedIn: boolean
+  loadError?: boolean
+  onRetryLoad?: () => void
 }
 
 function formatRelative(dateStr: string): string {
@@ -83,7 +85,7 @@ const QUICK_STARTS = [
   { label: 'E-commerce', query: 'Build an e-commerce product page with image gallery, size/color selector, add to cart, reviews section, and related products. Clean, modern design like Apple Store.' },
 ]
 
-export function ProjectPicker({ onSelect, savedProjects, loadingProjects, onDeleteProject, isLoggedIn }: ProjectPickerProps) {
+export function ProjectPicker({ onSelect, savedProjects, loadingProjects, onDeleteProject, isLoggedIn, loadError, onRetryLoad }: ProjectPickerProps) {
   const [name, setName] = useState('')
   const [creating, setCreating] = useState(false)
   const [deletingId, setDeletingId] = useState<string | null>(null)
@@ -297,6 +299,19 @@ export function ProjectPicker({ onSelect, savedProjects, loadingProjects, onDele
                         <div className="h-3 w-24 rounded animate-skeleton" />
                       </div>
                     ))}
+                  </div>
+                ) : loadError ? (
+                  <div className="flex flex-col items-center py-12 border border-dashed border-red-300 dark:border-red-800 rounded-2xl bg-red-50/50 dark:bg-red-950/20">
+                    <p className="text-sm text-red-600 dark:text-red-400 font-medium mb-1">Failed to load projects</p>
+                    <p className="text-xs text-forge-text-dim/60 mb-3">Check your connection and try again</p>
+                    {onRetryLoad && (
+                      <button
+                        onClick={onRetryLoad}
+                        className="px-4 py-2 text-xs font-medium rounded-lg bg-forge-accent text-white hover:bg-forge-accent-hover transition-colors"
+                      >
+                        Retry
+                      </button>
+                    )}
                   </div>
                 ) : savedProjects.length === 0 ? (
                   <div className="flex flex-col items-center py-12 border border-dashed border-forge-border rounded-2xl">

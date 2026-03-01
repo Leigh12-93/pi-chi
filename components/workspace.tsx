@@ -72,6 +72,7 @@ interface WorkspaceProps {
   onSwitchProject: () => void
   githubToken?: string
   autoSaveError?: boolean
+  onUpdateSettings?: (settings: { name?: string; description?: string }) => void
 }
 
 type MobileTab = 'chat' | 'files' | 'code' | 'preview'
@@ -80,7 +81,7 @@ type DialogType = 'deploy' | 'push' | 'create-repo' | 'import' | null
 export function Workspace({
   projectName, projectId, files, activeFile,
   onFileSelect, onFileChange, onFileDelete, onBulkFileUpdate, onSwitchProject,
-  githubToken, autoSaveError,
+  githubToken, autoSaveError, onUpdateSettings,
 }: WorkspaceProps) {
   const [rightTab, setRightTab] = useState<'code' | 'preview' | 'split'>('code')
   const [mobileTab, setMobileTab] = useState<MobileTab>('chat')
@@ -235,6 +236,7 @@ export function Workspace({
     const binaryExts = new Set(['png','jpg','jpeg','gif','ico','webp','avif','bmp','svg','woff','woff2','ttf','eot','otf','mp3','mp4','wav','ogg','webm','zip','tar','gz','rar','7z','pdf','exe','dll','so','dylib','bin','dat','db','sqlite'])
     let count = 0
     let skipped = 0
+    const importedPaths: string[] = []
     for (let i = 0; i < items.length; i++) {
       const file = items[i]
       const ext = file.name.split('.').pop()?.toLowerCase() || ''
@@ -253,7 +255,13 @@ export function Workspace({
           skipped++
           continue
         }
-        onFileChange(file.name, text)
+        // Use webkitRelativePath for directory drops (preserves folder structure),
+        // fall back to file.name for single-file drops
+        const filePath = file.webkitRelativePath
+          ? file.webkitRelativePath.split('/').slice(1).join('/') || file.name
+          : file.name
+        onFileChange(filePath, text)
+        importedPaths.push(filePath)
         count++
       } catch {
         toast.error(`Failed to read ${file.name}`)
@@ -264,7 +272,7 @@ export function Workspace({
     }
     if (count > 0) {
       toast.success(`${count} file${count > 1 ? 's' : ''} imported`, { duration: 2500 })
-      if (count === 1) handleFileSelect(items[0].name)
+      if (count === 1) handleFileSelect(importedPaths[0])
     }
   }, [onFileChange, handleFileSelect])
 
@@ -814,7 +822,7 @@ export function Workspace({
         projectName={projectName}
         projectId={projectId}
         framework={files['package.json'] ? 'Next.js' : files['index.html'] ? 'Static' : undefined}
-        onUpdateSettings={() => {}}
+        onUpdateSettings={onUpdateSettings || (() => {})}
       />
 
       {/* Version History */}

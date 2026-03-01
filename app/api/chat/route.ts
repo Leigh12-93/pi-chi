@@ -42,15 +42,18 @@ class VirtualFS {
   }
 
   read(path: string): string | undefined {
-    return this.files.get(path)
+    const safe = VirtualFS.sanitizePath(path)
+    return safe ? this.files.get(safe) : undefined
   }
 
   exists(path: string): boolean {
-    return this.files.has(path)
+    const safe = VirtualFS.sanitizePath(path)
+    return safe ? this.files.has(safe) : false
   }
 
   delete(path: string): boolean {
-    return this.files.delete(path)
+    const safe = VirtualFS.sanitizePath(path)
+    return safe ? this.files.delete(safe) : false
   }
 
   list(prefix = ''): string[] {
@@ -59,9 +62,14 @@ class VirtualFS {
       .sort()
   }
 
-  search(pattern: string, maxResults = 30): Array<{ file: string; line: number; text: string }> {
+  search(pattern: string, maxResults = 30): Array<{ file: string; line: number; text: string }> | { error: string } {
     const results: Array<{ file: string; line: number; text: string }> = []
-    const regex = new RegExp(pattern, 'i')
+    let regex: RegExp
+    try {
+      regex = new RegExp(pattern, 'i')
+    } catch {
+      return { error: `Invalid regex pattern: ${pattern}` }
+    }
     for (const [path, content] of this.files) {
       if (results.length >= maxResults) break
       const lines = content.split('\n')
@@ -829,6 +837,15 @@ export async function POST(req: Request) {
     })
   }
 
+  // Request body size guard: reject payloads over 8MB to prevent abuse
+  const contentLength = parseInt(req.headers.get('content-length') || '0', 10)
+  if (contentLength > 8 * 1024 * 1024) {
+    return new Response(JSON.stringify({ error: 'Request too large. Maximum body size is 8MB.' }), {
+      status: 413,
+      headers: { 'Content-Type': 'application/json' },
+    })
+  }
+
   const body = await req.json()
   const projectName = body.projectName || 'untitled'
   const projectId = body.projectId || null
@@ -1242,7 +1259,6 @@ export async function POST(req: Request) {
             ok: true,
             template,
             files: Object.keys(scaffold),
-            allFiles: vfs.toRecord(),
           }
         },
       }),
@@ -1467,7 +1483,7 @@ export async function POST(req: Request) {
         },
       }),
 
-      // ─── Utility ────────────────────────────────────────────────
+      // ─── Utility ���───────────────────────────────────────────────
 
       get_all_files: tool({
         description: 'Get the file manifest (path, lines, size). No content.',
@@ -1975,7 +1991,7 @@ export async function POST(req: Request) {
               batch.map(async (item: any) => {
                 const res = await fetch(
                   `https://api.github.com/repos/${owner}/${repo}/git/blobs/${item.sha}`,
-                  { headers: { Authorization: `Bearer ${token}`, Accept: 'application/vnd.github.v3+json' } }
+                  { headers: { Authorization: `Bearer ${token}`, Accept: 'application/vnd.github.v3+json' }, signal: AbortSignal.timeout(15000) }
                 )
                 if (!res.ok) return null
                 const data = await res.json()
@@ -2787,38 +2803,52 @@ export function ${name}({ variant = 'default', size = 'default', className, chil
       }),
 
       add_image: tool({
-        description: 'Search Unsplash for a free image and return the URL. Use this when the user needs images for their project (hero backgrounds, product photos, avatars, etc.). Returns the image URL which you can use in img tags or CSS backgrounds.',
+        description: 'Find a free image from Unsplash for the project. Returns a working image URL you can use in img tags or CSS backgrounds. If UNSPLASH_ACCESS_KEY is not set, returns placeholder guidance instead.',
         parameters: z.object({
           query: z.string().describe('Search query (e.g. "mountain landscape", "coffee shop", "team meeting")'),
           orientation: z.enum(['landscape', 'portrait', 'squarish']).default('landscape').describe('Image orientation'),
           size: z.enum(['raw', 'full', 'regular', 'small', 'thumb']).default('regular').describe('Image size variant'),
         }),
         execute: async ({ query, orientation, size }) => {
-          // Use Unsplash source URL (no API key needed, redirects to random matching image)
-          const params = new URLSearchParams({ query, orientation })
-          const sourceUrl = `https://source.unsplash.com/featured/?${params}`
-
-          // Also provide a direct search results approach with proper attribution
-          const searchUrl = `https://unsplash.com/s/photos/${encodeURIComponent(query)}`
-
-          // Build predictable Unsplash URLs for common sizes
-          const sizeMap: Record<string, string> = {
-            raw: '&w=4000',
-            full: '&w=2400',
-            regular: '&w=1080',
-            small: '&w=640',
-            thumb: '&w=200',
+          const accessKey = clientEnvVars.UNSPLASH_ACCESS_KEY || process.env.UNSPLASH_ACCESS_KEY
+          if (!accessKey) {
+            // Fallback: use placeholder.co which always works without API keys
+            const sizeMap: Record<string, string> = {
+              raw: '1600x900', full: '1200x800', regular: '800x600', small: '400x300', thumb: '150x150',
+            }
+            const dims = sizeMap[size] || '800x600'
+            const placeholderUrl = `https://placehold.co/${dims}/1a1a2e/eaeaea?text=${encodeURIComponent(query.slice(0, 20))}`
+            return {
+              ok: true,
+              url: placeholderUrl,
+              suggestion: `Use: <img src="${placeholderUrl}" alt="${query}" />`,
+              tip: 'This is a placeholder. Set UNSPLASH_ACCESS_KEY env var (free at unsplash.com/developers) for real photos.',
+            }
           }
 
-          const imageUrl = `https://images.unsplash.com/photo-random?${params}${sizeMap[size] || '&w=1080'}`
+          try {
+            const params = new URLSearchParams({ query, orientation, per_page: '1' })
+            const res = await fetch(`https://api.unsplash.com/search/photos?${params}`, {
+              headers: { Authorization: `Client-ID ${accessKey}` },
+              signal: AbortSignal.timeout(10000),
+            })
+            if (!res.ok) return { error: `Unsplash API error: ${res.status}` }
+            const data = await res.json()
+            if (!data.results?.length) return { error: `No images found for "${query}". Try a broader search term.` }
 
-          return {
-            ok: true,
-            url: sourceUrl,
-            directSearchUrl: searchUrl,
-            suggestion: `Use this in your code: <img src="${sourceUrl}" alt="${query}" />`,
-            attribution: 'Photos from Unsplash (free to use, attribution appreciated)',
-            tip: 'For production, consider downloading the image and hosting it. Unsplash source URLs redirect to random matching photos.',
+            const photo = data.results[0]
+            const imageUrl = photo.urls?.[size] || photo.urls?.regular
+            return {
+              ok: true,
+              url: imageUrl,
+              downloadUrl: photo.links?.download_location,
+              author: photo.user?.name,
+              authorUrl: photo.user?.links?.html,
+              suggestion: `Use: <img src="${imageUrl}" alt="${query}" />`,
+              attribution: `Photo by ${photo.user?.name} on Unsplash`,
+            }
+          } catch (err) {
+            return { error: err instanceof Error ? err.message : 'Failed to search Unsplash' }
           }
         },
       }),
