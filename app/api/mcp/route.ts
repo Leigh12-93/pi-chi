@@ -1,9 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { mcpClient, type MCPServerConfig } from '@/lib/mcp-client'
 import { MCP_SERVER_TEMPLATES, MCP_CATEGORIES } from '@/lib/mcp-registry'
+import { getSession } from '@/lib/auth'
 
 // GET /api/mcp — List configured servers, their status, and available templates
 export async function GET() {
+  const session = await getSession()
+  if (!session?.user) {
+    return NextResponse.json({ error: 'Authentication required' }, { status: 401 })
+  }
   const servers = mcpClient.getServers().map(s => ({
     id: s.config.id,
     name: s.config.name,
@@ -34,6 +39,10 @@ export async function GET() {
 
 // POST /api/mcp — Add a server and optionally connect
 export async function POST(req: NextRequest) {
+  const session = await getSession()
+  if (!session?.user) {
+    return NextResponse.json({ error: 'Authentication required' }, { status: 401 })
+  }
   try {
     const body = await req.json()
     const { url, name, token, tags, connect: autoConnect } = body
@@ -82,6 +91,10 @@ export async function POST(req: NextRequest) {
 
 // PUT /api/mcp — Connect or disconnect a server
 export async function PUT(req: NextRequest) {
+  const session = await getSession()
+  if (!session?.user) {
+    return NextResponse.json({ error: 'Authentication required' }, { status: 401 })
+  }
   try {
     const { serverId, action } = await req.json()
 
@@ -115,6 +128,10 @@ export async function PUT(req: NextRequest) {
 
 // DELETE /api/mcp — Remove a server
 export async function DELETE(req: NextRequest) {
+  const session = await getSession()
+  if (!session?.user) {
+    return NextResponse.json({ error: 'Authentication required' }, { status: 401 })
+  }
   try {
     const { serverId } = await req.json()
     if (!serverId) {

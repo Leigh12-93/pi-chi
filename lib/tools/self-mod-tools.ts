@@ -126,19 +126,26 @@ export function createSelfModTools(ctx: ToolContext) {
     }),
 
     forge_revert_commit: tool({
-      description: 'Revert the last commit on the Forge repo. Use this when a self-modification breaks the build.',
+      description: 'Revert the last commit on a Forge feature branch. Use this when a self-modification breaks the build. Cannot revert on master/main — use a feature branch.',
       inputSchema: z.object({
         reason: z.string().describe('Why are you reverting?'),
+        branch: z.string().default('master').describe('Branch to revert on (should be a feature branch, not master)'),
       }),
-      execute: async ({ reason }) => {
+      execute: async ({ reason, branch }) => {
         const token = GITHUB_TOKEN
         if (!token) return { error: 'No GitHub token configured' }
 
         const owner = 'Leigh12-93'
         const repo = 'forge'
 
+        // Security: block reverts on protected branches
+        const PROTECTED_BRANCHES = ['master', 'main', 'production']
+        if (PROTECTED_BRANCHES.includes(branch.toLowerCase())) {
+          return { error: `Direct reverts on "${branch}" are blocked. Use a feature branch, then create a PR to merge the revert.` }
+        }
+
         // Get the latest 2 commits to find parent
-        const commits = await ctx.githubFetch(`/repos/${owner}/${repo}/commits?sha=master&per_page=2`, token)
+        const commits = await ctx.githubFetch(`/repos/${owner}/${repo}/commits?sha=${encodeURIComponent(branch)}&per_page=2`, token)
         if (!Array.isArray(commits) || commits.length < 2) return { error: 'Cannot revert — need at least 2 commits' }
 
         const headSha = commits[0].sha
@@ -160,12 +167,12 @@ export function createSelfModTools(ctx: ToolContext) {
         })
         if (newCommit.error) return { error: `Failed to create revert commit: ${newCommit.error}` }
 
-        // Update master to point to the revert commit
-        const update = await ctx.githubFetch(`/repos/${owner}/${repo}/git/refs/heads/master`, token, {
+        // Update branch to point to the revert commit
+        const update = await ctx.githubFetch(`/repos/${owner}/${repo}/git/refs/heads/${encodeURIComponent(branch)}`, token, {
           method: 'PATCH',
           body: JSON.stringify({ sha: newCommit.sha }),
         })
-        if (update.error) return { error: `Failed to update master: ${update.error}` }
+        if (update.error) return { error: `Failed to update ${branch}: ${update.error}` }
 
         return {
           ok: true,

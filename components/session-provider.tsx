@@ -1,21 +1,22 @@
 'use client'
 
-import { createContext, useContext, useEffect, useState } from 'react'
+import { createContext, useContext, useEffect, useState, useCallback } from 'react'
 
 interface Session {
   user: { name: string; email: string; image: string }
-  accessToken: string
   githubUsername: string
 }
 
 interface SessionContextValue {
   session: Session | null
   status: 'loading' | 'authenticated' | 'unauthenticated'
+  refresh: () => void
 }
 
 const SessionContext = createContext<SessionContextValue>({
   session: null,
   status: 'loading',
+  refresh: () => {},
 })
 
 export function useSession() {
@@ -26,7 +27,7 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
   const [session, setSession] = useState<Session | null>(null)
   const [status, setStatus] = useState<'loading' | 'authenticated' | 'unauthenticated'>('loading')
 
-  useEffect(() => {
+  const fetchSession = useCallback(() => {
     fetch('/api/auth/session')
       .then(res => res.json())
       .then(data => {
@@ -44,8 +45,24 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
       })
   }, [])
 
+  useEffect(() => {
+    fetchSession()
+
+    // Re-fetch session every 5 minutes and on tab visibility change
+    const interval = setInterval(fetchSession, 5 * 60 * 1000)
+    const handleVisibility = () => {
+      if (document.visibilityState === 'visible') fetchSession()
+    }
+    document.addEventListener('visibilitychange', handleVisibility)
+
+    return () => {
+      clearInterval(interval)
+      document.removeEventListener('visibilitychange', handleVisibility)
+    }
+  }, [fetchSession])
+
   return (
-    <SessionContext.Provider value={{ session, status }}>
+    <SessionContext.Provider value={{ session, status, refresh: fetchSession }}>
       {children}
     </SessionContext.Provider>
   )

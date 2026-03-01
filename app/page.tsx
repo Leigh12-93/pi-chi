@@ -335,7 +335,7 @@ export default function ForgePage() {
     }
   }, [])
 
-  const githubToken = session?.accessToken
+  // GitHub token is now handled server-side from JWT session — not exposed to client
 
   if (restoringProject && !projectName) {
     return (
@@ -411,7 +411,6 @@ export default function ForgePage() {
           setActiveFile(null)
           loadProjects()
         }}
-        githubToken={githubToken}
         autoSaveError={autoSaveError}
         onManualSave={handleManualSave}
         onUpdateSettings={(settings) => {

@@ -1,4 +1,5 @@
 import { NextResponse, after } from 'next/server'
+import { getSession } from '@/lib/auth'
 
 const SUPABASE_URL = (process.env.NEXT_PUBLIC_SUPABASE_URL || '').trim()
 const SUPABASE_KEY = (process.env.SUPABASE_SERVICE_ROLE_KEY || '').trim()
@@ -339,6 +340,11 @@ async function executeGithubPush(taskId: string, params: {
 // ─── POST: Start a new background task ────────────────────────
 
 export async function POST(req: Request) {
+  const session = await getSession()
+  if (!session?.user) {
+    return NextResponse.json({ error: 'Authentication required' }, { status: 401 })
+  }
+
   const body = await req.json()
   const { projectId, type, params } = body
 
@@ -408,6 +414,11 @@ export async function POST(req: Request) {
 // ─── GET: List active/recent tasks for a project ──────────────
 
 export async function GET(req: Request) {
+  const session = await getSession()
+  if (!session?.user) {
+    return NextResponse.json({ error: 'Authentication required' }, { status: 401 })
+  }
+
   const url = new URL(req.url)
   const projectId = url.searchParams.get('projectId')
 

@@ -19,10 +19,12 @@ const PURIFY_CONFIG = {
 }
 
 if (typeof window !== 'undefined') {
+  // Strict allowlist: only permit the exact code-block copy pattern
+  const SAFE_ONCLICK = /^navigator\.clipboard\.writeText\(document\.getElementById\('[a-zA-Z0-9_-]+'\)\.textContent\)\.then\(\(\)=>\{this\.textContent='Copied!';setTimeout\(\(\)=>this\.textContent='Copy',\d+\)\}\)$/
   DOMPurify.addHook('uponSanitizeAttribute', (node: Element, data) => {
     if (data.attrName === 'onclick') {
       const val = String(data.attrValue || '')
-      if (node.tagName !== 'BUTTON' || !val.startsWith('navigator.clipboard')) {
+      if (node.tagName !== 'BUTTON' || !SAFE_ONCLICK.test(val)) {
         data.keepAttr = false
       }
     }

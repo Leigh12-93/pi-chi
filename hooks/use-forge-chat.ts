@@ -339,6 +339,11 @@ export function useForgeChat(props: UseForgeChatProps) {
         if (!changes) continue
 
         processedInvs.current.add(key)
+        // Cap Set size to prevent unbounded growth in long sessions
+        if (processedInvs.current.size > 5000) {
+          const entries = [...processedInvs.current]
+          processedInvs.current = new Set(entries.slice(-2500))
+        }
 
         if (changes.updates && Object.keys(changes.updates).length > 0) {
           for (const [path, content] of Object.entries(changes.updates)) {

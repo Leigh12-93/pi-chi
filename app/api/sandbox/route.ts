@@ -8,6 +8,7 @@ import {
   isV0SandboxConfigured,
 } from '@/lib/v0-sandbox'
 import { sandboxLimiter, sandboxSyncLimiter } from '@/lib/rate-limit'
+import { getSession } from '@/lib/auth'
 
 const MAX_FILES = 200    // reject absurdly large projects
 const MAX_BODY = 8 << 20 // 8MB request body guard
@@ -34,6 +35,10 @@ function timedJson(data: unknown, init: { status?: number; headers?: Record<stri
 // POST /api/sandbox — Create sandbox with project files
 export async function POST(req: NextRequest) {
   const start = Date.now()
+  const session = await getSession()
+  if (!session?.user) {
+    return timedJson({ error: 'Authentication required' }, { status: 401 }, start)
+  }
   try {
     // Rate limit — 5 sandbox creations/minute per IP
     const ip = req.headers.get('x-forwarded-for')?.split(',')[0]?.trim() || 'unknown'
@@ -129,6 +134,10 @@ export async function GET(req: NextRequest) {
 // PUT /api/sandbox — Sync files to running sandbox
 export async function PUT(req: NextRequest) {
   const start = Date.now()
+  const session = await getSession()
+  if (!session?.user) {
+    return timedJson({ error: 'Authentication required' }, { status: 401 }, start)
+  }
   try {
     // Rate limit sync — 20/minute per IP (higher than create since it's debounced)
     const ip = req.headers.get('x-forwarded-for')?.split(',')[0]?.trim() || 'unknown'
@@ -166,6 +175,10 @@ export async function PUT(req: NextRequest) {
 
 // DELETE /api/sandbox — Destroy sandbox
 export async function DELETE(req: NextRequest) {
+  const session = await getSession()
+  if (!session?.user) {
+    return NextResponse.json({ error: 'Authentication required' }, { status: 401 })
+  }
   try {
     // Safe body parsing — DELETE might have empty body
     let projectId: string | undefined

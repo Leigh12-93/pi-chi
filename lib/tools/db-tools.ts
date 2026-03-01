@@ -29,8 +29,24 @@ export function createDbTools(ctx: ToolContext) {
         if (order) params.set('order', order)
         params.set('limit', String(limit || 50))
 
-        const filterStr = filters ? `&${filters}` : ''
-        const result = await supabaseFetch(`/${table}?${params.toString()}${filterStr}`)
+        // Sanitize filters: only allow valid PostgREST operators, reject anything suspicious
+        if (filters && filters.trim()) {
+          // PostgREST filters are key=operator.value pairs joined by &
+          // Reject if it contains characters that could break out of URL query params
+          const UNSAFE_FILTER = /[;'"\\{}()[\]<>]|--|\bOR\b|\bAND\b|\bUNION\b|\bSELECT\b|\bDROP\b|\bDELETE\b|\bINSERT\b|\bUPDATE\b/i
+          if (UNSAFE_FILTER.test(filters)) {
+            return { error: 'Invalid filter: contains disallowed characters or keywords' }
+          }
+          // Parse as URL params so values are properly encoded
+          for (const part of filters.split('&')) {
+            const eqIdx = part.indexOf('=')
+            if (eqIdx > 0) {
+              params.set(part.slice(0, eqIdx), part.slice(eqIdx + 1))
+            }
+          }
+        }
+
+        const result = await supabaseFetch(`/${table}?${params.toString()}`)
 
         if (!result.ok) return { error: `DB query failed: ${JSON.stringify(result.data)}` }
         return { data: result.data, count: Array.isArray(result.data) ? result.data.length : 1 }
