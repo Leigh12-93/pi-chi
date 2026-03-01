@@ -98,11 +98,11 @@ export function CommandPalette({ open, onClose, commands }: CommandPaletteProps)
   return (
     <div className="fixed inset-0 z-[100] flex items-start justify-center pt-[10vh] sm:pt-[20vh]" onClick={onClose}>
       {/* Backdrop */}
-      <div className="absolute inset-0 bg-black/40 backdrop-blur-sm animate-fade-in" />
+      <div className="absolute inset-0 bg-forge-overlay backdrop-blur-md animate-fade-in" />
 
       {/* Palette */}
       <div
-        className="relative w-full max-w-md mx-4 bg-white rounded-2xl shadow-2xl border border-forge-border overflow-hidden animate-fade-in"
+        className="relative w-full max-w-md mx-4 bg-forge-bg rounded-2xl shadow-2xl border border-forge-border overflow-hidden animate-fade-in-up"
         onClick={e => e.stopPropagation()}
       >
         {/* Search input */}
@@ -181,8 +181,8 @@ export function CommandPalette({ open, onClose, commands }: CommandPaletteProps)
         {/* Footer */}
         <div className="px-4 py-2 border-t border-forge-border bg-forge-surface/50 flex items-center justify-between">
           <div className="flex items-center gap-3 text-[10px] text-forge-text-dim">
-            <span className="flex items-center gap-1"><kbd className="px-1 py-0.5 bg-white border border-forge-border rounded text-[9px]">&uarr;&darr;</kbd> navigate</span>
-            <span className="flex items-center gap-1"><kbd className="px-1 py-0.5 bg-white border border-forge-border rounded text-[9px]">&crarr;</kbd> select</span>
+            <span className="flex items-center gap-1"><kbd className="px-1 py-0.5 bg-forge-bg border border-forge-border rounded text-[9px]">&uarr;&darr;</kbd> navigate</span>
+            <span className="flex items-center gap-1"><kbd className="px-1 py-0.5 bg-forge-bg border border-forge-border rounded text-[9px]">&crarr;</kbd> select</span>
           </div>
           <div className="flex items-center gap-1 text-[10px] text-forge-text-dim">
             <Keyboard className="w-3 h-3" />

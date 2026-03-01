@@ -34,22 +34,22 @@ export function Header({ projectName, onSwitchProject, fileCount, onAction, save
   const { theme, toggleTheme } = useTheme()
 
   const getSaveIcon = () => {
-    if (saveStatus === 'saving') return <Loader2 className="w-3.5 h-3.5 animate-spin" />
-    if (saveStatus === 'saved') return <Check className="w-3.5 h-3.5 text-green-600" />
+    if (saveStatus === 'saving') return <Loader2 className="w-3.5 h-3.5 animate-spin transition-opacity" />
+    if (saveStatus === 'saved') return <Check className="w-3.5 h-3.5 text-green-600 animate-check-in" />
     return null
   }
 
   return (
-    <header className="h-12 sm:h-11 flex items-center justify-between px-2 sm:px-4 border-b border-forge-border bg-forge-panel shrink-0">
+    <header className="h-12 sm:h-11 flex items-center justify-between px-2 sm:px-4 border-b border-forge-border bg-forge-panel/80 backdrop-blur-sm shrink-0 sticky top-0 z-30">
       {/* Left: Logo + Project */}
       <div className="flex items-center gap-2 sm:gap-3 min-w-0">
         <button
           onClick={onSwitchProject}
-          className="flex items-center gap-1.5 sm:gap-2 shrink-0 hover:opacity-80 transition-opacity"
+          className="group/logo flex items-center gap-1.5 sm:gap-2 shrink-0 hover:opacity-80 transition-opacity"
           aria-label="Back to projects"
           title="Back to projects"
         >
-          <Hammer className="w-4 h-4 text-forge-accent" />
+          <Hammer className="w-4 h-4 text-forge-accent transition-transform duration-200 group-hover/logo:rotate-[-8deg]" />
           <span className="font-bold text-sm text-forge-text hidden sm:inline">Forge</span>
         </button>
         <ChevronRight className="w-3 h-3 text-forge-text-dim hidden sm:block" />
@@ -69,7 +69,7 @@ export function Header({ projectName, onSwitchProject, fileCount, onAction, save
       </div>
 
       {/* Center: Action Buttons */}
-      <div className="flex items-center gap-0.5 sm:gap-1">
+      <div className="flex items-center gap-0.5 sm:gap-0 bg-forge-surface/50 rounded-lg px-0.5 py-0.5 border border-forge-border/50">
         {actions.map(action => {
           const saveIcon = action.id === 'save' ? getSaveIcon() : null
           return (
@@ -102,17 +102,19 @@ export function Header({ projectName, onSwitchProject, fileCount, onAction, save
           >
             <Search className="w-3 h-3" />
             <span>Commands</span>
-            <kbd className="px-1 py-0.5 text-[9px] font-mono bg-white border border-forge-border rounded">Ctrl+K</kbd>
+            <kbd className="px-1 py-0.5 text-[9px] font-mono bg-forge-bg border border-forge-border rounded">Ctrl+K</kbd>
           </button>
         )}
         {notificationSlot}
         <button
           onClick={toggleTheme}
-          className="p-2 sm:p-1.5 rounded-lg text-forge-text-dim hover:text-forge-text hover:bg-forge-surface transition-colors"
+          className="p-2 sm:p-1.5 rounded-lg text-forge-text-dim hover:text-forge-text hover:bg-forge-surface transition-all"
           title={theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}
           aria-label="Toggle theme"
         >
-          {theme === 'dark' ? <Sun className="w-3.5 h-3.5" /> : <Moon className="w-3.5 h-3.5" />}
+          <span className="block transition-transform duration-300" style={{ transform: theme === 'dark' ? 'rotate(0deg)' : 'rotate(180deg)' }}>
+            {theme === 'dark' ? <Sun className="w-3.5 h-3.5" /> : <Moon className="w-3.5 h-3.5" />}
+          </span>
         </button>
         <span className="text-[10px] text-forge-text-dim hidden lg:inline">Claude Sonnet 4</span>
 

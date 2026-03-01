@@ -4,7 +4,7 @@ import { useMemo, useState, useCallback, useRef, useEffect } from 'react'
 import {
   RefreshCw, Monitor, Smartphone, Tablet, AlertTriangle,
   Square, Loader2, Zap, ExternalLink, Maximize2, Minimize2,
-  Globe, Terminal, X, ArrowUpFromLine, Play,
+  Globe, Terminal, X, ArrowUpFromLine,
 } from 'lucide-react'
 import { cn, hashFileMap } from '@/lib/utils'
 
@@ -394,24 +394,25 @@ export function PreviewPanel({ files, projectId, onFixErrors }: PreviewPanelProp
     setSandboxUrl(null)
     setSandboxError(null)
     setIsSyncing(false)
-    hasAutoStartedRef.current = false // allow re-auto-start if user manually stops
+    hasAutoStartedRef.current = false // allow re-auto-start on next file change
+    sandboxAvailableRef.current = null // re-check availability on next attempt
     retryCountRef.current = 0
-    addLog('Stopped', 'system', 'sandbox')
+    addLog('Stopped — will auto-restart on next change', 'system', 'sandbox')
   }, [projectId, addLog])
 
   // ─── AUTO-START: launch sandbox when project looks ready ──────
-  // Check sandbox availability first, then debounce 3s after files stabilize
+  // v0-style: automatically start sandbox as soon as files meet minimum requirements.
+  // No manual "Start" button — the preview just appears.
   useEffect(() => {
     if (sandboxStatus !== 'idle') return
-    if (hasAutoStartedRef.current) return
     if (!projectId) return
     if (!isProjectReady(files)) return
 
     if (autoStartTimeoutRef.current) clearTimeout(autoStartTimeoutRef.current)
 
     autoStartTimeoutRef.current = setTimeout(async () => {
-      // Check if sandbox is available (cached after first check)
-      if (sandboxAvailableRef.current === null) {
+      // Check if sandbox is available (re-check if previously unavailable to handle late config)
+      if (sandboxAvailableRef.current === null || sandboxAvailableRef.current === false) {
         try {
           const res = await fetch('/api/sandbox?check=true')
           const data = await res.json()
@@ -421,15 +422,14 @@ export function PreviewPanel({ files, projectId, onFixErrors }: PreviewPanelProp
         }
       }
 
-      // Silently skip auto-start if sandbox is not configured
+      // Skip if sandbox is not configured — but allow retry on next file change
       if (!sandboxAvailableRef.current) {
-        hasAutoStartedRef.current = true // don't retry
-        return
+        return // don't set hasAutoStartedRef so we retry when files change again
       }
 
       hasAutoStartedRef.current = true
       startSandbox()
-    }, 3000) // wait 3s for files to stabilize
+    }, 1500) // 1.5s debounce — fast enough to feel instant, slow enough to batch rapid writes
 
     return () => {
       if (autoStartTimeoutRef.current) clearTimeout(autoStartTimeoutRef.current)
@@ -620,15 +620,15 @@ export function PreviewPanel({ files, projectId, onFixErrors }: PreviewPanelProp
           <div className="flex-1 flex items-center min-w-0">
             <div className={cn(
               'flex items-center gap-2 w-full px-3 py-1.5 rounded-lg text-xs font-mono transition-colors',
-              'bg-forge-surface border border-forge-border',
-              isSandboxActive && 'border-green-300 bg-green-50/50',
-              isSandboxLoading && 'border-amber-300 bg-amber-50/50',
-              sandboxStatus === 'error' && 'border-red-300 bg-red-50/50',
-              showCachedPreview && 'border-gray-300 bg-gray-50/50',
+              'bg-forge-surface border border-forge-border transition-all',
+              isSandboxActive && 'border-green-300 dark:border-green-700 bg-green-50/50 dark:bg-green-950/30',
+              isSandboxLoading && 'border-amber-300 dark:border-amber-700 bg-amber-50/50 dark:bg-amber-950/30',
+              sandboxStatus === 'error' && 'border-red-300 dark:border-red-700 bg-red-50/50 dark:bg-red-950/30',
+              showCachedPreview && 'border-gray-300 dark:border-gray-600 bg-gray-50/50 dark:bg-gray-900/50',
             )}>
               {/* Status indicator */}
               {isSandboxActive && !isSyncing && (
-                <div className="shrink-0 flex items-center gap-1 text-green-600">
+                <div className="shrink-0 flex items-center gap-1 text-green-600 dark:text-green-400 animate-fade-in">
                   <Zap className="w-3 h-3" />
                 </div>
               )}
@@ -642,7 +642,7 @@ export function PreviewPanel({ files, projectId, onFixErrors }: PreviewPanelProp
                 <AlertTriangle className="w-3 h-3 shrink-0 text-red-500" />
               )}
               {showCachedPreview && (
-                <Globe className="w-3 h-3 shrink-0 text-gray-400" />
+                <Globe className="w-3 h-3 shrink-0 text-forge-text-dim/50" />
               )}
               {sandboxStatus === 'idle' && !showCachedPreview && !previewError && (
                 <Globe className="w-3 h-3 shrink-0 text-forge-text-dim" />
@@ -654,24 +654,24 @@ export function PreviewPanel({ files, projectId, onFixErrors }: PreviewPanelProp
               {/* URL text */}
               <span className={cn(
                 'truncate select-all',
-                isSandboxActive ? 'text-green-700' : 'text-forge-text-dim',
-                isSandboxLoading && 'text-amber-700',
-                sandboxStatus === 'error' && 'text-red-600',
-                showCachedPreview && 'text-gray-400',
+                isSandboxActive ? 'text-emerald-600 dark:text-emerald-400' : 'text-forge-text-dim',
+                isSandboxLoading && 'text-amber-600 dark:text-amber-400',
+                sandboxStatus === 'error' && 'text-forge-danger',
+                showCachedPreview && 'text-forge-text-dim/50',
               )}>
                 {displayUrl}
               </span>
 
               {/* Sync badge */}
               {isSyncing && isSandboxActive && (
-                <span className="shrink-0 px-1.5 py-0.5 text-[9px] font-medium bg-blue-100 text-blue-600 rounded animate-pulse">
+                <span className="shrink-0 px-1.5 py-0.5 text-[9px] font-medium bg-blue-500/15 text-blue-600 dark:text-blue-400 rounded animate-pulse">
                   SYNCING
                 </span>
               )}
 
               {/* Offline badge */}
               {showCachedPreview && (
-                <span className="shrink-0 px-1.5 py-0.5 text-[9px] font-medium bg-gray-200 text-gray-500 rounded">
+                <span className="shrink-0 px-1.5 py-0.5 text-[9px] font-medium bg-forge-surface text-forge-text-dim rounded">
                   CACHED
                 </span>
               )}
@@ -762,7 +762,7 @@ export function PreviewPanel({ files, projectId, onFixErrors }: PreviewPanelProp
       </div>
 
       {/* ─── Preview Body ──────────────────────────────────────── */}
-      <div className="flex-1 overflow-hidden bg-white relative">
+          <div className="flex-1 overflow-hidden bg-forge-bg relative">
         <div className={cn('h-full transition-all', widthClasses[viewMode])}>
           {/* Static preview iframe — always present as base layer, srcDoc updates reactively */}
           {previewHtml === '__JSX_BUILDING_PLACEHOLDER__' && !isSandboxActive && !showCachedPreview ? (
@@ -793,10 +793,10 @@ export function PreviewPanel({ files, projectId, onFixErrors }: PreviewPanelProp
                 allow="cross-origin-isolated"
               />
               {/* Offline overlay */}
-              <div className="absolute inset-0 flex items-center justify-center bg-white/30 backdrop-blur-[1px]">
-                <div className="flex flex-col items-center gap-3 px-6 py-4 bg-white/95 backdrop-blur border border-forge-border rounded-xl shadow-lg">
-                  <div className="w-10 h-10 rounded-full bg-gray-100 flex items-center justify-center">
-                    <Globe className="w-5 h-5 text-gray-400" />
+            <div className="absolute inset-0 flex items-center justify-center bg-forge-bg/30 backdrop-blur-[1px]">
+              <div className="flex flex-col items-center gap-3 px-6 py-4 bg-forge-bg/95 backdrop-blur border border-forge-border rounded-xl shadow-lg">
+                  <div className="w-10 h-10 rounded-full bg-forge-surface flex items-center justify-center">
+                    <Globe className="w-5 h-5 text-forge-text-dim" />
                   </div>
                   <div className="text-center">
                     <p className="text-xs font-medium text-forge-text">Sandbox offline</p>
@@ -896,19 +896,16 @@ export function PreviewPanel({ files, projectId, onFixErrors }: PreviewPanelProp
             </div>
           )}
 
-          {/* Start Preview button — shown when sandbox is idle and project looks ready */}
+          {/* Auto-starting status — shown briefly while sandbox initializes automatically */}
           {sandboxStatus === 'idle' && !showCachedPreview && isProjectReady(files) && (
             <div className="absolute inset-0 z-10 flex items-center justify-center">
-              <div className="flex flex-col items-center gap-3 animate-fade-in">
-                <button
-                  onClick={() => { hasAutoStartedRef.current = false; sandboxAvailableRef.current = null; retryCountRef.current = 0; startSandbox() }}
-                  className="group flex items-center gap-2 px-5 py-2.5 bg-forge-accent text-white text-sm font-medium rounded-xl hover:bg-forge-accent-hover transition-all shadow-md hover:shadow-lg hover:scale-[1.02] active:scale-[0.98]"
-                >
-                  <Play className="w-4 h-4 transition-transform group-hover:scale-110" />
-                  Start Live Preview
-                </button>
-                <span className="text-[10px] text-forge-text-dim">
-                  Opens a full sandbox with {Object.keys(files).length} files
+              <div className="flex flex-col items-center gap-2 animate-fade-in">
+                <Loader2 className="w-5 h-5 text-forge-accent animate-spin" />
+                <span className="text-xs text-forge-text-dim font-medium">
+                  Starting preview...
+                </span>
+                <span className="text-[10px] text-forge-text-dim/60">
+                  {Object.keys(files).length} files detected
                 </span>
               </div>
             </div>
@@ -917,7 +914,7 @@ export function PreviewPanel({ files, projectId, onFixErrors }: PreviewPanelProp
           {/* Sandbox error toast — non-blocking overlay at bottom */}
           {sandboxStatus === 'error' && sandboxError && (
             <div className="absolute bottom-3 left-3 right-3 z-10 animate-fade-in">
-              <div className="bg-white/95 backdrop-blur border border-red-200 rounded-lg p-3 shadow-lg flex items-start gap-2 max-w-sm mx-auto">
+              <div className="bg-forge-bg/95 backdrop-blur border border-red-200 dark:border-red-500/30 rounded-lg p-3 shadow-lg flex items-start gap-2 max-w-sm mx-auto animate-shake">
                 <AlertTriangle className="w-4 h-4 text-red-500 shrink-0 mt-0.5" />
                 <div className="flex-1 min-w-0">
                   <p className="text-xs font-medium text-red-900">Sandbox Error</p>
@@ -926,13 +923,14 @@ export function PreviewPanel({ files, projectId, onFixErrors }: PreviewPanelProp
                 <div className="flex gap-1 shrink-0">
                   <button
                     onClick={() => { hasAutoStartedRef.current = false; sandboxAvailableRef.current = null; retryCountRef.current = 0; startSandbox() }}
-                    className="px-2 py-1 bg-red-600 text-white text-[10px] rounded hover:bg-red-700 transition-colors"
+                    className="px-2.5 py-1 bg-red-600 text-white text-[10px] rounded-md hover:bg-red-700 transition-colors font-medium"
                   >
                     Retry
                   </button>
                   <button
-                    onClick={() => { setSandboxStatus('idle'); setSandboxError(null); hasAutoStartedRef.current = true }}
+                    onClick={() => { setSandboxStatus('idle'); setSandboxError(null); hasAutoStartedRef.current = false }}
                     className="p-1 text-red-400 hover:text-red-600 transition-colors"
+                    title="Dismiss (will auto-retry on next file change)"
                   >
                     <X className="w-3 h-3" />
                   </button>
@@ -944,7 +942,7 @@ export function PreviewPanel({ files, projectId, onFixErrors }: PreviewPanelProp
           {/* Iframe error overlay */}
           {iframeError && (
             <div className="absolute top-3 left-3 right-3 z-10 animate-fade-in">
-              <div className="bg-white/95 backdrop-blur border border-red-200 rounded-lg p-3 shadow-lg flex items-center gap-2 max-w-sm mx-auto">
+              <div className="bg-forge-bg/95 backdrop-blur border border-red-200 dark:border-red-500/30 rounded-lg p-3 shadow-lg flex items-center gap-2 max-w-sm mx-auto">
                 <AlertTriangle className="w-4 h-4 text-red-500 shrink-0" />
                 <p className="text-xs text-red-700 flex-1">{iframeError}</p>
                 <button
@@ -982,14 +980,14 @@ export function PreviewPanel({ files, projectId, onFixErrors }: PreviewPanelProp
 
       {/* ─── Console Panel ─────────────────────────────────────── */}
       {showConsole && (
-        <div className="shrink-0 border-t border-forge-border bg-[#1e1e1e] max-h-[40vh] sm:max-h-[200px] flex flex-col">
+        <div className="shrink-0 border-t border-forge-border bg-forge-panel max-h-[40vh] sm:max-h-[200px] flex flex-col">
           {/* Console header */}
-          <div className="flex items-center justify-between px-3 py-1.5 border-b border-[#333]">
+          <div className="flex items-center justify-between px-3 py-1.5 border-b border-forge-border">
             <div className="flex items-center gap-2">
-              <Terminal className="w-3 h-3 text-gray-400" />
-              <span className="text-[10px] font-medium text-gray-400 uppercase tracking-wider">Console</span>
+              <Terminal className="w-3 h-3 text-forge-text-dim" />
+              <span className="text-[10px] font-medium text-forge-text-dim uppercase tracking-wider">Console</span>
               {consoleLogs.length > 0 && (
-                <span className="text-[10px] text-gray-500">({consoleLogs.length})</span>
+                <span className="text-[10px] text-forge-text-dim/70">({consoleLogs.length})</span>
               )}
             </div>
             <div className="flex items-center gap-1">
@@ -1009,13 +1007,13 @@ export function PreviewPanel({ files, projectId, onFixErrors }: PreviewPanelProp
               )}
               <button
                 onClick={() => setConsoleLogs([])}
-                className="text-[10px] text-gray-500 hover:text-gray-300 px-1.5 py-0.5 rounded hover:bg-[#333] transition-colors"
+                className="text-[10px] text-forge-text-dim hover:text-forge-text px-1.5 py-0.5 rounded hover:bg-forge-surface transition-colors"
               >
                 Clear
               </button>
               <button
                 onClick={() => setShowConsole(false)}
-                className="p-0.5 text-gray-500 hover:text-gray-300 rounded hover:bg-[#333] transition-colors"
+                className="p-0.5 text-forge-text-dim hover:text-forge-text rounded hover:bg-forge-surface transition-colors"
               >
                 <X className="w-3 h-3" />
               </button>
@@ -1024,24 +1022,24 @@ export function PreviewPanel({ files, projectId, onFixErrors }: PreviewPanelProp
           {/* Console body */}
           <div className="flex-1 overflow-y-auto p-2 font-mono text-xs sm:text-[11px] leading-relaxed">
             {consoleLogs.length === 0 ? (
-              <div className="text-gray-600 text-center py-4">No logs yet</div>
+              <div className="text-forge-text-dim/50 text-center py-4">No logs yet</div>
             ) : (
               <>
                 {consoleLogs.map((entry, i) => (
                   <div key={i} className={cn(
                     'py-0.5 px-1 rounded',
-                    entry.level === 'error' ? 'text-red-400 bg-red-950/20'
-                      : entry.level === 'warn' ? 'text-yellow-400'
-                      : entry.level === 'info' ? 'text-blue-400'
-                      : entry.source === 'sandbox' ? 'text-green-400'
-                      : 'text-gray-300',
+                    entry.level === 'error' ? 'text-red-500 dark:text-red-400 bg-red-500/5'
+                      : entry.level === 'warn' ? 'text-amber-600 dark:text-yellow-400'
+                      : entry.level === 'info' ? 'text-blue-600 dark:text-blue-400'
+                      : entry.source === 'sandbox' ? 'text-emerald-600 dark:text-green-400'
+                      : 'text-forge-text',
                   )}>
-                    <span className="text-gray-600 select-none">[{entry.timestamp}]</span>
+                    <span className="text-forge-text-dim/50 select-none">[{entry.timestamp}]</span>
                     {entry.level !== 'system' && (
                       <span className={cn('ml-1 text-[9px] uppercase font-medium',
                         entry.level === 'error' ? 'text-red-500'
-                        : entry.level === 'warn' ? 'text-yellow-500'
-                        : 'text-gray-500'
+                        : entry.level === 'warn' ? 'text-amber-500'
+                        : 'text-forge-text-dim/70'
                       )}>{entry.level}</span>
                     )}
                     <span className="ml-1">{entry.message}</span>

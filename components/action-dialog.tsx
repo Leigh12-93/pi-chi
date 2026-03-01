@@ -555,11 +555,11 @@ export function TaskPollingDialog({
               </div>
             </div>
             {/* Scrollable error log with line numbers */}
-            <div className="bg-[#1e1e1e] rounded-lg p-3 max-h-[240px] overflow-y-auto mb-3 border border-[#333]">
-              <pre className="text-[10px] text-red-400 font-mono whitespace-pre-wrap break-words leading-relaxed">
+            <div className="bg-forge-surface rounded-lg p-3 max-h-[240px] overflow-y-auto mb-3 border border-forge-border">
+              <pre className="text-[10px] text-forge-danger font-mono whitespace-pre-wrap break-words leading-relaxed">
                 {errorMessage.split('\n').map((line, i) => (
                   <div key={i} className="flex gap-2">
-                    <span className="text-gray-600 select-none shrink-0 w-4 text-right">{i + 1}</span>
+                    <span className="text-forge-text-dim/40 select-none shrink-0 w-4 text-right">{i + 1}</span>
                     <span>{line}</span>
                   </div>
                 ))}

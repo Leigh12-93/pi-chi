@@ -30,18 +30,27 @@ export function StatusBar({ activeFile, fileCount, framework, saveStatus = 'idle
           <span className="font-medium">{langDisplay}</span>
         )}
         {activeFile && (
-          <span>UTF-8</span>
+          <>
+            <span className="w-px h-3 bg-forge-border" />
+            <span>UTF-8</span>
+          </>
         )}
+        <span className="w-px h-3 bg-forge-border" />
         <span>{fileCount} file{fileCount !== 1 ? 's' : ''}</span>
       </div>
       <div className="flex items-center gap-3">
-        {saveStatus === 'saving' && <span className="text-amber-500">Saving...</span>}
-        {saveStatus === 'saved' && <span className="text-green-500">Saved</span>}
-        {saveStatus === 'error' && <span className="text-red-500">Save failed</span>}
+        <span className="transition-all duration-300">
+          {saveStatus === 'saving' && <span className="text-amber-500">Saving...</span>}
+          {saveStatus === 'saved' && <span className="text-green-500 animate-fade-in">Saved</span>}
+          {saveStatus === 'error' && <span className="text-red-500 animate-fade-in">Save failed</span>}
+        </span>
         {framework && (
-          <span className="px-1.5 py-0.5 rounded text-[9px] font-medium bg-forge-surface text-forge-text-dim border border-forge-border">
-            {framework}
-          </span>
+          <>
+            <span className="w-px h-3 bg-forge-border" />
+            <span className="px-1.5 py-0.5 rounded text-[9px] font-medium bg-forge-surface text-forge-text-dim border border-forge-border" title={`Detected framework: ${framework}`}>
+              {framework}
+            </span>
+          </>
         )}
       </div>
     </div>

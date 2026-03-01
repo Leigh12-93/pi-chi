@@ -107,12 +107,12 @@ const colorClasses: Record<string, string> = {
   purple: 'text-purple-600 bg-purple-50 dark:text-purple-400 dark:bg-purple-950/40',
   indigo: 'text-indigo-600 bg-indigo-50 dark:text-indigo-400 dark:bg-indigo-950/40',
   orange: 'text-orange-600 bg-orange-50 dark:text-orange-400 dark:bg-orange-950/40',
-  gray: 'text-gray-600 bg-gray-100 dark:text-gray-400 dark:bg-gray-800/50',
+  gray: 'text-forge-text-dim bg-forge-surface',
   cyan: 'text-cyan-600 bg-cyan-50 dark:text-cyan-400 dark:bg-cyan-950/40',
   amber: 'text-amber-600 bg-amber-50 dark:text-amber-400 dark:bg-amber-950/40',
 }
 
-// ═══════════════════════════════════════════════════════════════════
+// ═══════════════════════════════════════════��═══════════════════════
 // Markdown renderer — always-dark code blocks (v0 style)
 // ═══════════════════════════════════════════════════════════════════
 
@@ -222,7 +222,7 @@ function highlightCode(code: string, lang: string): string {
 
   // Dark-bg color palette (v0 style)
   const colorMap: Record<Token['type'], string> = {
-    comment: 'text-gray-500 italic',
+    comment: 'text-forge-text-dim italic',
     string: 'text-emerald-400',
     keyword: 'text-violet-400 font-medium',
     builtin: 'text-sky-400',
@@ -245,12 +245,12 @@ function renderMarkdown(text: string): string {
     const label = LANG_LABELS[lang] || lang || 'Code'
     const highlighted = lang ? highlightCode(code.trimEnd(), lang) : code.trimEnd().replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
     // v0-style: always dark code blocks
-    const html = `<div class="code-block-wrapper relative group/code my-3 rounded-xl overflow-hidden border border-gray-800">
-      <div class="flex items-center justify-between px-3.5 py-2 bg-gray-900 border-b border-gray-800">
-        <span class="text-[11px] font-medium text-gray-400 tracking-wide">${label}</span>
-        <button onclick="navigator.clipboard.writeText(document.getElementById('${id}').textContent).then(()=>{this.textContent='Copied!';setTimeout(()=>this.textContent='Copy',1500)})" class="text-[11px] text-gray-500 hover:text-gray-300 transition-colors px-2 py-0.5 rounded hover:bg-gray-800">Copy</button>
+    const html = `<div class="code-block-wrapper relative group/code my-3 rounded-xl overflow-hidden border border-forge-border dark:border-gray-800">
+      <div class="flex items-center justify-between px-3.5 py-2 bg-gray-50 dark:bg-gray-900 border-b border-forge-border dark:border-gray-800">
+        <span class="text-[11px] font-medium text-forge-text-dim tracking-wide">${label}</span>
+        <button onclick="navigator.clipboard.writeText(document.getElementById('${id}').textContent).then(()=>{this.textContent='Copied!';setTimeout(()=>this.textContent='Copy',1500)})" class="text-[11px] text-forge-text-dim hover:text-forge-text transition-colors px-2 py-0.5 rounded hover:bg-forge-surface">Copy</button>
       </div>
-      <pre class="bg-gray-950 text-gray-200 p-4 overflow-x-auto text-[12.5px] font-mono leading-relaxed"><code id="${id}">${highlighted}</code></pre>
+      <pre class="bg-gray-50 dark:bg-gray-950 text-gray-800 dark:text-gray-200 p-4 overflow-x-auto text-[12.5px] font-mono leading-relaxed"><code id="${id}">${highlighted}</code></pre>
     </div>`
     codeBlocks.push(html)
     return `%%CODEBLOCK_${codeBlocks.length - 1}%%`
@@ -261,25 +261,25 @@ function renderMarkdown(text: string): string {
     (_match, headerRow: string, _separator: string, bodyRows: string) => {
       const headers = headerRow.split('|').slice(1, -1).map((h: string) => h.trim())
       const rows = bodyRows.trim().split('\n').map((row: string) => row.split('|').slice(1, -1).map((c: string) => c.trim()))
-      return `<table class="w-full text-[12.5px] my-3 border-collapse border border-gray-200 dark:border-gray-700 rounded-lg overflow-hidden">
-        <thead><tr>${headers.map((h: string) => `<th class="px-3 py-1.5 text-left bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 font-semibold text-gray-700 dark:text-gray-300">${h}</th>`).join('')}</tr></thead>
-        <tbody>${rows.map((cells: string[]) => `<tr>${cells.map((c: string) => `<td class="px-3 py-1.5 border border-gray-200 dark:border-gray-700 text-gray-600 dark:text-gray-400">${c}</td>`).join('')}</tr>`).join('')}</tbody>
+      return `<table class="w-full text-[12.5px] my-3 border-collapse border border-forge-border rounded-lg overflow-hidden">
+        <thead><tr>${headers.map((h: string) => `<th class="px-3 py-1.5 text-left bg-forge-surface border border-forge-border font-semibold text-forge-text">${h}</th>`).join('')}</tr></thead>
+        <tbody>${rows.map((cells: string[]) => `<tr>${cells.map((c: string) => `<td class="px-3 py-1.5 border border-forge-border text-forge-text-dim">${c}</td>`).join('')}</tr>`).join('')}</tbody>
       </table>`
     })
 
   // Blockquotes
-  processed = processed.replace(/^(?:&gt;|>) (.+)$/gm, '<blockquote class="border-l-2 border-gray-300 dark:border-gray-600 pl-3 my-1.5 text-gray-500 dark:text-gray-400 italic text-[13px]">$1</blockquote>')
+  processed = processed.replace(/^(?:&gt;|>) (.+)$/gm, '<blockquote class="border-l-2 border-forge-border-bright pl-3 my-1.5 text-forge-text-dim italic text-[13px]">$1</blockquote>')
   processed = processed.replace(/<\/blockquote>\n<blockquote[^>]*>/g, '<br/>')
 
   // Horizontal rules
-  processed = processed.replace(/^(?:---|\*\*\*|___)\s*$/gm, '<hr class="my-4 border-gray-200 dark:border-gray-700" />')
+  processed = processed.replace(/^(?:---|\*\*\*|___)\s*$/gm, '<hr class="my-4 border-forge-border" />')
 
   // Inline formatting
   processed = processed
-    .replace(/`([^`]+)`/g, '<code class="bg-gray-100 dark:bg-gray-800 px-1.5 py-0.5 rounded text-[12.5px] font-mono text-gray-800 dark:text-gray-200 border border-gray-200 dark:border-gray-700">$1</code>')
-    .replace(/^### (.+)$/gm, '<h3 class="text-[13.5px] font-semibold mt-4 mb-1.5 text-gray-800 dark:text-gray-200">$1</h3>')
-    .replace(/^## (.+)$/gm, '<h2 class="text-sm font-bold mt-4 mb-2 text-gray-900 dark:text-gray-100">$1</h2>')
-    .replace(/\*\*(.+?)\*\*/g, '<strong class="font-semibold text-gray-900 dark:text-gray-100">$1</strong>')
+    .replace(/`([^`]+)`/g, '<code class="bg-forge-surface px-1.5 py-0.5 rounded text-[12.5px] font-mono text-forge-text border border-forge-border">$1</code>')
+    .replace(/^### (.+)$/gm, '<h3 class="text-[13.5px] font-semibold mt-4 mb-1.5 text-forge-text">$1</h3>')
+    .replace(/^## (.+)$/gm, '<h2 class="text-sm font-bold mt-4 mb-2 text-forge-text">$1</h2>')
+    .replace(/\*\*(.+?)\*\*/g, '<strong class="font-semibold text-forge-text">$1</strong>')
     .replace(/\*(.+?)\*/g, '<em>$1</em>')
     .replace(/^\d+\. (.+)$/gm, '<li class="ml-5 pl-1 list-decimal text-[13.5px] leading-[1.7]">$1</li>')
     .replace(/^- (.+)$/gm, '<li class="ml-5 pl-1 list-disc text-[13.5px] leading-[1.7]">$1</li>')
@@ -556,7 +556,7 @@ function EnvVarInputCard({
               value={values[v.name] || ''}
               onChange={(e) => setValues(prev => ({ ...prev, [v.name]: e.target.value }))}
               placeholder={v.name}
-              className="w-full px-2.5 py-1.5 rounded-lg bg-white dark:bg-gray-900 border border-amber-200 dark:border-amber-700 text-[12px] font-mono text-gray-800 dark:text-gray-200 placeholder:text-gray-400 dark:placeholder:text-gray-600 focus:outline-none focus:ring-1 focus:ring-amber-400"
+              className="w-full px-2.5 py-1.5 rounded-lg bg-forge-bg border border-amber-300/50 dark:border-amber-600/40 text-[12px] font-mono text-forge-text placeholder:text-forge-text-dim/50 focus:outline-none focus:ring-1 focus:ring-amber-400"
             />
           </div>
         ))}
@@ -570,7 +570,7 @@ function EnvVarInputCard({
             ? 'bg-emerald-500 text-white'
             : allRequiredFilled
               ? 'bg-amber-500 hover:bg-amber-600 text-white cursor-pointer'
-              : 'bg-gray-200 dark:bg-gray-700 text-gray-400 dark:text-gray-500 cursor-not-allowed'
+              : 'bg-forge-surface text-forge-text-dim/50 cursor-not-allowed'
         )}
       >
         {saved ? 'Saved!' : 'Save Environment Variables'}
@@ -675,9 +675,9 @@ function CollapsibleToolGroup({ tools }: { tools: ToolGroup['tools'] }) {
     >
       <button
         onClick={() => setExpanded(!expanded)}
-        className="flex items-center gap-2 w-full px-3 py-2 text-[12px] text-forge-text-dim hover:bg-forge-surface/50 transition-colors"
+        className="flex items-center gap-2 w-full px-3 py-2 text-[12px] text-forge-text-dim hover:bg-forge-surface-hover transition-colors"
       >
-        <CheckCircle className="w-3.5 h-3.5 text-emerald-500 shrink-0" />
+        <CheckCircle className="w-3.5 h-3.5 text-emerald-500 shrink-0 animate-check-in" />
         <span className="flex-1 text-left truncate">{summaryText}</span>
         <span className="text-[10px] text-forge-text-dim/50">{tools.length}</span>
         <ChevronDown className={cn('w-3 h-3 transition-transform duration-200', expanded && 'rotate-180')} />
@@ -729,13 +729,13 @@ function ThinkPanel({ plan, files }: { plan: string; files: string[] }) {
       initial={{ opacity: 0, y: 4 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.2 }}
-      className="rounded-xl border border-forge-border overflow-hidden"
+      className="rounded-xl border border-forge-border border-l-2 border-l-purple-400 dark:border-l-purple-500 overflow-hidden"
     >
       <button
         onClick={() => setExpanded(!expanded)}
-        className="flex items-center gap-2 w-full px-3 py-2 text-[12px] hover:bg-forge-surface/50 transition-colors"
+        className="flex items-center gap-2 w-full px-3 py-2 text-[12px] hover:bg-forge-surface-hover transition-colors"
       >
-        <Brain className="w-3.5 h-3.5 text-forge-text-dim shrink-0" />
+        <Brain className="w-3.5 h-3.5 text-purple-500 dark:text-purple-400 shrink-0" />
         <span className="flex-1 text-left text-forge-text-dim font-medium">Thinking</span>
         <ChevronRight className={cn('w-3 h-3 text-forge-text-dim/50 transition-transform duration-200', expanded && 'rotate-90')} />
       </button>
@@ -834,7 +834,7 @@ const MessageItem = memo(function MessageItem({
                 <Pencil className="w-3 h-3" />
               </button>
             </div>
-            <div className="px-4 py-2.5 rounded-2xl rounded-br-md bg-forge-surface border border-forge-border text-[13.5px] text-forge-text leading-relaxed">
+            <div className="px-4 py-2.5 rounded-2xl rounded-br-md bg-forge-surface border border-forge-border text-[13.5px] text-forge-text leading-relaxed shadow-sm transition-shadow hover:shadow-md">
               {textContent}
             </div>
           </div>
@@ -931,10 +931,10 @@ const MessageItem = memo(function MessageItem({
                     </div>
                     <p className="text-amber-700 dark:text-amber-300 mb-1">{sArgs.issue || ''}</p>
                     {sArgs.suggestion && (
-                      <pre className="text-[11px] bg-gray-950 text-gray-200 rounded-lg p-2.5 mt-1.5 whitespace-pre-wrap font-mono">{sArgs.suggestion}</pre>
+                      <pre className="text-[11px] bg-forge-surface dark:bg-gray-950 text-forge-text dark:text-gray-200 rounded-lg p-2.5 mt-1.5 whitespace-pre-wrap font-mono">{sArgs.suggestion}</pre>
                     )}
                     {sArgs.file && (
-                      <span className="inline-block mt-1.5 px-1.5 py-0.5 bg-gray-100 dark:bg-gray-800 text-forge-text-dim rounded text-[10px] font-mono">{sArgs.file}</span>
+                      <span className="inline-block mt-1.5 px-1.5 py-0.5 bg-forge-surface text-forge-text-dim rounded text-[10px] font-mono">{sArgs.file}</span>
                     )}
                   </motion.div>
                 )
@@ -1071,18 +1071,18 @@ const MessageItem = memo(function MessageItem({
                 )
               }
 
-              // Default tool chip — v0-style with slide-in
+              // Default tool chip — v0-style with slide-in + left border accent
               return (
                 <motion.div
                   key={partIdx}
                   initial={{ opacity: 0, x: -8 }}
                   animate={{ opacity: isRunning ? 1 : 0.75, x: 0 }}
-                  transition={{ duration: 0.2 }}
+                  transition={{ duration: 0.2, ease: [0.16, 1, 0.3, 1] }}
                   className={cn(
-                    'flex items-center gap-2 px-3 py-1.5 rounded-xl text-[12px] border transition-all',
-                    isRunning ? 'border-forge-border animate-shimmer'
-                      : hasError ? 'border-red-200 dark:border-red-800 bg-red-50/50 dark:bg-red-950/20'
-                      : 'border-forge-border bg-forge-surface/30',
+                    'flex items-center gap-2 px-3 py-1.5 rounded-xl text-[12px] border-l-2 border transition-all',
+                    isRunning ? 'border-forge-border border-l-forge-accent animate-gradient-sweep'
+                      : hasError ? 'border-red-200 dark:border-red-800 border-l-red-400 bg-red-50/50 dark:bg-red-950/20'
+                      : 'border-forge-border border-l-emerald-400 dark:border-l-emerald-500 bg-forge-surface/30 animate-chip-complete',
                   )}
                 >
                   <div className={cn('w-5 h-5 rounded-lg flex items-center justify-center shrink-0', colorClasses[info.color] || colorClasses.gray)}>
@@ -1093,7 +1093,7 @@ const MessageItem = memo(function MessageItem({
                   <span className={cn('truncate flex-1', hasError ? 'text-red-600 dark:text-red-400' : 'text-forge-text-dim')}>
                     {summary}
                   </span>
-                  {!isRunning && !hasError && <CheckCircle className="w-3 h-3 text-emerald-500 shrink-0 opacity-60" />}
+                  {!isRunning && !hasError && <CheckCircle className="w-3 h-3 text-emerald-500 shrink-0 animate-check-in" />}
                 </motion.div>
               )
             }
@@ -1548,22 +1548,25 @@ export function ChatPanel({ projectName, projectId, files, onFileChange, onFileD
         ) : isEmpty ? (
           /* v0-style empty state */
           <div className="flex flex-col items-center justify-center h-full px-6">
-            <div className="w-12 h-12 rounded-2xl bg-forge-surface border border-forge-border flex items-center justify-center mb-5">
-              <Sparkles className="w-6 h-6 text-forge-text-dim" />
+            <div className="w-14 h-14 rounded-2xl bg-forge-surface border border-forge-border flex items-center justify-center mb-5 animate-breathe">
+              <Sparkles className="w-7 h-7 text-forge-accent/70" />
             </div>
-            <h2 className="text-xl font-semibold text-forge-text mb-1.5 text-balance text-center">What shall we build?</h2>
-            <p className="text-[13px] text-forge-text-dim text-center mb-8">Describe your idea and Forge will build it</p>
+            <h2 className="text-xl font-semibold text-forge-text mb-1.5 text-balance text-center tracking-tight">What shall we build?</h2>
+            <p className="text-[13px] text-forge-text-dim text-center mb-8 text-pretty">Describe your idea and Forge will build it</p>
             <div className="grid grid-cols-2 gap-2.5 w-full max-w-sm">
-              {QUICK_ACTIONS.map(action => (
+              {QUICK_ACTIONS.map((action, i) => (
                 <motion.button
                   key={action.label}
-                  whileHover={{ scale: 1.02 }}
+                  initial={{ opacity: 0, y: 8 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ duration: 0.3, delay: i * 0.05, ease: [0.16, 1, 0.3, 1] }}
+                  whileHover={{ scale: 1.02, y: -1 }}
                   whileTap={{ scale: 0.98 }}
                   onClick={() => handleSend(action.query)}
-                  className="flex flex-col items-center gap-2 p-4 text-center text-[12.5px] rounded-xl border border-forge-border bg-forge-bg hover:border-forge-text-dim/30 hover:bg-forge-surface/50 transition-all group"
+                  className="flex flex-col items-center gap-2 p-4 text-center text-[12.5px] rounded-xl border border-forge-border bg-forge-bg hover:border-forge-accent/25 hover:bg-forge-surface/50 hover:shadow-sm transition-all group"
                 >
-                  <div className="w-9 h-9 rounded-xl bg-forge-surface border border-forge-border flex items-center justify-center group-hover:border-forge-text-dim/30 transition-colors">
-                    <action.icon className="w-4 h-4 text-forge-text-dim group-hover:text-forge-text transition-colors" />
+                  <div className="w-9 h-9 rounded-xl bg-forge-surface border border-forge-border flex items-center justify-center group-hover:border-forge-accent/25 transition-colors">
+                    <action.icon className="w-4 h-4 text-forge-text-dim group-hover:text-forge-accent transition-colors" />
                   </div>
                   <span className="text-forge-text-dim group-hover:text-forge-text font-medium transition-colors">{action.label}</span>
                 </motion.button>
@@ -1593,14 +1596,22 @@ export function ChatPanel({ projectName, projectId, files, onFileChange, onFileD
               />
             ))}
 
-            {/* Streaming indicator — subtle like v0 */}
+            {/* Streaming indicator — v0-style 3-dot bounce */}
             {isLoading && (
               <div className="flex items-center gap-2.5 text-[12px] py-2 px-1 animate-fade-in">
-                <Loader2 className="w-3.5 h-3.5 text-forge-text-dim animate-spin" />
+                <span className="flex items-center gap-0.5">
+                  <span className="typing-dot" />
+                  <span className="typing-dot" />
+                  <span className="typing-dot" />
+                </span>
                 <span className="text-forge-text-dim">
                   {stepCount > 0 ? `Step ${stepCount}` : 'Thinking'}
-                  {elapsed > 0 && ` · ${formatElapsed(elapsed)}`}
                 </span>
+                {elapsed > 0 && (
+                  <span className="text-[10px] text-forge-text-dim/50 bg-forge-surface px-1.5 py-0.5 rounded-md font-mono">
+                    {formatElapsed(elapsed)}
+                  </span>
+                )}
               </div>
             )}
 
@@ -1609,7 +1620,7 @@ export function ChatPanel({ projectName, projectId, files, onFileChange, onFileD
               <motion.div
                 initial={{ opacity: 0, y: 4 }}
                 animate={{ opacity: 1, y: 0 }}
-                className="flex items-start gap-2.5 text-[12.5px] bg-red-50/80 dark:bg-red-950/20 border border-red-200 dark:border-red-800 rounded-xl px-4 py-3"
+                className="flex items-start gap-2.5 text-[12.5px] bg-red-50/80 dark:bg-red-950/20 border border-red-200 dark:border-red-800 rounded-xl px-4 py-3 animate-shake"
               >
                 <div className="w-6 h-6 rounded-lg bg-red-100 dark:bg-red-900/50 flex items-center justify-center shrink-0 mt-0.5">
                   <AlertTriangle className="w-3.5 h-3.5 text-red-500" />
@@ -1651,7 +1662,7 @@ export function ChatPanel({ projectName, projectId, files, onFileChange, onFileD
             }}
             placeholder={isEmpty ? 'Describe what you want to build...' : 'Ask for changes, new features, fixes...'}
             rows={1}
-            className="w-full bg-forge-surface border border-forge-border rounded-2xl pl-4 pr-12 py-3 text-[13.5px] text-forge-text placeholder:text-forge-text-dim/40 outline-none focus:border-forge-accent/40 focus:ring-2 focus:ring-forge-accent/10 resize-none transition-all"
+            className="w-full bg-forge-surface border border-forge-border rounded-2xl pl-4 pr-12 py-3 text-[13.5px] text-forge-text placeholder:text-forge-text-dim/40 outline-none focus:border-forge-accent/40 focus:shadow-md shadow-sm resize-none transition-all"
           />
           <div className="absolute right-2 bottom-1.5">
             {isLoading ? (
@@ -1659,14 +1670,17 @@ export function ChatPanel({ projectName, projectId, files, onFileChange, onFileD
                 <StopCircle className="w-4 h-4" />
               </button>
             ) : (
-              <button
+              <motion.button
                 onClick={() => handleSend()}
                 disabled={!input.trim()}
-                className="p-2 rounded-xl bg-forge-text text-forge-bg hover:opacity-90 disabled:opacity-15 disabled:cursor-not-allowed transition-all"
+                initial={{ scale: 0.9, opacity: 0.5 }}
+                animate={{ scale: input.trim() ? 1 : 0.9, opacity: input.trim() ? 1 : 0.5 }}
+                transition={{ type: 'spring', stiffness: 400, damping: 20 }}
+                className="p-2 rounded-xl bg-forge-text text-forge-bg hover:opacity-90 disabled:cursor-not-allowed transition-colors"
                 title="Send message"
               >
                 <ArrowUp className="w-4 h-4" strokeWidth={2.5} />
-              </button>
+              </motion.button>
             )}
           </div>
         </div>
@@ -1691,11 +1705,12 @@ export function ChatPanel({ projectName, projectId, files, onFileChange, onFileD
                         key={model.id}
                         onClick={() => { setSelectedModel(model.id); setShowModelPicker(false) }}
                         className={cn(
-                          'flex items-center justify-between w-full px-3 py-2 text-[12px] hover:bg-forge-surface transition-colors',
+                          'flex items-center gap-2 w-full px-3 py-2 text-[12px] hover:bg-forge-surface-hover transition-colors',
                           selectedModel === model.id && 'bg-forge-surface text-forge-text font-medium',
                         )}
                       >
-                        <span>{model.label}</span>
+                        <Check className={cn('w-3 h-3 shrink-0', selectedModel === model.id ? 'text-forge-accent' : 'invisible')} />
+                        <span className="flex-1 text-left">{model.label}</span>
                         <span className="text-[10px] text-forge-text-dim">{model.description}</span>
                       </button>
                     ))}
