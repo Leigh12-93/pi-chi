@@ -140,10 +140,9 @@ export function useForgeChat(props: UseForgeChatProps) {
   const localFiles = useRef<Record<string, string>>({})
   const isNearBottomRef = useRef(true)
 
-  // ─── Sync files ref ───────────────────────────────────────────
-  useEffect(() => {
-    localFiles.current = { ...files }
-  }, [files])
+  // ─── Sync files ref (synchronous — must not be deferred via useEffect
+  // to avoid stale reads during tool invocation processing) ─────────
+  localFiles.current = { ...files }
 
   // Clear markdown cache when switching projects
   useEffect(() => {

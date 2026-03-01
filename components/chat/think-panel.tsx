@@ -7,7 +7,9 @@ import { cn } from '@/lib/utils'
 
 export function ThinkPanel({ plan, files }: { plan: string; files: string[] }) {
   const [expanded, setExpanded] = useState(false)
-  const planText = String(plan || '').slice(0, 500)
+  const rawPlan = String(plan || '')
+  const planText = rawPlan.slice(0, 500)
+  const isTruncated = rawPlan.length > 500
 
   return (
     <motion.div
@@ -34,7 +36,7 @@ export function ThinkPanel({ plan, files }: { plan: string; files: string[] }) {
             className="overflow-hidden"
           >
             <div className="border-t border-forge-border px-3.5 py-2.5">
-              <p className="text-[12px] text-forge-text-dim leading-relaxed whitespace-pre-wrap">{planText}</p>
+              <p className="text-[12px] text-forge-text-dim leading-relaxed whitespace-pre-wrap">{planText}{isTruncated && <span className="text-forge-text-dim/50">... (truncated)</span>}</p>
               {files.length > 0 && (
                 <div className="mt-2 flex flex-wrap gap-1">
                   {files.map((f: string, fi: number) => (

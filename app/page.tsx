@@ -159,7 +159,7 @@ export default function ForgePage() {
       const res = await fetch('/api/projects')
       if (res.ok) {
         const data = await res.json()
-        setSavedProjects(data)
+        setSavedProjects(data.projects || data)
       } else {
         setProjectsLoadError(true)
       }

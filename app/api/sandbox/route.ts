@@ -9,6 +9,7 @@ import {
 } from '@/lib/v0-sandbox'
 import { sandboxLimiter, sandboxSyncLimiter } from '@/lib/rate-limit'
 import { getSession } from '@/lib/auth'
+import { supabaseFetch } from '@/lib/supabase-fetch'
 
 const MAX_FILES = 200    // reject absurdly large projects
 const MAX_BODY = 8 << 20 // 8MB request body guard
@@ -21,6 +22,12 @@ function validateFileValues(files: Record<string, unknown>): files is Record<str
     }
   }
   return true
+}
+
+/** Verify the authenticated user owns the project */
+async function verifyOwnership(projectId: string, username: string): Promise<boolean> {
+  const check = await supabaseFetch(`/forge_projects?id=eq.${encodeURIComponent(projectId)}&github_username=eq.${encodeURIComponent(username)}&select=id&limit=1`)
+  return check.ok && Array.isArray(check.data) && check.data.length > 0
 }
 
 /** Timed JSON response wrapper — adds X-Duration-Ms header */
@@ -85,6 +92,9 @@ export async function POST(req: NextRequest) {
       )
     }
 
+    if (!await verifyOwnership(projectId, session.githubUsername)) {
+      return timedJson({ error: 'Project not found or access denied' }, { status: 403 }, start)
+    }
     if (!isV0SandboxConfigured()) {
       return timedJson(
         { error: 'v0 Sandbox not configured. Set V0_API_KEY environment variable.' },
@@ -161,6 +171,9 @@ export async function PUT(req: NextRequest) {
     if (!validateFileValues(files)) {
       return timedJson({ error: 'All file values must be strings' }, { status: 400 }, start)
     }
+    if (!await verifyOwnership(projectId, session.githubUsername)) {
+      return timedJson({ error: 'Project not found or access denied' }, { status: 403 }, start)
+    }
 
     const result = await syncV0Files(projectId, files)
     return timedJson(result, {}, start)
@@ -191,6 +204,9 @@ export async function DELETE(req: NextRequest) {
 
     if (!projectId) {
       return NextResponse.json({ error: 'projectId is required' }, { status: 400 })
+    }
+    if (!await verifyOwnership(projectId, session.githubUsername)) {
+      return NextResponse.json({ error: 'Project not found or access denied' }, { status: 403 })
     }
 
     const result = await destroyV0Sandbox(projectId)

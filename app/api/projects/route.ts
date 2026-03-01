@@ -37,6 +37,8 @@ export async function POST(req: Request) {
   const body = await req.json()
   const name = body.name?.trim()
   if (!name) return NextResponse.json({ error: 'Project name required' }, { status: 400 })
+  if (name.length > 100) return NextResponse.json({ error: 'Project name too long (max 100 chars)' }, { status: 400 })
+  if (!/^[\w\s\-\.()]+$/.test(name)) return NextResponse.json({ error: 'Project name contains invalid characters' }, { status: 400 })
 
   const { data, error } = await supabase
     .from('forge_projects')

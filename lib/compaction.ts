@@ -6,6 +6,9 @@ import { anthropic } from '@ai-sdk/anthropic'
 // Inspired by Claude Code's context compaction system
 // ═══════════════════════════════════════════════════════════════════
 
+// Compaction model — fast + cheap for summarization
+const COMPACTION_MODEL = 'claude-haiku-35-20241022'
+
 // Constants
 const COMPACTION_THRESHOLD = 0.70        // Trigger at 70% of context limit
 const PRESERVE_FIRST = 2                 // Keep first 2 messages (initial context)
@@ -174,7 +177,7 @@ async function generateCompactionSummary(conversationText: string): Promise<stri
     : conversationText
 
   const { text } = await generateText({
-    model: anthropic('claude-haiku-35-20241022'),
+    model: anthropic(COMPACTION_MODEL),
     maxOutputTokens: MAX_SUMMARY_TOKENS,
     abortSignal: AbortSignal.timeout(COMPACTION_TIMEOUT_MS),
     system: `You are a conversation summarizer for Forge, an AI code builder. Create a concise summary that captures everything the AI needs to continue working.

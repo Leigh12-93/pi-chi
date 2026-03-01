@@ -63,10 +63,12 @@ export function CommandPalette({ open, onClose, commands }: CommandPaletteProps)
     }
   }, [open])
 
-  // Keyboard navigation
+  // Keyboard navigation + focus trap
   const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
     if (e.key === 'Escape') {
       onClose()
+    } else if (e.key === 'Tab') {
+      e.preventDefault() // Trap focus inside palette
     } else if (e.key === 'ArrowDown') {
       e.preventDefault()
       setSelectedIndex(i => Math.min(i + 1, flatFiltered.length - 1))
