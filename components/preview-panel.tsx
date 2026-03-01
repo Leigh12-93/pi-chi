@@ -620,15 +620,15 @@ export function PreviewPanel({ files, projectId, onFixErrors }: PreviewPanelProp
           <div className="flex-1 flex items-center min-w-0">
             <div className={cn(
               'flex items-center gap-2 w-full px-3 py-1.5 rounded-lg text-xs font-mono transition-colors',
-              'bg-forge-surface border border-forge-border',
-              isSandboxActive && 'border-green-300 bg-green-50/50',
-              isSandboxLoading && 'border-amber-300 bg-amber-50/50',
-              sandboxStatus === 'error' && 'border-red-300 bg-red-50/50',
-              showCachedPreview && 'border-gray-300 bg-gray-50/50',
+              'bg-forge-surface border border-forge-border transition-all',
+              isSandboxActive && 'border-green-300 dark:border-green-700 bg-green-50/50 dark:bg-green-950/30',
+              isSandboxLoading && 'border-amber-300 dark:border-amber-700 bg-amber-50/50 dark:bg-amber-950/30',
+              sandboxStatus === 'error' && 'border-red-300 dark:border-red-700 bg-red-50/50 dark:bg-red-950/30',
+              showCachedPreview && 'border-gray-300 dark:border-gray-600 bg-gray-50/50 dark:bg-gray-900/50',
             )}>
               {/* Status indicator */}
               {isSandboxActive && !isSyncing && (
-                <div className="shrink-0 flex items-center gap-1 text-green-600">
+                <div className="shrink-0 flex items-center gap-1 text-green-600 dark:text-green-400 animate-fade-in">
                   <Zap className="w-3 h-3" />
                 </div>
               )}
@@ -902,7 +902,7 @@ export function PreviewPanel({ files, projectId, onFixErrors }: PreviewPanelProp
               <div className="flex flex-col items-center gap-3 animate-fade-in">
                 <button
                   onClick={() => { hasAutoStartedRef.current = false; sandboxAvailableRef.current = null; retryCountRef.current = 0; startSandbox() }}
-                  className="group flex items-center gap-2 px-5 py-2.5 bg-forge-accent text-white text-sm font-medium rounded-xl hover:bg-forge-accent-hover transition-all shadow-md hover:shadow-lg hover:scale-[1.02] active:scale-[0.98]"
+                  className="group flex items-center gap-2 px-5 py-2.5 bg-forge-accent text-white text-sm font-medium rounded-xl hover:bg-forge-accent-hover transition-all shadow-md hover:shadow-lg hover:scale-[1.02] animate-breathe"
                 >
                   <Play className="w-4 h-4 transition-transform group-hover:scale-110" />
                   Start Live Preview
@@ -917,7 +917,7 @@ export function PreviewPanel({ files, projectId, onFixErrors }: PreviewPanelProp
           {/* Sandbox error toast — non-blocking overlay at bottom */}
           {sandboxStatus === 'error' && sandboxError && (
             <div className="absolute bottom-3 left-3 right-3 z-10 animate-fade-in">
-              <div className="bg-white/95 backdrop-blur border border-red-200 rounded-lg p-3 shadow-lg flex items-start gap-2 max-w-sm mx-auto">
+              <div className="bg-white/95 dark:bg-forge-surface/95 backdrop-blur border border-red-200 dark:border-red-800 rounded-lg p-3 shadow-lg flex items-start gap-2 max-w-sm mx-auto animate-shake">
                 <AlertTriangle className="w-4 h-4 text-red-500 shrink-0 mt-0.5" />
                 <div className="flex-1 min-w-0">
                   <p className="text-xs font-medium text-red-900">Sandbox Error</p>

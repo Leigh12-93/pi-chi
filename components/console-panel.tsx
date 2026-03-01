@@ -43,8 +43,8 @@ export function ConsolePanel({ entries, onClear, open, onToggle }: ConsolePanelP
 
   return (
     <div className={cn(
-      'border-t border-forge-border bg-forge-panel transition-all',
-      open ? 'h-40' : 'h-7',
+      'border-t border-forge-border bg-forge-panel',
+      open ? 'h-40 transition-[height] duration-200' : 'h-7 transition-[height] duration-150',
     )}>
       {/* Header */}
       <button
@@ -85,8 +85,13 @@ export function ConsolePanel({ entries, onClear, open, onToggle }: ConsolePanelP
               No output yet
             </div>
           ) : (
-            entries.map(entry => (
-              <div key={entry.id} className="flex gap-2">
+            entries.map((entry, i) => (
+              <div key={entry.id} className={cn(
+                'flex gap-2 px-1 py-0.5 -mx-1 rounded-sm',
+                entry.type === 'error' && 'border-l-2 border-l-red-500 pl-1.5',
+                entry.type === 'warn' && 'border-l-2 border-l-amber-500 pl-1.5',
+                i % 2 === 0 && 'bg-forge-surface/30',
+              )}>
                 <span className="text-forge-text-dim/40 shrink-0 select-none">
                   {new Date(entry.timestamp).toLocaleTimeString('en-AU', { hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit' })}
                 </span>

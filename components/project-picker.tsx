@@ -169,11 +169,13 @@ export function ProjectPicker({ onSelect, savedProjects, loadingProjects, onDele
       <div className="max-w-3xl w-full">
         {/* Logo */}
         <div className="text-center mb-8 sm:mb-10">
-          <div className="inline-flex items-center justify-center w-14 h-14 sm:w-16 sm:h-16 rounded-2xl bg-gradient-to-br from-forge-accent/20 to-purple-500/20 mb-4 sm:mb-5 shadow-sm">
+          <div className="inline-flex items-center justify-center w-14 h-14 sm:w-16 sm:h-16 rounded-2xl bg-gradient-to-br from-forge-accent/20 to-purple-500/20 mb-4 sm:mb-5 shadow-sm animate-breathe">
             <Hammer className="w-7 h-7 sm:w-8 sm:h-8 text-forge-accent" />
           </div>
-          <h1 className="text-2xl sm:text-3xl font-bold text-forge-text mb-2 tracking-tight">Forge</h1>
-          <p className="text-forge-text-dim text-sm">AI-powered website builder with superpowers</p>
+          <h1 className="text-2xl sm:text-3xl font-bold mb-2 tracking-tight">
+            <span className="bg-gradient-to-r from-forge-accent to-purple-500 bg-clip-text text-transparent">Forge</span>
+          </h1>
+          <p className="text-forge-text-dim text-sm text-pretty">AI-powered website builder with superpowers</p>
         </div>
 
         {/* Auth prompt */}
@@ -208,7 +210,7 @@ export function ProjectPicker({ onSelect, savedProjects, loadingProjects, onDele
             <button
               onClick={handleCreate}
               disabled={creating}
-              className="flex items-center justify-center gap-2 px-5 py-3 sm:py-2.5 bg-forge-accent hover:bg-forge-accent-hover text-white text-sm font-medium rounded-xl disabled:opacity-50 disabled:cursor-not-allowed transition-all shadow-sm hover:shadow active:scale-[0.98]"
+              className="flex items-center justify-center gap-2 px-5 py-3 sm:py-2.5 bg-forge-accent hover:bg-forge-accent-hover text-white text-sm font-medium rounded-xl disabled:opacity-50 disabled:cursor-not-allowed transition-all shadow-sm hover:shadow-md hover:shadow-forge-accent/25"
             >
               <Sparkles className="w-4 h-4" />
               Create
@@ -218,14 +220,14 @@ export function ProjectPicker({ onSelect, savedProjects, loadingProjects, onDele
           {/* Quick starts */}
           <div className="flex flex-wrap gap-2 mt-4">
             <span className="text-[10px] text-forge-text-dim/60 self-center mr-1 hidden sm:inline">Quick start:</span>
-            {QUICK_STARTS.map(qs => (
+            {QUICK_STARTS.map((qs, i) => (
               <button
                 key={qs.label}
                 onClick={() => {
                   const pName = qs.label.toLowerCase().replace(/\s+/g, '-')
                   onSelect(pName)
                 }}
-                className="px-4 py-2.5 sm:px-3 sm:py-1.5 text-xs sm:text-[11px] rounded-lg border border-forge-border text-forge-text-dim hover:text-forge-text hover:border-forge-accent/50 hover:bg-forge-accent/5 hover:shadow-sm active:scale-[0.98] transition-all"
+                className={`px-4 py-2.5 sm:px-3 sm:py-1.5 text-xs sm:text-[11px] rounded-lg border border-forge-border text-forge-text-dim hover:text-forge-text hover:border-forge-accent/50 hover:bg-forge-accent/5 hover:shadow-sm transition-all animate-fade-in-up stagger-${i + 1}`}
               >
                 {qs.label}
               </button>
@@ -236,13 +238,13 @@ export function ProjectPicker({ onSelect, savedProjects, loadingProjects, onDele
         {/* Tabs: Saved Projects / GitHub Repos */}
         {isLoggedIn && (
           <div>
-            <div className="flex items-center gap-1 mb-4 border-b border-forge-border">
+            <div className="flex items-center gap-1 mb-4 border-b border-forge-border relative">
               <button
                 onClick={() => setTab('projects')}
-                className={`flex items-center gap-1.5 px-3 py-2 text-xs font-medium border-b-2 transition-colors ${
+                className={`relative flex items-center gap-1.5 px-3 py-2 text-xs font-medium transition-colors ${
                   tab === 'projects'
-                    ? 'border-forge-accent text-forge-accent'
-                    : 'border-transparent text-forge-text-dim hover:text-forge-text'
+                    ? 'text-forge-accent'
+                    : 'text-forge-text-dim hover:text-forge-text'
                 }`}
               >
                 <FolderOpen className="w-3.5 h-3.5" />
@@ -250,19 +252,25 @@ export function ProjectPicker({ onSelect, savedProjects, loadingProjects, onDele
                 {savedProjects.length > 0 && (
                   <span className="ml-1 text-[10px] px-1.5 py-0.5 rounded-full bg-forge-surface">{savedProjects.length}</span>
                 )}
+                {tab === 'projects' && (
+                  <span className="absolute bottom-0 left-0 right-0 h-0.5 bg-forge-accent rounded-full transition-all" />
+                )}
               </button>
               <button
                 onClick={() => setTab('github')}
-                className={`flex items-center gap-1.5 px-3 py-2 text-xs font-medium border-b-2 transition-colors ${
+                className={`relative flex items-center gap-1.5 px-3 py-2 text-xs font-medium transition-colors ${
                   tab === 'github'
-                    ? 'border-forge-accent text-forge-accent'
-                    : 'border-transparent text-forge-text-dim hover:text-forge-text'
+                    ? 'text-forge-accent'
+                    : 'text-forge-text-dim hover:text-forge-text'
                 }`}
               >
                 <Github className="w-3.5 h-3.5" />
                 GitHub Repos
                 {githubRepos.length > 0 && (
                   <span className="ml-1 text-[10px] px-1.5 py-0.5 rounded-full bg-forge-surface">{githubRepos.length}</span>
+                )}
+                {tab === 'github' && (
+                  <span className="absolute bottom-0 left-0 right-0 h-0.5 bg-forge-accent rounded-full transition-all" />
                 )}
               </button>
               {(loadingProjects || loadingRepos) && (
@@ -290,7 +298,7 @@ export function ProjectPicker({ onSelect, savedProjects, loadingProjects, onDele
                 {loadingProjects ? (
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                     {[1, 2, 3, 4].map(i => (
-                      <div key={i} className="rounded-xl border border-forge-border p-4 space-y-3">
+                      <div key={i} className={`rounded-xl border border-forge-border p-4 space-y-3 animate-fade-in stagger-${i}`}>
                         <div className="flex items-center justify-between">
                           <div className="h-4 w-32 rounded animate-skeleton" />
                           <div className="h-4 w-14 rounded animate-skeleton" />
@@ -327,7 +335,7 @@ export function ProjectPicker({ onSelect, savedProjects, loadingProjects, onDele
                       <button
                         key={project.id}
                         onClick={() => onSelect(project.name, project.id)}
-                        className="group relative bg-forge-panel border border-forge-border rounded-xl p-4 text-left hover:border-forge-accent/50 hover:bg-forge-accent/5 transition-all"
+                        className="group relative bg-forge-panel border border-forge-border border-l-2 border-l-transparent rounded-xl p-4 text-left hover:border-forge-accent/50 hover:border-l-forge-accent hover:bg-forge-accent/5 hover:shadow-sm transition-all"
                       >
                         <div className="flex items-start justify-between mb-2">
                           <h3 className="text-sm font-medium text-forge-text group-hover:text-forge-accent transition-colors truncate pr-2">

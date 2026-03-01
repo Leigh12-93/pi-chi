@@ -112,7 +112,7 @@ const colorClasses: Record<string, string> = {
   amber: 'text-amber-600 bg-amber-50 dark:text-amber-400 dark:bg-amber-950/40',
 }
 
-// ═══════════════════════════════════════════════════════════════════
+// ═══════════════════════════════════════════��═══════════════════════
 // Markdown renderer — always-dark code blocks (v0 style)
 // ═══════════════════════════════════════════════════════════════════
 
@@ -675,9 +675,9 @@ function CollapsibleToolGroup({ tools }: { tools: ToolGroup['tools'] }) {
     >
       <button
         onClick={() => setExpanded(!expanded)}
-        className="flex items-center gap-2 w-full px-3 py-2 text-[12px] text-forge-text-dim hover:bg-forge-surface/50 transition-colors"
+        className="flex items-center gap-2 w-full px-3 py-2 text-[12px] text-forge-text-dim hover:bg-forge-surface-hover transition-colors"
       >
-        <CheckCircle className="w-3.5 h-3.5 text-emerald-500 shrink-0" />
+        <CheckCircle className="w-3.5 h-3.5 text-emerald-500 shrink-0 animate-check-in" />
         <span className="flex-1 text-left truncate">{summaryText}</span>
         <span className="text-[10px] text-forge-text-dim/50">{tools.length}</span>
         <ChevronDown className={cn('w-3 h-3 transition-transform duration-200', expanded && 'rotate-180')} />
@@ -729,13 +729,13 @@ function ThinkPanel({ plan, files }: { plan: string; files: string[] }) {
       initial={{ opacity: 0, y: 4 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.2 }}
-      className="rounded-xl border border-forge-border overflow-hidden"
+      className="rounded-xl border border-forge-border border-l-2 border-l-purple-400 dark:border-l-purple-500 overflow-hidden"
     >
       <button
         onClick={() => setExpanded(!expanded)}
-        className="flex items-center gap-2 w-full px-3 py-2 text-[12px] hover:bg-forge-surface/50 transition-colors"
+        className="flex items-center gap-2 w-full px-3 py-2 text-[12px] hover:bg-forge-surface-hover transition-colors"
       >
-        <Brain className="w-3.5 h-3.5 text-forge-text-dim shrink-0" />
+        <Brain className="w-3.5 h-3.5 text-purple-500 dark:text-purple-400 shrink-0" />
         <span className="flex-1 text-left text-forge-text-dim font-medium">Thinking</span>
         <ChevronRight className={cn('w-3 h-3 text-forge-text-dim/50 transition-transform duration-200', expanded && 'rotate-90')} />
       </button>
@@ -834,7 +834,7 @@ const MessageItem = memo(function MessageItem({
                 <Pencil className="w-3 h-3" />
               </button>
             </div>
-            <div className="px-4 py-2.5 rounded-2xl rounded-br-md bg-forge-surface border border-forge-border text-[13.5px] text-forge-text leading-relaxed">
+            <div className="px-4 py-2.5 rounded-2xl rounded-br-md bg-forge-surface border border-forge-border text-[13.5px] text-forge-text leading-relaxed shadow-sm transition-shadow hover:shadow-md">
               {textContent}
             </div>
           </div>
@@ -1071,18 +1071,18 @@ const MessageItem = memo(function MessageItem({
                 )
               }
 
-              // Default tool chip — v0-style with slide-in
+              // Default tool chip — v0-style with slide-in + left border accent
               return (
                 <motion.div
                   key={partIdx}
                   initial={{ opacity: 0, x: -8 }}
                   animate={{ opacity: isRunning ? 1 : 0.75, x: 0 }}
-                  transition={{ duration: 0.2 }}
+                  transition={{ duration: 0.2, ease: [0.16, 1, 0.3, 1] }}
                   className={cn(
-                    'flex items-center gap-2 px-3 py-1.5 rounded-xl text-[12px] border transition-all',
-                    isRunning ? 'border-forge-border animate-shimmer'
-                      : hasError ? 'border-red-200 dark:border-red-800 bg-red-50/50 dark:bg-red-950/20'
-                      : 'border-forge-border bg-forge-surface/30',
+                    'flex items-center gap-2 px-3 py-1.5 rounded-xl text-[12px] border-l-2 border transition-all',
+                    isRunning ? 'border-forge-border border-l-forge-accent animate-gradient-sweep'
+                      : hasError ? 'border-red-200 dark:border-red-800 border-l-red-400 bg-red-50/50 dark:bg-red-950/20'
+                      : 'border-forge-border border-l-emerald-400 dark:border-l-emerald-500 bg-forge-surface/30 animate-chip-complete',
                   )}
                 >
                   <div className={cn('w-5 h-5 rounded-lg flex items-center justify-center shrink-0', colorClasses[info.color] || colorClasses.gray)}>
@@ -1093,7 +1093,7 @@ const MessageItem = memo(function MessageItem({
                   <span className={cn('truncate flex-1', hasError ? 'text-red-600 dark:text-red-400' : 'text-forge-text-dim')}>
                     {summary}
                   </span>
-                  {!isRunning && !hasError && <CheckCircle className="w-3 h-3 text-emerald-500 shrink-0 opacity-60" />}
+                  {!isRunning && !hasError && <CheckCircle className="w-3 h-3 text-emerald-500 shrink-0 animate-check-in" />}
                 </motion.div>
               )
             }
@@ -1548,22 +1548,25 @@ export function ChatPanel({ projectName, projectId, files, onFileChange, onFileD
         ) : isEmpty ? (
           /* v0-style empty state */
           <div className="flex flex-col items-center justify-center h-full px-6">
-            <div className="w-12 h-12 rounded-2xl bg-forge-surface border border-forge-border flex items-center justify-center mb-5">
-              <Sparkles className="w-6 h-6 text-forge-text-dim" />
+            <div className="w-14 h-14 rounded-2xl bg-forge-surface border border-forge-border flex items-center justify-center mb-5 animate-breathe">
+              <Sparkles className="w-7 h-7 text-forge-accent/70" />
             </div>
-            <h2 className="text-xl font-semibold text-forge-text mb-1.5 text-balance text-center">What shall we build?</h2>
-            <p className="text-[13px] text-forge-text-dim text-center mb-8">Describe your idea and Forge will build it</p>
+            <h2 className="text-xl font-semibold text-forge-text mb-1.5 text-balance text-center tracking-tight">What shall we build?</h2>
+            <p className="text-[13px] text-forge-text-dim text-center mb-8 text-pretty">Describe your idea and Forge will build it</p>
             <div className="grid grid-cols-2 gap-2.5 w-full max-w-sm">
-              {QUICK_ACTIONS.map(action => (
+              {QUICK_ACTIONS.map((action, i) => (
                 <motion.button
                   key={action.label}
-                  whileHover={{ scale: 1.02 }}
+                  initial={{ opacity: 0, y: 8 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ duration: 0.3, delay: i * 0.05, ease: [0.16, 1, 0.3, 1] }}
+                  whileHover={{ scale: 1.02, y: -1 }}
                   whileTap={{ scale: 0.98 }}
                   onClick={() => handleSend(action.query)}
-                  className="flex flex-col items-center gap-2 p-4 text-center text-[12.5px] rounded-xl border border-forge-border bg-forge-bg hover:border-forge-text-dim/30 hover:bg-forge-surface/50 transition-all group"
+                  className="flex flex-col items-center gap-2 p-4 text-center text-[12.5px] rounded-xl border border-forge-border bg-forge-bg hover:border-forge-accent/25 hover:bg-forge-surface/50 hover:shadow-sm transition-all group"
                 >
-                  <div className="w-9 h-9 rounded-xl bg-forge-surface border border-forge-border flex items-center justify-center group-hover:border-forge-text-dim/30 transition-colors">
-                    <action.icon className="w-4 h-4 text-forge-text-dim group-hover:text-forge-text transition-colors" />
+                  <div className="w-9 h-9 rounded-xl bg-forge-surface border border-forge-border flex items-center justify-center group-hover:border-forge-accent/25 transition-colors">
+                    <action.icon className="w-4 h-4 text-forge-text-dim group-hover:text-forge-accent transition-colors" />
                   </div>
                   <span className="text-forge-text-dim group-hover:text-forge-text font-medium transition-colors">{action.label}</span>
                 </motion.button>
@@ -1593,14 +1596,22 @@ export function ChatPanel({ projectName, projectId, files, onFileChange, onFileD
               />
             ))}
 
-            {/* Streaming indicator — subtle like v0 */}
+            {/* Streaming indicator — v0-style 3-dot bounce */}
             {isLoading && (
               <div className="flex items-center gap-2.5 text-[12px] py-2 px-1 animate-fade-in">
-                <Loader2 className="w-3.5 h-3.5 text-forge-text-dim animate-spin" />
+                <span className="flex items-center gap-0.5">
+                  <span className="typing-dot" />
+                  <span className="typing-dot" />
+                  <span className="typing-dot" />
+                </span>
                 <span className="text-forge-text-dim">
                   {stepCount > 0 ? `Step ${stepCount}` : 'Thinking'}
-                  {elapsed > 0 && ` · ${formatElapsed(elapsed)}`}
                 </span>
+                {elapsed > 0 && (
+                  <span className="text-[10px] text-forge-text-dim/50 bg-forge-surface px-1.5 py-0.5 rounded-md font-mono">
+                    {formatElapsed(elapsed)}
+                  </span>
+                )}
               </div>
             )}
 
@@ -1609,7 +1620,7 @@ export function ChatPanel({ projectName, projectId, files, onFileChange, onFileD
               <motion.div
                 initial={{ opacity: 0, y: 4 }}
                 animate={{ opacity: 1, y: 0 }}
-                className="flex items-start gap-2.5 text-[12.5px] bg-red-50/80 dark:bg-red-950/20 border border-red-200 dark:border-red-800 rounded-xl px-4 py-3"
+                className="flex items-start gap-2.5 text-[12.5px] bg-red-50/80 dark:bg-red-950/20 border border-red-200 dark:border-red-800 rounded-xl px-4 py-3 animate-shake"
               >
                 <div className="w-6 h-6 rounded-lg bg-red-100 dark:bg-red-900/50 flex items-center justify-center shrink-0 mt-0.5">
                   <AlertTriangle className="w-3.5 h-3.5 text-red-500" />
@@ -1651,7 +1662,7 @@ export function ChatPanel({ projectName, projectId, files, onFileChange, onFileD
             }}
             placeholder={isEmpty ? 'Describe what you want to build...' : 'Ask for changes, new features, fixes...'}
             rows={1}
-            className="w-full bg-forge-surface border border-forge-border rounded-2xl pl-4 pr-12 py-3 text-[13.5px] text-forge-text placeholder:text-forge-text-dim/40 outline-none focus:border-forge-accent/40 focus:ring-2 focus:ring-forge-accent/10 resize-none transition-all"
+            className="w-full bg-forge-surface border border-forge-border rounded-2xl pl-4 pr-12 py-3 text-[13.5px] text-forge-text placeholder:text-forge-text-dim/40 outline-none focus:border-forge-accent/40 focus:shadow-md shadow-sm resize-none transition-all"
           />
           <div className="absolute right-2 bottom-1.5">
             {isLoading ? (
@@ -1659,14 +1670,17 @@ export function ChatPanel({ projectName, projectId, files, onFileChange, onFileD
                 <StopCircle className="w-4 h-4" />
               </button>
             ) : (
-              <button
+              <motion.button
                 onClick={() => handleSend()}
                 disabled={!input.trim()}
-                className="p-2 rounded-xl bg-forge-text text-forge-bg hover:opacity-90 disabled:opacity-15 disabled:cursor-not-allowed transition-all"
+                initial={{ scale: 0.9, opacity: 0.5 }}
+                animate={{ scale: input.trim() ? 1 : 0.9, opacity: input.trim() ? 1 : 0.5 }}
+                transition={{ type: 'spring', stiffness: 400, damping: 20 }}
+                className="p-2 rounded-xl bg-forge-text text-forge-bg hover:opacity-90 disabled:cursor-not-allowed transition-colors"
                 title="Send message"
               >
                 <ArrowUp className="w-4 h-4" strokeWidth={2.5} />
-              </button>
+              </motion.button>
             )}
           </div>
         </div>
@@ -1691,11 +1705,12 @@ export function ChatPanel({ projectName, projectId, files, onFileChange, onFileD
                         key={model.id}
                         onClick={() => { setSelectedModel(model.id); setShowModelPicker(false) }}
                         className={cn(
-                          'flex items-center justify-between w-full px-3 py-2 text-[12px] hover:bg-forge-surface transition-colors',
+                          'flex items-center gap-2 w-full px-3 py-2 text-[12px] hover:bg-forge-surface-hover transition-colors',
                           selectedModel === model.id && 'bg-forge-surface text-forge-text font-medium',
                         )}
                       >
-                        <span>{model.label}</span>
+                        <Check className={cn('w-3 h-3 shrink-0', selectedModel === model.id ? 'text-forge-accent' : 'invisible')} />
+                        <span className="flex-1 text-left">{model.label}</span>
                         <span className="text-[10px] text-forge-text-dim">{model.description}</span>
                       </button>
                     ))}

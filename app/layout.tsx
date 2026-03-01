@@ -1,8 +1,12 @@
 import type { Metadata, Viewport } from 'next'
+import { Geist, Geist_Mono } from 'next/font/google'
 import { Toaster } from 'sonner'
 import { SessionProvider } from '@/components/session-provider'
 import { ThemeProvider } from '@/components/theme-provider'
 import './globals.css'
+
+const geistSans = Geist({ subsets: ['latin'], variable: '--font-geist-sans' })
+const geistMono = Geist_Mono({ subsets: ['latin'], variable: '--font-geist-mono' })
 
 export const metadata: Metadata = {
   title: 'Forge — AI React Builder',
@@ -21,7 +25,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       <head>
         <script dangerouslySetInnerHTML={{ __html: `try{if(localStorage.getItem('forge-theme')==='dark')document.documentElement.classList.add('dark')}catch(e){}` }} />
       </head>
-      <body className="bg-forge-bg text-forge-text antialiased">
+      <body className={`${geistSans.variable} ${geistMono.variable} font-sans bg-forge-bg text-forge-text antialiased`}>
         <ThemeProvider>
           <SessionProvider>
             {children}
@@ -32,9 +36,11 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           richColors
           toastOptions={{
             style: {
-              borderRadius: '12px',
-              boxShadow: '0 4px 12px rgba(0,0,0,0.08)',
+              fontFamily: 'var(--font-sans)',
+              borderRadius: '14px',
+              boxShadow: '0 4px 16px rgba(0,0,0,0.08), 0 1px 3px rgba(0,0,0,0.04)',
               fontSize: '13px',
+              backdropFilter: 'blur(8px)',
             },
           }}
         />

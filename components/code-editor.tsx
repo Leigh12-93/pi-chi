@@ -2,7 +2,7 @@
 
 import { useRef, useCallback, useEffect, useState } from 'react'
 import Editor, { type OnMount, type BeforeMount } from '@monaco-editor/react'
-import { getLanguageFromPath } from '@/lib/utils'
+import { getLanguageFromPath, cn } from '@/lib/utils'
 import { useTheme } from '@/components/theme-provider'
 import { FileText, Save, ChevronRight } from 'lucide-react'
 
@@ -82,8 +82,11 @@ export function CodeEditor({ path, content, onSave, onChange }: CodeEditorProps)
     return (
       <div className="h-full flex items-center justify-center text-forge-text-dim">
         <div className="text-center">
-          <FileText className="w-8 h-8 mx-auto mb-2 opacity-30" />
-          <p className="text-xs">Select a file to edit</p>
+          <div className="w-12 h-12 rounded-2xl bg-forge-surface border border-forge-border flex items-center justify-center mx-auto mb-3 animate-breathe">
+            <FileText className="w-5 h-5 opacity-40" />
+          </div>
+          <p className="text-xs font-medium">Select a file to edit</p>
+          <p className="text-[10px] text-forge-text-dim/60 mt-1">Click a file in the tree or use Ctrl+P</p>
         </div>
       </div>
     )
@@ -94,15 +97,21 @@ export function CodeEditor({ path, content, onSave, onChange }: CodeEditorProps)
   return (
     <div className="h-full flex flex-col">
       {/* Breadcrumb path bar */}
-      <div className="flex items-center justify-between px-3 py-2.5 sm:py-2 bg-forge-panel border-b border-forge-border text-xs sm:text-[11px]">
+      <div className={cn(
+        'flex items-center justify-between px-3 py-2.5 sm:py-2 bg-forge-panel border-b border-forge-border text-xs sm:text-[11px] transition-all',
+        modified && 'border-t-2 border-t-forge-accent',
+      )}>
         <div className="flex items-center gap-0.5 text-forge-text-dim font-mono truncate min-w-0">
           {path.split('/').map((segment, i, arr) => (
             <span key={i} className="flex items-center gap-0.5">
               {i > 0 && <ChevronRight className="w-3 h-3 shrink-0 opacity-40" />}
-              <span className={i === arr.length - 1 ? 'text-forge-text font-medium' : ''}>{segment}</span>
+              <span className={cn(
+                'px-0.5 rounded transition-colors',
+                i === arr.length - 1 ? 'text-forge-text font-medium' : 'hover:text-forge-text hover:bg-forge-surface-hover',
+              )}>{segment}</span>
             </span>
           ))}
-          {modified && <span className="text-forge-accent ml-1">●</span>}
+          {modified && <span className="text-forge-accent ml-1 animate-pulse-dot">●</span>}
         </div>
         {modified && (
           <button
