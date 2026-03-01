@@ -13,4 +13,5 @@ export interface ToolContext {
   defaultTimeout: number  // milliseconds per tool call, default 30000
   supabaseFetch: (path: string, options?: RequestInit) => Promise<{ data: any; status: number; ok: boolean }>
   githubFetch: (path: string, token: string, options?: RequestInit) => Promise<any>
+  githubUsername?: string
 }

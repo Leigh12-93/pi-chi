@@ -18558,11 +18558,16 @@ const statusIcons: Record<string, typeof CheckCircle2> = {
   },
 ]
 
-export function searchReferences(query: string, limit = 3): ComponentReference[] {
+export function searchReferences(query: string, options?: { limit?: number; category?: string; source?: string }): ComponentReference[] {
+  const limit = options?.limit ?? 3
   const lower = query.toLowerCase()
   const words = lower.split(/\s+/).filter(w => w.length >= 2)
 
-  const scored = REFERENCE_LIBRARY.map(ref => {
+  let candidates = REFERENCE_LIBRARY
+  if (options?.category) candidates = candidates.filter(r => r.category === options.category)
+  if (options?.source) candidates = candidates.filter(r => r.source === options.source)
+
+  const scored = candidates.map(ref => {
     let score = 0
 
     // Exact name match

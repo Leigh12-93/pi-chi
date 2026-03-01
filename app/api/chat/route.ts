@@ -53,6 +53,32 @@ function getEditFailCounts(projectId: string | null): Map<string, number> {
 }
 
 // ═══════════════════════════════════════════════════════════════════
+// Lightweight model auto-routing — suggests optimal model when user
+// hasn't explicitly selected one
+// ═══════════════════════════════════════════════════════════════════
+function classifyModelComplexity(messages: any[], fileCount: number): { model: string; reason: string } {
+  const lastMsg = messages.findLast((m: any) => m.role === 'user')
+  const text = typeof lastMsg?.content === 'string' ? lastMsg.content : ''
+  const lower = text.toLowerCase()
+  const wordCount = text.split(/\s+/).length
+
+  // Opus indicators: complex architecture, multi-file refactors, system design
+  const opusKeywords = ['architect', 'refactor', 'redesign', 'migrate', 'optimize performance', 'system design', 'rewrite entire', 'full rewrite']
+  if (opusKeywords.some(k => lower.includes(k)) || (wordCount > 200 && fileCount > 10)) {
+    return { model: 'claude-opus-4-20250514', reason: 'Complex task detected — using Opus for best reasoning' }
+  }
+
+  // Haiku indicators: simple edits, quick fixes, small changes
+  const haikuKeywords = ['fix typo', 'rename', 'change color', 'change text', 'update title', 'small change', 'quick fix', 'add comment']
+  if (haikuKeywords.some(k => lower.includes(k)) || (wordCount < 20 && fileCount <= 3)) {
+    return { model: 'claude-haiku-35-20241022', reason: 'Simple task — using Haiku for speed' }
+  }
+
+  // Default: Sonnet for balanced performance
+  return { model: 'claude-sonnet-4-20250514', reason: 'Standard task — using Sonnet' }
+}
+
+// ═══════════════════════════════════════════════════════════════════
 // POST handler
 // ═══════════════════════════════════════════════════════════════════
 
@@ -114,7 +140,6 @@ export async function POST(req: Request) {
   const projectName = body.projectName || 'untitled'
   const projectId = body.projectId || null
   const ALLOWED_MODELS = ['claude-sonnet-4-20250514', 'claude-haiku-35-20241022', 'claude-opus-4-20250514']
-  const selectedModel = ALLOWED_MODELS.includes(body.model) ? body.model : 'claude-sonnet-4-20250514'
 
   if (!Array.isArray(body.messages)) {
     return new Response(JSON.stringify({ error: 'messages must be an array.' }), {
@@ -151,6 +176,17 @@ export async function POST(req: Request) {
     }
   }
   const vfs = new VirtualFS(safeFiles)
+
+  let selectedModel: string
+  let modelAutoRouted = false
+  if (body.model && ALLOWED_MODELS.includes(body.model)) {
+    selectedModel = body.model
+  } else {
+    const fileCount = Object.keys(safeFiles).length
+    const classification = classifyModelComplexity(body.messages || [], fileCount)
+    selectedModel = classification.model
+    modelAutoRouted = true
+  }
 
   // In-request task store for background operations
   const taskStore = new TaskStore()
@@ -255,6 +291,12 @@ export async function POST(req: Request) {
 
   const streamData = new StreamData()
 
+  // Notify client of auto-routed model selection
+  if (modelAutoRouted) {
+    const classification = classifyModelComplexity(body.messages || [], Object.keys(safeFiles).length)
+    streamData.append({ type: 'model_suggestion', model: selectedModel, reason: classification.reason })
+  }
+
   // Save user message to database if projectId exists
   if (projectId && messages.length > 0) {
     const lastMessage = messages[messages.length - 1]
@@ -292,6 +334,7 @@ export async function POST(req: Request) {
     defaultTimeout: 30000,
     supabaseFetch,
     githubFetch,
+    githubUsername: (session as any).githubUsername || session.user?.name || 'unknown',
   }
 
   // Extract structural template based on user's latest message

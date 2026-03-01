@@ -105,6 +105,83 @@ Use zustand for cart state. Images from placeholder service until real images ex
 - Contact section: form or email link + social icons
 Minimal, clean design. Let the work speak.`,
   },
+  'api-route': {
+    keywords: ['api', 'endpoint', 'rest api', 'crud api', 'backend', 'route handler'],
+    template: `Structure for API routes (Next.js App Router):
+- File at app/api/{resource}/route.ts
+- Export named handlers: GET, POST, PUT, DELETE
+- Input validation with zod: const schema = z.object({...}), parse request body
+- Error handling: try/catch with typed error responses {error: string, status: number}
+- GET: query params via URL searchParams, return paginated results {data: T[], total: number}
+- POST: validate body, create resource, return 201 with created object
+- PUT: validate body + id param, update resource, return updated object
+- DELETE: validate id param, soft-delete preferred, return 204
+- Use NextResponse.json() for responses. Set appropriate status codes.
+- Add rate limiting for public endpoints.`,
+  },
+  'email-template': {
+    keywords: ['email', 'email template', 'newsletter', 'transactional email'],
+    template: `Structure for email templates (react-email):
+- Use @react-email/components: Html, Head, Body, Container, Section, Text, Button, Img, Hr, Link
+- Container: max-width 600px, centered, font-family system stack
+- Header: logo image (hosted URL), brand name
+- Body: greeting, main content paragraphs, CTA button (prominent, padded, rounded)
+- Footer: unsubscribe link, company address, social links
+- Inline styles only (no CSS classes) — email clients strip <style> tags
+- Preview text: first 90 chars visible in inbox preview
+- Test with react-email preview: npx email dev`,
+  },
+  'search-filter': {
+    keywords: ['search bar', 'filter', 'autocomplete', 'faceted', 'search ui'],
+    template: `Structure for search/filter UI:
+- Search input: icon (magnifying glass) + text input + clear button, debounced onChange (300ms)
+- Filter bar below search: horizontal scroll of filter chips/dropdowns (category, date range, status, sort)
+- Active filters shown as removable badges/chips with X button
+- Results area: loading skeleton during search, result cards/list, empty state if no matches
+- Keyboard: Escape clears, Enter searches, arrow keys navigate results
+- URL sync: filters stored in URL search params (useSearchParams) for shareable links
+- Mobile: filters collapse into bottom sheet or modal
+Use useDeferredValue or debounce for search, zustand for filter state.`,
+  },
+  'chat-ui': {
+    keywords: ['chat', 'messaging', 'chatbot', 'conversation', 'message'],
+    template: `Structure for chat/messaging UI:
+- Message list: scrollable container (flex-col-reverse or scroll-to-bottom), auto-scroll on new messages
+- Message bubble: user (right-aligned, accent bg) vs other (left-aligned, muted bg), rounded-2xl px-4 py-2
+- Each message: avatar, name, timestamp, text content, optional reactions
+- Input area: fixed bottom, textarea (auto-grow), send button, optional attach/emoji buttons
+- Typing indicator: animated dots for "user is typing..."
+- Loading: skeleton messages while fetching history
+- Group consecutive messages from same sender (no repeated avatar)
+- Keyboard: Enter to send (Shift+Enter for newline)
+Use useRef for scroll container, useEffect for auto-scroll.`,
+  },
+  'file-upload': {
+    keywords: ['upload', 'file upload', 'drag and drop', 'dropzone', 'image upload'],
+    template: `Structure for file upload UI:
+- Drop zone: dashed border, drag-over highlight (border-accent bg-accent/10), click to browse
+- Icon + "Drag & drop or click to browse" text, accepted file types listed
+- File list: name, size (humanized), type icon, progress bar during upload, remove button
+- Preview: image thumbnails for image files, generic icon for others
+- Validation: max file size, allowed types, max file count — show inline errors
+- Upload progress: per-file progress bar (0-100%), overall progress
+- States: idle, dragging-over, uploading, complete, error
+- Use useDropzone from react-dropzone or native drag events (onDragOver, onDrop, onDragLeave)
+- FormData for multipart upload, or presigned URLs for direct-to-S3.`,
+  },
+  'docs-page': {
+    keywords: ['documentation', 'docs', 'mdx', 'knowledge base', 'help center', 'wiki'],
+    template: `Structure for documentation pages:
+- Sidebar: collapsible section tree (nested ul), active item highlighted, sticky on desktop
+- Main content: max-w-3xl, prose typography (@tailwindcss/typography), proper heading hierarchy
+- Table of contents: right sidebar on xl+ screens, auto-generated from headings, scroll-spy active state
+- Search: command palette (Cmd+K) or top search bar with instant results
+- Navigation: prev/next links at bottom of each page
+- Code blocks: syntax highlighted (shiki or prism), copy button, optional filename header
+- Callouts: info/warning/danger boxes with icon + colored border
+- Mobile: sidebar becomes hamburger drawer, TOC hidden
+- Breadcrumbs at top showing section hierarchy.`,
+  },
 }
 
 export function getPromptExample(userMessage: string): string | null {

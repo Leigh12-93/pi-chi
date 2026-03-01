@@ -966,6 +966,7 @@ export function PreviewPanel({ files, projectId, onFixErrors }: PreviewPanelProp
                 </div>
               )}
               <iframe
+                id="forge-preview-iframe"
                 key={`sandbox-${refreshKey}`}
                 src={sandboxUrl}
                 className="w-full h-full border-0 absolute inset-0"
