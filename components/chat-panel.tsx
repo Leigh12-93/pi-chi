@@ -15,6 +15,7 @@ import {
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { ErrorBoundary } from '@/components/error-boundary'
+import DOMPurify from 'dompurify'
 
 // ═══════════════════════════════════════════════════════════════════
 // Tool display config
@@ -101,7 +102,7 @@ const colorClasses: Record<string, string> = {
 
 // ═══════════════════════════════════════════════════════════════════
 // Markdown renderer (light theme)
-// ══════════════════════════════════════���═════════════════════���══════
+// ══════════════════════════════════════�����═════════════════════���══════
 
 // Language label map for code blocks
 const LANG_LABELS: Record<string, string> = {
@@ -292,9 +293,8 @@ function renderMarkdown(text: string): string {
 }
 
 // DOM-based sanitizer using DOMPurify — far more robust than regex against XSS
-import DOMPurify from 'dompurify'
 
-const purifyConfig: DOMPurify.Config = {
+const PURIFY_CONFIG = {
   ALLOWED_TAGS: [
     'div', 'span', 'p', 'br', 'hr', 'pre', 'code', 'button',
     'h1', 'h2', 'h3', 'h4', 'h5', 'h6',
@@ -320,15 +320,15 @@ function sanitizeHtml(html: string): string {
       .replace(/javascript\s*:/gi, '')
   }
   // Only allow onclick on buttons with our specific clipboard pattern
-  DOMPurify.addHook('uponSanitizeAttribute', (node, data) => {
-    if (data.attrName === 'onclick' && node.tagName !== 'BUTTON') {
-      data.keepAttr = false
-    }
-    if (data.attrName === 'onclick' && !data.attrValue.startsWith('navigator.clipboard')) {
-      data.keepAttr = false
+  DOMPurify.addHook('uponSanitizeAttribute', (node: Element, data) => {
+    if (data.attrName === 'onclick') {
+      const val = String(data.attrValue || '')
+      if (node.tagName !== 'BUTTON' || !val.startsWith('navigator.clipboard')) {
+        data.keepAttr = false
+      }
     }
   })
-  const clean = DOMPurify.sanitize(html, purifyConfig)
+  const clean = DOMPurify.sanitize(html, PURIFY_CONFIG)
   DOMPurify.removeHook('uponSanitizeAttribute')
   return clean
 }

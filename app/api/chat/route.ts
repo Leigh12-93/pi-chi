@@ -67,7 +67,7 @@ class VirtualFS {
     let regex: RegExp
     try {
       regex = new RegExp(pattern, 'i')
-    } catch {
+    } catch (_e) {
       return { error: `Invalid regex pattern: ${pattern}` }
     }
     for (const [path, content] of this.files) {
@@ -1192,6 +1192,7 @@ export async function POST(req: Request) {
         }),
         execute: async ({ pattern }) => {
           const results = vfs.search(pattern)
+          if (!Array.isArray(results)) return results
           return { results, count: results.length }
         },
       }),
@@ -2768,7 +2769,7 @@ export function ${name}({ variant = 'default', size = 'default', className, chil
         },
       }),
 
-      // ─── Sandbox Preview ────────────────────────────────────────
+      // ─── Sandbox Preview ───────────────���───────────────��────────
 
       start_sandbox: tool({
         description: 'Start a live preview sandbox for the current project. Uploads files to v0 Platform API and returns a live preview URL. Free — no tokens consumed. Use when the user wants to see their app running live.',
