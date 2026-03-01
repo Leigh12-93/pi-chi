@@ -7,6 +7,7 @@ import { mcpClient } from '@/lib/mcp-client'
 import { createV0Sandbox, getV0SandboxStatus, destroyV0Sandbox } from '@/lib/v0-sandbox'
 import { chatLimiter } from '@/lib/rate-limit'
 import { TaskStore } from '@/lib/background-tasks'
+import { getSession } from '@/lib/auth'
 
 // ═══════════════════════════════════════════════════════════════════
 // Virtual Filesystem — lives in closure per request
@@ -819,15 +820,22 @@ export async function POST(req: Request) {
     })
   }
 
+  // ── Auth check ─────────────────────────────────────────────────
+  const session = await getSession()
+  if (!session) {
+    return new Response(JSON.stringify({ error: 'Authentication required' }), {
+      status: 401,
+      headers: { 'Content-Type': 'application/json' },
+    })
+  }
+
   const body = await req.json()
   const projectName = body.projectName || 'untitled'
   const projectId = body.projectId || null
   const selectedModel = body.model || 'claude-sonnet-4-20250514'
 
-  // Use user's GitHub token from OAuth if available, fall back to server PAT
-  const userGithubToken = (body.githubToken && body.githubToken !== 'null' && body.githubToken !== 'undefined')
-    ? String(body.githubToken).trim()
-    : ''
+  // Use GitHub token from session (secure, not from request body)
+  const userGithubToken = session.accessToken || ''
   const effectiveGithubToken = userGithubToken || GITHUB_TOKEN
 
   // Env vars from client (user-provided via request_env_vars card)
@@ -847,9 +855,13 @@ export async function POST(req: Request) {
 
   // ── Cost optimization: trim conversation history ──────────────
   // Tool invocations in old messages contain full file contents (write_file args)
-  // that get re-sent every request. Strip them from old messages, keep recent ones intact.
-  const MAX_HISTORY = 40       // max messages to keep total
-  const FULL_DETAIL_WINDOW = 8 // last N messages keep full tool invocation data
+  // that get re-sent every request. Use 3-tier trimming:
+  //   Last 4 messages: full detail (complete tool data)
+  //   Messages 5-8: medium detail (tool names + paths only, stripped results)
+  //   Older: summary only (tool list appended as text)
+  const MAX_HISTORY = 40
+  const FULL_DETAIL_WINDOW = 4
+  const MEDIUM_DETAIL_WINDOW = 8
 
   const rawMessages = body.messages || []
   let trimmedMessages = rawMessages.length > MAX_HISTORY
@@ -857,9 +869,24 @@ export async function POST(req: Request) {
     : rawMessages
 
   trimmedMessages = trimmedMessages.map((m: any, i: number) => {
-    // Keep recent messages fully intact (they need tool data for context)
-    if (i >= trimmedMessages.length - FULL_DETAIL_WINDOW) return m
-    // Strip tool invocations from old assistant messages (saves massive tokens)
+    const fromEnd = trimmedMessages.length - i
+
+    // Tier 1: Last 4 messages — full detail
+    if (fromEnd <= FULL_DETAIL_WINDOW) return m
+
+    // Tier 2: Messages 5-8 — keep tool names + paths, strip content/results
+    if (fromEnd <= MEDIUM_DETAIL_WINDOW && m.role === 'assistant' && m.toolInvocations?.length > 0) {
+      return {
+        ...m,
+        toolInvocations: m.toolInvocations.map((inv: any) => ({
+          ...inv,
+          args: { path: inv.args?.path, template: inv.args?.template },
+          result: inv.result?.ok !== undefined ? { ok: inv.result.ok } : undefined,
+        })),
+      }
+    }
+
+    // Tier 3: Older messages — summarize tool invocations as text
     if (m.role === 'assistant' && m.toolInvocations?.length > 0) {
       const summary = m.toolInvocations.map((inv: any) => {
         const name = inv.toolName
@@ -966,14 +993,27 @@ export async function POST(req: Request) {
       }),
 
       read_file: tool({
-        description: 'Read a file\'s content. Only use when you need existing content before editing.',
+        description: 'Read a file\'s content. Only use when you need existing content before editing. Supports pagination for large files via offset/limit.',
         parameters: z.object({
           path: z.string().describe('File path relative to project root'),
+          offset: z.number().optional().describe('Line number to start from (1-based, default: 1)'),
+          limit: z.number().optional().describe('Max lines to return (default/max: 2000)'),
         }),
-        execute: async ({ path }) => {
+        execute: async ({ path, offset, limit }) => {
           const content = vfs.read(path)
           if (content === undefined) return { error: `File not found: ${path}` }
-          return { content, path, lines: content.split('\n').length }
+          const allLines = content.split('\n')
+          const totalLines = allLines.length
+          const startLine = Math.max(1, offset || 1)
+          const maxLines = Math.min(limit || 2000, 2000)
+          const sliced = allLines.slice(startLine - 1, startLine - 1 + maxLines)
+          const isTruncated = totalLines > startLine - 1 + maxLines
+          return {
+            content: sliced.join('\n'),
+            path,
+            lines: totalLines,
+            ...(isTruncated ? { truncated: true, showing: `${startLine}-${startLine + sliced.length - 1} of ${totalLines}`, hint: 'Use offset/limit to read remaining lines.' } : {}),
+          }
         },
       }),
 
@@ -998,7 +1038,7 @@ export async function POST(req: Request) {
             }
             const updated = content.replace(old_string, new_string)
             vfs.write(safePath, updated)
-            return { ok: true, path: safePath, lines: updated.split('\n').length, content: updated }
+            return { ok: true, path: safePath, lines: updated.split('\n').length }
           }
 
           // ── Helper: strip each line's indent and collapse runs ───
@@ -1048,66 +1088,32 @@ export async function POST(req: Request) {
           }
 
           if (bestMatch) {
+            // Uniqueness check: scan for a second fuzzy match after the first
+            let secondMatch = false
+            for (let i = bestMatch.end; i < fileRawLines.length; i++) {
+              if (fileTrimmedLines[i] !== oldTrimmedLines[0]) continue
+              let fi2 = i, oi2 = 0, matched2 = true
+              while (oi2 < oldTrimmedLines.length && fi2 < fileRawLines.length) {
+                if (fileTrimmedLines[fi2] === '') { fi2++; continue }
+                if (fileTrimmedLines[fi2] === oldTrimmedLines[oi2]) { oi2++; fi2++ }
+                else { matched2 = false; break }
+              }
+              if (matched2 && oi2 === oldTrimmedLines.length) { secondMatch = true; break }
+            }
+            if (secondMatch) {
+              return { error: 'Found multiple fuzzy matches for this code block. Provide more surrounding context to make old_string unique, or use exact whitespace.' }
+            }
+
             const before = fileRawLines.slice(0, bestMatch.start).join('\n')
             const after = fileRawLines.slice(bestMatch.end).join('\n')
             const updated = [before, new_string, after].filter(s => s !== '').join('\n')
             vfs.write(safePath, updated)
-            return { ok: true, path: safePath, lines: updated.split('\n').length, content: updated, note: 'Matched with indent-insensitive fuzzy matching' }
+            return { ok: true, path: safePath, lines: updated.split('\n').length, note: 'Matched with indent-insensitive fuzzy matching' }
           }
 
-          // ── Pass 3: Single-line whitespace-normalized match ──────
-          // For single-line edits where indent is wrong
-          if (oldTrimmedLines.length === 1) {
-            const target = oldTrimmedLines[0]
-            for (let i = 0; i < fileRawLines.length; i++) {
-              if (normLine(fileRawLines[i]) === target) {
-                // Check uniqueness
-                const matches = fileTrimmedLines.filter(l => normLine(l) === target).length
-                if (matches > 1) {
-                  return { error: `Found ${matches} fuzzy matches for this single line. Provide more context lines to make it unique.` }
-                }
-                const updated = [...fileRawLines]
-                updated[i] = new_string
-                const joined = updated.join('\n')
-                vfs.write(safePath, joined)
-                return { ok: true, path: safePath, lines: updated.length, content: joined, note: 'Matched single line with whitespace normalization' }
-              }
-            }
-          }
-
-          // ── Pass 4: Subsequence match — find old lines as a subsequence ──
-          // Handles cases where AI omits some lines in old_string but the
-          // key anchor lines are present in order
-          if (oldTrimmedLines.length >= 3) {
-            const firstTarget = oldTrimmedLines[0]
-            const lastTarget = oldTrimmedLines[oldTrimmedLines.length - 1]
-
-            for (let startIdx = 0; startIdx < fileRawLines.length; startIdx++) {
-              if (fileTrimmedLines[startIdx] !== firstTarget) continue
-
-              // Find the last old line after this point
-              for (let endIdx = startIdx + 1; endIdx < fileRawLines.length; endIdx++) {
-                if (fileTrimmedLines[endIdx] !== lastTarget) continue
-
-                // Check if all old lines appear in order between start..end
-                const fileSlice = fileTrimmedLines.slice(startIdx, endIdx + 1).filter(l => l.length > 0)
-                let oi = 0
-                for (const fl of fileSlice) {
-                  if (oi < oldTrimmedLines.length && fl === oldTrimmedLines[oi]) oi++
-                }
-
-                if (oi === oldTrimmedLines.length) {
-                  // All old lines matched as a subsequence — replace the block
-                  const before = fileRawLines.slice(0, startIdx).join('\n')
-                  const after = fileRawLines.slice(endIdx + 1).join('\n')
-                  const updated = [before, new_string, after].filter(s => s !== '').join('\n')
-                  vfs.write(safePath, updated)
-                  return { ok: true, path: safePath, lines: updated.split('\n').length, content: updated, note: 'Matched via subsequence (anchor lines found in order)' }
-                }
-                break // only try first matching end
-              }
-            }
-          }
+          // Passes 3 (single-line fuzzy) and 4 (subsequence) removed —
+          // they were too risky (could silently match wrong code blocks).
+          // Only exact match (pass 1) and indent-insensitive (pass 2) remain.
 
           // ── No match — return helpful context ────────────────────
           const firstOldLine = old_string.split('\n')[0].trim()
@@ -1163,6 +1169,41 @@ export async function POST(req: Request) {
         }),
         execute: async ({ pattern }) => {
           const results = vfs.search(pattern)
+          return { results, count: results.length }
+        },
+      }),
+
+      grep_files: tool({
+        description: 'Search file contents with regex and return matches with surrounding context lines. Better than search_files when you need to see code around matches before editing.',
+        parameters: z.object({
+          pattern: z.string().describe('Regex pattern to search for'),
+          context: z.number().optional().describe('Lines of context before and after each match (default: 3)'),
+          maxResults: z.number().optional().describe('Max results to return (default: 10)'),
+        }),
+        execute: async ({ pattern, context: ctx, maxResults }) => {
+          const contextLines = ctx ?? 3
+          const max = maxResults ?? 10
+          const results: Array<{ file: string; line: number; match: string; context: string }> = []
+          let regex: RegExp
+          try {
+            regex = new RegExp(pattern, 'i')
+          } catch {
+            return { error: `Invalid regex pattern: ${pattern}` }
+          }
+          for (const [path, content] of vfs.files) {
+            if (results.length >= max) break
+            const lines = content.split('\n')
+            for (let i = 0; i < lines.length && results.length < max; i++) {
+              if (regex.test(lines[i])) {
+                const start = Math.max(0, i - contextLines)
+                const end = Math.min(lines.length, i + contextLines + 1)
+                const contextBlock = lines.slice(start, end)
+                  .map((l, idx) => `${start + idx + 1}${start + idx === i ? '>' : ' '} ${l}`)
+                  .join('\n')
+                results.push({ file: path, line: i + 1, match: lines[i].trim().slice(0, 200), context: contextBlock })
+              }
+            }
+          }
           return { results, count: results.length }
         },
       }),
@@ -1446,6 +1487,41 @@ export async function POST(req: Request) {
           vfs.delete(safeOld)
           vfs.write(safeNew, content)
           return { ok: true, oldPath: safeOld, newPath: safeNew }
+        },
+      }),
+
+      add_dependency: tool({
+        description: 'Add an npm package to package.json. Validates the package exists on npm first. ALWAYS use this when importing a package not already in package.json.',
+        parameters: z.object({
+          name: z.string().describe('npm package name, e.g. "framer-motion"'),
+          version: z.string().optional().describe('Version range (default: ^latest)'),
+          dev: z.boolean().optional().describe('Add to devDependencies instead of dependencies'),
+        }),
+        execute: async ({ name, version, dev }) => {
+          try {
+            const res = await fetch(`https://registry.npmjs.org/${encodeURIComponent(name)}`, {
+              headers: { Accept: 'application/json' },
+            })
+            if (res.status === 404) return { error: `Package "${name}" does not exist on npm. Do NOT import it.` }
+            if (!res.ok) return { error: `npm registry error: ${res.status}` }
+            const data = await res.json()
+            const latest = data['dist-tags']?.latest
+            const ver = version || `^${latest}`
+
+            const pkgPath = 'package.json'
+            const pkgContent = vfs.read(pkgPath)
+            if (!pkgContent) return { error: 'No package.json found. Create one first with create_project.' }
+
+            const pkg = JSON.parse(pkgContent)
+            const field = dev ? 'devDependencies' : 'dependencies'
+            if (!pkg[field]) pkg[field] = {}
+            if (pkg[field][name]) return { ok: true, path: pkgPath, note: `${name} already in ${field} (${pkg[field][name]})`, skipped: true }
+            pkg[field][name] = ver
+            vfs.write(pkgPath, JSON.stringify(pkg, null, 2))
+            return { ok: true, path: pkgPath, added: name, version: ver, field }
+          } catch (err) {
+            return { error: err instanceof Error ? err.message : 'Failed to check npm' }
+          }
         },
       }),
 
