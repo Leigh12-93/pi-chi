@@ -319,10 +319,14 @@ function TreeItem({
   const [copied, setCopied] = useState(false)
   const contextMenuRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLInputElement>(null)
+  const copyTimerRef = useRef<ReturnType<typeof setTimeout>>(undefined)
 
   const isDir = node.type === 'directory'
   const isActive = activeFile === node.path
   const isModified = !isDir && modifiedFiles?.has(node.path)
+
+  // Cleanup copy badge timer on unmount
+  useEffect(() => () => { if (copyTimerRef.current) clearTimeout(copyTimerRef.current) }, [])
 
   // Close context menu when clicking outside
   useEffect(() => {
@@ -362,7 +366,8 @@ function TreeItem({
     if (!fileContents || !fileContents[node.path]) return
     navigator.clipboard.writeText(fileContents[node.path]).then(() => {
       setCopied(true)
-      setTimeout(() => setCopied(false), 2000)
+      if (copyTimerRef.current) clearTimeout(copyTimerRef.current)
+      copyTimerRef.current = setTimeout(() => setCopied(false), 2000)
       toast.success('Copied to clipboard', { description: node.name, duration: 1500 })
     }).catch(() => {})
     setShowContextMenu(false)

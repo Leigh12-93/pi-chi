@@ -403,13 +403,16 @@ export function Workspace({
     setMobileTab('chat')
   }, [])
 
-  const handleCloseFile = (path: string) => {
-    setOpenFiles(prev => prev.filter(f => f !== path))
-    if (activeFile === path) {
-      const remaining = openFiles.filter(f => f !== path)
-      onFileSelect(remaining[remaining.length - 1] || '')
-    }
-  }
+  const handleCloseFile = useCallback((path: string) => {
+    setOpenFiles(prev => {
+      const remaining = prev.filter(f => f !== path)
+      // If closing the active file, select the last remaining file
+      if (activeFile === path) {
+        onFileSelect(remaining[remaining.length - 1] || '')
+      }
+      return remaining
+    })
+  }, [activeFile, onFileSelect])
 
   const handleFileRename = (oldPath: string, newPath: string) => {
     setOpenFiles(prev => prev.map(f => f === oldPath ? newPath : f))

@@ -160,9 +160,17 @@ export function PreviewPanel({ files, projectId, onFixErrors, onCapturePreview }
   const [iframeError, setIframeError] = useState<string | null>(null)
   const lastAutoFeedRef = useRef(0) // global cooldown for error auto-feed
   const consoleLogsRef = useRef(consoleLogs) // stable ref for message listener
+  const onFixErrorsRef = useRef(onFixErrors) // stable ref to avoid stale closure in setTimeout
 
-  // Keep consoleLogsRef in sync without causing re-renders in message listener
+  // Keep refs in sync without causing re-renders in message listener
   useEffect(() => { consoleLogsRef.current = consoleLogs }, [consoleLogs])
+  useEffect(() => { onFixErrorsRef.current = onFixErrors }, [onFixErrors])
+
+  // Clear error autofeed state on project switch
+  useEffect(() => {
+    errorAutoFeedRef.current.clear()
+    lastAutoFeedRef.current = 0
+  }, [projectId])
 
   const addLog = useCallback((msg: string, level: ConsoleEntry['level'] = 'system', source: ConsoleEntry['source'] = 'forge') => {
     const ts = new Date().toLocaleTimeString('en-AU', { hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit' })
@@ -544,7 +552,7 @@ export function PreviewPanel({ files, projectId, onFixErrors, onCapturePreview }
       if (level === 'error') {
         setShowConsole(true)
         // Auto-feed error to AI (debounced, max 3 attempts per unique error)
-        if (onFixErrors) {
+        if (onFixErrorsRef.current) {
           const errorKey = normalizeError(message) // normalize for dedup
           const attempts = errorAutoFeedRef.current.get(errorKey) || 0
           if (attempts < 3) {
@@ -562,7 +570,7 @@ export function PreviewPanel({ files, projectId, onFixErrors, onCapturePreview }
               const allErrors = [...new Set([...recentErrors, message])]
               const errorText = allErrors.slice(-5).join('\n') // max 5 errors
               lastAutoFeedRef.current = Date.now()
-              onFixErrors(`[Auto-detected preview error — attempt ${attempts + 1}/3]\n\nThe preview has runtime errors. Please fix them:\n\n\`\`\`\n${errorText}\n\`\`\``)
+              onFixErrorsRef.current?.(`[Auto-detected preview error — attempt ${attempts + 1}/3]\n\nThe preview has runtime errors. Please fix them:\n\n\`\`\`\n${errorText}\n\`\`\``)
             }, 2000)
           }
         }
@@ -570,7 +578,7 @@ export function PreviewPanel({ files, projectId, onFixErrors, onCapturePreview }
     }
     window.addEventListener('message', handler)
     return () => window.removeEventListener('message', handler)
-  }, [addLog, onFixErrors]) // consoleLogs accessed via consoleLogsRef to avoid re-registering listener
+  }, [addLog]) // onFixErrors + consoleLogs accessed via refs to avoid stale closures + listener churn
 
   // ─── Capture preview content (for AI tool + UI button) ────────
   const capturePreviewContent = useCallback(() => {

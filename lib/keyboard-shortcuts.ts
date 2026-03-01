@@ -1,4 +1,4 @@
-import { useEffect } from 'react'
+import { useEffect, useRef } from 'react'
 
 export interface KeyboardShortcut {
   key: string
@@ -10,10 +10,18 @@ export interface KeyboardShortcut {
   description: string
 }
 
+/**
+ * Register keyboard shortcuts. Uses a stable ref so the keydown listener
+ * is only attached once — callers can pass inline arrays without causing
+ * listener churn, and callbacks always see the latest closure values.
+ */
 export function useKeyboardShortcuts(shortcuts: KeyboardShortcut[]) {
+  const shortcutsRef = useRef(shortcuts)
+  shortcutsRef.current = shortcuts
+
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
-      for (const shortcut of shortcuts) {
+      for (const shortcut of shortcutsRef.current) {
         const keyMatches = event.key.toLowerCase() === shortcut.key.toLowerCase()
         const ctrlMatches = !!shortcut.ctrlKey === event.ctrlKey
         const metaMatches = !!shortcut.metaKey === event.metaKey
@@ -30,7 +38,7 @@ export function useKeyboardShortcuts(shortcuts: KeyboardShortcut[]) {
 
     document.addEventListener('keydown', handleKeyDown)
     return () => document.removeEventListener('keydown', handleKeyDown)
-  }, [shortcuts])
+  }, [])
 }
 
 export const COMMON_SHORTCUTS = {
