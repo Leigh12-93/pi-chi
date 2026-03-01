@@ -933,6 +933,11 @@ export async function POST(req: Request) {
 
   const streamData = new StreamData()
 
+  // Global timeout: abort the entire streamText operation after 5 minutes
+  // Prevents indefinitely hanging requests if the model or tool execution stalls.
+  const streamAbort = new AbortController()
+  const streamTimeout = setTimeout(() => streamAbort.abort('Stream timeout: 5 minutes exceeded'), 5 * 60 * 1000)
+
   const result = streamText({
     // Prompt caching: system prompt + tool definitions cached by Anthropic.
     // 90% input token discount on cached prefix for subsequent requests in same session.
@@ -940,6 +945,7 @@ export async function POST(req: Request) {
     system: SYSTEM_PROMPT + `\n\n---\nProject: "${projectName}"${projectId ? ` (id: ${projectId})` : ''}\nFile manifest:\n${manifestStr}`,
     messages,
     maxSteps: 50,
+    abortSignal: streamAbort.signal,
     tools: {
 
       // ─── Agentic Planning ──────────────────────────────────────
@@ -2925,6 +2931,7 @@ export function ${name}({ variant = 'default', size = 'default', className, chil
     },
 
     onFinish: async (event) => {
+      clearTimeout(streamTimeout)
       console.log(`[forge] ${event.usage?.totalTokens || 0} tokens, ${event.steps?.length || 0} steps`)
 
       // Stream real token usage to client

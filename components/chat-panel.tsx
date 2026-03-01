@@ -14,6 +14,7 @@ import {
   type LucideIcon,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { ErrorBoundary } from '@/components/error-boundary'
 
 // ═══════════════════════════════════════════════════════════════════
 // Tool display config
@@ -1098,6 +1099,7 @@ export function ChatPanel({ projectName, projectId, files, onFileChange, onFileD
   const isEmpty = messages.length === 0
 
   return (
+    <ErrorBoundary>
     <div className="h-full flex flex-col bg-forge-panel border-r border-forge-border">
       {/* Header */}
       <div className="flex items-center justify-between px-3 py-2 border-b border-forge-border shrink-0">
@@ -1291,5 +1293,6 @@ export function ChatPanel({ projectName, projectId, files, onFileChange, onFileD
         </div>
       </div>
     </div>
+    </ErrorBoundary>
   )
 }

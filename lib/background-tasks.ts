@@ -201,4 +201,33 @@ export class TaskStore {
   static getSignal(taskId: string): AbortSignal | undefined {
     return persistentControllers.get(taskId)?.signal
   }
+
+  /**
+   * Clean up stale persistent tasks — marks any "running" tasks older than
+   * maxAge as failed. Call periodically (e.g. on app boot or before listing tasks).
+   */
+  static async cleanupStale(
+    sbFetch: SupabaseFetch,
+    maxAgeMinutes: number = 10,
+  ): Promise<{ cleaned: number }> {
+    const cutoff = new Date(Date.now() - maxAgeMinutes * 60 * 1000).toISOString()
+    const result = await sbFetch(
+      `/forge_tasks?status=eq.running&created_at=lt.${cutoff}`,
+      {
+        method: 'PATCH',
+        body: JSON.stringify({
+          status: 'failed',
+          error: `Stale task: no completion after ${maxAgeMinutes} minutes`,
+        }),
+      },
+    )
+    // Also clean up any in-memory controllers that no longer have DB rows
+    for (const [id, controller] of persistentControllers) {
+      if (!controller.signal.aborted) {
+        controller.abort('Stale cleanup')
+      }
+      persistentControllers.delete(id)
+    }
+    return { cleaned: result.ok ? 1 : 0 }
+  }
 }
