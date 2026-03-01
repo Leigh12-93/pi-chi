@@ -582,6 +582,133 @@ function EnvVarInputCard({
 }
 
 // ═══════════════════════════════════════════════════════════════════
+// Collapsible tool group — groups consecutive completed tool chips
+// ═══════════════════════════════════════════════════════════════════
+
+// Tools that get special rendering and should NOT be grouped
+const SPECIAL_TOOLS = new Set([
+  'think', 'suggest_improvement', 'request_env_vars',
+  'deploy_to_vercel', 'check_task_status',
+])
+
+interface ToolGroup {
+  type: 'tool-group'
+  tools: Array<{ toolName: string; args: Record<string, unknown>; result: unknown; partIdx: number }>
+}
+
+/** Group consecutive completed standard tool invocations into collapsible groups */
+function groupToolInvocations(parts: Array<{ type: string; text?: string; toolInvocation?: ToolInvocation }>) {
+  type RenderItem =
+    | { type: 'part'; part: typeof parts[0]; partIdx: number }
+    | ToolGroup
+
+  const items: RenderItem[] = []
+  let currentGroup: ToolGroup['tools'] = []
+
+  const flushGroup = () => {
+    if (currentGroup.length >= 3) {
+      items.push({ type: 'tool-group', tools: [...currentGroup] })
+    } else {
+      // Not enough to group — render individually
+      for (const t of currentGroup) {
+        items.push({ type: 'part', part: { type: 'tool-invocation', toolInvocation: { toolName: t.toolName, args: t.args, result: t.result, state: 'result' } as any }, partIdx: t.partIdx })
+      }
+    }
+    currentGroup = []
+  }
+
+  for (let i = 0; i < parts.length; i++) {
+    const part = parts[i]
+    const inv = part.toolInvocation
+
+    // Check if this is a groupable tool: completed, no error, not special
+    const isGroupable = part.type === 'tool-invocation'
+      && inv
+      && inv.state === 'result'
+      && !SPECIAL_TOOLS.has(inv.toolName)
+      && !(inv.result && typeof inv.result === 'object' && 'error' in (inv.result as object))
+
+    if (isGroupable && inv) {
+      currentGroup.push({ toolName: inv.toolName, args: inv.args || {}, result: inv.result, partIdx: i })
+    } else {
+      flushGroup()
+      items.push({ type: 'part', part, partIdx: i })
+    }
+  }
+  flushGroup()
+
+  return items
+}
+
+function CollapsibleToolGroup({ tools }: { tools: ToolGroup['tools'] }) {
+  const [expanded, setExpanded] = useState(false)
+
+  // Build summary: "Wrote 3 files, edited 1, read 2"
+  const counts: Record<string, number> = {}
+  for (const t of tools) {
+    const verb = t.toolName === 'write_file' ? 'Wrote'
+      : t.toolName === 'read_file' ? 'Read'
+      : t.toolName === 'edit_file' ? 'Edited'
+      : t.toolName === 'delete_file' ? 'Deleted'
+      : t.toolName === 'create_project' ? 'Scaffolded'
+      : t.toolName === 'rename_file' ? 'Renamed'
+      : t.toolName === 'list_files' ? 'Listed'
+      : t.toolName === 'search_files' ? 'Searched'
+      : t.toolName === 'grep_files' ? 'Grepped'
+      : t.toolName === 'save_project' ? 'Saved'
+      : t.toolName.startsWith('github_') ? 'GitHub op'
+      : t.toolName.startsWith('db_') ? 'DB op'
+      : t.toolName.startsWith('forge_') ? 'Forge op'
+      : t.toolName.replace(/_/g, ' ')
+    counts[verb] = (counts[verb] || 0) + 1
+  }
+  const summaryParts = Object.entries(counts).map(([verb, count]) => {
+    const noun = verb === 'Wrote' || verb === 'Read' || verb === 'Edited' || verb === 'Deleted' || verb === 'Renamed' || verb === 'Listed'
+      ? (count === 1 ? 'file' : 'files')
+      : verb === 'Scaffolded' ? (count === 1 ? 'project' : 'projects')
+      : verb === 'Searched' || verb === 'Grepped' ? (count === 1 ? 'search' : 'searches')
+      : verb === 'Saved' ? (count === 1 ? 'project' : 'projects')
+      : ''
+    return `${verb} ${count}${noun ? ` ${noun}` : ''}`
+  })
+  const summaryText = summaryParts.join(', ')
+
+  return (
+    <div className="border border-forge-border rounded-lg overflow-hidden">
+      <button
+        onClick={() => setExpanded(!expanded)}
+        className="flex items-center gap-2 w-full px-2.5 py-1.5 text-[11px] text-forge-text-dim hover:bg-forge-surface/50 transition-colors"
+      >
+        <CheckCircle className="w-3 h-3 text-emerald-500 shrink-0" />
+        <span className="flex-1 text-left truncate">{summaryText}</span>
+        <span className="text-[10px] text-forge-text-dim/60">{tools.length} tools</span>
+        <ChevronDown className={cn('w-3 h-3 transition-transform', expanded && 'rotate-180')} />
+      </button>
+      {expanded && (
+        <div className="border-t border-forge-border space-y-1 p-1.5">
+          {tools.map((t) => {
+            const info = TOOL_LABELS[t.toolName] || { label: t.toolName.replace(/_/g, ' '), Icon: Terminal, color: 'gray' }
+            const summary = getToolSummary(t.toolName, t.args, t.result)
+            return (
+              <div
+                key={t.partIdx}
+                className="flex items-center gap-2 px-2 py-1 rounded text-[11px] bg-forge-surface/50"
+              >
+                <div className={cn('w-4 h-4 rounded flex items-center justify-center shrink-0', colorClasses[info.color] || colorClasses.gray)}>
+                  <info.Icon className="w-2.5 h-2.5" />
+                </div>
+                <span className="truncate flex-1 text-forge-text-dim">{summary}</span>
+                <CheckCircle className="w-2.5 h-2.5 text-emerald-500 shrink-0" />
+              </div>
+            )
+          })}
+        </div>
+      )}
+    </div>
+  )
+}
+
+// ═══════════════════════════════════════════════════════════════════
 // Memoized message component — prevents re-rendering completed
 // messages when new content streams in
 // ═══════════════════════════════════════════════════════════════════
@@ -663,11 +790,25 @@ const MessageItem = memo(function MessageItem({
               break
             }
           }
-          return parts.map((part, partIdx) => {
-            // Collapse ALL check_task_status polls into ONE — only render the last one
+
+          // Filter out collapsed check_task_status first
+          const filteredParts = parts.filter((part, idx) => {
             if (part.type === 'tool-invocation' && part.toolInvocation?.toolName === 'check_task_status') {
-              if (partIdx !== lastCheckIdx) return null
+              return idx === lastCheckIdx
             }
+            return true
+          })
+
+          // Group consecutive completed tool invocations
+          const grouped = groupToolInvocations(filteredParts)
+
+          return grouped.map((item, itemIdx) => {
+            // ── Collapsed tool group ──
+            if (item.type === 'tool-group') {
+              return <CollapsibleToolGroup key={`group-${itemIdx}`} tools={item.tools} />
+            }
+
+            const { part, partIdx } = item
             if (part.type === 'text' && part.text) {
               return (
                 <div key={partIdx} className="relative group">
@@ -974,9 +1115,10 @@ interface ChatPanelProps {
   onRegisterSend?: (sendFn: (message: string) => void) => void
   pendingMessage?: string | null
   onPendingMessageSent?: () => void
+  activeFile?: string | null
 }
 
-export function ChatPanel({ projectName, projectId, files, onFileChange, onFileDelete, onBulkFileUpdate, githubToken, onRegisterSend, pendingMessage, onPendingMessageSent }: ChatPanelProps) {
+export function ChatPanel({ projectName, projectId, files, onFileChange, onFileDelete, onBulkFileUpdate, githubToken, onRegisterSend, pendingMessage, onPendingMessageSent, activeFile }: ChatPanelProps) {
   const [selectedModel, setSelectedModel] = useState<string>(MODEL_OPTIONS[0].id)
   const [showModelPicker, setShowModelPicker] = useState(false)
   const [envVars, setEnvVars] = useState<Record<string, string>>({})
@@ -991,7 +1133,13 @@ export function ChatPanel({ projectName, projectId, files, onFileChange, onFileD
     data,
   } = useChat({
     api: '/api/chat',
-    body: { projectName, projectId, files, model: selectedModel, envVars },
+    body: {
+      projectName, projectId, files, model: selectedModel, envVars,
+      activeFile: activeFile || undefined,
+      activeFileContent: activeFile && files[activeFile]
+        ? files[activeFile].split('\n').slice(0, 500).join('\n')
+        : undefined,
+    },
     onError: (err) => console.error('Chat error:', err),
   })
 
@@ -1010,6 +1158,16 @@ export function ChatPanel({ projectName, projectId, files, onFileChange, onFileD
   useEffect(() => {
     localFiles.current = { ...files }
   }, [files])
+
+  // Escape to stop generation
+  useEffect(() => {
+    if (!isLoading) return
+    const handler = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') { e.preventDefault(); stop() }
+    }
+    window.addEventListener('keydown', handler)
+    return () => window.removeEventListener('keydown', handler)
+  }, [isLoading, stop])
 
   // Auto-scroll
   useEffect(() => {
@@ -1407,7 +1565,7 @@ export function ChatPanel({ projectName, projectId, files, onFileChange, onFileD
         </div>
         <div className="flex items-center justify-between mt-1.5 px-1 hidden sm:flex">
           <span className="text-[10px] text-forge-text-dim/60">
-            Enter to send &middot; Shift+Enter for new line
+            Enter to send &middot; Shift+Enter for new line{isLoading ? ' · Esc to stop' : ''}
           </span>
           {(realTokens || estimatedTokens) > 0 && (
             <span className="text-[10px] text-forge-text-dim/60" title={realTokens ? 'Actual API token usage' : 'Estimated token usage'}>

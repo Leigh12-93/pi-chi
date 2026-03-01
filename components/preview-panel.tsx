@@ -98,6 +98,8 @@ export function PreviewPanel({ files, projectId, onFixErrors }: PreviewPanelProp
   const consoleEndRef = useRef<HTMLDivElement | null>(null) // auto-scroll console
   const [iframeLoading, setIframeLoading] = useState(false) // iframe load indicator
   const sandboxUrlRef = useRef<string | null>(null) // stable ref for sync effect
+  const errorAutoFeedRef = useRef<Map<string, number>>(new Map()) // error → attempt count (cap at 3)
+  const errorFeedTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   const addLog = useCallback((msg: string, level: ConsoleEntry['level'] = 'system', source: ConsoleEntry['source'] = 'forge') => {
     const ts = new Date().toLocaleTimeString('en-AU', { hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit' })
@@ -469,11 +471,51 @@ export function PreviewPanel({ files, projectId, onFixErrors }: PreviewPanelProp
       if (!message) return
       addLog(message, level, 'preview')
       // Auto-open console on errors
-      if (level === 'error') setShowConsole(true)
+      if (level === 'error') {
+        setShowConsole(true)
+        // Auto-feed error to AI (debounced, max 3 attempts per unique error)
+        if (onFixErrors) {
+          const errorKey = message.slice(0, 200) // normalize for dedup
+          const attempts = errorAutoFeedRef.current.get(errorKey) || 0
+          if (attempts < 3) {
+            errorAutoFeedRef.current.set(errorKey, attempts + 1)
+            // Debounce: wait 2s to batch multiple errors from same render
+            if (errorFeedTimerRef.current) clearTimeout(errorFeedTimerRef.current)
+            errorFeedTimerRef.current = setTimeout(() => {
+              // Collect all recent unfed errors
+              const recentErrors = consoleLogs
+                .filter(e => e.level === 'error')
+                .map(e => e.message)
+              // Include the current error too (it may not be in consoleLogs yet due to batched state)
+              const allErrors = [...new Set([...recentErrors, message])]
+              const errorText = allErrors.slice(-5).join('\n') // max 5 errors
+              onFixErrors(`[Auto-detected preview error — attempt ${attempts + 1}/3]\n\nThe preview has runtime errors. Please fix them:\n\n\`\`\`\n${errorText}\n\`\`\``)
+            }, 2000)
+          }
+        }
+      }
     }
     window.addEventListener('message', handler)
     return () => window.removeEventListener('message', handler)
-  }, [addLog])
+  }, [addLog, onFixErrors, consoleLogs])
+
+  // Reset auto-feed attempts when files change (user or AI made fixes)
+  const prevFileHashRef = useRef<string>('')
+  useEffect(() => {
+    const h = hashFileMap(files)
+    if (prevFileHashRef.current && h !== prevFileHashRef.current) {
+      // Files changed — give the new code a chance, but don't fully reset
+      // (the 3-attempt cap per error message still applies)
+    }
+    prevFileHashRef.current = h
+  }, [files])
+
+  // Cleanup timer on unmount
+  useEffect(() => {
+    return () => {
+      if (errorFeedTimerRef.current) clearTimeout(errorFeedTimerRef.current)
+    }
+  }, [])
 
   // Escape exits fullscreen
   useEffect(() => {

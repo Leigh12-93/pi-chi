@@ -1,0 +1,329 @@
+import { tool } from 'ai'
+import { z } from 'zod'
+import { GITHUB_TOKEN } from '@/lib/github'
+import { VERCEL_TOKEN, VERCEL_TEAM } from '@/lib/vercel'
+import type { ToolContext } from './types'
+
+export function createSelfModTools(ctx: ToolContext) {
+  return {
+    // ─── Self-Modification (SUPERPOWER) ─────────────────────────
+
+    forge_read_own_source: tool({
+      description: 'Read a file from Forge\'s own source code on GitHub (repo: Leigh12-93/forge). Use this to understand your own implementation before modifying it.',
+      parameters: z.object({
+        path: z.string().describe('File path in the Forge repo, e.g. "app/api/chat/route.ts" or "components/chat-panel.tsx"'),
+        branch: z.string().optional().describe('Branch (default: master)'),
+      }),
+      execute: async ({ path, branch }) => {
+        const token = GITHUB_TOKEN
+        if (!token) return { error: 'No GitHub token configured' }
+
+        const branchName = branch || 'master'
+        const result = await ctx.githubFetch(
+          `/repos/Leigh12-93/forge/contents/${path}?ref=${branchName}`,
+          token
+        )
+        if (result.error) return { error: result.error }
+
+        // GitHub returns base64-encoded content
+        const content = Buffer.from(result.content, 'base64').toString('utf-8')
+        return { path, content, size: content.length, lines: content.split('\n').length }
+      },
+    }),
+
+    forge_modify_own_source: tool({
+      description: 'Modify a file in Forge\'s own source code. This pushes a commit to the Forge repo on GitHub. Use with care — you are editing your own brain. ALWAYS use a feature branch, never master.',
+      parameters: z.object({
+        path: z.string().describe('File path to modify in Forge repo'),
+        content: z.string().describe('New file content (complete file)'),
+        message: z.string().describe('Commit message describing the change'),
+        branch: z.string().describe('Branch name (must NOT be "master" or "main" — use a feature branch)'),
+      }),
+      execute: async ({ path, content, message, branch }) => {
+        const token = GITHUB_TOKEN
+        if (!token) return { error: 'No GitHub token configured' }
+
+        const owner = 'Leigh12-93'
+        const repo = 'forge'
+        const branchName = branch || 'self-modify-' + Date.now()
+
+        // Security: hard-reject pushes to protected branches
+        const PROTECTED_BRANCHES = ['master', 'main', 'production']
+        if (PROTECTED_BRANCHES.includes(branchName.toLowerCase())) {
+          return { error: `Direct pushes to "${branchName}" are blocked. Use a feature branch (e.g. "feat/my-change"), then forge_create_pr to merge.` }
+        }
+
+        // Security: block direct pushes to master — must use a branch
+        if (branchName === 'master' || branchName === 'main') {
+          return { error: 'Direct pushes to master/main are blocked. Create a branch first with forge_create_branch, push to it, then create a PR with forge_create_pr.' }
+        }
+
+        // Get current file SHA (needed for update)
+        const existing = await ctx.githubFetch(`/repos/${owner}/${repo}/contents/${path}?ref=${branchName}`, token)
+
+        const body: Record<string, string> = {
+          message: `[self-modify] ${message}`,
+          content: Buffer.from(content).toString('base64'),
+          branch: branchName,
+        }
+        if (existing.sha) body.sha = existing.sha
+
+        const result = await ctx.githubFetch(`/repos/${owner}/${repo}/contents/${path}`, token, {
+          method: 'PUT',
+          body: JSON.stringify(body),
+        })
+
+        if (result.error) return { error: result.error }
+        return {
+          ok: true,
+          path,
+          commitSha: result.commit?.sha,
+          note: 'File updated on GitHub. Use forge_redeploy to deploy the change.',
+        }
+      },
+    }),
+
+    forge_redeploy: tool({
+      description: 'Trigger a redeployment of Forge itself on Vercel. Call this after using forge_modify_own_source to apply your changes.',
+      parameters: z.object({
+        reason: z.string().describe('Why are you redeploying? e.g. "Added new db_query tool"'),
+      }),
+      execute: async ({ reason }) => {
+        // Trigger Vercel deploy hook or use the Vercel API to redeploy
+        const token = VERCEL_TOKEN
+        if (!token) return { error: 'No Vercel deploy token configured' }
+
+        // Create a deployment from the latest Git commit
+        const teamParam = VERCEL_TEAM ? `?teamId=${VERCEL_TEAM}` : ''
+        const res = await fetch(`https://api.vercel.com/v13/deployments${teamParam}`, {
+          method: 'POST',
+          headers: {
+            Authorization: `Bearer ${token}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            name: 'forge',
+            gitSource: {
+              type: 'github',
+              org: 'Leigh12-93',
+              repo: 'forge',
+              ref: 'master',
+            },
+          }),
+        })
+
+        const data = await res.json()
+        if (!res.ok) return { error: data.error?.message || `Vercel API ${res.status}` }
+        return {
+          ok: true,
+          url: `https://${data.url}`,
+          deploymentId: data.id,
+          reason,
+          note: 'Forge is redeploying. Changes will be live in ~60 seconds.',
+        }
+      },
+    }),
+
+    forge_revert_commit: tool({
+      description: 'Revert the last commit on the Forge repo. Use this when a self-modification breaks the build.',
+      parameters: z.object({
+        reason: z.string().describe('Why are you reverting?'),
+      }),
+      execute: async ({ reason }) => {
+        const token = GITHUB_TOKEN
+        if (!token) return { error: 'No GitHub token configured' }
+
+        const owner = 'Leigh12-93'
+        const repo = 'forge'
+
+        // Get the latest 2 commits to find parent
+        const commits = await ctx.githubFetch(`/repos/${owner}/${repo}/commits?sha=master&per_page=2`, token)
+        if (!Array.isArray(commits) || commits.length < 2) return { error: 'Cannot revert — need at least 2 commits' }
+
+        const headSha = commits[0].sha
+        const parentSha = commits[1].sha
+        const headMessage = commits[0].commit.message
+
+        // Get the parent tree
+        const parentCommit = await ctx.githubFetch(`/repos/${owner}/${repo}/git/commits/${parentSha}`, token)
+        if (parentCommit.error) return { error: `Failed to get parent commit: ${parentCommit.error}` }
+
+        // Create a new commit that points to the parent's tree (effectively reverting)
+        const newCommit = await ctx.githubFetch(`/repos/${owner}/${repo}/git/commits`, token, {
+          method: 'POST',
+          body: JSON.stringify({
+            message: `[self-revert] Revert "${headMessage}"\n\nReason: ${reason}`,
+            tree: parentCommit.tree.sha,
+            parents: [headSha],
+          }),
+        })
+        if (newCommit.error) return { error: `Failed to create revert commit: ${newCommit.error}` }
+
+        // Update master to point to the revert commit
+        const update = await ctx.githubFetch(`/repos/${owner}/${repo}/git/refs/heads/master`, token, {
+          method: 'PATCH',
+          body: JSON.stringify({ sha: newCommit.sha }),
+        })
+        if (update.error) return { error: `Failed to update master: ${update.error}` }
+
+        return {
+          ok: true,
+          revertedCommit: headSha.slice(0, 7),
+          revertedMessage: headMessage,
+          newCommit: newCommit.sha.slice(0, 7),
+          reason,
+          note: 'Reverted successfully. Use forge_redeploy to deploy the revert.',
+        }
+      },
+    }),
+
+    forge_create_branch: tool({
+      description: 'Create a new branch on the Forge repo for safe development. Use this instead of pushing directly to master.',
+      parameters: z.object({
+        branch: z.string().describe('Branch name, e.g. "feat/add-testing-tools"'),
+        fromBranch: z.string().default('master').describe('Base branch to create from'),
+      }),
+      execute: async ({ branch, fromBranch }) => {
+        const token = GITHUB_TOKEN
+        if (!token) return { error: 'No GitHub token configured' }
+
+        const owner = 'Leigh12-93'
+        const repo = 'forge'
+
+        // Get SHA of the base branch
+        const ref = await ctx.githubFetch(`/repos/${owner}/${repo}/git/ref/heads/${fromBranch}`, token)
+        if (ref.error) return { error: `Failed to read ${fromBranch}: ${ref.error}` }
+
+        // Create new branch
+        const result = await ctx.githubFetch(`/repos/${owner}/${repo}/git/refs`, token, {
+          method: 'POST',
+          body: JSON.stringify({
+            ref: `refs/heads/${branch}`,
+            sha: ref.object.sha,
+          }),
+        })
+        if (result.error) return { error: `Failed to create branch: ${result.error}` }
+
+        return {
+          ok: true,
+          branch,
+          basedOn: fromBranch,
+          sha: ref.object.sha.slice(0, 7),
+          note: `Branch "${branch}" created. Use forge_modify_own_source with branch="${branch}" to push changes there instead of master.`,
+        }
+      },
+    }),
+
+    forge_create_pr: tool({
+      description: 'Create a pull request on the Forge repo. Use after pushing changes to a feature branch.',
+      parameters: z.object({
+        title: z.string().describe('PR title'),
+        body: z.string().describe('PR description'),
+        head: z.string().describe('Source branch with changes'),
+        base: z.string().default('master').describe('Target branch'),
+      }),
+      execute: async ({ title, body, head, base }) => {
+        const token = GITHUB_TOKEN
+        if (!token) return { error: 'No GitHub token configured' }
+
+        const result = await ctx.githubFetch('/repos/Leigh12-93/forge/pulls', token, {
+          method: 'POST',
+          body: JSON.stringify({ title, body, head, base }),
+        })
+        if (result.error) return { error: `Failed to create PR: ${result.error}` }
+
+        return {
+          ok: true,
+          number: result.number,
+          url: result.html_url,
+          title,
+          head,
+          base,
+        }
+      },
+    }),
+
+    forge_merge_pr: tool({
+      description: 'Merge a pull request on the Forge repo. Only merge after verifying the preview deploy succeeded.',
+      parameters: z.object({
+        prNumber: z.number().describe('PR number to merge'),
+        method: z.enum(['merge', 'squash', 'rebase']).default('squash').describe('Merge method'),
+      }),
+      execute: async ({ prNumber, method }) => {
+        const token = GITHUB_TOKEN
+        if (!token) return { error: 'No GitHub token configured' }
+
+        const result = await ctx.githubFetch(`/repos/Leigh12-93/forge/pulls/${prNumber}/merge`, token, {
+          method: 'PUT',
+          body: JSON.stringify({ merge_method: method }),
+        })
+        if (result.error) return { error: `Failed to merge PR: ${result.error}` }
+
+        return {
+          ok: true,
+          merged: true,
+          sha: result.sha?.slice(0, 7),
+          note: 'PR merged to master. Vercel will auto-deploy. Use forge_deployment_status to monitor.',
+        }
+      },
+    }),
+
+    forge_check_npm_package: tool({
+      description: 'Check if an npm package exists and get its latest version. ALWAYS call this before adding a new dependency to package.json.',
+      parameters: z.object({
+        name: z.string().describe('npm package name, e.g. "@modelcontextprotocol/sdk"'),
+      }),
+      execute: async ({ name }) => {
+        try {
+          const res = await fetch(`https://registry.npmjs.org/${encodeURIComponent(name)}`, {
+            headers: { Accept: 'application/json' },
+          })
+          if (res.status === 404) return { exists: false, name, error: `Package "${name}" does NOT exist on npm. Do not add it to package.json.` }
+          if (!res.ok) return { error: `npm registry returned ${res.status}` }
+          const data = await res.json()
+          const latest = data['dist-tags']?.latest
+          const description = data.description || ''
+          const deps = Object.keys(data.versions?.[latest]?.dependencies || {}).length
+          return { exists: true, name, latest, description, dependencyCount: deps }
+        } catch (err) {
+          return { error: err instanceof Error ? err.message : 'Failed to check npm' }
+        }
+      },
+    }),
+
+    forge_list_branches: tool({
+      description: 'List all branches on the Forge repo. Useful to see what feature branches exist.',
+      parameters: z.object({}),
+      execute: async () => {
+        const token = GITHUB_TOKEN
+        if (!token) return { error: 'No GitHub token configured' }
+        const result = await ctx.githubFetch('/repos/Leigh12-93/forge/branches?per_page=30', token)
+        if (!Array.isArray(result)) return { error: result.error || 'Failed to list branches' }
+        return {
+          branches: result.map((b: any) => ({
+            name: b.name,
+            sha: b.commit.sha.slice(0, 7),
+            protected: b.protected,
+          })),
+        }
+      },
+    }),
+
+    forge_delete_branch: tool({
+      description: 'Delete a branch on the Forge repo after it has been merged.',
+      parameters: z.object({
+        branch: z.string().describe('Branch name to delete (cannot be master)'),
+      }),
+      execute: async ({ branch }) => {
+        if (branch === 'master' || branch === 'main') return { error: 'Cannot delete master/main branch' }
+        const token = GITHUB_TOKEN
+        if (!token) return { error: 'No GitHub token configured' }
+        const result = await ctx.githubFetch(`/repos/Leigh12-93/forge/git/refs/heads/${branch}`, token, {
+          method: 'DELETE',
+        })
+        if (result.error) return { error: `Failed to delete branch: ${result.error}` }
+        return { ok: true, deleted: branch }
+      },
+    }),
+  }
+}

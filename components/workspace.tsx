@@ -450,6 +450,7 @@ export function Workspace({
       onRegisterSend={handleRegisterSend}
       pendingMessage={pendingChatMessage}
       onPendingMessageSent={() => setPendingChatMessage(null)}
+      activeFile={activeFile}
     />
   )
 
