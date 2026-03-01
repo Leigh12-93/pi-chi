@@ -341,7 +341,7 @@ html.dark .code-block-wrapper:hover > div:first-child {
 .forge-building-scene {
   position: absolute;
   inset: 0;
-  background: #f8fafc;
+  background: var(--color-forge-bg, #f8fafc);
   overflow: hidden;
   z-index: 5;
   display: flex;
@@ -358,6 +358,10 @@ html.dark .code-block-wrapper:hover > div:first-child {
   background-size: 20px 20px;
 }
 
+:is(.dark) .forge-dots {
+  background-image: radial-gradient(circle, rgba(129,140,248,0.06) 1px, transparent 1px);
+}
+
 /* Ambient glow behind the browser frame */
 .forge-glow {
   position: absolute;
@@ -370,6 +374,10 @@ html.dark .code-block-wrapper:hover > div:first-child {
   background: radial-gradient(ellipse, rgba(99,102,241,0.1) 0%, rgba(139,92,246,0.05) 40%, transparent 70%);
   animation: glowPulse 4s ease-in-out infinite;
   filter: blur(20px);
+}
+
+:is(.dark) .forge-glow {
+  background: radial-gradient(ellipse, rgba(99,102,241,0.15) 0%, rgba(139,92,246,0.08) 40%, transparent 70%);
 }
 
 @keyframes glowPulse {
@@ -390,6 +398,12 @@ html.dark .code-block-wrapper:hover > div:first-child {
   opacity: 0;
 }
 
+:is(.dark) .forge-browser {
+  background: #1e1e2e;
+  border-color: #313244;
+  box-shadow: 0 4px 24px rgba(0,0,0,0.3), 0 1px 3px rgba(0,0,0,0.2);
+}
+
 @keyframes browserAppear {
   0% { opacity: 0; transform: translateY(20px) scale(0.95); }
   100% { opacity: 1; transform: translateY(0) scale(1); }
@@ -403,6 +417,11 @@ html.dark .code-block-wrapper:hover > div:first-child {
   padding: 8px 12px;
   background: #f8fafc;
   border-bottom: 1px solid #e2e8f0;
+}
+
+:is(.dark) .forge-browser-bar {
+  background: #181825;
+  border-bottom-color: #313244;
 }
 
 .forge-traffic-dot {
@@ -419,6 +438,10 @@ html.dark .code-block-wrapper:hover > div:first-child {
   background: #f1f5f9;
   position: relative;
   overflow: hidden;
+}
+
+:is(.dark) .forge-browser-url {
+  background: #313244;
 }
 
 .forge-browser-url::after {
@@ -468,6 +491,8 @@ html.dark .code-block-wrapper:hover > div:first-child {
   border-bottom: 1px solid #f1f5f9;
 }
 
+:is(.dark) .forge-navbar { border-bottom-color: #313244; }
+
 .forge-nav-logo {
   width: 50px;
   height: 10px;
@@ -488,6 +513,8 @@ html.dark .code-block-wrapper:hover > div:first-child {
   background: #e2e8f0;
 }
 
+:is(.dark) .forge-nav-link { background: #45475a; }
+
 /* Hero section skeleton */
 .forge-hero {
   padding: 16px 12px 12px;
@@ -503,6 +530,8 @@ html.dark .code-block-wrapper:hover > div:first-child {
   margin: 0 auto 8px;
 }
 
+:is(.dark) .forge-hero-title { background: #cdd6f4; opacity: 0.15; }
+
 .forge-hero-sub {
   width: 80%;
   height: 6px;
@@ -511,6 +540,8 @@ html.dark .code-block-wrapper:hover > div:first-child {
   opacity: 0.3;
   margin: 0 auto 6px;
 }
+
+:is(.dark) .forge-hero-sub { background: #585b70; opacity: 0.4; }
 
 .forge-hero-btn {
   display: inline-block;
@@ -545,6 +576,8 @@ html.dark .code-block-wrapper:hover > div:first-child {
   animation: cardSlide 0.4s var(--delay, 0s) cubic-bezier(0.16, 1, 0.3, 1) forwards;
 }
 
+:is(.dark) .forge-card { border-color: #313244; background: #1e1e2e; }
+
 @keyframes cardSlide {
   0% { opacity: 0; transform: translateY(8px) scale(0.95); }
   100% { opacity: 1; transform: translateY(0) scale(1); }
@@ -557,12 +590,16 @@ html.dark .code-block-wrapper:hover > div:first-child {
   margin-bottom: 6px;
 }
 
+:is(.dark) .forge-card-icon { opacity: 0.3; }
+
 .forge-card-line {
   height: 4px;
   border-radius: 2px;
   background: #e2e8f0;
   margin-bottom: 4px;
 }
+
+:is(.dark) .forge-card-line { background: #45475a; }
 
 /* Typing cursor that moves across the page */
 .forge-cursor {
@@ -599,6 +636,8 @@ html.dark .code-block-wrapper:hover > div:first-child {
   height: 3px;
   background: rgba(99,102,241,0.06);
 }
+
+:is(.dark) .forge-progress-track { background: rgba(99,102,241,0.12); }
 
 .forge-progress-bar {
   height: 100%;
@@ -647,4 +686,66 @@ html.dark .code-block-wrapper:hover > div:first-child {
 @keyframes dotBounce {
   0%, 80%, 100% { transform: scale(0.6); opacity: 0.4; }
   40% { transform: scale(1.2); opacity: 1; }
+}
+
+/* ─── Phased Build Stepper ──────────────────────────────────── */
+.forge-build-phase {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  opacity: 0;
+  animation: fadeIn 0.3s ease-out forwards;
+}
+
+.forge-phase-step {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 10px;
+  font-weight: 500;
+  color: var(--color-forge-text-dim);
+  transition: color 0.3s, opacity 0.3s;
+  opacity: 0.4;
+}
+
+.forge-phase-step.active {
+  color: var(--color-forge-accent);
+  opacity: 1;
+}
+
+.forge-phase-step.done {
+  color: #10b981;
+  opacity: 0.7;
+}
+
+.forge-phase-connector {
+  width: 12px;
+  height: 1px;
+  background: var(--color-forge-border);
+  transition: background 0.3s;
+}
+
+.forge-phase-connector.done {
+  background: #10b981;
+}
+
+/* Crossfade from building scene to live preview */
+.forge-ready-crossfade {
+  animation: readyCrossfade 0.5s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+@keyframes readyCrossfade {
+  0% { opacity: 1; }
+  100% { opacity: 0; pointer-events: none; }
+}
+
+/* Ready check animation */
+@keyframes readyCheck {
+  0% { transform: scale(0.5); opacity: 0; }
+  50% { transform: scale(1.2); }
+  100% { transform: scale(1); opacity: 1; }
+}
+
+.forge-ready-check {
+  animation: readyCheck 0.4s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
 }

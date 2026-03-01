@@ -27,12 +27,24 @@ type ViewMode = 'desktop' | 'tablet' | 'mobile'
 
 type SandboxStatus = 'idle' | 'initializing' | 'running' | 'error'
 
+type BuildPhase = 'analyzing' | 'uploading' | 'building' | 'starting' | 'ready' | null
+
 const STATUS_LABELS: Record<SandboxStatus, string> = {
   idle: '',
   initializing: 'Creating preview...',
   running: 'Live',
   error: 'Error',
 }
+
+const PHASE_LABELS: Record<Exclude<BuildPhase, null>, string> = {
+  analyzing: 'Analyzing project',
+  uploading: 'Uploading files',
+  building: 'Building preview',
+  starting: 'Starting dev server',
+  ready: 'Ready!',
+}
+
+const PHASE_ORDER: Exclude<BuildPhase, null>[] = ['analyzing', 'uploading', 'building', 'starting', 'ready']
 
 /** Script injected into static preview iframes to capture console output and runtime errors */
 const PREVIEW_ERROR_SCRIPT = `<script>
@@ -119,6 +131,45 @@ function BuildingPlaceholder({ files }: { files: Record<string, string> }) {
   )
 }
 
+/** Phase step indicator - shows a check for done, spinner for active, dot for pending */
+function PhaseStepIcon({ state }: { state: 'done' | 'active' | 'pending' }) {
+  if (state === 'done') {
+    return (
+      <svg className="w-3 h-3 text-emerald-500 forge-ready-check" viewBox="0 0 16 16" fill="none">
+        <circle cx="8" cy="8" r="7" stroke="currentColor" strokeWidth="1.5" fill="currentColor" fillOpacity="0.1" />
+        <path d="M5 8l2 2 4-4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+      </svg>
+    )
+  }
+  if (state === 'active') {
+    return <Loader2 className="w-3 h-3 text-forge-accent animate-spin" />
+  }
+  return <div className="w-2 h-2 rounded-full bg-forge-border" />
+}
+
+/** Phased build lifecycle stepper rendered below the building browser */
+function BuildPhaseIndicator({ phase }: { phase: BuildPhase }) {
+  if (!phase) return null
+  const currentIdx = PHASE_ORDER.indexOf(phase as Exclude<BuildPhase, null>)
+
+  return (
+    <div className="forge-build-phase">
+      {PHASE_ORDER.filter(p => p !== 'ready').map((p, i) => {
+        const state = i < currentIdx ? 'done' : i === currentIdx ? 'active' : 'pending'
+        return (
+          <div key={p} className="flex items-center gap-1.5">
+            {i > 0 && <div className={cn('forge-phase-connector', state === 'done' && 'done')} />}
+            <div className={cn('forge-phase-step', state === 'active' && 'active', state === 'done' && 'done')}>
+              <PhaseStepIcon state={state} />
+              <span className="hidden sm:inline">{PHASE_LABELS[p]}</span>
+            </div>
+          </div>
+        )
+      })}
+    </div>
+  )
+}
+
 /** Normalize error messages for dedup — strip line numbers, stack frames, collapse whitespace */
 function normalizeError(msg: string): string {
   return msg
@@ -154,6 +205,9 @@ export function PreviewPanel({ files, projectId, onFixErrors, onCapturePreview }
   const retryTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null) // clear retry on unmount
   const consoleEndRef = useRef<HTMLDivElement | null>(null) // auto-scroll console
   const [iframeLoading, setIframeLoading] = useState(false) // iframe load indicator
+  const [buildPhase, setBuildPhase] = useState<BuildPhase>(null) // phased lifecycle
+  const [isCrossfading, setIsCrossfading] = useState(false) // transition from building to live
+  const crossfadeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null) // cleanup crossfade
   const sandboxUrlRef = useRef<string | null>(null) // stable ref for sync effect
   const errorAutoFeedRef = useRef<Map<string, number>>(new Map()) // error → attempt count (cap at 3)
   const errorFeedTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -362,8 +416,12 @@ export function PreviewPanel({ files, projectId, onFixErrors, onCapturePreview }
     setSandboxStatus('initializing')
     setSandboxError(null)
     setSandboxUrl(null)
+    setBuildPhase('analyzing')
 
     const fileCount = Object.keys(files).length
+
+    // Phase: analyzing -> uploading (after brief analysis pause)
+    setTimeout(() => setBuildPhase('uploading'), 600)
     addLog(`Uploading ${fileCount} files...`, 'info', 'sandbox')
 
     try {
@@ -380,6 +438,7 @@ export function PreviewPanel({ files, projectId, onFixErrors, onCapturePreview }
 
       if (!res.ok || !data.ok) {
         setSandboxStatus('error')
+        setBuildPhase(null)
         setSandboxError(data.error || `Failed to create sandbox (HTTP ${res.status})`)
 
         // Auto-retry on transient errors (429, 500, 502, 503) up to 2 times
@@ -399,8 +458,14 @@ export function PreviewPanel({ files, projectId, onFixErrors, onCapturePreview }
       }
 
       retryCountRef.current = 0 // reset on success
+      setBuildPhase('building')
       setSandboxUrl(data.demoUrl)
       sandboxUrlRef.current = data.demoUrl
+      setIframeLoading(true) // will be cleared by iframe onLoad
+
+      // Phase: building -> starting (after brief build period)
+      setTimeout(() => setBuildPhase('starting'), 800)
+
       setSandboxStatus('running')
       lastSyncedFilesRef.current = hashFileMapDeep(files)
 
@@ -412,6 +477,7 @@ export function PreviewPanel({ files, projectId, onFixErrors, onCapturePreview }
     } catch (error) {
       if (controller.signal.aborted) return
       setSandboxStatus('error')
+      setBuildPhase(null)
       setSandboxError(error instanceof Error ? error.message : 'Network error')
     } finally {
       if (!controller.signal.aborted) {
@@ -438,6 +504,8 @@ export function PreviewPanel({ files, projectId, onFixErrors, onCapturePreview }
     setSandboxUrl(null)
     setSandboxError(null)
     setIsSyncing(false)
+    setBuildPhase(null)
+    setIsCrossfading(false)
     hasAutoStartedRef.current = false // allow re-auto-start on next file change
     sandboxAvailableRef.current = null // re-check availability on next attempt
     retryCountRef.current = 0
@@ -529,6 +597,7 @@ export function PreviewPanel({ files, projectId, onFixErrors, onCapturePreview }
       if (autoStartTimeoutRef.current) clearTimeout(autoStartTimeoutRef.current)
       if (retryTimerRef.current) clearTimeout(retryTimerRef.current)
       if (previewDebounceRef.current) clearTimeout(previewDebounceRef.current)
+      if (crossfadeTimerRef.current) clearTimeout(crossfadeTimerRef.current)
       if (projectId && (sandboxStatus === 'running' || startingRef.current)) {
         fetch('/api/sandbox', {
           method: 'DELETE',
@@ -700,11 +769,11 @@ export function PreviewPanel({ files, projectId, onFixErrors, onCapturePreview }
   const isSandboxOffline = !isSandboxActive && !isSandboxLoading && !!cachedSandboxUrl
   const showCachedPreview = isSandboxOffline && sandboxStatus !== 'error'
 
-  // Display URL for the URL bar
+  // Display URL for the URL bar — shows phase label during build
   const displayUrl = isSandboxActive
     ? sandboxUrl
     : isSandboxLoading
-      ? STATUS_LABELS[sandboxStatus]
+      ? (buildPhase ? PHASE_LABELS[buildPhase] : STATUS_LABELS[sandboxStatus])
       : showCachedPreview
         ? cachedSandboxUrl
         : 'Preview'
@@ -959,9 +1028,10 @@ export function PreviewPanel({ files, projectId, onFixErrors, onCapturePreview }
             </div>
           )}
 
-          {/* Building animation — shows a miniature page being painted */}
-          {isSandboxLoading && (
-            <div className="forge-building-scene animate-fade-in">
+          {/* Building animation — shows a miniature page being painted with phase stepper */}
+          {/* Visible during: initializing, any active build phase, or crossfade-out to live */}
+          {(isSandboxLoading || !!buildPhase || isCrossfading) && (
+            <div className={cn('forge-building-scene animate-fade-in', isCrossfading && 'forge-ready-crossfade')}>
               <div className="forge-dots" />
               <div className="forge-glow" />
 
@@ -1016,23 +1086,40 @@ export function PreviewPanel({ files, projectId, onFixErrors, onCapturePreview }
 
                 {/* Typing cursor */}
                 <div className="forge-cursor" />
+
+                {/* Ready overlay — flashes green check when phase is ready */}
+                {buildPhase === 'ready' && (
+                  <div className="absolute inset-0 z-10 flex items-center justify-center bg-forge-bg/60 backdrop-blur-sm">
+                    <div className="flex flex-col items-center gap-2 forge-ready-check">
+                      <svg className="w-10 h-10 text-emerald-500" viewBox="0 0 40 40" fill="none">
+                        <circle cx="20" cy="20" r="18" stroke="currentColor" strokeWidth="2" fill="currentColor" fillOpacity="0.1" />
+                        <path d="M12 20l6 6 10-10" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />
+                      </svg>
+                      <span className="text-xs font-medium text-emerald-600 dark:text-emerald-400">Ready!</span>
+                    </div>
+                  </div>
+                )}
               </div>
 
-              {/* Status below browser */}
+              {/* Status below browser — phase stepper + label */}
               <div className="forge-build-status">
-                <div className="forge-build-dots">
-                  <span />
-                  <span />
-                  <span />
-                </div>
-                <span className="text-xs font-medium text-indigo-500/70 tracking-wide">
-                  Building your preview
+                {buildPhase !== 'ready' && (
+                  <div className="forge-build-dots">
+                    <span />
+                    <span />
+                    <span />
+                  </div>
+                )}
+                <span className="text-xs font-medium text-forge-accent/70 tracking-wide">
+                  {buildPhase ? PHASE_LABELS[buildPhase] : 'Building your preview'}
                 </span>
-                {Object.keys(files).length > 0 && (
-                  <span className="text-[10px] text-indigo-400/50">
+                {Object.keys(files).length > 0 && buildPhase !== 'ready' && (
+                  <span className="text-[10px] text-forge-text-dim/40">
                     {Object.keys(files).length} files
                   </span>
                 )}
+                {/* Phase stepper */}
+                <BuildPhaseIndicator phase={buildPhase} />
               </div>
 
               {/* Progress track */}
@@ -1045,10 +1132,12 @@ export function PreviewPanel({ files, projectId, onFixErrors, onCapturePreview }
           {/* Auto-starting status — shown briefly while sandbox initializes automatically */}
           {sandboxStatus === 'idle' && !showCachedPreview && isProjectReady(files) && (
             <div className="absolute inset-0 z-10 flex items-center justify-center">
-              <div className="flex flex-col items-center gap-2 animate-fade-in">
-                <Loader2 className="w-5 h-5 text-forge-accent animate-spin" />
-                <span className="text-xs text-forge-text-dim font-medium">
-                  Starting preview...
+              <div className="flex flex-col items-center gap-3 animate-fade-in">
+                <div className="w-12 h-12 rounded-xl bg-forge-surface border border-forge-border flex items-center justify-center">
+                  <Zap className="w-5 h-5 text-forge-accent animate-pulse" />
+                </div>
+                <span className="text-xs text-forge-text font-medium">
+                  Preparing preview
                 </span>
                 <span className="text-[10px] text-forge-text-dim/60">
                   {Object.keys(files).length} files detected
@@ -1116,7 +1205,18 @@ export function PreviewPanel({ files, projectId, onFixErrors, onCapturePreview }
                 className="w-full h-full border-0 absolute inset-0"
                 title="Live Preview"
                 allow="cross-origin-isolated"
-                onLoad={() => setIframeLoading(false)}
+                onLoad={() => {
+                  setIframeLoading(false)
+                  // Trigger ready phase + crossfade
+                  if (buildPhase && buildPhase !== 'ready') {
+                    setBuildPhase('ready')
+                    setIsCrossfading(true)
+                    crossfadeTimerRef.current = setTimeout(() => {
+                      setIsCrossfading(false)
+                      setBuildPhase(null)
+                    }, 600) // matches CSS crossfade duration
+                  }
+                }}
                 onError={() => setIframeError('Preview failed to load')}
               />
             </>
