@@ -1,5 +1,11 @@
-import { streamText, convertToCoreMessages, StreamData } from 'ai'
-import { anthropic } from '@ai-sdk/anthropic'
+import {
+  streamText,
+  convertToModelMessages,
+  createUIMessageStream,
+  createUIMessageStreamResponse,
+  stepCountIs,
+  UIMessage,
+} from 'ai'
 import { chatLimiter } from '@/lib/rate-limit'
 import { TaskStore } from '@/lib/background-tasks'
 import { getSession } from '@/lib/auth'
@@ -58,36 +64,45 @@ function getEditFailCounts(projectId: string | null): Map<string, number> {
 // ═══════════════════════════════════════════════════════════════════
 function classifyModelComplexity(messages: any[], fileCount: number): { model: string; reason: string } {
   const lastMsg = messages.findLast((m: any) => m.role === 'user')
-  const text = typeof lastMsg?.content === 'string' ? lastMsg.content : ''
+  // Extract text from UIMessage parts or legacy content string
+  let text = ''
+  if (lastMsg) {
+    if (typeof lastMsg.content === 'string') {
+      text = lastMsg.content
+    } else if (Array.isArray(lastMsg.parts)) {
+      text = lastMsg.parts
+        .filter((p: any) => p.type === 'text')
+        .map((p: any) => p.text || '')
+        .join(' ')
+    }
+  }
   const lower = text.toLowerCase()
   const wordCount = text.split(/\s+/).length
 
   // Opus indicators: complex architecture, multi-file refactors, system design
   const opusKeywords = ['architect', 'refactor', 'redesign', 'migrate', 'optimize performance', 'system design', 'rewrite entire', 'full rewrite']
   if (opusKeywords.some(k => lower.includes(k)) || (wordCount > 200 && fileCount > 10)) {
-    return { model: 'claude-opus-4-20250514', reason: 'Complex task detected — using Opus for best reasoning' }
+    return { model: 'anthropic/claude-opus-4-20250514', reason: 'Complex task detected — using Opus for best reasoning' }
   }
 
   // Haiku indicators: simple edits, quick fixes, small changes
   const haikuKeywords = ['fix typo', 'rename', 'change color', 'change text', 'update title', 'small change', 'quick fix', 'add comment']
   if (haikuKeywords.some(k => lower.includes(k)) || (wordCount < 20 && fileCount <= 3)) {
-    return { model: 'claude-haiku-35-20241022', reason: 'Simple task — using Haiku for speed' }
+    return { model: 'anthropic/claude-haiku-35-20241022', reason: 'Simple task — using Haiku for speed' }
   }
 
   // Default: Sonnet for balanced performance
-  return { model: 'claude-sonnet-4-20250514', reason: 'Standard task — using Sonnet' }
+  return { model: 'anthropic/claude-sonnet-4-20250514', reason: 'Standard task — using Sonnet' }
 }
 
 // ═══════════════════════════════════════════════════════════════════
-// POST handler
+// POST handler — AI SDK v6 with Vercel AI Gateway
 // ═══════════════════════════════════════════════════════════════════
 
 export async function POST(req: Request) {
   const requestId = crypto.randomUUID()
 
   // Rate limit — 20 requests/minute per IP
-  // NOTE: x-forwarded-for is trusted here because this runs on Vercel which sets it reliably.
-  // If self-hosting behind a different proxy, configure trusted proxy headers accordingly.
   const ip = req.headers.get('x-forwarded-for')?.split(',')[0]?.trim()
     || req.headers.get('x-real-ip')?.trim()
     || req.headers.get('x-vercel-forwarded-for')?.split(',')[0]?.trim()
@@ -110,7 +125,7 @@ export async function POST(req: Request) {
   }
   activeStreams.set(ip, currentStreams + 1)
 
-  // Auth check — prevent unauthenticated access to the AI endpoint
+  // Auth check
   const session = await getSession()
   if (!session?.user) {
     return new Response(JSON.stringify({ error: 'Authentication required. Please sign in with GitHub.' }), {
@@ -119,7 +134,7 @@ export async function POST(req: Request) {
     })
   }
 
-  // Request body size guard: reject payloads over 8MB to prevent abuse
+  // Request body size guard
   const contentLength = parseInt(req.headers.get('content-length') || '0', 10)
   if (contentLength > 8 * 1024 * 1024) {
     return new Response(JSON.stringify({ error: 'Request too large. Maximum body size is 8MB.' }), {
@@ -139,7 +154,19 @@ export async function POST(req: Request) {
   }
   const projectName = body.projectName || 'untitled'
   const projectId = body.projectId || null
-  const ALLOWED_MODELS = ['claude-sonnet-4-20250514', 'claude-haiku-35-20241022', 'claude-opus-4-20250514']
+
+  // AI Gateway model IDs use provider/model format
+  const ALLOWED_MODELS = [
+    'anthropic/claude-sonnet-4-20250514',
+    'anthropic/claude-haiku-35-20241022',
+    'anthropic/claude-opus-4-20250514',
+  ]
+
+  // Map legacy model IDs (without provider prefix) to AI Gateway format
+  function normalizeModelId(id: string): string {
+    if (id.startsWith('anthropic/')) return id
+    return `anthropic/${id}`
+  }
 
   if (!Array.isArray(body.messages)) {
     return new Response(JSON.stringify({ error: 'messages must be an array.' }), {
@@ -148,8 +175,7 @@ export async function POST(req: Request) {
     })
   }
 
-  // Post-parse size check for chunked transfers (content-length may be absent)
-  // Check entire body, not just files — a huge messages array could also blow the limit
+  // Post-parse size check
   const bodySize = JSON.stringify(body).length
   if (bodySize > 8 * 1024 * 1024) {
     return new Response(JSON.stringify({ error: 'Request too large. Maximum body size is 8MB.' }), {
@@ -158,17 +184,17 @@ export async function POST(req: Request) {
     })
   }
 
-  // Use GitHub token from session (not request body) — prevents token leaking via logs
+  // Use GitHub token from session (not request body)
   const effectiveGithubToken = session.accessToken || GITHUB_TOKEN
 
-  // Env vars from client (user-provided via request_env_vars card)
+  // Env vars from client
   const clientEnvVars: Record<string, string> = body.envVars && typeof body.envVars === 'object' ? body.envVars : {}
 
-  // Active file context — reduces unnecessary read_file calls
+  // Active file context
   const activeFile: string | undefined = body.activeFile
   const activeFileContent: string | undefined = body.activeFileContent
 
-  // Initialize virtual FS from client state (validate input)
+  // Initialize virtual FS from client state
   let safeFiles: Record<string, string> = {}
   if (body.files && typeof body.files === 'object' && !Array.isArray(body.files)) {
     for (const [k, v] of Object.entries(body.files)) {
@@ -179,8 +205,9 @@ export async function POST(req: Request) {
 
   let selectedModel: string
   let modelAutoRouted = false
-  if (body.model && ALLOWED_MODELS.includes(body.model)) {
-    selectedModel = body.model
+  const rawModel = body.model ? normalizeModelId(body.model) : null
+  if (rawModel && ALLOWED_MODELS.includes(rawModel)) {
+    selectedModel = rawModel
   } else {
     const fileCount = Object.keys(safeFiles).length
     const classification = classifyModelComplexity(body.messages || [], fileCount)
@@ -188,24 +215,20 @@ export async function POST(req: Request) {
     modelAutoRouted = true
   }
 
-  // In-request task store for background operations
+  // In-request task store
   const taskStore = new TaskStore()
 
-  // Track edit_file failures per path — after 3 failures, suggest write_file
-  // Uses module-level cache so counts persist across user messages
+  // Edit fail tracking
   const editFailCounts = getEditFailCounts(projectId)
 
-  // Build file manifest for system context (lean — no content)
-  // Smart grouping: directories with 4+ files get collapsed unless they contain the active file
+  // Build file manifest
   const manifest = vfs.manifest()
   let manifestStr: string
   if (manifest.length === 0) {
     manifestStr = '  (empty project)'
   } else if (manifest.length <= 15) {
-    // Small project — show all files
     manifestStr = manifest.map(f => `  ${f.path} (${f.lines}L, ${(f.size / 1024).toFixed(1)}kb)`).join('\n')
   } else {
-    // Group by directory, collapse large dirs
     const activeDir = activeFile ? activeFile.substring(0, activeFile.lastIndexOf('/') + 1) : ''
     const dirs = new Map<string, typeof manifest>()
     for (const f of manifest) {
@@ -231,39 +254,56 @@ export async function POST(req: Request) {
   }
 
   // ── Cost optimization: trim conversation history ──────────────
-  // Tool invocations in old messages contain full file contents (write_file args)
-  // that get re-sent every request. Use 3-tier trimming:
-  //   Last 4 messages: full detail (complete tool data)
-  //   Messages 5-8: medium detail (tool names + paths only, stripped results)
-  //   Older: summary only (tool list appended as text)
   const MAX_HISTORY = 40
   const FULL_DETAIL_WINDOW = 4
   const MEDIUM_DETAIL_WINDOW = 8
 
-  const rawMessages = body.messages || []
+  const rawMessages: UIMessage[] = body.messages || []
   let trimmedMessages = rawMessages.length > MAX_HISTORY
     ? [...rawMessages.slice(0, 2), ...rawMessages.slice(-(MAX_HISTORY - 2))]
     : rawMessages
 
+  // AI SDK v6 uses parts-based UIMessages. Trim old tool parts to save tokens.
   trimmedMessages = trimmedMessages.map((m: any, i: number) => {
     const fromEnd = trimmedMessages.length - i
 
     // Tier 1: Last 4 messages — full detail
     if (fromEnd <= FULL_DETAIL_WINDOW) return m
 
-    // Tier 2: Messages 5-8 — keep tool names + paths, strip content/results
-    if (fromEnd <= MEDIUM_DETAIL_WINDOW && m.role === 'assistant' && m.toolInvocations?.length > 0) {
+    // Tier 2: Messages 5-8 — keep tool names + paths, strip heavy content
+    if (fromEnd <= MEDIUM_DETAIL_WINDOW && m.role === 'assistant' && Array.isArray(m.parts)) {
       return {
         ...m,
-        toolInvocations: m.toolInvocations.map((inv: any) => ({
-          ...inv,
-          args: { path: inv.args?.path, template: inv.args?.template },
-          result: inv.result?.ok !== undefined ? { ok: inv.result.ok } : undefined,
-        })),
+        parts: m.parts.map((p: any) => {
+          if (p.type === 'tool-invocation' || p.type?.startsWith('tool-')) {
+            return { ...p, input: { path: p.input?.path }, output: p.output?.ok !== undefined ? { ok: p.output.ok } : undefined }
+          }
+          return p
+        }),
       }
     }
 
-    // Tier 3: Older messages — summarize tool invocations as text
+    // Tier 3: Older messages — summarize tool parts as text
+    if (m.role === 'assistant' && Array.isArray(m.parts)) {
+      const toolParts = m.parts.filter((p: any) => p.type === 'tool-invocation' || p.type?.startsWith('tool-'))
+      const textParts = m.parts.filter((p: any) => p.type === 'text')
+      if (toolParts.length > 0) {
+        const summary = toolParts.map((p: any) => {
+          const name = p.toolName || p.type?.replace('tool-', '') || 'unknown'
+          const path = p.input?.path || ''
+          return path ? `${name}(${path})` : name
+        }).join(', ')
+        return {
+          ...m,
+          parts: [
+            ...textParts,
+            { type: 'text', text: `\n[Tools used: ${summary}]` },
+          ],
+        }
+      }
+    }
+
+    // Also handle legacy v4 format during transition
     if (m.role === 'assistant' && m.toolInvocations?.length > 0) {
       const summary = m.toolInvocations.map((inv: any) => {
         const name = inv.toolName
@@ -278,51 +318,55 @@ export async function POST(req: Request) {
     return m
   })
 
-  // Convert messages
+  // Convert UIMessages to ModelMessages (v6 — async)
   let messages
   try {
-    messages = convertToCoreMessages(trimmedMessages)
+    messages = await convertToModelMessages(trimmedMessages)
   } catch {
-    messages = trimmedMessages.map((m: { role: string; content?: string }) => ({
-      role: m.role as 'user' | 'assistant',
-      content: m.content || '',
-    }))
+    // Fallback for legacy format or malformed messages
+    messages = trimmedMessages.map((m: { role: string; content?: string; parts?: any[] }) => {
+      let text = ''
+      if (typeof m.content === 'string') {
+        text = m.content
+      } else if (Array.isArray(m.parts)) {
+        text = m.parts.filter((p: any) => p.type === 'text').map((p: any) => p.text || '').join('')
+      }
+      return {
+        role: m.role as 'user' | 'assistant',
+        content: text || '',
+      }
+    })
   }
 
-  const streamData = new StreamData()
-
-  // Notify client of auto-routed model selection
-  if (modelAutoRouted) {
-    const classification = classifyModelComplexity(body.messages || [], Object.keys(safeFiles).length)
-    streamData.append({ type: 'model_suggestion', model: selectedModel, reason: classification.reason })
-  }
-
-  // Save user message to database if projectId exists
+  // Save user message to database
   if (projectId && messages.length > 0) {
     const lastMessage = messages[messages.length - 1]
     if (lastMessage.role === 'user') {
       try {
+        const userContent = typeof lastMessage.content === 'string'
+          ? lastMessage.content
+          : Array.isArray(lastMessage.content)
+            ? lastMessage.content.filter((p: any) => p.type === 'text').map((p: any) => p.text || '').join('')
+            : ''
         await supabaseFetch('/forge_chat_messages', {
           method: 'POST',
           body: JSON.stringify({
             project_id: projectId,
             role: 'user',
-            content: lastMessage.content,
+            content: userContent,
           }),
         })
       } catch (error) {
         console.error('Failed to save user message:', error)
-        streamData.append({ type: 'warning', message: 'Message history may not be saved for this session.' })
       }
     }
   }
 
-  // Global timeout: abort the entire streamText operation after 5 minutes
-  // Prevents indefinitely hanging requests if the model or tool execution stalls.
+  // Global timeout
   const streamAbort = new AbortController()
   const streamTimeout = setTimeout(() => streamAbort.abort('Stream timeout: 5 minutes exceeded'), 5 * 60 * 1000)
 
-  // ── Build tool context shared by all tool factories ──────────
+  // Build tool context
   const ctx: ToolContext = {
     vfs,
     projectName,
@@ -337,96 +381,109 @@ export async function POST(req: Request) {
     githubUsername: (session as any).githubUsername || session.user?.name || 'unknown',
   }
 
-  // Extract structural template based on user's latest message
+  // Structural prompt example
   const lastUserMsg = messages.findLast((m: any) => m.role === 'user')
   const promptExample = lastUserMsg ? getPromptExample(typeof lastUserMsg.content === 'string' ? lastUserMsg.content : '') : null
 
+  const allTools = {
+    ...createFileTools(ctx),
+    ...createProjectTools(ctx),
+    ...createGithubTools(ctx),
+    ...createDeployTools(ctx),
+    ...createSelfModTools(ctx),
+    ...createDbTools(ctx),
+    ...createUtilityTools(ctx),
+  }
+
   try {
-    const result = streamText({
-      // Prompt caching: system prompt + tool definitions cached by Anthropic.
-      // 90% input token discount on cached prefix for subsequent requests in same session.
-      model: anthropic(selectedModel, { cacheControl: true }),
-      system: SYSTEM_PROMPT
-        + (promptExample ? `\n\n## Structural Guide for This Request\n${promptExample}` : '')
-        + `\n\n---\nProject: "${projectName}"${projectId ? ` (id: ${projectId})` : ''}\nFile manifest:\n${manifestStr}`
-        + (activeFile && activeFileContent
-          ? `\n\nUser is currently viewing: ${activeFile}\n\`\`\`\n${activeFileContent}\n\`\`\``
-          : ''),
-      messages,
-      maxSteps: 50,
-      abortSignal: streamAbort.signal,
-      tools: {
-        ...createFileTools(ctx),
-        ...createProjectTools(ctx),
-        ...createGithubTools(ctx),
-        ...createDeployTools(ctx),
-        ...createSelfModTools(ctx),
-        ...createDbTools(ctx),
-        ...createUtilityTools(ctx),
-      },
-
-      onFinish: async (event) => {
-        clearTimeout(streamTimeout)
-
-        // Decrement concurrent stream count
-        const count = activeStreams.get(ip) || 1
-        if (count <= 1) activeStreams.delete(ip)
-        else activeStreams.set(ip, count - 1)
-
-        console.log(`[forge] rid=${requestId} ${event.usage?.totalTokens || 0} tokens, ${event.steps?.length || 0} steps`)
-
-        // Notify client if stream was aborted due to timeout
-        if (streamAbort.signal.aborted) {
-          streamData.append({ type: 'error', message: 'Response timed out after 5 minutes. Try a simpler request.' })
+    // AI SDK v6: Use createUIMessageStream for custom data + streamText
+    const stream = createUIMessageStream({
+      execute: ({ writer }) => {
+        // Send model suggestion as transient data part
+        if (modelAutoRouted) {
+          const classification = classifyModelComplexity(body.messages || [], Object.keys(safeFiles).length)
+          writer.write({
+            type: 'data' as any,
+            data: JSON.stringify({ type: 'model_suggestion', model: selectedModel, reason: classification.reason }),
+          } as any)
         }
 
-        // Stream real token usage to client
-        if (event.usage) {
-          streamData.append({
-            type: 'usage',
-            promptTokens: event.usage.promptTokens,
-            completionTokens: event.usage.completionTokens,
-            totalTokens: event.usage.totalTokens,
-          })
-        }
+        // AI SDK v6: model is just a string (Vercel AI Gateway)
+        const result = streamText({
+          model: selectedModel,
+          system: SYSTEM_PROMPT
+            + (promptExample ? `\n\n## Structural Guide for This Request\n${promptExample}` : '')
+            + `\n\n---\nProject: "${projectName}"${projectId ? ` (id: ${projectId})` : ''}\nFile manifest:\n${manifestStr}`
+            + (activeFile && activeFileContent
+              ? `\n\nUser is currently viewing: ${activeFile}\n\`\`\`\n${activeFileContent}\n\`\`\``
+              : ''),
+          messages,
+          stopWhen: stepCountIs(50),
+          abortSignal: streamAbort.signal,
+          tools: allTools,
 
-        // Server-side usage tracking per user
-        if (event.usage && session?.user) {
-          const userId = (session as any).githubUsername || 'unknown'
-          const prev = usageTracker.get(userId) || { tokens: 0, requests: 0, ts: Date.now() }
-          prev.tokens += event.usage.totalTokens || 0
-          prev.requests += 1
-          prev.ts = Date.now()
-          usageTracker.set(userId, prev)
-          console.log(`[forge:usage] user=${userId} req_tokens=${event.usage.totalTokens} cumulative=${prev.tokens} requests=${prev.requests}`)
-        }
+          onFinish: async (event) => {
+            clearTimeout(streamTimeout)
 
-        // Save assistant message to database BEFORE closing stream
-        // so we can still warn the client if the save fails.
-        if (projectId && event.text) {
-          try {
-            await supabaseFetch('/forge_chat_messages', {
-              method: 'POST',
-              body: JSON.stringify({
-                project_id: projectId,
-                role: 'assistant',
-                content: event.text,
-                tool_invocations: event.toolCalls || null,
-              }),
-            })
-          } catch (error) {
-            console.error('Failed to save assistant message:', error)
-            try {
-              streamData.append({ type: 'warning', message: 'Chat history could not be saved. Your work is safe but this conversation may not persist.' })
-            } catch { /* stream closing race — non-fatal */ }
-          }
-        }
+            // Decrement concurrent stream count
+            const count = activeStreams.get(ip) || 1
+            if (count <= 1) activeStreams.delete(ip)
+            else activeStreams.set(ip, count - 1)
 
-        try { await streamData.close() } catch { /* stream already closed */ }
+            console.log(`[forge] rid=${requestId} ${event.usage?.totalTokens || 0} tokens, ${event.steps?.length || 0} steps`)
+
+            // Server-side usage tracking per user
+            if (event.usage && session?.user) {
+              const userId = (session as any).githubUsername || 'unknown'
+              const prev = usageTracker.get(userId) || { tokens: 0, requests: 0, ts: Date.now() }
+              prev.tokens += event.usage.totalTokens || 0
+              prev.requests += 1
+              prev.ts = Date.now()
+              usageTracker.set(userId, prev)
+              console.log(`[forge:usage] user=${userId} req_tokens=${event.usage.totalTokens} cumulative=${prev.tokens} requests=${prev.requests}`)
+            }
+
+            // Save assistant message to database
+            if (projectId && event.text) {
+              try {
+                await supabaseFetch('/forge_chat_messages', {
+                  method: 'POST',
+                  body: JSON.stringify({
+                    project_id: projectId,
+                    role: 'assistant',
+                    content: event.text,
+                    tool_invocations: event.toolCalls || null,
+                  }),
+                })
+              } catch (error) {
+                console.error('Failed to save assistant message:', error)
+              }
+            }
+          },
+        })
+
+        // Merge the streamText result into our UIMessageStream
+        writer.merge(result.toUIMessageStream({
+          // Send usage as message metadata on the final message
+          messageMetadata: ({ part }) => {
+            if (part.type === 'finish') {
+              return {
+                usage: {
+                  promptTokens: part.usage?.promptTokens ?? 0,
+                  completionTokens: part.usage?.completionTokens ?? 0,
+                  totalTokens: part.usage?.totalTokens ?? 0,
+                },
+                model: selectedModel,
+                autoRouted: modelAutoRouted,
+              }
+            }
+            return undefined
+          },
+        }))
       },
     })
 
-    return result.toDataStreamResponse({ data: streamData })
+    return createUIMessageStreamResponse({ stream })
   } catch (error) {
     clearTimeout(streamTimeout)
 
@@ -436,10 +493,6 @@ export async function POST(req: Request) {
     else activeStreams.set(ip, count - 1)
 
     console.error(`[forge] rid=${requestId} Stream error:`, error)
-    try {
-      streamData.append({ type: 'error', message: error instanceof Error ? error.message : 'Stream failed' })
-      await streamData.close()
-    } catch { /* stream already closed */ }
     return new Response(JSON.stringify({ error: 'Stream failed unexpectedly. Please try again.' }), {
       status: 500,
       headers: { 'Content-Type': 'application/json' },

@@ -72,12 +72,46 @@ function isProjectReady(files: Record<string, string>): boolean {
   return hasPackageJson && hasMainFile
 }
 
-function BuildingPlaceholder() {
+function BuildingPlaceholder({ files }: { files: Record<string, string> }) {
+  const fileNames = Object.keys(files)
+  const mainFile = fileNames.find(f => f === 'app/page.tsx')
+    || fileNames.find(f => f === 'src/App.tsx')
+    || fileNames.find(f => f.endsWith('/page.tsx'))
+    || fileNames.find(f => f.endsWith('.tsx'))
+  const hasPackageJson = fileNames.includes('package.json')
+  let framework = 'React'
+  if (hasPackageJson) {
+    try {
+      const pkg = JSON.parse(files['package.json'] || '{}')
+      const deps = { ...pkg.dependencies, ...pkg.devDependencies }
+      if (deps['next']) framework = 'Next.js'
+      else if (deps['vite']) framework = 'Vite'
+    } catch { /* ignore */ }
+  }
+
   return (
     <div className="flex items-center justify-center h-full bg-forge-bg text-forge-text-dim">
-      <div className="text-center">
-        <div className="animate-pulse text-lg mb-2">Building preview...</div>
-        <div className="text-sm text-forge-text-dim/70">Sandbox is starting up</div>
+      <div className="text-center max-w-xs">
+        <div className="w-12 h-12 mx-auto mb-4 rounded-xl bg-forge-surface border border-forge-border flex items-center justify-center">
+          <Loader2 className="w-5 h-5 text-forge-accent animate-spin" />
+        </div>
+        <p className="text-sm font-medium text-forge-text mb-1">{framework} project detected</p>
+        <p className="text-xs text-forge-text-dim mb-4">
+          {mainFile
+            ? `Waiting for sandbox to render ${mainFile.split('/').pop()}`
+            : 'JSX projects need a live sandbox for preview'}
+        </p>
+        <div className="text-left bg-forge-surface rounded-lg p-3 border border-forge-border">
+          <p className="text-[10px] text-forge-text-dim/70 uppercase tracking-wider mb-2 font-medium">Project files ({fileNames.length})</p>
+          <div className="space-y-0.5 max-h-32 overflow-y-auto">
+            {fileNames.slice(0, 12).map(f => (
+              <div key={f} className="text-[11px] font-mono text-forge-text-dim truncate">{f}</div>
+            ))}
+            {fileNames.length > 12 && (
+              <div className="text-[10px] text-forge-text-dim/50">+{fileNames.length - 12} more</div>
+            )}
+          </div>
+        </div>
       </div>
     </div>
   )
@@ -767,7 +801,7 @@ export function PreviewPanel({ files, projectId, onFixErrors }: PreviewPanelProp
           {/* Static preview iframe — always present as base layer, srcDoc updates reactively */}
           {previewHtml === '__JSX_BUILDING_PLACEHOLDER__' && !isSandboxActive && !showCachedPreview ? (
             <div className="absolute inset-0">
-              <BuildingPlaceholder />
+              <BuildingPlaceholder files={files} />
             </div>
           ) : (
             <iframe

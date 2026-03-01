@@ -15,8 +15,36 @@ import { ThinkPanel } from './think-panel'
 import { EnvVarInputCard } from './env-var-input-card'
 import { CollapsibleToolGroup, groupToolInvocations } from './tool-group'
 
+/** Extract a ToolInvocation from a part, handling both v4 and v6 formats */
+function extractToolInvocation(part: any): ToolInvocation | null {
+  // v4 format: part.toolInvocation
+  if (part.toolInvocation) return part.toolInvocation
+  // v6 format: part itself has toolName, state, input, output
+  if (part.toolName) {
+    return {
+      toolName: part.toolName,
+      state: part.state === 'output-available' ? 'result'
+        : part.state === 'input-available' ? 'call'
+        : part.state === 'output-error' ? 'result'
+        : part.state || 'result',
+      args: part.input || {},
+      result: part.state === 'output-error' ? { error: part.errorText || 'Tool error' } : part.output,
+    }
+  }
+  return null
+}
+
+/** Get text from message (supports both v4 content and v6 parts) */
+function getTextContent(message: any): string {
+  if (typeof message.content === 'string') return message.content
+  if (Array.isArray(message.parts)) {
+    return message.parts.filter((p: any) => p.type === 'text').map((p: any) => p.text || '').join('')
+  }
+  return ''
+}
+
 export interface MessageItemProps {
-  message: { id: string; role: string; content: string; parts?: Array<{ type: string; text?: string; toolInvocation?: ToolInvocation }> }
+  message: { id: string; role: string; content?: string; parts?: Array<any> }
   copiedId: string | null
   isEditing: boolean
   editingContent: string
@@ -38,8 +66,8 @@ export const MessageItem = memo(function MessageItem({
   onCopy, onEditMessage, onSaveEdit, onCancelEdit, onSetEditingContent, onRegenerate, onEnvVarsSave, onCancelTask,
 }: MessageItemProps) {
   const isUser = message.role === 'user'
-  const textContent = typeof message.content === 'string' ? message.content : ''
-  const parts = (message as any).parts as Array<{ type: string; text?: string; toolInvocation?: ToolInvocation }> | undefined
+  const textContent = getTextContent(message)
+  const parts = (message as any).parts as Array<any> | undefined
 
   const showStreamingCursor = isLoading && isLast && !isUser
 
@@ -86,16 +114,20 @@ export const MessageItem = memo(function MessageItem({
       ) : parts && parts.length > 0 ? (
         <div className="space-y-2 group/assistant">
           {(() => {
+          // Detect tool parts: both v4 (type==='tool-invocation') and v6 (type starts with 'tool-')
+          const isToolPart = (p: any) => p.type === 'tool-invocation' || (p.type?.startsWith('tool-') && p.type !== 'text')
+          const getToolName = (p: any) => p.toolInvocation?.toolName || p.toolName || p.type?.replace(/^tool-/, '') || ''
+
           let lastCheckIdx = -1
           for (let i = parts.length - 1; i >= 0; i--) {
-            if (parts[i].type === 'tool-invocation' && parts[i].toolInvocation?.toolName === 'check_task_status') {
+            if (isToolPart(parts[i]) && getToolName(parts[i]) === 'check_task_status') {
               lastCheckIdx = i
               break
             }
           }
 
           const filteredParts = parts.filter((part, idx) => {
-            if (part.type === 'tool-invocation' && part.toolInvocation?.toolName === 'check_task_status') {
+            if (isToolPart(part) && getToolName(part) === 'check_task_status') {
               return idx === lastCheckIdx
             }
             return true
@@ -140,8 +172,9 @@ export const MessageItem = memo(function MessageItem({
               )
             }
 
-            if (part.type === 'tool-invocation' && part.toolInvocation) {
-              const inv = part.toolInvocation
+            if (isToolPart(part)) {
+              const inv = extractToolInvocation(part)
+              if (!inv) return null
               const info = TOOL_LABELS[inv.toolName] || { label: inv.toolName.replace(/_/g, ' '), Icon: Terminal, color: 'gray' }
               const isRunning = inv.state !== 'result'
               const hasError = inv.result && typeof inv.result === 'object' && 'error' in inv.result
@@ -383,13 +416,16 @@ export const MessageItem = memo(function MessageItem({
   )
 }, (prev, next) => {
   if (prev.message.id !== next.message.id) return false
-  if (prev.message.content !== next.message.content) return false
+  if (getTextContent(prev.message) !== getTextContent(next.message)) return false
   const pp = prev.message.parts
   const np = next.message.parts
   if ((pp?.length || 0) !== (np?.length || 0)) return false
   if (pp && np) {
     for (let i = 0; i < pp.length; i++) {
-      if (pp[i]?.toolInvocation?.state !== np[i]?.toolInvocation?.state) return false
+      // v6: compare state directly on part or via toolInvocation
+      const pState = pp[i]?.state || pp[i]?.toolInvocation?.state
+      const nState = np[i]?.state || np[i]?.toolInvocation?.state
+      if (pState !== nState) return false
       if (pp[i]?.text !== np[i]?.text) return false
     }
   }

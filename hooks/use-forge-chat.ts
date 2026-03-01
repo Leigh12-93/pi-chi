@@ -2,6 +2,7 @@
 
 import { useState, useRef, useEffect, useCallback, useMemo } from 'react'
 import { useChat } from '@ai-sdk/react'
+import { DefaultChatTransport } from 'ai'
 import { toast } from 'sonner'
 import { extractFileUpdates, type ToolInvocation } from '@/lib/chat/tool-utils'
 import { clearMarkdownCache } from '@/lib/chat/markdown'
@@ -21,6 +22,20 @@ export interface UseForgeChatProps {
   activeFile?: string | null
 }
 
+/** Extract text content from a v6 UIMessage */
+function getMessageText(message: any): string {
+  // v6 parts-based format
+  if (Array.isArray(message.parts)) {
+    return message.parts
+      .filter((p: any) => p.type === 'text')
+      .map((p: any) => p.text || '')
+      .join('')
+  }
+  // Legacy v4 format fallback
+  if (typeof message.content === 'string') return message.content
+  return ''
+}
+
 export function useForgeChat(props: UseForgeChatProps) {
   const {
     projectName, projectId, files,
@@ -33,27 +48,41 @@ export function useForgeChat(props: UseForgeChatProps) {
   const [showModelPicker, setShowModelPicker] = useState(false)
   const [envVars, setEnvVars] = useState<Record<string, string>>({})
 
-  // ─── useChat ──────────────────────────────────────────────────
+  // ─── useChat (AI SDK v6) ──────────────────────────────────────
+  // v6 uses transport instead of api, sendMessage instead of append,
+  // status instead of isLoading, and parts-based messages
   const {
     messages,
     setMessages,
     stop,
-    isLoading,
+    status,
     error,
-    append,
+    sendMessage,
     reload,
-    data,
   } = useChat({
-    api: '/api/chat',
-    body: {
-      projectName, projectId, files, model: selectedModel, envVars,
-      activeFile: activeFile || undefined,
-      activeFileContent: activeFile && files[activeFile]
-        ? files[activeFile].split('\n').slice(0, 500).join('\n')
-        : undefined,
-    },
+    transport: new DefaultChatTransport({
+      api: '/api/chat',
+      // v6: prepareSendMessagesRequest for dynamic body data
+      prepareSendMessagesRequest: ({ messages: msgs }) => ({
+        body: {
+          messages: msgs,
+          projectName,
+          projectId,
+          files,
+          model: selectedModel,
+          envVars,
+          activeFile: activeFile || undefined,
+          activeFileContent: activeFile && files[activeFile]
+            ? files[activeFile].split('\n').slice(0, 500).join('\n')
+            : undefined,
+        },
+      }),
+    }),
     onError: (err) => console.error('Chat error:', err),
   })
+
+  // Derive isLoading from status (v6 pattern)
+  const isLoading = status === 'streaming' || status === 'submitted'
 
   // ─── UI state ─────────────────────────────────────────────────
   const [input, setInput] = useState('')
@@ -119,9 +148,12 @@ export function useForgeChat(props: UseForgeChatProps) {
         .then(res => res.json())
         .then(data => {
           if (data.messages?.length > 0) {
+            // Convert persisted messages to v6 UIMessage format
             const loaded = data.messages.map((msg: any) => ({
               id: msg.id,
               role: msg.role,
+              parts: [{ type: 'text', text: msg.content || '' }],
+              // Keep legacy content for backward compat with message-item
               content: msg.content || '',
             }))
             setMessages(loaded)
@@ -140,15 +172,40 @@ export function useForgeChat(props: UseForgeChatProps) {
     }
   }, [projectId, historyLoaded, setMessages])
 
-  // ─── Live file extraction ─────────────────────────────────────
+  // ─── Live file extraction from tool invocations ───────────────
   useEffect(() => {
     for (const msg of messages) {
       if (msg.role !== 'assistant') continue
 
-      const parts = (msg as any).parts as Array<{ type: string; toolInvocation?: ToolInvocation }> | undefined
-      const invocations: ToolInvocation[] = parts
-        ? parts.filter(p => p.type === 'tool-invocation' && p.toolInvocation).map(p => p.toolInvocation!)
-        : ((msg as any).toolInvocations as ToolInvocation[] | undefined) || []
+      // v6: tool invocations are in message.parts as tool-invocation parts
+      const parts = (msg as any).parts as Array<{ type: string; text?: string; toolInvocation?: ToolInvocation; toolName?: string; state?: string; input?: any; output?: any }> | undefined
+      
+      // Extract tool invocations from parts (support both v6 tool-* format and legacy toolInvocation)
+      const invocations: ToolInvocation[] = []
+      if (parts) {
+        for (const p of parts) {
+          // v6 format: part.type starts with 'tool-' and has toolName, state, input, output
+          if (p.type?.startsWith('tool-') && p.type !== 'tool-invocation' && p.toolName) {
+            invocations.push({
+              toolName: p.toolName,
+              state: p.state || 'result',
+              args: p.input || {},
+              result: p.output,
+            })
+          }
+          // Legacy format from v4
+          if (p.type === 'tool-invocation' && p.toolInvocation) {
+            invocations.push(p.toolInvocation)
+          }
+        }
+      }
+      // Also check legacy toolInvocations array
+      const legacyInvs = (msg as any).toolInvocations as ToolInvocation[] | undefined
+      if (legacyInvs) {
+        for (const inv of legacyInvs) {
+          invocations.push(inv)
+        }
+      }
 
       for (let i = 0; i < invocations.length; i++) {
         const inv = invocations[i]
@@ -159,13 +216,17 @@ export function useForgeChat(props: UseForgeChatProps) {
         const processAtCall = ['write_file', 'delete_file'].includes(inv.toolName)
         const processAtResult = ['edit_file', 'create_project', 'rename_file'].includes(inv.toolName)
 
+        // v6 states: 'input-streaming', 'input-available', 'output-available', 'output-error'
+        const isResult = inv.state === 'result' || inv.state === 'output-available'
+        const isCall = inv.state === 'call' || inv.state === 'input-available'
+
         const shouldProcess =
-          (processAtCall && (inv.state === 'call' || inv.state === 'result')) ||
-          (processAtResult && inv.state === 'result')
+          (processAtCall && (isCall || isResult)) ||
+          (processAtResult && isResult)
 
         if (!shouldProcess) continue
 
-        if (inv.state === 'result' && inv.result && typeof inv.result === 'object' && 'error' in inv.result) {
+        if (isResult && inv.result && typeof inv.result === 'object' && 'error' in inv.result) {
           processedInvs.current.add(key)
           continue
         }
@@ -187,34 +248,6 @@ export function useForgeChat(props: UseForgeChatProps) {
             onFileDelete(path)
           }
         }
-
-        // Handle capture_preview
-        if (inv.toolName === 'capture_preview' && inv.state === 'result') {
-          const captureKey = `capture:${msg.id}:${i}`
-          if (!processedInvs.current.has(captureKey)) {
-            processedInvs.current.add(captureKey)
-            try {
-              const iframe = document.getElementById('forge-preview-iframe') as HTMLIFrameElement | null
-              if (iframe?.contentDocument?.body) {
-                const body = iframe.contentDocument.body
-                const html = body.innerHTML.slice(0, 3000)
-                const textContent = body.innerText.slice(0, 1500)
-                const styles = Array.from(body.querySelectorAll('[class]'))
-                  .slice(0, 20)
-                  .map(el => `<${el.tagName.toLowerCase()} class="${el.className}">`)
-                  .join('\n')
-                append({
-                  role: 'user',
-                  content: `[Preview Capture — DOM snapshot for visual review]\n\nVisible text:\n${textContent}\n\nElement structure (first 20 styled elements):\n${styles}\n\nRaw HTML (truncated):\n\`\`\`html\n${html}\n\`\`\``,
-                })
-              } else {
-                toast.info('Preview capture: iframe not accessible (cross-origin or not loaded)')
-              }
-            } catch {
-              // Silently fail — capture is best-effort
-            }
-          }
-        }
       }
     }
   }, [messages, onBulkFileUpdate, onFileDelete]) // eslint-disable-line react-hooks/exhaustive-deps
@@ -225,26 +258,27 @@ export function useForgeChat(props: UseForgeChatProps) {
     if (!content || isLoading) return
     setInput('')
     if (inputRef.current) inputRef.current.style.height = 'auto'
-    append({ role: 'user', content })
-  }, [input, isLoading, append])
+    // v6: sendMessage takes { text } instead of { role, content }
+    sendMessage({ text: content })
+  }, [input, isLoading, sendMessage])
 
-  const appendRef = useRef(append)
-  useEffect(() => { appendRef.current = append }, [append])
+  const sendMessageRef = useRef(sendMessage)
+  useEffect(() => { sendMessageRef.current = sendMessage }, [sendMessage])
 
   useEffect(() => {
     if (onRegisterSend) {
       onRegisterSend((message: string) => {
-        appendRef.current({ role: 'user', content: message })
+        sendMessageRef.current({ text: message })
       })
     }
   }, [onRegisterSend])
 
   useEffect(() => {
     if (pendingMessage && !isLoading) {
-      append({ role: 'user', content: pendingMessage })
+      sendMessage({ text: pendingMessage })
       onPendingMessageSent?.()
     }
-  }, [pendingMessage, isLoading, append, onPendingMessageSent])
+  }, [pendingMessage, isLoading, sendMessage, onPendingMessageSent])
 
   // ─── Callbacks ────────────────────────────────────────────────
   const handleEnvVarsSave = useCallback((vars: Record<string, string>) => {
@@ -263,9 +297,9 @@ export function useForgeChat(props: UseForgeChatProps) {
         body: JSON.stringify({ status: 'cancelled' }),
       })
     } catch {
-      append({ role: 'user', content: `Cancel the running task with ID: ${taskId}` })
+      sendMessage({ text: `Cancel the running task with ID: ${taskId}` })
     }
-  }, [append])
+  }, [sendMessage])
 
   const handleCopy = useCallback((id: string, content: string) => {
     navigator.clipboard.writeText(content)
@@ -286,19 +320,20 @@ export function useForgeChat(props: UseForgeChatProps) {
     setMessages(newMessages)
     processedInvs.current.clear()
     setEditingMessageId(null)
-    queueMicrotask(() => append({ role: 'user', content: editingContent.trim() }))
-  }, [editingMessageId, editingContent, messages, setMessages, append])
+    queueMicrotask(() => sendMessage({ text: editingContent.trim() }))
+  }, [editingMessageId, editingContent, messages, setMessages, sendMessage])
 
   const handleRegenerate = useCallback((messageId: string) => {
     const msgIndex = messages.findIndex(m => m.id === messageId)
     if (msgIndex <= 0) return
     const userMsg = messages[msgIndex - 1]
     if (userMsg.role !== 'user') return
+    const userText = getMessageText(userMsg)
     const newMessages = messages.slice(0, msgIndex)
     setMessages(newMessages)
     processedInvs.current.clear()
-    queueMicrotask(() => append({ role: 'user', content: typeof userMsg.content === 'string' ? userMsg.content : '' }))
-  }, [messages, setMessages, append])
+    queueMicrotask(() => sendMessage({ text: userText }))
+  }, [messages, setMessages, sendMessage])
 
   const handleClearChat = useCallback(() => {
     if (clearConfirm) {
@@ -317,35 +352,40 @@ export function useForgeChat(props: UseForgeChatProps) {
     let steps = 0
     let tokens = 0
     for (const msg of messages) {
-      const textLen = typeof msg.content === 'string' ? msg.content.length : 0
+      const textLen = getMessageText(msg).length
       tokens += Math.ceil(textLen / 4)
       if (msg.role !== 'assistant') continue
       const parts = (msg as any).parts as Array<{ type: string }> | undefined
       if (parts) {
-        steps += parts.filter(p => p.type === 'tool-invocation').length
-      } else {
-        const invs = (msg as any).toolInvocations as ToolInvocation[] | undefined
-        steps += invs?.length || 0
+        steps += parts.filter(p => p.type === 'tool-invocation' || p.type?.startsWith('tool-')).length
       }
+      const invs = (msg as any).toolInvocations as ToolInvocation[] | undefined
+      if (invs) steps += invs.length
     }
     return { stepCount: steps, estimatedTokens: tokens }
   }, [messages])
 
+  // v6: Extract real usage from message metadata
   const realTokens = useMemo(() => {
-    if (!data || !Array.isArray(data)) return 0
-    const usageEntries = data.filter((d: unknown) => d && typeof d === 'object' && (d as Record<string, unknown>).type === 'usage')
-    if (usageEntries.length === 0) return 0
-    const last = usageEntries[usageEntries.length - 1] as Record<string, unknown>
-    return (last?.totalTokens as number) || 0
-  }, [data])
+    for (let i = messages.length - 1; i >= 0; i--) {
+      const msg = messages[i] as any
+      if (msg.role === 'assistant' && msg.metadata?.usage?.totalTokens) {
+        return msg.metadata.usage.totalTokens as number
+      }
+    }
+    return 0
+  }, [messages])
 
+  // v6: Extract auto-routed model info from message metadata
   const autoRoutedModel = useMemo(() => {
-    if (!data || !Array.isArray(data)) return null
-    const suggestion = data.findLast((d: unknown) => d && typeof d === 'object' && (d as Record<string, unknown>).type === 'model_suggestion')
-    if (!suggestion) return null
-    const s = suggestion as Record<string, unknown>
-    return { model: String(s.model || ''), reason: String(s.reason || '') }
-  }, [data])
+    for (let i = messages.length - 1; i >= 0; i--) {
+      const msg = messages[i] as any
+      if (msg.role === 'assistant' && msg.metadata?.autoRouted) {
+        return { model: String(msg.metadata.model || ''), reason: 'Auto-routed' }
+      }
+    }
+    return null
+  }, [messages])
 
   // ─── Elapsed time tracking ────────────────────────────────────
   const streamStartRef = useRef<number>(0)

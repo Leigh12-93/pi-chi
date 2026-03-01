@@ -553,9 +553,6 @@ export function Workspace({
       })}
     </div>
   )
-      })}
-    </div>
-  )
 
   const editorPanel = (
     <div className="h-full flex flex-col bg-forge-surface">

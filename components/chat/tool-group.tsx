@@ -21,7 +21,30 @@ export type RenderItem =
   | { type: 'part'; part: { type: string; text?: string; toolInvocation?: ToolInvocation }; partIdx: number }
   | ToolGroupData
 
-export function groupToolInvocations(parts: Array<{ type: string; text?: string; toolInvocation?: ToolInvocation }>): RenderItem[] {
+/** Extract tool info from a part (supports both v4 and v6 formats) */
+function getToolInfo(part: any): { toolName: string; state: string; args: Record<string, unknown>; result: unknown } | null {
+  // v4: part.toolInvocation
+  if (part.toolInvocation) {
+    const inv = part.toolInvocation
+    return { toolName: inv.toolName, state: inv.state, args: inv.args || {}, result: inv.result }
+  }
+  // v6: part.toolName, part.state, part.input, part.output
+  if (part.toolName) {
+    return {
+      toolName: part.toolName,
+      state: part.state === 'output-available' ? 'result' : part.state === 'input-available' ? 'call' : (part.state || 'result'),
+      args: part.input || {},
+      result: part.state === 'output-error' ? { error: part.errorText || 'Tool error' } : part.output,
+    }
+  }
+  return null
+}
+
+function isToolPart(part: any): boolean {
+  return part.type === 'tool-invocation' || !!(part.toolName) || (part.type?.startsWith('tool-') && part.type !== 'text')
+}
+
+export function groupToolInvocations(parts: Array<any>): RenderItem[] {
   const items: RenderItem[] = []
   let currentGroup: ToolGroupData['tools'] = []
 
@@ -38,16 +61,15 @@ export function groupToolInvocations(parts: Array<{ type: string; text?: string;
 
   for (let i = 0; i < parts.length; i++) {
     const part = parts[i]
-    const inv = part.toolInvocation
+    const toolInfo = isToolPart(part) ? getToolInfo(part) : null
 
-    const isGroupable = part.type === 'tool-invocation'
-      && inv
-      && inv.state === 'result'
-      && !SPECIAL_TOOLS.has(inv.toolName)
-      && !(inv.result && typeof inv.result === 'object' && 'error' in (inv.result as object))
+    const isGroupable = toolInfo
+      && toolInfo.state === 'result'
+      && !SPECIAL_TOOLS.has(toolInfo.toolName)
+      && !(toolInfo.result && typeof toolInfo.result === 'object' && 'error' in (toolInfo.result as object))
 
-    if (isGroupable && inv) {
-      currentGroup.push({ toolName: inv.toolName, args: inv.args || {}, result: inv.result, partIdx: i })
+    if (isGroupable && toolInfo) {
+      currentGroup.push({ toolName: toolInfo.toolName, args: toolInfo.args, result: toolInfo.result, partIdx: i })
     } else {
       flushGroup()
       items.push({ type: 'part', part, partIdx: i })
