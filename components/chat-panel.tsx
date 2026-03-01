@@ -10,7 +10,7 @@ import {
   StopCircle, Sparkles, ArrowUp, Lightbulb,
   Brain, Database, Wrench, RefreshCw,
   BookOpen, Save, Plug, ImageIcon,
-  ChevronDown,
+  ChevronDown, ExternalLink,
   type LucideIcon,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
@@ -83,14 +83,14 @@ const QUICK_ACTIONS = [
 ]
 
 const colorClasses: Record<string, string> = {
-  green: 'text-emerald-600 bg-emerald-50',
-  blue: 'text-blue-600 bg-blue-50',
-  yellow: 'text-amber-600 bg-amber-50',
-  red: 'text-red-600 bg-red-50',
-  purple: 'text-purple-600 bg-purple-50',
-  indigo: 'text-indigo-600 bg-indigo-50',
-  orange: 'text-orange-600 bg-orange-50',
-  gray: 'text-gray-600 bg-gray-100',
+  green: 'text-emerald-600 bg-emerald-50 dark:text-emerald-400 dark:bg-emerald-950/40',
+  blue: 'text-blue-600 bg-blue-50 dark:text-blue-400 dark:bg-blue-950/40',
+  yellow: 'text-amber-600 bg-amber-50 dark:text-amber-400 dark:bg-amber-950/40',
+  red: 'text-red-600 bg-red-50 dark:text-red-400 dark:bg-red-950/40',
+  purple: 'text-purple-600 bg-purple-50 dark:text-purple-400 dark:bg-purple-950/40',
+  indigo: 'text-indigo-600 bg-indigo-50 dark:text-indigo-400 dark:bg-indigo-950/40',
+  orange: 'text-orange-600 bg-orange-50 dark:text-orange-400 dark:bg-orange-950/40',
+  gray: 'text-gray-600 bg-gray-100 dark:text-gray-400 dark:bg-gray-800/50',
 }
 
 // ═══════════════════════════════════════════════════════════════════
@@ -158,18 +158,18 @@ function renderMarkdown(text: string): string {
       const id = `code-block-${++_codeBlockId}`
       const label = LANG_LABELS[lang] || lang || 'Code'
       const highlighted = lang ? highlightCode(code.trimEnd(), lang) : code.trimEnd().replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
-      return `<div class="code-block-wrapper relative group/code my-2 rounded-lg border border-gray-200 overflow-hidden">
-        <div class="flex items-center justify-between px-3 py-1 bg-gray-50 border-b border-gray-200">
+      return `<div class="code-block-wrapper relative group/code my-2 rounded-lg border border-gray-200 dark:border-gray-700 overflow-hidden">
+        <div class="flex items-center justify-between px-3 py-1 bg-gray-50 dark:bg-gray-800/60 border-b border-gray-200 dark:border-gray-700">
           <span class="text-[10px] font-medium text-gray-400 uppercase tracking-wider">${label}</span>
-          <button onclick="navigator.clipboard.writeText(document.getElementById('${id}').textContent).then(()=>{this.textContent='Copied!';setTimeout(()=>this.textContent='Copy',1500)})" class="text-[10px] text-gray-400 hover:text-gray-600 transition-colors px-1.5 py-0.5 rounded hover:bg-gray-100">Copy</button>
+          <button onclick="navigator.clipboard.writeText(document.getElementById('${id}').textContent).then(()=>{this.textContent='Copied!';setTimeout(()=>this.textContent='Copy',1500)})" class="text-[10px] text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition-colors px-1.5 py-0.5 rounded hover:bg-gray-100 dark:hover:bg-gray-700">Copy</button>
         </div>
-        <pre class="bg-gray-50/50 text-gray-800 p-3 overflow-x-auto text-[12px] font-mono leading-relaxed"><code id="${id}">${highlighted}</code></pre>
+        <pre class="bg-gray-50/50 dark:bg-gray-900/50 text-gray-800 dark:text-gray-200 p-3 overflow-x-auto text-[12px] font-mono leading-relaxed"><code id="${id}">${highlighted}</code></pre>
       </div>`
     })
-    .replace(/`([^`]+)`/g, '<code class="bg-indigo-50/80 px-1.5 py-0.5 rounded text-[12px] font-mono text-indigo-600 border border-indigo-100">$1</code>')
-    .replace(/^### (.+)$/gm, '<h3 class="text-[13px] font-bold mt-3 mb-1 text-gray-800">$1</h3>')
-    .replace(/^## (.+)$/gm, '<h2 class="text-sm font-bold mt-3 mb-1.5 text-gray-900">$1</h2>')
-    .replace(/\*\*(.+?)\*\*/g, '<strong class="font-semibold text-gray-900">$1</strong>')
+    .replace(/`([^`]+)`/g, '<code class="bg-indigo-50/80 dark:bg-indigo-950/40 px-1.5 py-0.5 rounded text-[12px] font-mono text-indigo-600 dark:text-indigo-400 border border-indigo-100 dark:border-indigo-800">$1</code>')
+    .replace(/^### (.+)$/gm, '<h3 class="text-[13px] font-bold mt-3 mb-1 text-gray-800 dark:text-gray-200">$1</h3>')
+    .replace(/^## (.+)$/gm, '<h2 class="text-sm font-bold mt-3 mb-1.5 text-gray-900 dark:text-gray-100">$1</h2>')
+    .replace(/\*\*(.+?)\*\*/g, '<strong class="font-semibold text-gray-900 dark:text-gray-100">$1</strong>')
     .replace(/\*(.+?)\*/g, '<em>$1</em>')
     .replace(/^\d+\. (.+)$/gm, '<li class="ml-4 pl-1 list-decimal text-[13px] leading-relaxed">$1</li>')
     .replace(/^- (.+)$/gm, '<li class="ml-4 pl-1 list-disc text-[13px] leading-relaxed">$1</li>')
@@ -638,19 +638,25 @@ export function ChatPanel({ projectName, projectId, files, onFileChange, onFileD
                   ) : parts && parts.length > 0 ? (
                     /* Render parts in order — text and tool calls interleaved */
                     <div className="space-y-1.5 group/assistant">
-                      {parts.map((part, partIdx) => {
-                        // Collapse consecutive check_task_status polls — only show the last one
+                      {(() => {
+                      // Pre-compute: find the LAST check_task_status index so we can collapse all earlier ones
+                      let lastCheckIdx = -1
+                      for (let i = parts.length - 1; i >= 0; i--) {
+                        if (parts[i].type === 'tool-invocation' && parts[i].toolInvocation?.toolName === 'check_task_status') {
+                          lastCheckIdx = i
+                          break
+                        }
+                      }
+                      return parts.map((part, partIdx) => {
+                        // Collapse ALL check_task_status polls into ONE — only render the last one
                         if (part.type === 'tool-invocation' && part.toolInvocation?.toolName === 'check_task_status') {
-                          const nextPart = parts[partIdx + 1]
-                          if (nextPart?.type === 'tool-invocation' && nextPart.toolInvocation?.toolName === 'check_task_status') {
-                            return null // skip — a newer poll follows
-                          }
+                          if (partIdx !== lastCheckIdx) return null
                         }
                         if (part.type === 'text' && part.text) {
                           return (
                             <div key={partIdx} className="relative group">
                               <div
-                                className="text-sm sm:text-[13px] leading-relaxed text-gray-700 [&_pre]:my-2 [&_code]:text-xs sm:[&_code]:text-[12px]"
+                                className="text-sm sm:text-[13px] leading-relaxed text-gray-700 dark:text-gray-300 [&_pre]:my-2 [&_code]:text-xs sm:[&_code]:text-[12px]"
                                 dangerouslySetInnerHTML={{ __html: renderMarkdown(part.text) }}
                               />
                               <button
@@ -671,22 +677,24 @@ export function ChatPanel({ projectName, projectId, files, onFileChange, onFileD
                           const isRunning = inv.state !== 'result'
                           const hasError = inv.result && typeof inv.result === 'object' && 'error' in inv.result
                           const summary = getToolSummary(inv.toolName, inv.args || {}, inv.result)
+                          const resultData = (inv.result && typeof inv.result === 'object') ? inv.result as Record<string, unknown> : null
 
+                          // ── Think panel ──
                           if (inv.toolName === 'think' && inv.state === 'result') {
                             const planFiles = Array.isArray(inv.args?.files) ? inv.args.files as string[] : []
                             return (
-                              <div key={partIdx} className="border border-purple-200 bg-purple-50 rounded-lg p-2.5 text-[11px]">
-                                <div className="flex items-center gap-1.5 mb-1.5 text-purple-600">
+                              <div key={partIdx} className="border border-purple-200 dark:border-purple-800 bg-purple-50 dark:bg-purple-950/30 rounded-lg p-2.5 text-[11px]">
+                                <div className="flex items-center gap-1.5 mb-1.5 text-purple-600 dark:text-purple-400">
                                   <Brain className="w-3.5 h-3.5" />
                                   <span className="font-medium">Planning</span>
                                 </div>
-                                <div className="text-purple-700 leading-relaxed whitespace-pre-wrap">
+                                <div className="text-purple-700 dark:text-purple-300 leading-relaxed whitespace-pre-wrap">
                                   {String(inv.args?.plan || '').slice(0, 300)}
                                 </div>
                                 {planFiles.length > 0 && (
                                   <div className="mt-1.5 flex flex-wrap gap-1">
                                     {planFiles.map((f: string, fi: number) => (
-                                      <span key={fi} className="px-1.5 py-0.5 bg-purple-100 text-purple-600 rounded text-[10px] font-mono">{f}</span>
+                                      <span key={fi} className="px-1.5 py-0.5 bg-purple-100 dark:bg-purple-900/50 text-purple-600 dark:text-purple-400 rounded text-[10px] font-mono">{f}</span>
                                     ))}
                                   </div>
                                 )}
@@ -694,44 +702,127 @@ export function ChatPanel({ projectName, projectId, files, onFileChange, onFileD
                             )
                           }
 
+                          // ── Suggest improvement panel ──
                           if (inv.toolName === 'suggest_improvement' && inv.state === 'result') {
                             const sArgs = (inv.args || {}) as Record<string, string>
                             const priority = sArgs.priority || 'medium'
-                            const priorityColor = priority === 'high' ? 'text-red-600 bg-red-50' : priority === 'medium' ? 'text-amber-600 bg-amber-50' : 'text-blue-600 bg-blue-50'
+                            const priorityColor = priority === 'high' ? 'text-red-600 bg-red-50 dark:text-red-400 dark:bg-red-950/40' : priority === 'medium' ? 'text-amber-600 bg-amber-50 dark:text-amber-400 dark:bg-amber-950/40' : 'text-blue-600 bg-blue-50 dark:text-blue-400 dark:bg-blue-950/40'
                             return (
-                              <div key={partIdx} className="border border-amber-200 bg-amber-50 rounded-lg p-2.5 text-[11px]">
+                              <div key={partIdx} className="border border-amber-200 dark:border-amber-800 bg-amber-50 dark:bg-amber-950/30 rounded-lg p-2.5 text-[11px]">
                                 <div className="flex items-center gap-1.5 mb-1">
-                                  <Lightbulb className="w-3.5 h-3.5 text-amber-600" />
-                                  <span className="font-medium text-amber-600">Improvement Suggestion</span>
+                                  <Lightbulb className="w-3.5 h-3.5 text-amber-600 dark:text-amber-400" />
+                                  <span className="font-medium text-amber-600 dark:text-amber-400">Improvement Suggestion</span>
                                   <span className={cn('px-1.5 py-0.5 rounded text-[9px] font-medium uppercase', priorityColor)}>{priority}</span>
                                 </div>
-                                <p className="text-amber-700 mb-1">{sArgs.issue || ''}</p>
+                                <p className="text-amber-700 dark:text-amber-300 mb-1">{sArgs.issue || ''}</p>
                                 {sArgs.suggestion && (
-                                  <pre className="text-[10px] bg-gray-100 text-gray-700 rounded p-2 mt-1 whitespace-pre-wrap font-mono">{sArgs.suggestion}</pre>
+                                  <pre className="text-[10px] bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 rounded p-2 mt-1 whitespace-pre-wrap font-mono">{sArgs.suggestion}</pre>
                                 )}
                                 {sArgs.file && (
-                                  <span className="inline-block mt-1 px-1.5 py-0.5 bg-gray-100 text-gray-600 rounded text-[10px] font-mono">{sArgs.file}</span>
+                                  <span className="inline-block mt-1 px-1.5 py-0.5 bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400 rounded text-[10px] font-mono">{sArgs.file}</span>
                                 )}
                               </div>
                             )
                           }
 
+                          // ── Deploy success card with clickable URL ──
+                          const deployUrl = resultData?.url as string | undefined
+                          const isDeployTool = inv.toolName === 'deploy_to_vercel' || inv.toolName === 'check_task_status'
+                          const taskStatus = resultData?.status as string | undefined
+                          const isTaskCompleted = inv.toolName === 'check_task_status' && taskStatus === 'completed'
+                          const isTaskRunning = inv.toolName === 'check_task_status' && taskStatus === 'running'
+                          const isTaskFailed = inv.toolName === 'check_task_status' && taskStatus === 'failed'
+
+                          if (isDeployTool && !isRunning && deployUrl && !hasError) {
+                            return (
+                              <div key={partIdx} className="border border-emerald-200 dark:border-emerald-800 bg-emerald-50 dark:bg-emerald-950/30 rounded-lg p-3 text-[11px]">
+                                <div className="flex items-center gap-2 mb-2">
+                                  <CheckCircle className="w-4 h-4 text-emerald-500" />
+                                  <span className="font-medium text-emerald-700 dark:text-emerald-400">
+                                    {inv.toolName === 'deploy_to_vercel' ? 'Deployed successfully' : `${String(resultData?.type || 'Task')} completed`}
+                                  </span>
+                                </div>
+                                <a
+                                  href={deployUrl}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="flex items-center gap-1.5 text-[11px] text-forge-accent hover:underline font-mono break-all"
+                                >
+                                  {deployUrl}
+                                  <ExternalLink className="w-3 h-3 shrink-0" />
+                                </a>
+                              </div>
+                            )
+                          }
+
+                          // ── check_task_status: running → blue progress indicator ──
+                          if (inv.toolName === 'check_task_status' && (isRunning || isTaskRunning)) {
+                            return (
+                              <div
+                                key={partIdx}
+                                className="flex items-center gap-2 px-2.5 py-1.5 rounded-lg text-[11px] border border-blue-200 dark:border-blue-800 bg-blue-50 dark:bg-blue-950/30 animate-shimmer"
+                              >
+                                <div className="w-5 h-5 rounded flex items-center justify-center shrink-0 text-blue-600 dark:text-blue-400 bg-blue-100 dark:bg-blue-900/50">
+                                  <Loader2 className="w-3 h-3 animate-spin" />
+                                </div>
+                                <span className="truncate flex-1 text-blue-600 dark:text-blue-400">
+                                  {`${resultData?.type || 'Task'}: in progress...`}
+                                </span>
+                              </div>
+                            )
+                          }
+
+                          // ── check_task_status: failed → red error ──
+                          if (isTaskFailed) {
+                            return (
+                              <div
+                                key={partIdx}
+                                className="flex items-center gap-2 px-2.5 py-1.5 rounded-lg text-[11px] border border-red-200 dark:border-red-800 bg-red-50 dark:bg-red-950/30"
+                              >
+                                <div className="w-5 h-5 rounded flex items-center justify-center shrink-0 text-red-600 dark:text-red-400 bg-red-100 dark:bg-red-900/50">
+                                  <XCircle className="w-3 h-3" />
+                                </div>
+                                <span className="truncate flex-1 text-red-600 dark:text-red-400">
+                                  {`${resultData?.type || 'Task'}: failed${resultData?.error ? ` — ${String(resultData.error).slice(0, 80)}` : ''}`}
+                                </span>
+                              </div>
+                            )
+                          }
+
+                          // ── check_task_status: completed without URL ──
+                          if (isTaskCompleted) {
+                            return (
+                              <div
+                                key={partIdx}
+                                className="flex items-center gap-2 px-2.5 py-1.5 rounded-lg text-[11px] border border-emerald-200 dark:border-emerald-800 bg-emerald-50 dark:bg-emerald-950/30"
+                              >
+                                <div className="w-5 h-5 rounded flex items-center justify-center shrink-0 text-emerald-600 dark:text-emerald-400 bg-emerald-100 dark:bg-emerald-900/50">
+                                  <CheckCircle className="w-3 h-3" />
+                                </div>
+                                <span className="truncate flex-1 text-emerald-600 dark:text-emerald-400">
+                                  {`${resultData?.type || 'Task'}: completed`}
+                                </span>
+                              </div>
+                            )
+                          }
+
+                          // ── Default tool chip ──
                           return (
                             <div
                               key={partIdx}
                               className={cn(
                                 'flex items-center gap-2 px-2.5 py-1.5 rounded-lg text-[11px] border transition-all',
                                 isRunning ? 'border-forge-border animate-shimmer'
-                                  : hasError ? 'border-red-200 bg-red-50'
+                                  : hasError ? 'border-red-200 dark:border-red-800 bg-red-50 dark:bg-red-950/30'
                                   : 'border-forge-border bg-forge-surface/50',
                               )}
                             >
                               <div className={cn('w-5 h-5 rounded flex items-center justify-center shrink-0', colorClasses[info.color] || colorClasses.gray)}>
                                 {isRunning ? <Loader2 className="w-3 h-3 animate-spin" />
-                                  : hasError ? <XCircle className="w-3 h-3 text-red-600" />
+                                  : hasError ? <XCircle className="w-3 h-3 text-red-600 dark:text-red-400" />
                                   : <info.Icon className="w-3 h-3" />}
                               </div>
-                              <span className={cn('truncate flex-1', hasError ? 'text-red-600' : 'text-forge-text-dim')}>
+                              <span className={cn('truncate flex-1', hasError ? 'text-red-600 dark:text-red-400' : 'text-forge-text-dim')}>
                                 {summary}
                               </span>
                               {!isRunning && !hasError && <CheckCircle className="w-3 h-3 text-emerald-500 shrink-0" />}
@@ -740,7 +831,8 @@ export function ChatPanel({ projectName, projectId, files, onFileChange, onFileD
                         }
 
                         return null
-                      })}
+                      })
+                    })()}
                       {!isLoading && (
                         <button
                           onClick={() => handleRegenerate(message.id)}
@@ -758,7 +850,7 @@ export function ChatPanel({ projectName, projectId, files, onFileChange, onFileD
                       {textContent && (
                         <div className="relative group">
                           <div
-                            className="text-sm sm:text-[13px] leading-relaxed text-gray-700 [&_pre]:my-2 [&_code]:text-xs sm:[&_code]:text-[12px]"
+                            className="text-sm sm:text-[13px] leading-relaxed text-gray-700 dark:text-gray-300 [&_pre]:my-2 [&_code]:text-xs sm:[&_code]:text-[12px]"
                             dangerouslySetInnerHTML={{ __html: renderMarkdown(textContent) }}
                           />
                           <button

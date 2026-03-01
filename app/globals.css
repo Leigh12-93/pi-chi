@@ -1,5 +1,7 @@
 @import "tailwindcss";
 
+@custom-variant dark (&:where(.dark, .dark *));
+
 @theme {
   --color-forge-bg: #ffffff;
   --color-forge-surface: #f8f9fa;
