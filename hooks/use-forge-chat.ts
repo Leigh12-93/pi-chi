@@ -105,6 +105,8 @@ export function useForgeChat(props: UseForgeChatProps) {
   // ─── useChat (AI SDK v6) ──────────────────────────────────────
   // v6 uses transport instead of api, sendMessage instead of append,
   // status instead of isLoading, and parts-based messages
+  const retryAfterCompactRef = useRef(false)
+
   const {
     messages,
     setMessages,
@@ -115,7 +117,27 @@ export function useForgeChat(props: UseForgeChatProps) {
     regenerate,
   } = useChat({
     transport,
-    onError: (err) => console.error('Chat error:', err),
+    onError: (err) => {
+      console.error('Chat error:', err)
+      // Auto-compact and retry on 413 (context too long)
+      if (!retryAfterCompactRef.current && (err.message?.includes('413') || err.message?.includes('too long') || err.message?.includes('context'))) {
+        retryAfterCompactRef.current = true
+        toast.info('Context too long, compacting and retrying...', { duration: 3000 })
+        // Trim older messages client-side as an emergency compaction
+        if (messages.length > 10) {
+          const first2 = messages.slice(0, 2)
+          const recent8 = messages.slice(-8)
+          const summaryMsg = {
+            id: `client-compact-${Date.now()}`,
+            role: 'assistant' as const,
+            content: '',
+            parts: [{ type: 'text' as const, text: `[Conversation compacted — ${messages.length - 10} older messages removed to free context space]` }],
+          }
+          setMessages([...first2, summaryMsg as any, ...recent8])
+        }
+        retryAfterCompactRef.current = false
+      }
+    },
   })
 
   // Derive isLoading from status (v6 pattern)
@@ -525,21 +547,46 @@ export function useForgeChat(props: UseForgeChatProps) {
   }, [])
 
   // ─── Computed values ──────────────────────────────────────────
-  const { stepCount, estimatedTokens } = useMemo(() => {
+  const { stepCount, estimatedTokens, currentActivity } = useMemo(() => {
     let steps = 0
     let tokens = 0
+    let activity: { toolName: string; args: Record<string, unknown> } | null = null
+    const recentCompleted: Array<{ toolName: string; args: Record<string, unknown> }> = []
+
     for (const msg of messages) {
       const textLen = getMessageText(msg).length
       tokens += Math.ceil(textLen / 4)
       if (msg.role !== 'assistant') continue
-      const parts = (msg as any).parts as Array<{ type: string }> | undefined
+      const parts = (msg as any).parts as Array<{ type: string; toolName?: string; toolInvocation?: ToolInvocation; state?: string; input?: Record<string, unknown>; args?: Record<string, unknown> }> | undefined
       if (parts) {
-        steps += parts.filter(p => p.type === 'tool-invocation' || p.type?.startsWith('tool-')).length
+        for (const p of parts) {
+          const isTool = p.type === 'tool-invocation' || p.type?.startsWith('tool-')
+          if (!isTool) continue
+          steps++
+          const tName = p.toolInvocation?.toolName || p.toolName || p.type?.replace(/^tool-/, '') || ''
+          const tArgs = p.toolInvocation?.args || p.input || p.args || {}
+          const tState = p.toolInvocation?.state || p.state || ''
+          const isRunning = tState !== 'result' && tState !== 'output-available' && tState !== 'output-error'
+          if (isRunning) {
+            activity = { toolName: tName, args: tArgs }
+          } else {
+            recentCompleted.push({ toolName: tName, args: tArgs })
+          }
+        }
       }
       const invs = (msg as any).toolInvocations as ToolInvocation[] | undefined
       if (invs) steps += invs.length
     }
-    return { stepCount: steps, estimatedTokens: tokens }
+
+    return {
+      stepCount: steps,
+      estimatedTokens: tokens,
+      currentActivity: activity
+        ? { ...activity, recentCompleted: recentCompleted.slice(-3) }
+        : recentCompleted.length > 0
+          ? { toolName: '', args: {}, recentCompleted: recentCompleted.slice(-3) }
+          : null,
+    }
   }, [messages])
 
   // v6: Extract real usage from message metadata
@@ -609,7 +656,7 @@ export function useForgeChat(props: UseForgeChatProps) {
     selectedModel, setSelectedModel, showModelPicker, setShowModelPicker,
     copiedId, loadingHistory, editingMessageId, editingContent,
     clearConfirm, envVars, elapsed, isEmpty, attachments,
-    stepCount, estimatedTokens, realTokens, autoRoutedModel,
+    stepCount, estimatedTokens, realTokens, autoRoutedModel, currentActivity,
     // Refs
     messagesEndRef, inputRef, clearConfirmTimer, processedInvs,
     // Handlers

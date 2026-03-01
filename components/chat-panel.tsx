@@ -6,8 +6,9 @@ import {
   Sparkles, ArrowUp, StopCircle,
   AlertTriangle, ChevronDown, Clock,
   Globe, FileText, FolderPlus,
-  Paperclip, ImageIcon, X,
+  Paperclip, ImageIcon, X, CheckCircle,
 } from 'lucide-react'
+import { TOOL_LABELS, colorClasses } from '@/lib/chat/constants'
 import { cn } from '@/lib/utils'
 import { ErrorBoundary } from '@/components/error-boundary'
 import { motion } from 'framer-motion'
@@ -93,24 +94,67 @@ export function ChatPanel(props: ChatPanelProps) {
               />
             ))}
 
-            {/* Streaming indicator */}
+            {/* Streaming activity indicator */}
             {chat.isLoading && (
-              <div className="flex items-center gap-2 py-2 px-1 animate-fade-in">
-                <div className="inline-flex items-center gap-2 px-3 py-1.5 bg-forge-surface/80 border border-forge-border rounded-full">
-                  <span className="flex items-center gap-0.5">
-                    <span className="typing-dot" />
-                    <span className="typing-dot" />
-                    <span className="typing-dot" />
-                  </span>
-                  <span className="text-[12px] text-forge-text-dim">
-                    {chat.stepCount > 0 ? `Step ${chat.stepCount}` : 'Thinking'}
-                  </span>
-                  {chat.elapsed > 0 && (
-                    <span className="text-[10px] text-forge-text-dim/50 font-mono">
-                      {chat.formatElapsed(chat.elapsed)}
+              <div className="py-2 px-1 animate-fade-in space-y-1.5">
+                {/* Current active tool */}
+                {chat.currentActivity?.toolName ? (() => {
+                  const info = TOOL_LABELS[chat.currentActivity.toolName] || { label: chat.currentActivity.toolName.replace(/_/g, ' '), Icon: Loader2, color: 'gray' }
+                  const args = chat.currentActivity.args as Record<string, string>
+                  const filePath = args.path || args.file || args.filePath || args.file_path || ''
+                  const fileName = filePath ? filePath.split('/').pop() : ''
+                  return (
+                    <div className="flex items-center gap-2 px-3 py-2 bg-forge-surface/80 border border-forge-accent/20 rounded-xl">
+                      <div className={cn('w-5 h-5 rounded-lg flex items-center justify-center shrink-0', colorClasses[info.color] || colorClasses.gray)}>
+                        <Loader2 className="w-3 h-3 animate-spin" />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <span className="text-[12px] text-forge-text font-medium">{info.label}</span>
+                        {fileName && (
+                          <span className="ml-1.5 text-[11px] text-forge-accent font-mono">{fileName}</span>
+                        )}
+                      </div>
+                      {chat.elapsed > 0 && (
+                        <span className="text-[10px] text-forge-text-dim/50 font-mono shrink-0">
+                          {chat.formatElapsed(chat.elapsed)}
+                        </span>
+                      )}
+                    </div>
+                  )
+                })() : (
+                  <div className="flex items-center gap-2 px-3 py-2 bg-forge-surface/80 border border-forge-border rounded-xl">
+                    <span className="flex items-center gap-0.5">
+                      <span className="typing-dot" />
+                      <span className="typing-dot" />
+                      <span className="typing-dot" />
                     </span>
-                  )}
-                </div>
+                    <span className="text-[12px] text-forge-text-dim">
+                      {chat.stepCount > 0 ? `Step ${chat.stepCount}` : 'Thinking'}
+                    </span>
+                    {chat.elapsed > 0 && (
+                      <span className="text-[10px] text-forge-text-dim/50 font-mono">
+                        {chat.formatElapsed(chat.elapsed)}
+                      </span>
+                    )}
+                  </div>
+                )}
+                {/* Recent completed steps */}
+                {chat.currentActivity?.recentCompleted && chat.currentActivity.recentCompleted.length > 0 && (
+                  <div className="flex flex-wrap gap-1 px-1">
+                    {chat.currentActivity.recentCompleted.map((step, i) => {
+                      const info = TOOL_LABELS[step.toolName] || { label: step.toolName.replace(/_/g, ' '), Icon: CheckCircle, color: 'gray' }
+                      const args = step.args as Record<string, string>
+                      const filePath = args.path || args.file || args.filePath || args.file_path || ''
+                      const fileName = filePath ? filePath.split('/').pop() : ''
+                      return (
+                        <span key={i} className="inline-flex items-center gap-1 px-2 py-0.5 text-[10px] text-forge-text-dim bg-forge-surface/50 rounded-md border border-forge-border/50">
+                          <CheckCircle className="w-2.5 h-2.5 text-emerald-500" />
+                          {fileName || info.label}
+                        </span>
+                      )
+                    })}
+                  </div>
+                )}
               </div>
             )}
 
