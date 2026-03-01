@@ -97,7 +97,8 @@ export async function POST(req: Request) {
   }
 
   // Post-parse size check for chunked transfers (content-length may be absent)
-  const bodySize = JSON.stringify(body.files || {}).length
+  // Check entire body, not just files — a huge messages array could also blow the limit
+  const bodySize = JSON.stringify(body).length
   if (bodySize > 8 * 1024 * 1024) {
     return new Response(JSON.stringify({ error: 'Request too large. Maximum body size is 8MB.' }), {
       status: 413,
@@ -304,9 +305,9 @@ export async function POST(req: Request) {
           totalTokens: event.usage.totalTokens,
         })
       }
-      try { await streamData.close() } catch { /* stream already closed */ }
 
-      // Save assistant message to database if projectId exists
+      // Save assistant message to database BEFORE closing stream
+      // so we can still warn the client if the save fails.
       if (projectId && event.text) {
         try {
           await supabaseFetch('/forge_chat_messages', {
@@ -320,8 +321,13 @@ export async function POST(req: Request) {
           })
         } catch (error) {
           console.error('Failed to save assistant message:', error)
+          try {
+            streamData.append({ type: 'warning', message: 'Chat history could not be saved. Your work is safe but this conversation may not persist.' })
+          } catch { /* stream closing race — non-fatal */ }
         }
       }
+
+      try { await streamData.close() } catch { /* stream already closed */ }
     },
   })
 

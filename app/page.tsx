@@ -34,6 +34,32 @@ export default function ForgePage() {
   const [projectsLoadError, setProjectsLoadError] = useState(false)
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
   const [restoringProject, setRestoringProject] = useState(false)
+  const [concurrentTabWarning, setConcurrentTabWarning] = useState(false)
+
+  // Concurrent-tab detection: warn if another tab is editing the same project
+  useEffect(() => {
+    if (typeof BroadcastChannel === 'undefined') return
+    const bc = new BroadcastChannel('forge_project_edit')
+    // Announce when we start editing a project
+    if (projectId) {
+      bc.postMessage({ type: 'editing', projectId })
+    }
+    const handler = (e: MessageEvent) => {
+      if (e.data?.type === 'editing' && e.data.projectId === projectId && projectId) {
+        setConcurrentTabWarning(true)
+      }
+      // Other tab is asking who's editing — respond
+      if (e.data?.type === 'ping' && e.data.projectId === projectId && projectId) {
+        bc.postMessage({ type: 'editing', projectId })
+      }
+    }
+    bc.addEventListener('message', handler)
+    // Ask if anyone else is already editing this project
+    if (projectId) {
+      bc.postMessage({ type: 'ping', projectId })
+    }
+    return () => { bc.removeEventListener('message', handler); bc.close() }
+  }, [projectId])
 
   // Restore project from sessionStorage on mount (survives refresh)
   useEffect(() => {
@@ -73,10 +99,11 @@ export default function ForgePage() {
     } catch { /* ignore corrupt storage */ }
   }, [])
 
-  // Auto-clear error message after 5 seconds
+  // Auto-clear error messages — longer timeout for persistent warnings (local-only mode)
   useEffect(() => {
     if (errorMessage) {
-      const t = setTimeout(() => setErrorMessage(null), 5000)
+      const isLocalOnlyWarning = errorMessage.includes('local-only')
+      const t = setTimeout(() => setErrorMessage(null), isLocalOnlyWarning ? 15000 : 5000)
       return () => clearTimeout(t)
     }
   }, [errorMessage])
@@ -187,14 +214,18 @@ export default function ForgePage() {
           return
         }
         console.error('Failed to load project:', res.status)
-        setErrorMessage(`Failed to load project (${res.status}). Starting fresh.`)
+        setErrorMessage(`Could not load project (${res.status}). It may have been deleted.`)
+        // Don't fall through to project creation — return to picker
+        return
       } catch (err) {
         console.error('Failed to load project:', err)
-        setErrorMessage('Failed to load project. Starting fresh.')
+        setErrorMessage('Could not load project. Check your connection and try again.')
+        // Don't fall through to project creation — return to picker
+        return
       }
     }
 
-    // Creating new project
+    // Creating new project (only reached when id is not provided)
     if (session?.githubUsername) {
       try {
         const res = await fetch('/api/projects', {
@@ -205,10 +236,13 @@ export default function ForgePage() {
         if (res.ok) {
           const data = await res.json()
           setProjectId(data.id)
+        } else {
+          console.error('Failed to create project:', res.status)
+          setErrorMessage(`Cloud save unavailable (${res.status}). Working in local-only mode — changes won't persist across sessions.`)
         }
       } catch (err) {
         console.error('Failed to create project:', err)
-        setErrorMessage('Failed to save project to cloud. Working in local-only mode.')
+        setErrorMessage('Cloud save unavailable. Working in local-only mode — changes won\'t persist across sessions.')
       }
     }
 
@@ -230,8 +264,12 @@ export default function ForgePage() {
     setActiveFile(prev => prev === path ? null : prev)
   }, [])
 
-  const handleBulkFileUpdate = useCallback((newFiles: Record<string, string>) => {
-    setFiles(prev => ({ ...prev, ...newFiles }))
+  const handleBulkFileUpdate = useCallback((newFiles: Record<string, string>, opts?: { replace?: boolean }) => {
+    if (opts?.replace) {
+      setFiles(newFiles)
+    } else {
+      setFiles(prev => ({ ...prev, ...newFiles }))
+    }
   }, [])
 
   const handleDeleteProject = useCallback(async (id: string) => {
@@ -285,6 +323,12 @@ export default function ForgePage() {
       {errorMessage && (
         <div className="fixed top-4 right-4 z-50 bg-red-500/10 border border-red-500/20 text-red-400 px-4 py-2 rounded-lg text-sm animate-in fade-in">
           {errorMessage}
+        </div>
+      )}
+      {concurrentTabWarning && (
+        <div className="fixed top-4 left-1/2 -translate-x-1/2 z-50 bg-amber-500/10 border border-amber-500/20 text-amber-400 px-4 py-2 rounded-lg text-sm flex items-center gap-2 animate-in fade-in">
+          <span>This project is open in another tab. Edits may overwrite each other.</span>
+          <button onClick={() => setConcurrentTabWarning(false)} className="text-amber-300 hover:text-amber-100 font-medium ml-1">Dismiss</button>
         </div>
       )}
       <Workspace

@@ -68,7 +68,7 @@ interface WorkspaceProps {
   onFileSelect: (path: string) => void
   onFileChange: (path: string, content: string) => void
   onFileDelete: (path: string) => void
-  onBulkFileUpdate: (files: Record<string, string>) => void
+  onBulkFileUpdate: (files: Record<string, string>, opts?: { replace?: boolean }) => void
   onSwitchProject: () => void
   githubToken?: string
   autoSaveError?: boolean
@@ -428,7 +428,7 @@ export function Workspace({
       const updated = { ...files }
       updated[newPath] = updated[oldPath]
       delete updated[oldPath]
-      onBulkFileUpdate(updated)
+      onBulkFileUpdate(updated, { replace: true })
     }
   }
 
@@ -804,10 +804,20 @@ export function Workspace({
           if (data.files && Object.keys(data.files).length > 0) {
             onBulkFileUpdate({ ...files, ...data.files })
             const skippedCount = data.skipped?.length || 0
-            toast.success(`Imported ${data.fileCount} files${skippedCount ? ` (${skippedCount} skipped)` : ''}`, {
+            const failedCount = data.failedFiles?.length || 0
+            const warnings: string[] = []
+            if (skippedCount > 0) warnings.push(`${skippedCount} skipped`)
+            if (failedCount > 0) warnings.push(`${failedCount} failed to fetch`)
+            toast.success(`Imported ${data.fileCount} files${warnings.length ? ` (${warnings.join(', ')})` : ''}`, {
               description: `From ${fieldValues.owner}/${fieldValues.repo}${data.branch ? ` (${data.branch})` : ''}`,
-              duration: skippedCount ? 5000 : 3000,
+              duration: (skippedCount || failedCount) ? 5000 : 3000,
             })
+            if (failedCount > 0) {
+              toast.warning(`${failedCount} file${failedCount > 1 ? 's' : ''} failed to import`, {
+                description: data.failedFiles.slice(0, 5).join(', ') + (failedCount > 5 ? ` +${failedCount - 5} more` : ''),
+                duration: 6000,
+              })
+            }
             if (skippedCount > 0) {
               console.warn('Skipped files during import:', data.skipped)
             }
@@ -855,7 +865,7 @@ export function Workspace({
         snapshots={snapshots}
         currentFiles={files}
         onRestore={(snapshot) => {
-          onBulkFileUpdate(snapshot.files)
+          onBulkFileUpdate(snapshot.files, { replace: true })
           toast.success('Snapshot restored', { description: snapshot.label })
         }}
         onViewDiff={(snapshotId, path) => {

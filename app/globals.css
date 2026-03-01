@@ -97,6 +97,34 @@ html.dark .code-block-wrapper:hover > div:first-child {
   background-color: #1a1d27;
 }
 
+/* ─── v0-Style Streaming Cursor ────────────────────────────── */
+@keyframes v0Blink {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0; }
+}
+.streaming-cursor::after {
+  content: '|';
+  display: inline;
+  color: var(--color-forge-accent);
+  font-weight: 600;
+  animation: v0Blink 1s step-end infinite;
+  margin-left: 1px;
+}
+
+/* ─── v0-Style Thinking Collapse ──────────────────────────── */
+@keyframes thinkExpand {
+  from { max-height: 0; opacity: 0; }
+  to { max-height: 600px; opacity: 1; }
+}
+.think-expand { animation: thinkExpand 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards; overflow: hidden; }
+
+/* ─── v0-Style Message Slide In ──────────────────────────── */
+@keyframes v0SlideIn {
+  from { opacity: 0; transform: translateY(6px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+.v0-message-in { animation: v0SlideIn 0.25s cubic-bezier(0.16, 1, 0.3, 1) forwards; }
+
 /* Animations */
 @keyframes fadeIn {
   from { opacity: 0; transform: translateY(4px); }
@@ -167,9 +195,9 @@ html.dark .code-block-wrapper:hover > div:first-child {
   will-change: transform, opacity;
 }
 
-/* Code block wrapper hover effect */
+/* Code block wrapper hover effect — always dark like v0 */
 .code-block-wrapper:hover > div:first-child {
-  background-color: #eef2ff;
+  background-color: #1e2030;
 }
 
 /* ─── Forge Building Animation ─────────────────────────────────── */
