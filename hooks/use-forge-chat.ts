@@ -254,24 +254,42 @@ export function useForgeChat(props: UseForgeChatProps) {
     for (const msg of messages) {
       if (msg.role !== 'assistant') continue
 
-      // v6: tool invocations are in message.parts as tool-invocation parts
-      const parts = (msg as any).parts as Array<{ type: string; text?: string; toolInvocation?: ToolInvocation; toolName?: string; state?: string; input?: any; output?: any }> | undefined
-      
-      // Extract tool invocations from parts (support both v6 tool-* format and legacy toolInvocation)
+      // v6: tool invocations are in message.parts as tool-call/tool-result/tool-<name> parts
+      const parts = (msg as any).parts as Array<{ type: string; text?: string; toolInvocation?: ToolInvocation; toolName?: string; toolCallId?: string; state?: string; input?: any; args?: any; output?: any; result?: any }> | undefined
+
+      // Extract tool invocations from parts (v6 generic, v6 named, and legacy formats)
       const invocations: ToolInvocation[] = []
+      const seenToolCallIds = new Set<string>()
       if (parts) {
         for (const p of parts) {
-          // v6 format: part.type starts with 'tool-' and has toolName, state, input, output
-          if (p.type?.startsWith('tool-') && p.type !== 'tool-invocation' && p.toolName) {
+          // v6 named format: type='tool-<name>' with state, input, output
+          if (p.type?.startsWith('tool-') && p.type !== 'tool-call' && p.type !== 'tool-result' && p.type !== 'tool-invocation' && (p.toolName || p.state)) {
+            const toolName = p.toolName || p.type.replace(/^tool-/, '')
+            // Dedup: skip if we already processed this toolCallId
+            if (p.toolCallId && seenToolCallIds.has(p.toolCallId)) continue
+            if (p.toolCallId) seenToolCallIds.add(p.toolCallId)
+            invocations.push({
+              toolName,
+              state: p.state === 'output-available' ? 'result'
+                : p.state === 'input-available' ? 'call'
+                : p.state || 'result',
+              args: p.input || p.args || {},
+              result: p.output ?? p.result,
+            })
+          }
+          // v6 generic format: type='tool-call' (args available) or type='tool-result' (output available)
+          else if ((p.type === 'tool-call' || p.type === 'tool-result') && p.toolName) {
+            if (p.toolCallId && seenToolCallIds.has(p.toolCallId)) continue
+            if (p.toolCallId) seenToolCallIds.add(p.toolCallId)
             invocations.push({
               toolName: p.toolName,
-              state: p.state || 'result',
-              args: p.input || {},
-              result: p.output,
+              state: p.type === 'tool-call' ? 'call' : 'result',
+              args: p.input || p.args || {},
+              result: p.output ?? p.result,
             })
           }
           // Legacy format from v4
-          if (p.type === 'tool-invocation' && p.toolInvocation) {
+          else if (p.type === 'tool-invocation' && p.toolInvocation) {
             invocations.push(p.toolInvocation)
           }
         }
