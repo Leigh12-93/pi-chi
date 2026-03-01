@@ -84,7 +84,7 @@ export async function GET(req: Request) {
     const response = NextResponse.redirect(baseUrl)
     response.cookies.set(COOKIE_NAME, jwt, {
       httpOnly: true,
-      secure: true,
+      secure: process.env.NODE_ENV === 'production',
       sameSite: 'lax',
       maxAge: 60 * 60 * 24 * 30, // 30 days
       path: '/',

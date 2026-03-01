@@ -12,7 +12,7 @@ export async function GET() {
   const response = NextResponse.redirect(url)
   response.cookies.set('oauth_state', state, {
     httpOnly: true,
-    secure: true,
+    secure: process.env.NODE_ENV === 'production',
     sameSite: 'lax',
     maxAge: 600, // 10 minutes
     path: '/',
