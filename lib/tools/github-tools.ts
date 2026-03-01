@@ -9,7 +9,7 @@ export function createGithubTools(ctx: ToolContext) {
   return {
     github_create_repo: tool({
       description: 'Create a new GitHub repository and push all project files to it. Returns a taskId — use check_task_status to poll for completion.',
-      parameters: z.object({
+      inputSchema: z.object({
         repoName: z.string().describe('Repository name'),
         isPublic: z.boolean().optional().describe('Make repo public (default: private)'),
         description: z.string().optional().describe('Repository description'),
@@ -99,7 +99,7 @@ export function createGithubTools(ctx: ToolContext) {
 
     github_push_update: tool({
       description: 'Push updated files to an existing GitHub repository. Returns a taskId — use check_task_status to poll for completion.',
-      parameters: z.object({
+      inputSchema: z.object({
         owner: z.string().describe('GitHub username/org'),
         repo: z.string().describe('Repository name'),
         message: z.string().describe('Commit message'),
@@ -170,7 +170,7 @@ export function createGithubTools(ctx: ToolContext) {
 
     github_read_file: tool({
       description: 'Read a file from any GitHub repository you have access to. Use to inspect code in other projects like AussieSMS.',
-      parameters: z.object({
+      inputSchema: z.object({
         owner: z.string().describe('GitHub username/org, e.g. "Leigh12-93"'),
         repo: z.string().describe('Repository name'),
         path: z.string().describe('File path in the repo'),
@@ -205,7 +205,7 @@ export function createGithubTools(ctx: ToolContext) {
 
     github_list_repo_files: tool({
       description: 'List files in a GitHub repository directory. Use to explore codebases.',
-      parameters: z.object({
+      inputSchema: z.object({
         owner: z.string().describe('GitHub username/org'),
         repo: z.string().describe('Repository name'),
         path: z.string().optional().describe('Directory path (default: root)'),
@@ -238,7 +238,7 @@ export function createGithubTools(ctx: ToolContext) {
 
     github_modify_external_file: tool({
       description: 'Modify a file in any GitHub repository you have access to. Pushes a commit directly.',
-      parameters: z.object({
+      inputSchema: z.object({
         owner: z.string().describe('GitHub username/org'),
         repo: z.string().describe('Repository name'),
         path: z.string().describe('File path to modify'),
@@ -274,7 +274,7 @@ export function createGithubTools(ctx: ToolContext) {
 
     github_pull_latest: tool({
       description: 'Pull the latest files from a GitHub repo into the current project. ALWAYS call this before github_push_update to avoid overwriting remote changes.',
-      parameters: z.object({
+      inputSchema: z.object({
         owner: z.string().describe('Repository owner'),
         repo: z.string().describe('Repository name'),
         branch: z.string().optional().describe('Branch to pull from (auto-detects default if omitted)'),
@@ -359,7 +359,7 @@ export function createGithubTools(ctx: ToolContext) {
 
     github_search_code: tool({
       description: 'Search for code across GitHub repositories. Find files, functions, patterns.',
-      parameters: z.object({
+      inputSchema: z.object({
         query: z.string().describe('Search query. Supports GitHub code search syntax.'),
         repo: z.string().optional().describe('Restrict to a specific repo, e.g. "Leigh12-93/forge"'),
       }),

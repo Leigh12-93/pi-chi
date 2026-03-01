@@ -10,7 +10,7 @@ export function createDbTools(ctx: ToolContext) {
   return {
     db_query: tool({
       description: 'Query the Supabase database. Restricted to forge_* tables and credit_packages (read-only). Tables: forge_projects, forge_project_files, forge_chat_messages, forge_deployments, forge_tasks, credit_packages.',
-      parameters: z.object({
+      inputSchema: z.object({
         table: z.string().describe('Table name, e.g. "forge_projects"'),
         select: z.string().optional().describe('Columns to select, e.g. "id, name, created_at" (default: *)'),
         filters: z.string().optional().describe('PostgREST filter query string, e.g. "status=eq.active&limit=10"'),
@@ -39,7 +39,7 @@ export function createDbTools(ctx: ToolContext) {
 
     db_mutate: tool({
       description: 'Insert, update, or delete data in forge_* tables in the Supabase database.',
-      parameters: z.object({
+      inputSchema: z.object({
         operation: z.enum(['insert', 'update', 'upsert', 'delete']).describe('Operation type'),
         table: z.string().describe('Table name (must start with forge_)'),
         data: z.any().optional().describe('Data to insert/update (object or array of objects)'),
@@ -96,7 +96,7 @@ export function createDbTools(ctx: ToolContext) {
 
     db_introspect: tool({
       description: 'Discover the schema of a Supabase table — columns, types, constraints. Restricted to forge_* and credit_packages tables.',
-      parameters: z.object({
+      inputSchema: z.object({
         table: z.string().describe('Table name to inspect, e.g. "forge_projects"'),
       }),
       execute: async ({ table }) => {
@@ -153,7 +153,7 @@ export function createDbTools(ctx: ToolContext) {
 
     save_project: tool({
       description: 'Save the current project files to the database. Call this after significant changes to persist the user\'s work.',
-      parameters: z.object({
+      inputSchema: z.object({
         description: z.string().optional().describe('Updated project description'),
       }),
       execute: async ({ description }) => {

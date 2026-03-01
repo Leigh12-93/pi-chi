@@ -10,7 +10,7 @@ export function createSelfModTools(ctx: ToolContext) {
 
     forge_read_own_source: tool({
       description: 'Read a file from Forge\'s own source code on GitHub (repo: Leigh12-93/forge). Use this to understand your own implementation before modifying it.',
-      parameters: z.object({
+      inputSchema: z.object({
         path: z.string().describe('File path in the Forge repo, e.g. "app/api/chat/route.ts" or "components/chat-panel.tsx"'),
         branch: z.string().optional().describe('Branch (default: master)'),
       }),
@@ -33,7 +33,7 @@ export function createSelfModTools(ctx: ToolContext) {
 
     forge_modify_own_source: tool({
       description: 'Modify a file in Forge\'s own source code. This pushes a commit to the Forge repo on GitHub. Use with care — you are editing your own brain. ALWAYS use a feature branch, never master.',
-      parameters: z.object({
+      inputSchema: z.object({
         path: z.string().describe('File path to modify in Forge repo'),
         content: z.string().describe('New file content (complete file)'),
         message: z.string().describe('Commit message describing the change'),
@@ -85,7 +85,7 @@ export function createSelfModTools(ctx: ToolContext) {
 
     forge_redeploy: tool({
       description: 'Trigger a redeployment of Forge itself on Vercel. Call this after using forge_modify_own_source to apply your changes.',
-      parameters: z.object({
+      inputSchema: z.object({
         reason: z.string().describe('Why are you redeploying? e.g. "Added new db_query tool"'),
       }),
       execute: async ({ reason }) => {
@@ -127,7 +127,7 @@ export function createSelfModTools(ctx: ToolContext) {
 
     forge_revert_commit: tool({
       description: 'Revert the last commit on the Forge repo. Use this when a self-modification breaks the build.',
-      parameters: z.object({
+      inputSchema: z.object({
         reason: z.string().describe('Why are you reverting?'),
       }),
       execute: async ({ reason }) => {
@@ -180,7 +180,7 @@ export function createSelfModTools(ctx: ToolContext) {
 
     forge_create_branch: tool({
       description: 'Create a new branch on the Forge repo for safe development. Use this instead of pushing directly to master.',
-      parameters: z.object({
+      inputSchema: z.object({
         branch: z.string().describe('Branch name, e.g. "feat/add-testing-tools"'),
         fromBranch: z.string().default('master').describe('Base branch to create from'),
       }),
@@ -217,7 +217,7 @@ export function createSelfModTools(ctx: ToolContext) {
 
     forge_create_pr: tool({
       description: 'Create a pull request on the Forge repo. Use after pushing changes to a feature branch.',
-      parameters: z.object({
+      inputSchema: z.object({
         title: z.string().describe('PR title'),
         body: z.string().describe('PR description'),
         head: z.string().describe('Source branch with changes'),
@@ -246,7 +246,7 @@ export function createSelfModTools(ctx: ToolContext) {
 
     forge_merge_pr: tool({
       description: 'Merge a pull request on the Forge repo. Only merge after verifying the preview deploy succeeded.',
-      parameters: z.object({
+      inputSchema: z.object({
         prNumber: z.number().describe('PR number to merge'),
         method: z.enum(['merge', 'squash', 'rebase']).default('squash').describe('Merge method'),
       }),
@@ -271,7 +271,7 @@ export function createSelfModTools(ctx: ToolContext) {
 
     forge_check_npm_package: tool({
       description: 'Check if an npm package exists and get its latest version. ALWAYS call this before adding a new dependency to package.json.',
-      parameters: z.object({
+      inputSchema: z.object({
         name: z.string().describe('npm package name, e.g. "@modelcontextprotocol/sdk"'),
       }),
       execute: async ({ name }) => {
@@ -295,7 +295,7 @@ export function createSelfModTools(ctx: ToolContext) {
 
     forge_list_branches: tool({
       description: 'List all branches on the Forge repo. Useful to see what feature branches exist.',
-      parameters: z.object({}),
+      inputSchema: z.object({}),
       execute: async () => {
         const token = GITHUB_TOKEN
         if (!token) return { error: 'No GitHub token configured' }
@@ -313,7 +313,7 @@ export function createSelfModTools(ctx: ToolContext) {
 
     forge_delete_branch: tool({
       description: 'Delete a branch on the Forge repo after it has been merged.',
-      parameters: z.object({
+      inputSchema: z.object({
         branch: z.string().describe('Branch name to delete (cannot be master)'),
       }),
       execute: async ({ branch }) => {

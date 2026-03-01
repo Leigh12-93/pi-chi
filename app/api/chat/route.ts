@@ -6,6 +6,7 @@ import {
   stepCountIs,
   UIMessage,
 } from 'ai'
+import { anthropic } from '@ai-sdk/anthropic'
 import { chatLimiter } from '@/lib/rate-limit'
 import { TaskStore } from '@/lib/background-tasks'
 import { getSession } from '@/lib/auth'
@@ -82,17 +83,17 @@ function classifyModelComplexity(messages: any[], fileCount: number): { model: s
   // Opus indicators: complex architecture, multi-file refactors, system design
   const opusKeywords = ['architect', 'refactor', 'redesign', 'migrate', 'optimize performance', 'system design', 'rewrite entire', 'full rewrite']
   if (opusKeywords.some(k => lower.includes(k)) || (wordCount > 200 && fileCount > 10)) {
-    return { model: 'anthropic/claude-opus-4-20250514', reason: 'Complex task detected — using Opus for best reasoning' }
+    return { model: 'claude-opus-4-20250514', reason: 'Complex task detected — using Opus for best reasoning' }
   }
 
   // Haiku indicators: simple edits, quick fixes, small changes
   const haikuKeywords = ['fix typo', 'rename', 'change color', 'change text', 'update title', 'small change', 'quick fix', 'add comment']
   if (haikuKeywords.some(k => lower.includes(k)) || (wordCount < 20 && fileCount <= 3)) {
-    return { model: 'anthropic/claude-haiku-35-20241022', reason: 'Simple task — using Haiku for speed' }
+    return { model: 'claude-haiku-35-20241022', reason: 'Simple task — using Haiku for speed' }
   }
 
   // Default: Sonnet for balanced performance
-  return { model: 'anthropic/claude-sonnet-4-20250514', reason: 'Standard task — using Sonnet' }
+  return { model: 'claude-sonnet-4-20250514', reason: 'Standard task — using Sonnet' }
 }
 
 // ═══════════════════════════════════════════════════════════════════
@@ -155,17 +156,16 @@ export async function POST(req: Request) {
   const projectName = body.projectName || 'untitled'
   const projectId = body.projectId || null
 
-  // AI Gateway model IDs use provider/model format
   const ALLOWED_MODELS = [
-    'anthropic/claude-sonnet-4-20250514',
-    'anthropic/claude-haiku-35-20241022',
-    'anthropic/claude-opus-4-20250514',
+    'claude-sonnet-4-20250514',
+    'claude-haiku-35-20241022',
+    'claude-opus-4-20250514',
+    'claude-opus-4-6',
   ]
 
-  // Map legacy model IDs (without provider prefix) to AI Gateway format
+  // Strip 'anthropic/' prefix from legacy AI Gateway format model IDs
   function normalizeModelId(id: string): string {
-    if (id.startsWith('anthropic/')) return id
-    return `anthropic/${id}`
+    return id.replace(/^anthropic\//, '')
   }
 
   if (!Array.isArray(body.messages)) {
@@ -408,9 +408,9 @@ export async function POST(req: Request) {
           } as any)
         }
 
-        // AI SDK v6: model is just a string (Vercel AI Gateway)
+        // Use @ai-sdk/anthropic provider for prompt caching support
         const result = streamText({
-          model: selectedModel,
+          model: anthropic(selectedModel),
           system: SYSTEM_PROMPT
             + (promptExample ? `\n\n## Structural Guide for This Request\n${promptExample}` : '')
             + `\n\n---\nProject: "${projectName}"${projectId ? ` (id: ${projectId})` : ''}\nFile manifest:\n${manifestStr}`
@@ -421,6 +421,10 @@ export async function POST(req: Request) {
           stopWhen: stepCountIs(50),
           abortSignal: streamAbort.signal,
           tools: allTools,
+          // Enable Anthropic prompt caching — 90% input token discount on cached prefix
+          providerOptions: {
+            anthropic: { cacheControl: { type: 'ephemeral' } },
+          },
 
           onFinish: async (event) => {
             clearTimeout(streamTimeout)
@@ -430,17 +434,17 @@ export async function POST(req: Request) {
             if (count <= 1) activeStreams.delete(ip)
             else activeStreams.set(ip, count - 1)
 
-            console.log(`[forge] rid=${requestId} ${event.usage?.totalTokens || 0} tokens, ${event.steps?.length || 0} steps`)
+            console.log(`[forge] rid=${requestId} ${event.totalUsage?.totalTokens || 0} tokens, ${event.steps?.length || 0} steps`)
 
             // Server-side usage tracking per user
-            if (event.usage && session?.user) {
+            if (event.totalUsage && session?.user) {
               const userId = (session as any).githubUsername || 'unknown'
               const prev = usageTracker.get(userId) || { tokens: 0, requests: 0, ts: Date.now() }
-              prev.tokens += event.usage.totalTokens || 0
+              prev.tokens += event.totalUsage.totalTokens || 0
               prev.requests += 1
               prev.ts = Date.now()
               usageTracker.set(userId, prev)
-              console.log(`[forge:usage] user=${userId} req_tokens=${event.usage.totalTokens} cumulative=${prev.tokens} requests=${prev.requests}`)
+              console.log(`[forge:usage] user=${userId} req_tokens=${event.totalUsage.totalTokens} cumulative=${prev.tokens} requests=${prev.requests}`)
             }
 
             // Save assistant message to database
@@ -469,9 +473,9 @@ export async function POST(req: Request) {
             if (part.type === 'finish') {
               return {
                 usage: {
-                  promptTokens: part.usage?.promptTokens ?? 0,
-                  completionTokens: part.usage?.completionTokens ?? 0,
-                  totalTokens: part.usage?.totalTokens ?? 0,
+                  inputTokens: part.totalUsage?.inputTokens ?? 0,
+                  outputTokens: part.totalUsage?.outputTokens ?? 0,
+                  totalTokens: part.totalUsage?.totalTokens ?? 0,
                 },
                 model: selectedModel,
                 autoRouted: modelAutoRouted,

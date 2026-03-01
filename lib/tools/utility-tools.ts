@@ -19,7 +19,7 @@ export function createUtilityTools(ctx: ToolContext) {
   return {
     think: tool({
       description: 'Think through your approach before building. Use this for complex tasks (3+ files) to plan the file structure, component hierarchy, and implementation order.',
-      parameters: z.object({
+      inputSchema: z.object({
         plan: z.string().describe('Your step-by-step plan for implementing this task'),
         files: z.array(z.string()).describe('List of files you plan to create/modify'),
         approach: z.string().optional().describe('Key architectural decisions'),
@@ -34,7 +34,7 @@ export function createUtilityTools(ctx: ToolContext) {
 
     suggest_improvement: tool({
       description: 'Log a tooling limitation, bug, or improvement suggestion. Use when you encounter something that blocks or slows your work.',
-      parameters: z.object({
+      inputSchema: z.object({
         issue: z.string().describe('What limitation or bug you encountered'),
         suggestion: z.string().describe('Specific fix — include exact code changes if possible'),
         file: z.string().optional().describe('Which source file needs to change'),
@@ -51,7 +51,7 @@ export function createUtilityTools(ctx: ToolContext) {
 
     request_env_vars: tool({
       description: 'Request environment variables from the user. Use this BEFORE deploying when the project needs API keys, secrets, or config values. The user will see inline input fields in the chat to enter their credentials. Call this whenever you detect process.env references that need real values.',
-      parameters: z.object({
+      inputSchema: z.object({
         variables: z.array(z.object({
           name: z.string().describe('Env var name, e.g. DATABASE_URL'),
           description: z.string().optional().describe('What this variable is for'),
@@ -76,7 +76,7 @@ export function createUtilityTools(ctx: ToolContext) {
 
     load_chat_history: tool({
       description: 'Load previous chat messages for this project from the database.',
-      parameters: z.object({}),
+      inputSchema: z.object({}),
       execute: async () => {
         if (!projectId) return { error: 'No project ID available' }
 
@@ -99,7 +99,7 @@ export function createUtilityTools(ctx: ToolContext) {
 
     mcp_list_servers: tool({
       description: 'List all configured MCP servers and their connection status, plus available tools.',
-      parameters: z.object({}),
+      inputSchema: z.object({}),
       execute: async () => {
         const servers = mcpClient.getServers()
         return {
@@ -117,7 +117,7 @@ export function createUtilityTools(ctx: ToolContext) {
 
     mcp_connect_server: tool({
       description: 'Add and connect to an MCP server. Discovers available tools automatically.',
-      parameters: z.object({
+      inputSchema: z.object({
         url: z.string().describe('MCP server HTTP endpoint URL'),
         name: z.string().describe('Display name for this server'),
         token: z.string().optional().describe('Bearer auth token (if required)'),
@@ -145,7 +145,7 @@ export function createUtilityTools(ctx: ToolContext) {
 
     search_references: tool({
       description: 'Search the reference component library for high-quality examples. Use before generating any UI component to find proven patterns to adapt.',
-      parameters: z.object({
+      inputSchema: z.object({
         query: z.string().describe('What type of component or pattern to search for (e.g., "data table", "login form", "dashboard layout")'),
         category: z.string().optional().describe('Filter by category: page, layout, form, data-display, navigation, feedback, dashboard, auth, chart, loading, error-handling, settings, component, hook, utility, ui-primitive, api-route, search'),
         source: z.string().optional().describe('Filter by source codebase: awb-website, awb-admin-dashboard, forge'),
@@ -168,7 +168,7 @@ export function createUtilityTools(ctx: ToolContext) {
 
     get_reference_code: tool({
       description: 'Get the full source code of a reference component by name. Use after search_references finds a relevant match and you need the complete implementation.',
-      parameters: z.object({
+      inputSchema: z.object({
         name: z.string().describe('Exact component name from search_references results'),
       }),
       execute: async ({ name }) => {
@@ -189,7 +189,7 @@ export function createUtilityTools(ctx: ToolContext) {
 
     mcp_call_tool: tool({
       description: 'Execute a tool on a connected MCP server. Use mcp_list_servers first to see available tools.',
-      parameters: z.object({
+      inputSchema: z.object({
         serverId: z.string().describe('ID of the connected MCP server'),
         tool: z.string().describe('Name of the tool to call'),
         args: z.record(z.unknown()).default({}).describe('Arguments to pass to the tool'),
@@ -206,7 +206,7 @@ export function createUtilityTools(ctx: ToolContext) {
 
     validate_file: tool({
       description: 'Validate a file for common issues (broken imports, missing directives, accessibility). Call after writing any file >20 lines.',
-      parameters: z.object({
+      inputSchema: z.object({
         path: z.string().describe('File path to validate'),
       }),
       execute: async ({ path }) => {
@@ -286,7 +286,7 @@ export function createUtilityTools(ctx: ToolContext) {
 
     capture_preview: tool({
       description: 'Request a screenshot capture of the current preview panel. The client will capture the iframe content and return it as a base64 data URL. Use this after building or modifying UI components to visually verify your output looks correct. Review the image for: layout issues, missing elements, broken styling, accessibility concerns.',
-      parameters: z.object({
+      inputSchema: z.object({
         reason: z.string().optional().describe('Why you want to capture the preview (e.g., "verify dashboard layout", "check form styling")'),
       }),
       execute: async ({ reason }) => {
@@ -303,7 +303,7 @@ export function createUtilityTools(ctx: ToolContext) {
 
     check_coherence: tool({
       description: 'Check cross-file consistency: verify imports resolve, shared types match, and API routes align with frontend expectations. Call after creating or modifying multiple related files.',
-      parameters: z.object({
+      inputSchema: z.object({
         paths: z.array(z.string()).describe('File paths to check for cross-file coherence'),
       }),
       execute: async ({ paths }) => {
@@ -367,7 +367,7 @@ export function createUtilityTools(ctx: ToolContext) {
 
     generate_tests: tool({
       description: 'Generate test scaffolding for a component or API route. Creates a test file with smoke tests, prop validation, error states, and accessibility checks. Call after writing components to ensure quality.',
-      parameters: z.object({
+      inputSchema: z.object({
         path: z.string().describe('Path of the file to generate tests for'),
         framework: z.enum(['vitest', 'jest']).default('vitest').describe('Test framework to use'),
       }),
@@ -516,7 +516,7 @@ describe('${componentName}', () => {
 
     check_dependency_health: tool({
       description: 'Check the health of an npm package before adding it as a dependency. Checks for deprecation, last publish date, weekly downloads, and approximate bundle size. Use before add_dependency to avoid adding dead or bloated packages.',
-      parameters: z.object({
+      inputSchema: z.object({
         packageName: z.string().describe('npm package name to check (e.g., "lodash", "date-fns")'),
       }),
       execute: async ({ packageName }) => {
@@ -588,7 +588,7 @@ describe('${componentName}', () => {
 
     save_preference: tool({
       description: 'Save a learned user preference for future sessions. Use this when you notice the user consistently prefers certain patterns (color schemes, component libraries, naming conventions, code style). Preferences persist across projects.',
-      parameters: z.object({
+      inputSchema: z.object({
         key: z.string().describe('Preference key (e.g., "color_palette", "component_style", "naming_convention", "preferred_libraries", "code_style")'),
         value: z.string().describe('The preference value or description'),
       }),
@@ -612,7 +612,7 @@ describe('${componentName}', () => {
 
     load_preferences: tool({
       description: 'Load all saved user preferences. Call at the start of a session to personalize outputs based on learned preferences.',
-      parameters: z.object({}),
+      inputSchema: z.object({}),
       execute: async () => {
         const result = await supabaseFetch(`/forge_user_preferences?github_username=eq.${encodeURIComponent(ctx.githubUsername || 'unknown')}&order=updated_at.desc`)
         if (!result.ok) return { error: `Failed to load preferences: ${JSON.stringify(result.data)}` }

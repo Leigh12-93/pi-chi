@@ -48,7 +48,7 @@ export function createFileTools(ctx: ToolContext) {
   return {
     write_file: tool({
       description: 'Create or overwrite a file. Result is lean to save tokens.',
-      parameters: z.object({
+      inputSchema: z.object({
         path: z.string().describe('File path relative to project root'),
         content: z.string().describe('Complete file content'),
       }),
@@ -68,7 +68,7 @@ export function createFileTools(ctx: ToolContext) {
 
     read_file: tool({
       description: 'Read a file\'s content. Only use when you need existing content before editing. Supports pagination for large files via offset/limit.',
-      parameters: z.object({
+      inputSchema: z.object({
         path: z.string().describe('File path relative to project root'),
         offset: z.number().optional().describe('Line number to start from (1-based, default: 1)'),
         limit: z.number().optional().describe('Max lines to return (default/max: 2000)'),
@@ -93,7 +93,7 @@ export function createFileTools(ctx: ToolContext) {
 
     edit_file: tool({
       description: 'Edit a file by replacing a specific string. old_string must match EXACTLY (including whitespace/indentation). IMPORTANT: If you did NOT write this file yourself in this conversation, you MUST call read_file first. If this tool returns an error, STOP and call read_file before retrying — never guess.',
-      parameters: z.object({
+      inputSchema: z.object({
         path: z.string().describe('File path'),
         old_string: z.string().describe('Exact string to find (must match whitespace/indentation)'),
         new_string: z.string().describe('Replacement string'),
@@ -197,7 +197,7 @@ export function createFileTools(ctx: ToolContext) {
 
     delete_file: tool({
       description: 'Delete a file from the project.',
-      parameters: z.object({
+      inputSchema: z.object({
         path: z.string().describe('File path to delete'),
       }),
       execute: async ({ path }) => {
@@ -211,7 +211,7 @@ export function createFileTools(ctx: ToolContext) {
 
     list_files: tool({
       description: 'List all files in the project with their sizes.',
-      parameters: z.object({
+      inputSchema: z.object({
         prefix: z.string().optional().describe('Filter files starting with this path prefix'),
       }),
       execute: async ({ prefix }) => {
@@ -222,7 +222,7 @@ export function createFileTools(ctx: ToolContext) {
 
     search_files: tool({
       description: 'Search file contents with a regex pattern.',
-      parameters: z.object({
+      inputSchema: z.object({
         pattern: z.string().describe('Regex pattern to search for'),
       }),
       execute: async ({ pattern }) => {
@@ -234,7 +234,7 @@ export function createFileTools(ctx: ToolContext) {
 
     grep_files: tool({
       description: 'Search file contents with regex and return matches with surrounding context lines. Better than search_files when you need to see code around matches before editing.',
-      parameters: z.object({
+      inputSchema: z.object({
         pattern: z.string().describe('Regex pattern to search for'),
         context: z.number().optional().describe('Lines of context before and after each match (default: 3)'),
         maxResults: z.number().optional().describe('Max results to return (default: 10)'),
@@ -269,7 +269,7 @@ export function createFileTools(ctx: ToolContext) {
 
     get_all_files: tool({
       description: 'Get the file manifest (path, lines, size). No content.',
-      parameters: z.object({}),
+      inputSchema: z.object({}),
       execute: async () => {
         return { manifest: vfs.manifest(), totalFiles: vfs.list().length }
       },
@@ -277,7 +277,7 @@ export function createFileTools(ctx: ToolContext) {
 
     rename_file: tool({
       description: 'Rename/move a file within the project.',
-      parameters: z.object({
+      inputSchema: z.object({
         oldPath: z.string().describe('Current file path'),
         newPath: z.string().describe('New file path'),
       }),

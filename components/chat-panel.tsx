@@ -122,7 +122,7 @@ export function ChatPanel(props: ChatPanelProps) {
                   <p className="text-red-500 dark:text-red-400/80 leading-relaxed">{chat.errorMessage}</p>
                 </div>
                 <button
-                  onClick={() => chat.reload()}
+                  onClick={() => chat.regenerate()}
                   className="shrink-0 px-3 py-1.5 bg-red-100 dark:bg-red-900/50 hover:bg-red-200 dark:hover:bg-red-800/60 text-red-700 dark:text-red-400 rounded-lg text-[11px] font-medium transition-colors"
                 >
                   Retry

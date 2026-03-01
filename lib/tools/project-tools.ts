@@ -10,7 +10,7 @@ export function createProjectTools(ctx: ToolContext) {
   return {
     create_project: tool({
       description: 'Scaffold a new project from a template. Always call this FIRST for new projects. Templates: nextjs (blank), vite-react, static, saas (landing page with hero/features/pricing), blog, dashboard (admin panel with sidebar/stats), ecommerce (product grid with cart), portfolio (developer portfolio), docs (documentation site with sidebar).',
-      parameters: z.object({
+      inputSchema: z.object({
         template: z.enum(['nextjs', 'vite-react', 'static', 'saas', 'blog', 'dashboard', 'ecommerce', 'portfolio', 'docs']).describe('Project template'),
         description: z.string().optional().describe('Project description'),
       }),
@@ -25,7 +25,7 @@ export function createProjectTools(ctx: ToolContext) {
 
     add_dependency: tool({
       description: 'Add an npm package to package.json. Validates the package exists on npm first. ALWAYS use this when importing a package not already in package.json.',
-      parameters: z.object({
+      inputSchema: z.object({
         name: z.string().describe('npm package name, e.g. "framer-motion"'),
         version: z.string().optional().describe('Version range (default: ^latest)'),
         dev: z.boolean().optional().describe('Add to devDependencies instead of dependencies'),
@@ -60,7 +60,7 @@ export function createProjectTools(ctx: ToolContext) {
 
     scaffold_component: tool({
       description: 'Generate a reusable UI component in shadcn/ui style. Creates the component file with proper TypeScript types, variants, and Tailwind styling.',
-      parameters: z.object({
+      inputSchema: z.object({
         name: z.string().describe('Component name in PascalCase, e.g. "Button", "Card", "Dialog"'),
         type: z.enum(['button', 'card', 'input', 'modal', 'badge', 'alert', 'tabs', 'dropdown', 'avatar', 'tooltip', 'custom']).describe('Component type'),
         variants: z.array(z.string()).optional().describe('Style variants, e.g. ["default", "destructive", "outline", "ghost"]'),
@@ -110,7 +110,7 @@ export function createProjectTools(ctx: ToolContext) {
 
     generate_env_file: tool({
       description: 'Analyze project files and generate a .env.example file listing all required environment variables.',
-      parameters: z.object({}),
+      inputSchema: z.object({}),
       execute: async () => {
         const envVars = new Map<string, string>()
         for (const [path, content] of vfs.files) {
@@ -139,7 +139,7 @@ export function createProjectTools(ctx: ToolContext) {
 
     add_image: tool({
       description: 'Find a free image from Unsplash for the project. Returns a working image URL you can use in img tags or CSS backgrounds. If UNSPLASH_ACCESS_KEY is not set, returns placeholder guidance instead.',
-      parameters: z.object({
+      inputSchema: z.object({
         query: z.string().describe('Search query (e.g. "mountain landscape", "coffee shop", "team meeting")'),
         orientation: z.enum(['landscape', 'portrait', 'squarish']).default('landscape').describe('Image orientation'),
         size: z.enum(['raw', 'full', 'regular', 'small', 'thumb']).default('regular').describe('Image size variant'),

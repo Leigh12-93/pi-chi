@@ -58,7 +58,7 @@ export function useForgeChat(props: UseForgeChatProps) {
     status,
     error,
     sendMessage,
-    reload,
+    regenerate,
   } = useChat({
     transport: new DefaultChatTransport({
       api: '/api/chat',
@@ -434,6 +434,6 @@ export function useForgeChat(props: UseForgeChatProps) {
     handleRegenerate, handleEnvVarsSave, handleCancelTask, handleScroll,
     handleClearChat,
     setEditingMessageId, setEditingContent, setClearConfirm,
-    stop, reload, setMessages, formatElapsed,
+    stop, regenerate, setMessages, formatElapsed,
   }
 }

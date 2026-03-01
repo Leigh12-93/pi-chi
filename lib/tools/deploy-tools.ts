@@ -9,7 +9,7 @@ export function createDeployTools(ctx: ToolContext) {
   return {
     deploy_to_vercel: tool({
       description: 'Deploy the current project files to Vercel. Returns a taskId — use check_task_status to poll for completion. Build errors are automatically captured.',
-      parameters: z.object({
+      inputSchema: z.object({
         framework: z.enum(['nextjs', 'vite', 'nuxtjs', 'astro', 'sveltekit', 'remix', 'static']).optional().describe('Framework hint (auto-detected if omitted)'),
       }),
       execute: async ({ framework }) => {
@@ -43,7 +43,7 @@ export function createDeployTools(ctx: ToolContext) {
 
     check_task_status: tool({
       description: 'Check the status of a background task (deploy, GitHub push, build check). Use this to poll for completion after a tool returns a taskId.',
-      parameters: z.object({
+      inputSchema: z.object({
         taskId: z.string().describe('Task ID returned by deploy_to_vercel, github_create_repo, github_push_update, or forge_check_build'),
       }),
       execute: async ({ taskId }) => {
@@ -61,7 +61,7 @@ export function createDeployTools(ctx: ToolContext) {
 
     cancel_task: tool({
       description: 'Cancel a running background task. Aborts the operation and marks it as failed with "Cancelled by user".',
-      parameters: z.object({
+      inputSchema: z.object({
         taskId: z.string().describe('Task ID to cancel'),
       }),
       execute: async ({ taskId }) => {
@@ -73,7 +73,7 @@ export function createDeployTools(ctx: ToolContext) {
 
     forge_check_build: tool({
       description: 'Trigger a preview (non-production) deployment on Vercel to check if the current code builds successfully. Returns a taskId — use check_task_status to poll for completion. Use this BEFORE forge_redeploy to catch errors.',
-      parameters: z.object({
+      inputSchema: z.object({
         branch: z.string().default('master').describe('Branch to build'),
       }),
       execute: async ({ branch }) => {
@@ -182,7 +182,7 @@ export function createDeployTools(ctx: ToolContext) {
 
     forge_deployment_status: tool({
       description: 'Check the current Vercel deployment status for Forge. Use after self-modification to verify the deploy succeeded.',
-      parameters: z.object({}),
+      inputSchema: z.object({}),
       execute: async () => {
         const token = VERCEL_TOKEN
         if (!token) return { error: 'No Vercel deploy token configured' }
@@ -231,7 +231,7 @@ export function createDeployTools(ctx: ToolContext) {
 
     forge_read_deploy_log: tool({
       description: 'Read the full build log from a Vercel deployment. Use after forge_check_build or deploy_to_vercel to see detailed error output.',
-      parameters: z.object({
+      inputSchema: z.object({
         deploymentId: z.string().describe('Vercel deployment ID (from forge_check_build, deploy_to_vercel, or forge_deployment_status)'),
         errorsOnly: z.boolean().optional().describe('Only show error-related lines (default: false)'),
       }),
@@ -277,7 +277,7 @@ export function createDeployTools(ctx: ToolContext) {
 
     start_sandbox: tool({
       description: 'Start a live preview sandbox for the current project. Uploads files to v0 Platform API and returns a live preview URL. Free — no tokens consumed. Use when the user wants to see their app running live.',
-      parameters: z.object({}),
+      inputSchema: z.object({}),
       execute: async () => {
         if (!ctx.projectId) return { error: 'No project ID — save the project first.' }
         const files = ctx.vfs.toRecord()
@@ -289,7 +289,7 @@ export function createDeployTools(ctx: ToolContext) {
 
     stop_sandbox: tool({
       description: 'Stop the running preview sandbox for the current project.',
-      parameters: z.object({}),
+      inputSchema: z.object({}),
       execute: async () => {
         if (!ctx.projectId) return { error: 'No project ID.' }
         return destroyV0Sandbox(ctx.projectId)
@@ -298,7 +298,7 @@ export function createDeployTools(ctx: ToolContext) {
 
     set_custom_domain: tool({
       description: 'Set or check a custom domain for a Vercel deployment. Users can add their own domain to their deployed project.',
-      parameters: z.object({
+      inputSchema: z.object({
         domain: z.string().describe('The custom domain to add (e.g., "myapp.com" or "app.mysite.com")'),
         projectName: z.string().optional().describe('Vercel project name (defaults to current project)'),
       }),
@@ -341,7 +341,7 @@ export function createDeployTools(ctx: ToolContext) {
 
     sandbox_status: tool({
       description: 'Check the status of the preview sandbox for the current project.',
-      parameters: z.object({}),
+      inputSchema: z.object({}),
       execute: async () => {
         if (!ctx.projectId) return { error: 'No project ID.' }
         const status = getV0SandboxStatus(ctx.projectId)

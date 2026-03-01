@@ -71,9 +71,10 @@ export const TOOL_LABELS: Record<string, { label: string; Icon: LucideIcon; colo
 }
 
 export const MODEL_OPTIONS = [
-  { id: 'anthropic/claude-sonnet-4-20250514', label: 'Sonnet 4', description: 'Fast & capable' },
-  { id: 'anthropic/claude-haiku-35-20241022', label: 'Haiku 3.5', description: 'Fastest' },
-  { id: 'anthropic/claude-opus-4-20250514', label: 'Opus 4', description: 'Most capable' },
+  { id: 'claude-sonnet-4-20250514', label: 'Sonnet 4', description: 'Fast & capable' },
+  { id: 'claude-haiku-35-20241022', label: 'Haiku 3.5', description: 'Fastest' },
+  { id: 'claude-opus-4-20250514', label: 'Opus 4', description: 'Most capable' },
+  { id: 'claude-opus-4-6', label: 'Opus 4.6', description: 'Latest flagship' },
 ] as const
 
 export const QUICK_ACTIONS = [

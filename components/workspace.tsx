@@ -524,7 +524,6 @@ export function Workspace({
       {openFilesList.map(f => {
         const name = f.split('/').pop() || f
         const isActive = activeFile === f
-        const isModified = modifiedFiles?.has(f)
         return (
           <div
             key={f}
@@ -536,7 +535,6 @@ export function Workspace({
             )}
             onClick={() => onFileSelect(f)}
           >
-            {isModified && <span className="w-1.5 h-1.5 rounded-full bg-amber-500 shrink-0" />}
             <span>{name}</span>
             <button
               onClick={(e) => { e.stopPropagation(); handleCloseFile(f) }}
