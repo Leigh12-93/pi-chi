@@ -10,7 +10,7 @@ import {
   StopCircle, Sparkles, ArrowUp, Lightbulb,
   Brain, Database, Wrench, RefreshCw,
   BookOpen, Save, Plug, ImageIcon,
-  ChevronDown, ExternalLink, Clock,
+  ChevronDown, ExternalLink, Clock, Key,
   type LucideIcon,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
@@ -62,6 +62,7 @@ const TOOL_LABELS: Record<string, { label: string; Icon: LucideIcon; color: stri
   db_introspect: { label: 'Inspecting table schema', Icon: Database, color: 'purple' },
   scaffold_component: { label: 'Scaffolding component', Icon: Sparkles, color: 'indigo' },
   generate_env_file: { label: 'Generating .env.example', Icon: FileText, color: 'green' },
+  request_env_vars: { label: 'Environment setup', Icon: Key, color: 'amber' },
   start_sandbox: { label: 'Starting sandbox', Icon: Rocket, color: 'green' },
   stop_sandbox: { label: 'Stopping sandbox', Icon: Terminal, color: 'red' },
   sandbox_status: { label: 'Checking sandbox', Icon: Rocket, color: 'blue' },
@@ -297,6 +298,86 @@ function extractFileUpdates(
 }
 
 // ═══════════════════════════════════════════════════════════════════
+// Env Var Input Card — inline credential input like v0
+// ═══════════════════════════════════════════════════════════════════
+
+function EnvVarInputCard({
+  variables,
+  savedVars,
+  onSave,
+}: {
+  variables: Array<{ name: string; description?: string; required?: boolean }>
+  savedVars: Record<string, string>
+  onSave: (vars: Record<string, string>) => void
+}) {
+  const [values, setValues] = useState<Record<string, string>>(() => {
+    const initial: Record<string, string> = {}
+    for (const v of variables) {
+      initial[v.name] = savedVars[v.name] || ''
+    }
+    return initial
+  })
+  const [saved, setSaved] = useState(false)
+
+  const allRequiredFilled = variables
+    .filter(v => v.required !== false)
+    .every(v => values[v.name]?.trim())
+
+  const handleSave = () => {
+    const trimmed: Record<string, string> = {}
+    for (const [k, v] of Object.entries(values)) {
+      if (v.trim()) trimmed[k] = v.trim()
+    }
+    onSave(trimmed)
+    setSaved(true)
+    setTimeout(() => setSaved(false), 2000)
+  }
+
+  return (
+    <div className="border border-amber-200 dark:border-amber-800 bg-amber-50 dark:bg-amber-950/30 rounded-lg p-3 text-[11px]">
+      <div className="flex items-center gap-1.5 mb-2">
+        <Key className="w-3.5 h-3.5 text-amber-600 dark:text-amber-400" />
+        <span className="font-medium text-amber-600 dark:text-amber-400">Environment Variables Required</span>
+      </div>
+      <div className="space-y-2">
+        {variables.map((v) => (
+          <div key={v.name}>
+            <div className="flex items-center gap-1 mb-0.5">
+              <code className="text-[10px] font-mono text-amber-700 dark:text-amber-300 font-medium">{v.name}</code>
+              {v.required !== false && <span className="text-red-500 text-[9px]">*</span>}
+            </div>
+            {v.description && (
+              <p className="text-[10px] text-amber-600/70 dark:text-amber-400/70 mb-0.5">{v.description}</p>
+            )}
+            <input
+              type={v.name.toLowerCase().includes('secret') || v.name.toLowerCase().includes('key') || v.name.toLowerCase().includes('password') || v.name.toLowerCase().includes('token') ? 'password' : 'text'}
+              value={values[v.name] || ''}
+              onChange={(e) => setValues(prev => ({ ...prev, [v.name]: e.target.value }))}
+              placeholder={v.name}
+              className="w-full px-2 py-1 rounded bg-white dark:bg-gray-900 border border-amber-200 dark:border-amber-700 text-[11px] font-mono text-gray-800 dark:text-gray-200 placeholder:text-gray-400 dark:placeholder:text-gray-600 focus:outline-none focus:ring-1 focus:ring-amber-400"
+            />
+          </div>
+        ))}
+      </div>
+      <button
+        onClick={handleSave}
+        disabled={!allRequiredFilled}
+        className={cn(
+          'mt-2.5 px-3 py-1 rounded text-[11px] font-medium transition-colors',
+          saved
+            ? 'bg-emerald-500 text-white'
+            : allRequiredFilled
+              ? 'bg-amber-500 hover:bg-amber-600 text-white cursor-pointer'
+              : 'bg-gray-200 dark:bg-gray-700 text-gray-400 dark:text-gray-500 cursor-not-allowed'
+        )}
+      >
+        {saved ? 'Saved!' : 'Save Environment Variables'}
+      </button>
+    </div>
+  )
+}
+
+// ═══════════════════════════════════════════════════════════════════
 // Memoized message component — prevents re-rendering completed
 // messages when new content streams in
 // ═══════════════════════════════════════════════════════════════════
@@ -307,17 +388,19 @@ interface MessageItemProps {
   isEditing: boolean
   editingContent: string
   isLoading: boolean
+  envVars: Record<string, string>
   onCopy: (id: string, content: string) => void
   onEditMessage: (id: string, content: string) => void
   onSaveEdit: () => void
   onCancelEdit: () => void
   onSetEditingContent: (content: string) => void
   onRegenerate: (id: string) => void
+  onEnvVarsSave: (vars: Record<string, string>) => void
 }
 
 const MessageItem = memo(function MessageItem({
-  message, copiedId, isEditing, editingContent, isLoading,
-  onCopy, onEditMessage, onSaveEdit, onCancelEdit, onSetEditingContent, onRegenerate,
+  message, copiedId, isEditing, editingContent, isLoading, envVars,
+  onCopy, onEditMessage, onSaveEdit, onCancelEdit, onSetEditingContent, onRegenerate, onEnvVarsSave,
 }: MessageItemProps) {
   const isUser = message.role === 'user'
   const textContent = typeof message.content === 'string' ? message.content : ''
@@ -442,6 +525,23 @@ const MessageItem = memo(function MessageItem({
                     )}
                   </div>
                 )
+              }
+
+              // ── Environment Variables input card ──
+              if (inv.toolName === 'request_env_vars' && inv.state === 'result') {
+                const variables = (inv.result && typeof inv.result === 'object' && 'variables' in inv.result)
+                  ? (inv.result as { variables: Array<{ name: string; description?: string; required?: boolean }> }).variables
+                  : []
+                if (variables.length > 0) {
+                  return (
+                    <EnvVarInputCard
+                      key={partIdx}
+                      variables={variables}
+                      savedVars={envVars}
+                      onSave={onEnvVarsSave}
+                    />
+                  )
+                }
               }
 
               // ── Deploy success card with clickable URL ──
@@ -623,6 +723,7 @@ const MessageItem = memo(function MessageItem({
   if (prev.isEditing !== next.isEditing) return false
   if (prev.isEditing && prev.editingContent !== next.editingContent) return false
   if (prev.isLoading !== next.isLoading) return false
+  if (prev.envVars !== next.envVars) return false
   return true
 })
 
@@ -646,6 +747,7 @@ interface ChatPanelProps {
 export function ChatPanel({ projectName, projectId, files, onFileChange, onFileDelete, onBulkFileUpdate, githubToken, onRegisterSend, pendingMessage, onPendingMessageSent }: ChatPanelProps) {
   const [selectedModel, setSelectedModel] = useState<string>(MODEL_OPTIONS[0].id)
   const [showModelPicker, setShowModelPicker] = useState(false)
+  const [envVars, setEnvVars] = useState<Record<string, string>>({})
 
   const {
     messages,
@@ -657,7 +759,7 @@ export function ChatPanel({ projectName, projectId, files, onFileChange, onFileD
     data,
   } = useChat({
     api: '/api/chat',
-    body: { projectName, projectId, files, githubToken, model: selectedModel },
+    body: { projectName, projectId, files, githubToken, model: selectedModel, envVars },
     onError: (err) => console.error('Chat error:', err),
   })
 
@@ -785,6 +887,15 @@ export function ChatPanel({ projectName, projectId, files, onFileChange, onFileD
       onPendingMessageSent?.()
     }
   }, [pendingMessage, isLoading, append, onPendingMessageSent])
+
+  const handleEnvVarsSave = useCallback((vars: Record<string, string>) => {
+    setEnvVars(prev => ({ ...prev, ...vars }))
+    // Write .env.local to VirtualFS so it appears in the file tree
+    const envContent = Object.entries(vars)
+      .map(([k, v]) => `${k}=${v}`)
+      .join('\n')
+    onFileChange('.env.local', envContent + '\n')
+  }, [onFileChange])
 
   const handleCopy = (id: string, content: string) => {
     navigator.clipboard.writeText(content)
@@ -983,12 +1094,14 @@ export function ChatPanel({ projectName, projectId, files, onFileChange, onFileD
                 isEditing={editingMessageId === message.id}
                 editingContent={editingContent}
                 isLoading={isLoading}
+                envVars={envVars}
                 onCopy={handleCopy}
                 onEditMessage={handleEditMessage}
                 onSaveEdit={handleSaveEdit}
                 onCancelEdit={() => setEditingMessageId(null)}
                 onSetEditingContent={setEditingContent}
                 onRegenerate={handleRegenerate}
+                onEnvVarsSave={handleEnvVarsSave}
               />
             ))}
 

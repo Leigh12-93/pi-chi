@@ -109,22 +109,53 @@ export class TaskStore {
     // Fire-and-forget: run operation and update the row when done
     operation(onProgress)
       .then(async (result) => {
-        await sbFetch(`/forge_tasks?id=eq.${taskId}`, {
-          method: 'PATCH',
-          body: JSON.stringify({
-            status: 'completed',
-            result: typeof result === 'object' ? result : { value: result },
-          }),
-        })
+        try {
+          await sbFetch(`/forge_tasks?id=eq.${taskId}`, {
+            method: 'PATCH',
+            body: JSON.stringify({
+              status: 'completed',
+              result: typeof result === 'object' ? result : { value: result },
+            }),
+          })
+        } catch {
+          // sbFetch failed — retry once after 2s
+          await new Promise(r => setTimeout(r, 2000))
+          try {
+            await sbFetch(`/forge_tasks?id=eq.${taskId}`, {
+              method: 'PATCH',
+              body: JSON.stringify({
+                status: 'completed',
+                result: typeof result === 'object' ? result : { value: result },
+              }),
+            })
+          } catch {
+            // Give up — task will stay "running" but at least we tried
+          }
+        }
       })
       .catch(async (err) => {
-        await sbFetch(`/forge_tasks?id=eq.${taskId}`, {
-          method: 'PATCH',
-          body: JSON.stringify({
-            status: 'failed',
-            error: err instanceof Error ? err.message : String(err),
-          }),
-        })
+        try {
+          await sbFetch(`/forge_tasks?id=eq.${taskId}`, {
+            method: 'PATCH',
+            body: JSON.stringify({
+              status: 'failed',
+              error: err instanceof Error ? err.message : String(err),
+            }),
+          })
+        } catch {
+          await new Promise(r => setTimeout(r, 2000))
+          try {
+            await sbFetch(`/forge_tasks?id=eq.${taskId}`, {
+              method: 'PATCH',
+              body: JSON.stringify({
+                status: 'failed',
+                error: err instanceof Error ? err.message : String(err),
+              }),
+            })
+          } catch {
+            // Give up
+          }
+        }
       })
 
     return { taskId }

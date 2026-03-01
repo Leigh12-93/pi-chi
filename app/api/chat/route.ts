@@ -645,7 +645,7 @@ function detectFramework(files: Record<string, string>): string | undefined {
   return undefined // let Vercel auto-detect for static sites
 }
 
-async function vercelDeploy(name: string, files: Record<string, string>, framework?: string, onProgress?: (msg: string) => Promise<void>) {
+async function vercelDeploy(name: string, files: Record<string, string>, framework?: string, onProgress?: (msg: string) => Promise<void>, envVars?: Record<string, string>) {
   if (!VERCEL_TOKEN) return { error: 'VERCEL_TOKEN not configured' }
 
   const progress = onProgress || (async () => {})
@@ -655,6 +655,8 @@ async function vercelDeploy(name: string, files: Record<string, string>, framewo
 
   await progress('Uploading files...')
   const teamParam = VERCEL_TEAM ? `?teamId=${VERCEL_TEAM}` : ''
+  const uploadCtrl = AbortController ? new AbortController() : undefined
+  const uploadTimeout = uploadCtrl ? setTimeout(() => uploadCtrl.abort(), 30000) : undefined
   const res = await fetch(`https://api.vercel.com/v13/deployments${teamParam}`, {
     method: 'POST',
     headers: {
@@ -665,8 +667,11 @@ async function vercelDeploy(name: string, files: Record<string, string>, framewo
       name: deployName,
       files: fileEntries,
       projectSettings: { framework: fw },
+      ...(envVars && Object.keys(envVars).length > 0 ? { env: envVars } : {}),
     }),
+    signal: uploadCtrl?.signal,
   })
+  if (uploadTimeout) clearTimeout(uploadTimeout)
 
   const data = await res.json()
   if (!res.ok) return { error: data.error?.message || `Vercel API error (HTTP ${res.status})` }
@@ -682,9 +687,13 @@ async function vercelDeploy(name: string, files: Record<string, string>, framewo
     await new Promise(r => setTimeout(r, 5000))
     attempts++
     try {
+      const pollCtrl = new AbortController()
+      const pollTimeout = setTimeout(() => pollCtrl.abort(), 15000)
       const check = await fetch(`https://api.vercel.com/v13/deployments/${deployId}${teamParam}`, {
         headers: { Authorization: `Bearer ${VERCEL_TOKEN}` },
+        signal: pollCtrl.signal,
       })
+      clearTimeout(pollTimeout)
       if (check.ok) {
         const checkData = await check.json()
         const prevState = state
@@ -737,6 +746,9 @@ const SUPABASE_URL = (process.env.NEXT_PUBLIC_SUPABASE_URL || '').trim()
 const SUPABASE_KEY = (process.env.SUPABASE_SERVICE_ROLE_KEY || '').trim()
 
 async function supabaseFetch(path: string, options: RequestInit = {}) {
+  if (!SUPABASE_URL || !SUPABASE_KEY) {
+    return { data: null, status: 500, ok: false }
+  }
   const res = await fetch(`${SUPABASE_URL}/rest/v1${path}`, {
     ...options,
     headers: {
@@ -765,7 +777,10 @@ async function supabaseFetch(path: string, options: RequestInit = {}) {
 
 export async function POST(req: Request) {
   // Rate limit — 20 requests/minute per IP
-  const ip = req.headers.get('x-forwarded-for')?.split(',')[0]?.trim() || 'unknown'
+  const ip = req.headers.get('x-forwarded-for')?.split(',')[0]?.trim()
+    || req.headers.get('x-real-ip')?.trim()
+    || req.headers.get('x-vercel-forwarded-for')?.split(',')[0]?.trim()
+    || 'unknown'
   const limit = chatLimiter(ip)
   if (!limit.ok) {
     return new Response(JSON.stringify({ error: 'Rate limited. Try again in a minute.' }), {
@@ -780,8 +795,13 @@ export async function POST(req: Request) {
   const selectedModel = body.model || 'claude-sonnet-4-20250514'
 
   // Use user's GitHub token from OAuth if available, fall back to server PAT
-  const userGithubToken = body.githubToken ? String(body.githubToken).trim() : ''
+  const userGithubToken = (body.githubToken && body.githubToken !== 'null' && body.githubToken !== 'undefined')
+    ? String(body.githubToken).trim()
+    : ''
   const effectiveGithubToken = userGithubToken || GITHUB_TOKEN
+
+  // Env vars from client (user-provided via request_env_vars card)
+  const clientEnvVars: Record<string, string> = body.envVars && typeof body.envVars === 'object' ? body.envVars : {}
 
   // Initialize virtual FS from client state
   const vfs = new VirtualFS(body.files || {})
@@ -1324,10 +1344,11 @@ export async function POST(req: Request) {
             supabaseFetch,
             projectId,
             'deploy',
-            (onProgress) => vercelDeploy(projectName, files, fw, onProgress),
+            (onProgress) => vercelDeploy(projectName, files, fw, onProgress, Object.keys(clientEnvVars).length > 0 ? clientEnvVars : undefined),
           )
           if (error) return { error }
-          return { taskId, status: 'running', message: `Deploying ${Object.keys(files).length} files${fw ? ` (${fw})` : ''}. Use check_task_status to monitor progress.` }
+          const envNote = Object.keys(clientEnvVars).length > 0 ? ` with ${Object.keys(clientEnvVars).length} env vars` : ''
+          return { taskId, status: 'running', message: `Deploying ${Object.keys(files).length} files${fw ? ` (${fw})` : ''}${envNote}. Use check_task_status to monitor progress.` }
         },
       }),
 
@@ -2539,6 +2560,33 @@ export function ${name}({ variant = 'default', size = 'default', className, chil
           const content = lines.join('\n')
           vfs.write('.env.example', content)
           return { ok: true, path: '.env.example', variables: sorted.map(([name]) => name), count: envVars.size }
+        },
+      }),
+
+      // ─── Environment Variables Input ────────────────────────────
+
+      request_env_vars: tool({
+        description: 'Request environment variables from the user. Use this BEFORE deploying when the project needs API keys, secrets, or config values. The user will see inline input fields in the chat to enter their credentials. Call this whenever you detect process.env references that need real values.',
+        parameters: z.object({
+          variables: z.array(z.object({
+            name: z.string().describe('Env var name, e.g. DATABASE_URL'),
+            description: z.string().optional().describe('What this variable is for'),
+            required: z.boolean().optional().describe('Whether this is required (default true)'),
+          })).describe('List of environment variables needed'),
+        }),
+        execute: async ({ variables }) => {
+          // Also scan VFS for any process.env references the AI may have missed
+          const detected = new Set(variables.map(v => v.name))
+          for (const [, content] of vfs.files) {
+            const matches = content.matchAll(/process\.env\.([A-Z_][A-Z0-9_]*)/g)
+            for (const match of matches) {
+              if (!detected.has(match[1]) && !match[1].startsWith('NODE_') && match[1] !== 'NODE_ENV') {
+                detected.add(match[1])
+                variables.push({ name: match[1], description: `Detected in project source`, required: true })
+              }
+            }
+          }
+          return { variables, count: variables.length }
         },
       }),
 
