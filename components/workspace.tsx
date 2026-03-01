@@ -100,8 +100,31 @@ export function Workspace({
   const [snapshots, setSnapshots] = useState<Snapshot[]>([])
   const [showVersionHistory, setShowVersionHistory] = useState(false)
   const [diffState, setDiffState] = useState<{ open: boolean; path: string; oldContent: string; newContent: string } | null>(null)
+  const [modifiedFiles, setModifiedFiles] = useState<Set<string>>(new Set())
   const dragCounterRef = useRef(0)
   const chatSendRef = useRef<((message: string) => void) | null>(null)
+  const initialFilesRef = useRef<Record<string, string>>({})
+
+  // Capture initial file state on first render to track modifications
+  useEffect(() => {
+    if (Object.keys(initialFilesRef.current).length === 0 && Object.keys(files).length > 0) {
+      initialFilesRef.current = { ...files }
+    }
+  }, [files])
+
+  // Track which files have been modified from their initial state
+  useEffect(() => {
+    const initial = initialFilesRef.current
+    const modified = new Set<string>()
+    for (const [path, content] of Object.entries(files)) {
+      if (!(path in initial)) {
+        modified.add(path) // New file
+      } else if (initial[path] !== content) {
+        modified.add(path) // Changed content
+      }
+    }
+    setModifiedFiles(modified)
+  }, [files])
 
   // Only recompute tree when file PATHS change, not on content edits
   const filePathsKey = useMemo(() => Object.keys(files).sort().join('\0'), [files])
@@ -431,6 +454,7 @@ export function Workspace({
       onFileRename={handleFileRename}
       onFileCreate={handleFileCreate}
       fileContents={files}
+      modifiedFiles={modifiedFiles}
     />
   )
 

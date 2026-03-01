@@ -68,6 +68,8 @@ const TOOL_LABELS: Record<string, { label: string; Icon: LucideIcon; color: stri
   sandbox_status: { label: 'Checking sandbox', Icon: Rocket, color: 'blue' },
   add_image: { label: 'Finding image', Icon: ImageIcon, color: 'cyan' },
   check_task_status: { label: 'Checking task', Icon: RefreshCw, color: 'blue' },
+  grep_files: { label: 'Grepping files', Icon: Search, color: 'purple' },
+  add_dependency: { label: 'Adding dependency', Icon: FolderPlus, color: 'green' },
 }
 
 const MODEL_OPTIONS = [
@@ -92,6 +94,8 @@ const colorClasses: Record<string, string> = {
   indigo: 'text-indigo-600 bg-indigo-50 dark:text-indigo-400 dark:bg-indigo-950/40',
   orange: 'text-orange-600 bg-orange-50 dark:text-orange-400 dark:bg-orange-950/40',
   gray: 'text-gray-600 bg-gray-100 dark:text-gray-400 dark:bg-gray-800/50',
+  cyan: 'text-cyan-600 bg-cyan-50 dark:text-cyan-400 dark:bg-cyan-950/40',
+  amber: 'text-amber-600 bg-amber-50 dark:text-amber-400 dark:bg-amber-950/40',
 }
 
 // ═══════════════════════════════════════════════════════════════════
@@ -178,15 +182,30 @@ function renderMarkdown(text: string): string {
     .replace(/\n/g, '<br/>')
 }
 
-// Strip dangerous HTML tags that could execute code (XSS prevention)
+// Strip dangerous HTML tags and attributes that could execute code (XSS prevention)
 function sanitizeHtml(html: string): string {
   return html
+    // Remove dangerous elements
     .replace(/<script\b[^>]*>[\s\S]*?<\/script>/gi, '')
     .replace(/<iframe\b[^>]*>[\s\S]*?<\/iframe>/gi, '')
     .replace(/<object\b[^>]*>[\s\S]*?<\/object>/gi, '')
     .replace(/<embed\b[^>]*\/?>/gi, '')
+    .replace(/<base\b[^>]*\/?>/gi, '')
+    .replace(/<form\b[^>]*>[\s\S]*?<\/form>/gi, '')
+    // Remove SVG event handlers (e.g. <svg onload="...">)
+    .replace(/<svg\b[^>]*\bon\w+\s*=[^>]*>/gi, (match) =>
+      match.replace(/\bon\w+\s*=\s*["'][^"']*["']/gi, '')
+    )
+    // Remove all inline event handlers (onclick, onerror, onload, etc.)
     .replace(/\bon\w+\s*=\s*["'][^"']*["']/gi, '')
+    .replace(/\bon\w+\s*=\s*[^\s>"']*/gi, '')
+    // Remove dangerous URI schemes
     .replace(/javascript\s*:/gi, '')
+    .replace(/data\s*:\s*text\/html/gi, 'data:blocked')
+    .replace(/vbscript\s*:/gi, '')
+    // Remove CSS expression() and similar
+    .replace(/expression\s*\(/gi, 'blocked(')
+    .replace(/-moz-binding\s*:/gi, 'blocked:')
 }
 
 // Markdown HTML cache — avoids re-parsing identical text on every render
@@ -217,6 +236,8 @@ function getToolSummary(toolName: string, args: Record<string, unknown>, result:
     case 'deploy_to_vercel': return data?.url ? `${data.url}` : 'Deploying...'
     case 'list_files': return data ? `${data.count || 0} files` : 'Listing...'
     case 'search_files': return data ? `${data.count || 0} matches` : 'Searching...'
+    case 'grep_files': return data ? `${data.count || 0} matches for /${args.pattern}/` : `Grepping /${args.pattern}/...`
+    case 'add_dependency': return data?.ok ? (data.skipped ? `${args.name} already installed` : `Added ${args.name}@${data.version}`) : `Adding ${args.name}...`
     case 'rename_file': return args.newPath ? `→ ${args.newPath}` : 'Renaming...'
     case 'get_all_files': return data ? `${(data as any).totalFiles || 0} files` : 'Reading manifest...'
     case 'db_query': return args.table ? `${args.table}${args.filters ? ` (${String(args.filters).slice(0, 40)})` : ''}` : 'Querying...'
@@ -290,16 +311,35 @@ function extractFileUpdates(
     case 'edit_file':
       if (inv.state === 'result' && inv.result && !('error' in inv.result)) {
         const path = args.path as string
-        // Prefer authoritative content from server (solves chained edit race condition)
-        if (typeof inv.result.content === 'string') {
-          return { updates: { [path]: inv.result.content } }
-        }
-        // Fallback: re-apply locally (old behavior, for backwards compat)
+        // Server no longer returns content (token optimization) — apply edit client-side
         const oldStr = args.old_string as string
         const newStr = args.new_string as string
         const current = currentFiles[path]
-        if (current && current.includes(oldStr)) {
-          return { updates: { [path]: current.replace(oldStr, newStr) } }
+        if (current && typeof oldStr === 'string' && typeof newStr === 'string') {
+          if (current.includes(oldStr)) {
+            return { updates: { [path]: current.replace(oldStr, newStr) } }
+          }
+          // Indent-insensitive fallback: match server behavior for pass 2
+          const normLine = (l: string) => l.trim()
+          const currentLines = current.split('\n')
+          const oldLines = oldStr.split('\n').map(normLine).filter(l => l.length > 0)
+          if (oldLines.length > 0) {
+            for (let i = 0; i < currentLines.length; i++) {
+              if (normLine(currentLines[i]) !== oldLines[0]) continue
+              let fi = i, oi = 0, matched = true
+              while (oi < oldLines.length && fi < currentLines.length) {
+                if (normLine(currentLines[fi]) === '') { fi++; continue }
+                if (normLine(currentLines[fi]) === oldLines[oi]) { oi++; fi++ }
+                else { matched = false; break }
+              }
+              if (matched && oi === oldLines.length) {
+                const before = currentLines.slice(0, i).join('\n')
+                const after = currentLines.slice(fi).join('\n')
+                const updated = [before, newStr, after].filter(s => s !== '').join('\n')
+                return { updates: { [path]: updated } }
+              }
+            }
+          }
         }
       }
       return null

@@ -1030,7 +1030,7 @@ export async function POST(req: Request) {
           const content = vfs.read(safePath)
           if (content === undefined) return { error: `File not found: ${path}` }
 
-          // ── Pass 1: Exact match (fast path) ──────────────────────
+          // ── Pass 1: Exact match (fast path) ─────────────���────────
           if (content.includes(old_string)) {
             const occurrences = content.split(old_string).length - 1
             if (occurrences > 1) {
@@ -1532,7 +1532,7 @@ export async function POST(req: Request) {
       // ─── Database Operations ────────────────────────────────────
 
       db_query: tool({
-        description: 'Query the Supabase database. Read data from any table. Use PostgREST query syntax for filters. Tables you own: forge_projects, forge_project_files, forge_chat_messages, forge_deployments. Other tables in the DB: credit_packages, profiles, users, messages, etc.',
+        description: 'Query the Supabase database. Restricted to forge_* tables and credit_packages (read-only). Tables: forge_projects, forge_project_files, forge_chat_messages, forge_deployments, credit_packages.',
         parameters: z.object({
           table: z.string().describe('Table name, e.g. "forge_projects"'),
           select: z.string().optional().describe('Columns to select, e.g. "id, name, created_at" (default: *)'),
@@ -1541,6 +1541,12 @@ export async function POST(req: Request) {
           limit: z.number().optional().describe('Max rows to return (default: 50)'),
         }),
         execute: async ({ table, select, filters, order, limit }) => {
+          // Security: restrict to forge_* tables + credit_packages read-only
+          const ALLOWED_TABLES = /^(forge_|credit_packages$)/
+          if (!ALLOWED_TABLES.test(table)) {
+            return { error: `Access denied: db_query restricted to forge_* tables. "${table}" is not allowed.` }
+          }
+
           const params = new URLSearchParams()
           if (select) params.set('select', select)
           if (order) params.set('order', order)
@@ -1555,15 +1561,19 @@ export async function POST(req: Request) {
       }),
 
       db_mutate: tool({
-        description: 'Insert, update, or delete data in the Supabase database. Use for forge_ tables or any table you have access to.',
+        description: 'Insert, update, or delete data in the Supabase database. Restricted to forge_* tables only.',
         parameters: z.object({
           operation: z.enum(['insert', 'update', 'upsert', 'delete']).describe('Operation type'),
-          table: z.string().describe('Table name'),
+          table: z.string().describe('Table name (must start with forge_)'),
           data: z.any().optional().describe('Data to insert/update (object or array of objects)'),
           filters: z.string().optional().describe('PostgREST filter for update/delete, e.g. "id=eq.abc123"'),
           onConflict: z.string().optional().describe('For upsert: conflict column(s), e.g. "project_id,path"'),
         }),
         execute: async ({ operation, table, data, filters, onConflict }) => {
+          // Security: only allow mutations on forge_* tables
+          if (!table.startsWith('forge_')) {
+            return { error: `Access denied: db_mutate restricted to forge_* tables. "${table}" is not allowed.` }
+          }
           let path = `/${table}`
           const filterStr = filters ? `?${filters}` : ''
 
@@ -1674,12 +1684,12 @@ export async function POST(req: Request) {
       }),
 
       forge_modify_own_source: tool({
-        description: 'Modify a file in Forge\'s own source code. This pushes a commit to the Forge repo on GitHub. Use with care — you are editing your own brain.',
+        description: 'Modify a file in Forge\'s own source code. This pushes a commit to the Forge repo on GitHub. Use with care — you are editing your own brain. ALWAYS use a feature branch, never master.',
         parameters: z.object({
           path: z.string().describe('File path to modify in Forge repo'),
           content: z.string().describe('New file content (complete file)'),
           message: z.string().describe('Commit message describing the change'),
-          branch: z.string().optional().describe('Branch (default: master)'),
+          branch: z.string().describe('Branch name (must NOT be "master" or "main" — use a feature branch)'),
         }),
         execute: async ({ path, content, message, branch }) => {
           const token = GITHUB_TOKEN
@@ -1687,7 +1697,13 @@ export async function POST(req: Request) {
 
           const owner = 'Leigh12-93'
           const repo = 'forge'
-          const branchName = branch || 'master'
+          const branchName = branch || 'self-modify-' + Date.now()
+
+          // Security: hard-reject pushes to protected branches
+          const PROTECTED_BRANCHES = ['master', 'main', 'production']
+          if (PROTECTED_BRANCHES.includes(branchName.toLowerCase())) {
+            return { error: `Direct pushes to "${branchName}" are blocked. Use a feature branch (e.g. "feat/my-change"), then forge_create_pr to merge.` }
+          }
 
           // Get current file SHA (needed for update)
           const existing = await githubFetch(`/repos/${owner}/${repo}/contents/${path}?ref=${branchName}`, token)
@@ -2370,7 +2386,7 @@ export async function POST(req: Request) {
       }),
 
       db_introspect: tool({
-        description: 'Discover the schema of a Supabase table — columns, types, constraints. Use this instead of guessing column names.',
+        description: 'Discover the schema of a Supabase table — columns, types, constraints. Restricted to forge_* and credit_packages tables.',
         parameters: z.object({
           table: z.string().describe('Table name to inspect, e.g. "forge_projects"'),
         }),
@@ -2378,6 +2394,11 @@ export async function POST(req: Request) {
           // Validate table name (alphanumeric + underscores only)
           if (!/^[a-zA-Z_][a-zA-Z0-9_]*$/.test(table)) {
             return { error: 'Invalid table name. Use only letters, numbers, and underscores.' }
+          }
+          // Security: restrict to forge_* tables + credit_packages
+          const ALLOWED_TABLES = /^(forge_|credit_packages$)/
+          if (!ALLOWED_TABLES.test(table)) {
+            return { error: `Access denied: db_introspect restricted to forge_* tables. "${table}" is not allowed.` }
           }
 
           // Step 1: Check table exists and get row count
