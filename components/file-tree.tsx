@@ -211,6 +211,7 @@ export function FileTree({
               <button
                 onClick={() => setSearchQuery('')}
                 className="absolute right-1.5 top-1/2 -translate-y-1/2 p-0.5 text-forge-text-dim hover:text-forge-text"
+                aria-label="Clear search"
               >
                 <X className="w-3 h-3" />
               </button>

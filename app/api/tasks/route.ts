@@ -1,46 +1,12 @@
 import { NextResponse, after } from 'next/server'
 import { getSession } from '@/lib/auth'
+import { isValidUUID } from '@/lib/validate'
+import { supabaseFetch } from '@/lib/supabase-fetch'
+import { githubFetch, GITHUB_TOKEN as LIB_GITHUB_TOKEN } from '@/lib/github'
 
-const SUPABASE_URL = (process.env.NEXT_PUBLIC_SUPABASE_URL || '').trim()
-const SUPABASE_KEY = (process.env.SUPABASE_SERVICE_ROLE_KEY || '').trim()
 const VERCEL_TOKEN = (process.env.FORGE_DEPLOY_TOKEN || process.env.VERCEL_TOKEN || '').trim()
 const VERCEL_TEAM = process.env.VERCEL_TEAM_ID || ''
-const GITHUB_TOKEN = (process.env.GITHUB_TOKEN || '').trim()
-
-async function supabaseFetch(path: string, options: RequestInit = {}) {
-  const res = await fetch(`${SUPABASE_URL}/rest/v1${path}`, {
-    ...options,
-    headers: {
-      'apikey': SUPABASE_KEY,
-      'Authorization': `Bearer ${SUPABASE_KEY}`,
-      'Content-Type': 'application/json',
-      'Prefer': 'return=representation',
-      ...options.headers,
-    },
-  })
-  const text = await res.text()
-  try {
-    return { data: JSON.parse(text), status: res.status, ok: res.ok }
-  } catch {
-    return { data: text, status: res.status, ok: res.ok }
-  }
-}
-
-async function githubFetch(path: string, token: string, options: RequestInit = {}) {
-  const res = await fetch(`https://api.github.com${path}`, {
-    ...options,
-    headers: {
-      Authorization: `Bearer ${token}`,
-      Accept: 'application/vnd.github+json',
-      'X-GitHub-Api-Version': '2022-11-28',
-      'Content-Type': 'application/json',
-      ...options.headers,
-    },
-  })
-  const data = await res.json()
-  if (!res.ok) return { error: data.message || `GitHub API ${res.status}`, status: res.status }
-  return data
-}
+const GITHUB_TOKEN = LIB_GITHUB_TOKEN
 
 // ─── Progress helper ───────────────────────────────────────────
 
@@ -352,6 +318,21 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: 'Missing task type' }, { status: 400 })
   }
 
+  // Validate projectId format if provided
+  if (projectId && !isValidUUID(projectId)) {
+    return NextResponse.json({ error: 'Invalid ID format' }, { status: 400 })
+  }
+
+  // Verify project ownership when projectId is provided
+  if (projectId) {
+    const projCheck = await supabaseFetch(
+      `/forge_projects?id=eq.${encodeURIComponent(projectId)}&github_username=eq.${encodeURIComponent(session.githubUsername)}&select=id&limit=1`
+    )
+    if (!projCheck.ok || !Array.isArray(projCheck.data) || projCheck.data.length === 0) {
+      return NextResponse.json({ error: 'Project not found or access denied' }, { status: 403 })
+    }
+  }
+
   // Create task row in Supabase
   const insertResult = await supabaseFetch('/forge_tasks', {
     method: 'POST',
@@ -359,6 +340,7 @@ export async function POST(req: Request) {
       project_id: projectId || null,
       type,
       status: 'running',
+      github_username: session.githubUsername,
     }),
   })
 
@@ -422,9 +404,14 @@ export async function GET(req: Request) {
   const url = new URL(req.url)
   const projectId = url.searchParams.get('projectId')
 
-  let path = '/forge_tasks?order=created_at.desc&limit=20'
+  // Validate projectId format if provided
+  if (projectId && !isValidUUID(projectId)) {
+    return NextResponse.json({ error: 'Invalid ID format' }, { status: 400 })
+  }
+
+  let path = `/forge_tasks?github_username=eq.${encodeURIComponent(session.githubUsername)}&order=created_at.desc&limit=20`
   if (projectId) {
-    path += `&project_id=eq.${projectId}`
+    path += `&project_id=eq.${encodeURIComponent(projectId)}`
   }
 
   const result = await supabaseFetch(path)

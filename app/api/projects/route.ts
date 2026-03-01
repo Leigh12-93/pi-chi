@@ -2,22 +2,28 @@ import { NextResponse } from 'next/server'
 import { supabase } from '@/lib/supabase'
 import { getSession } from '@/lib/auth'
 
-// GET /api/projects — list user's projects
-export async function GET() {
+// GET /api/projects — list user's projects (with pagination)
+export async function GET(req: Request) {
   const session = await getSession()
   const username = session?.githubUsername
   if (!username) {
     return NextResponse.json({ error: 'Not authenticated' }, { status: 401 })
   }
 
+  const url = new URL(req.url)
+  const page = Math.max(1, parseInt(url.searchParams.get('page') || '1'))
+  const limit = Math.min(Math.max(1, parseInt(url.searchParams.get('limit') || '20')), 50)
+  const offset = (page - 1) * limit
+
   const { data, error } = await supabase
     .from('forge_projects')
     .select('id, name, description, framework, github_repo_url, vercel_url, last_deploy_at, created_at, updated_at')
     .eq('github_username', username)
     .order('updated_at', { ascending: false })
+    .range(offset, offset + limit - 1)
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
-  return NextResponse.json(data || [])
+  return NextResponse.json({ projects: data || [], page, limit, hasMore: (data || []).length === limit })
 }
 
 // POST /api/projects — create a new project

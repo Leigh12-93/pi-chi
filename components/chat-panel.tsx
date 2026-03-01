@@ -168,7 +168,7 @@ export function ChatPanel(props: ChatPanelProps) {
                 <div key={i} className="flex items-center gap-1 px-2 py-1 bg-forge-surface border border-forge-border rounded-lg text-[11px]">
                   {att.mediaType?.startsWith('image/') ? <ImageIcon className="w-3 h-3" /> : <Paperclip className="w-3 h-3" />}
                   <span className="max-w-[120px] truncate text-forge-text-dim">{att.filename || 'file'}</span>
-                  <button onClick={() => chat.handleRemoveAttachment(i)} className="p-0.5 text-forge-text-dim hover:text-red-500 transition-colors">
+                  <button onClick={() => chat.handleRemoveAttachment(i)} className="p-0.5 text-forge-text-dim hover:text-red-500 transition-colors" aria-label="Remove attachment">
                     <X className="w-2.5 h-2.5" />
                   </button>
                 </div>
@@ -210,13 +210,14 @@ export function ChatPanel(props: ChatPanelProps) {
             onClick={() => fileInputRef.current?.click()}
             className="absolute left-2.5 bottom-2.5 p-1.5 text-forge-text-dim hover:text-forge-text transition-colors rounded-lg hover:bg-forge-surface-hover"
             title="Attach files"
+            aria-label="Attach files"
           >
             <Paperclip className="w-4 h-4" />
           </button>
 
           <div className="absolute right-2 bottom-1.5">
             {chat.isLoading ? (
-              <button onClick={chat.stop} className="p-2 rounded-xl bg-red-100 dark:bg-red-900/40 text-forge-danger hover:bg-red-200 dark:hover:bg-red-800/60 transition-colors" title="Stop generating (Esc)">
+              <button onClick={chat.stop} className="p-2 rounded-xl bg-red-100 dark:bg-red-900/40 text-forge-danger hover:bg-red-200 dark:hover:bg-red-800/60 transition-colors" title="Stop generating (Esc)" aria-label="Stop generating">
                 <StopCircle className="w-4 h-4" />
               </button>
             ) : (
@@ -231,6 +232,7 @@ export function ChatPanel(props: ChatPanelProps) {
                 transition={{ type: 'spring', stiffness: 400, damping: 20 }}
                 className="p-2 rounded-xl bg-forge-text text-forge-bg hover:opacity-90 disabled:cursor-not-allowed transition-colors"
                 title="Send message"
+                aria-label="Send message"
               >
                 <ArrowUp className="w-4 h-4" strokeWidth={2.5} />
               </motion.button>

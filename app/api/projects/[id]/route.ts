@@ -1,10 +1,12 @@
 import { NextResponse } from 'next/server'
 import { supabase } from '@/lib/supabase'
 import { getSession } from '@/lib/auth'
+import { isValidUUID } from '@/lib/validate'
 
 // GET /api/projects/[id] — get project with all files
 export async function GET(_req: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
+  if (!isValidUUID(id)) return NextResponse.json({ error: 'Invalid ID format' }, { status: 400 })
   const session = await getSession()
   const username = session?.githubUsername
   if (!username) return NextResponse.json({ error: 'Not authenticated' }, { status: 401 })
@@ -34,6 +36,7 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
 // PUT /api/projects/[id] — save project files (upsert all)
 export async function PUT(req: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
+  if (!isValidUUID(id)) return NextResponse.json({ error: 'Invalid ID format' }, { status: 400 })
   const session = await getSession()
   const username = session?.githubUsername
   if (!username) return NextResponse.json({ error: 'Not authenticated' }, { status: 401 })
@@ -109,6 +112,7 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
 // DELETE /api/projects/[id] — delete project
 export async function DELETE(_req: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
+  if (!isValidUUID(id)) return NextResponse.json({ error: 'Invalid ID format' }, { status: 400 })
   const session = await getSession()
   const username = session?.githubUsername
   if (!username) return NextResponse.json({ error: 'Not authenticated' }, { status: 401 })

@@ -3,7 +3,7 @@ import { z } from 'zod'
 import { VirtualFS } from '@/lib/virtual-fs'
 import type { ToolContext } from './types'
 
-function applySmartDefaults(path: string, content: string): { content: string; warnings: string[] } {
+export function applySmartDefaults(path: string, content: string): { content: string; warnings: string[] } {
   const warnings: string[] = []
   const ext = path.split('.').pop() || ''
   const isTsx = ext === 'tsx' || ext === 'jsx'
@@ -40,6 +40,23 @@ function applySmartDefaults(path: string, content: string): { content: string; w
   }
 
   return { content: result, warnings }
+}
+
+/** Compile a regex with ReDoS protection */
+export function safeRegex(pattern: string, flags = 'i'): RegExp | { error: string } {
+  let regex: RegExp
+  try {
+    regex = new RegExp(pattern, flags)
+  } catch {
+    return { error: `Invalid regex pattern: ${pattern}` }
+  }
+  const probe = 'a'.repeat(1000)
+  const t0 = Date.now()
+  regex.test(probe)
+  if (Date.now() - t0 > 50) {
+    return { error: 'Pattern too complex — potential ReDoS detected' }
+  }
+  return regex
 }
 
 export function createFileTools(ctx: ToolContext) {
@@ -243,12 +260,9 @@ export function createFileTools(ctx: ToolContext) {
         const contextLines = ctx ?? 3
         const max = maxResults ?? 10
         const results: Array<{ file: string; line: number; match: string; context: string }> = []
-        let regex: RegExp
-        try {
-          regex = new RegExp(pattern, 'i')
-        } catch {
-          return { error: `Invalid regex pattern: ${pattern}` }
-        }
+        const compiled = safeRegex(pattern)
+        if (!(compiled instanceof RegExp)) return compiled
+        const regex = compiled
         for (const [path, content] of vfs.files) {
           if (results.length >= max) break
           const lines = content.split('\n')

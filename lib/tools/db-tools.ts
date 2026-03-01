@@ -1,7 +1,5 @@
 import { tool } from 'ai'
 import { z } from 'zod'
-import { supabase } from '@/lib/supabase'
-import { SUPABASE_URL, SUPABASE_KEY } from '@/lib/supabase-fetch'
 import type { ToolContext } from './types'
 
 export function createDbTools(ctx: ToolContext) {
@@ -144,43 +142,25 @@ export function createDbTools(ctx: ToolContext) {
         }
 
         // Step 1: Check table exists and get row count
-        const countRes = await fetch(`${SUPABASE_URL}/rest/v1/${table}?limit=0`, {
-          method: 'GET',
-          headers: {
-            'apikey': SUPABASE_KEY,
-            'Authorization': `Bearer ${SUPABASE_KEY}`,
-            'Accept': 'application/json',
-            'Prefer': 'count=exact',
-          },
+        const countRes = await supabaseFetch(`/${table}?limit=0`, {
+          headers: { 'Prefer': 'count=exact' },
         })
 
         if (!countRes.ok) return { error: `Table "${table}" not found or not accessible (${countRes.status})` }
 
-        const contentRange = countRes.headers.get('content-range')
-        const totalRows = contentRange ? contentRange.split('/')[1] : 'unknown'
-
         // Step 2: Read 1 sample row and infer column names + types
-        const sampleRes = await fetch(`${SUPABASE_URL}/rest/v1/${table}?limit=1`, {
-          headers: {
-            'apikey': SUPABASE_KEY,
-            'Authorization': `Bearer ${SUPABASE_KEY}`,
-            'Accept': 'application/json',
-          },
-        })
+        const sampleRes = await supabaseFetch(`/${table}?limit=1`)
 
-        if (sampleRes.ok) {
-          const sample = await sampleRes.json()
-          if (Array.isArray(sample) && sample.length > 0) {
-            const columns = Object.entries(sample[0]).map(([name, value]) => ({
-              column_name: name,
-              inferred_type: value === null ? 'unknown' : Array.isArray(value) ? 'array' : typeof value,
-              sample_value: typeof value === 'string' ? value.slice(0, 50) : value,
-            }))
-            return { table, totalRows, columns }
-          }
+        if (sampleRes.ok && Array.isArray(sampleRes.data) && sampleRes.data.length > 0) {
+          const columns = Object.entries(sampleRes.data[0]).map(([name, value]) => ({
+            column_name: name,
+            inferred_type: value === null ? 'unknown' : Array.isArray(value) ? 'array' : typeof value,
+            sample_value: typeof value === 'string' ? (value as string).slice(0, 50) : value,
+          }))
+          return { table, totalRows: 'see count header', columns }
         }
 
-        return { table, totalRows, columns: [], note: 'Table exists but is empty — no columns could be inferred' }
+        return { table, totalRows: 'unknown', columns: [], note: 'Table exists but is empty — no columns could be inferred' }
       },
     }),
 
@@ -199,26 +179,25 @@ export function createDbTools(ctx: ToolContext) {
         const updates: Record<string, unknown> = {}
         if (description) updates.description = description
         if (Object.keys(updates).length > 0) {
-          await supabase.from('forge_projects').update(updates).eq('id', projectId)
+          await supabaseFetch(`/forge_projects?id=eq.${projectId}`, {
+            method: 'PATCH',
+            body: JSON.stringify(updates),
+          })
         }
 
-        // Delete removed files — use safe parameterized filtering
+        // Delete removed files — fetch existing paths then delete obsolete ones
         if (filePaths.length > 0) {
-          const { data: existingFiles } = await supabase
-            .from('forge_project_files')
-            .select('path')
-            .eq('project_id', projectId)
+          const existingRes = await supabaseFetch(`/forge_project_files?project_id=eq.${projectId}&select=path`)
+          const existingFiles = existingRes.ok && Array.isArray(existingRes.data) ? existingRes.data : []
 
-          const pathsToDelete = (existingFiles || [])
+          const pathsToDelete = existingFiles
             .map((f: any) => f.path)
             .filter((p: string) => !filePaths.includes(p))
 
-          if (pathsToDelete.length > 0) {
-            await supabase
-              .from('forge_project_files')
-              .delete()
-              .eq('project_id', projectId)
-              .in('path', pathsToDelete)
+          for (const p of pathsToDelete) {
+            await supabaseFetch(`/forge_project_files?project_id=eq.${projectId}&path=eq.${encodeURIComponent(p)}`, {
+              method: 'DELETE',
+            })
           }
         }
 

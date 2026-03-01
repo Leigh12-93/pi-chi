@@ -227,15 +227,17 @@ export function createUtilityTools(ctx: ToolContext) {
         }
 
         // Check: imports reference files that exist in VFS
-        const importRegex = /from\s+['"](\.\/?[^'"]+|@\/[^'"]+)['"]/g
+        const importRegex = /from\s+['"](\.\/?[^'"]+|@\/[^'"]+|~\/[^'"]+)['"]/g
         let match
         while ((match = importRegex.exec(content)) !== null) {
           const importPath = match[1]
           // Resolve relative imports
-          if (importPath.startsWith('.') || importPath.startsWith('@/')) {
+          if (importPath.startsWith('.') || importPath.startsWith('@/') || importPath.startsWith('~/')) {
             const basePath = importPath.startsWith('@/')
               ? importPath.replace('@/', '')
-              : resolvePath(path, importPath)
+              : importPath.startsWith('~/')
+                ? importPath.replace('~/', '')
+                : resolvePath(path, importPath)
             // Check common extensions
             const candidates = [basePath, `${basePath}.ts`, `${basePath}.tsx`, `${basePath}/index.ts`, `${basePath}/index.tsx`, `${basePath}.js`, `${basePath}.jsx`]
             const found = candidates.some(c => vfs.exists(c))
@@ -320,11 +322,15 @@ export function createUtilityTools(ctx: ToolContext) {
         // Check 1: All imports between these files resolve
         const allPaths = new Set(vfs.list())
         for (const [filePath, content] of fileContents) {
-          const importRegex = /from\s+['"](\.\/?[^'"]+|@\/[^'"]+)['"]/g
+          const importRegex = /from\s+['"](\.\/?[^'"]+|@\/[^'"]+|~\/[^'"]+)['"]/g
           let match
           while ((match = importRegex.exec(content)) !== null) {
             const imp = match[1]
-            const resolved = imp.startsWith('@/') ? imp.replace('@/', '') : resolvePath(filePath, imp)
+            const resolved = imp.startsWith('@/')
+              ? imp.replace('@/', '')
+              : imp.startsWith('~/')
+                ? imp.replace('~/', '')
+                : resolvePath(filePath, imp)
             const candidates = [resolved, `${resolved}.ts`, `${resolved}.tsx`, `${resolved}/index.ts`, `${resolved}/index.tsx`, `${resolved}.js`, `${resolved}.jsx`]
             if (!candidates.some(c => allPaths.has(c))) {
               issues.push(`${filePath}: import '${imp}' does not resolve to any file`)
@@ -384,6 +390,7 @@ export function createUtilityTools(ctx: ToolContext) {
         const nameMatch = content.match(/export\s+(?:default\s+)?function\s+(\w+)/)
           || content.match(/export\s+const\s+(\w+)/)
         const componentName = nameMatch?.[1] || basename
+        const hasDefaultExport = /export\s+default\s+/.test(content)
 
         // Extract props interface
         const propsMatch = content.match(/(?:interface|type)\s+(\w*Props\w*)\s*[={]/)
@@ -433,9 +440,12 @@ describe('${basename} API route', () => {
 })
 `
         } else if (isTsx) {
+          const componentImport = hasDefaultExport
+            ? `import ${componentName} from './${basename}'`
+            : `import { ${componentName} } from './${basename}'`
           testContent = `import { describe, it, expect } from '${importLib}'
 import { render, screen } from '@testing-library/react'
-import ${componentName} from './${basename}'
+${componentImport}
 
 describe('${componentName}', () => {
   it('renders without crashing', () => {

@@ -77,11 +77,11 @@ export function createProjectTools(ctx: ToolContext) {
 
         const variantStyles = variantList.map(v => {
           switch (v) {
-            case 'default': return `      default: 'bg-blue-600 text-white hover:bg-blue-700'`
+            case 'default': return `      default: 'bg-[var(--color-accent,#2563eb)] text-white hover:bg-[var(--color-accent-hover,#1d4ed8)]'`
             case 'destructive': return `      destructive: 'bg-red-600 text-white hover:bg-red-700'`
-            case 'outline': return `      outline: 'border border-zinc-300 bg-transparent hover:bg-zinc-100 dark:border-zinc-700 dark:hover:bg-zinc-800'`
-            case 'ghost': return `      ghost: 'hover:bg-zinc-100 hover:text-zinc-900 dark:hover:bg-zinc-800 dark:hover:text-zinc-50'`
-            case 'secondary': return `      secondary: 'bg-zinc-100 text-zinc-900 hover:bg-zinc-200 dark:bg-zinc-800 dark:text-zinc-50 dark:hover:bg-zinc-700'`
+            case 'outline': return `      outline: 'border border-[var(--color-border,#e4e4e7)] bg-transparent hover:bg-[var(--color-surface,#f4f4f5)] dark:border-zinc-700 dark:hover:bg-zinc-800'`
+            case 'ghost': return `      ghost: 'hover:bg-[var(--color-surface,#f4f4f5)] hover:text-[var(--color-text,#09090b)] dark:hover:bg-zinc-800 dark:hover:text-zinc-50'`
+            case 'secondary': return `      secondary: 'bg-[var(--color-surface,#f4f4f5)] text-[var(--color-text,#09090b)] hover:bg-zinc-200 dark:bg-zinc-800 dark:text-zinc-50 dark:hover:bg-zinc-700'`
             default: return `      '${v}': ''`
           }
         }).join(',\n')

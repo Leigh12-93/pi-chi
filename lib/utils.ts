@@ -27,15 +27,16 @@ export function truncatePath(path: string, maxLen = 40): string {
 export function getFileIcon(filename: string): string {
   const ext = filename.split('.').pop()?.toLowerCase()
   switch (ext) {
-    case 'tsx': case 'jsx': return '⚛'
-    case 'ts': case 'js': return '📜'
-    case 'css': return '🎨'
-    case 'html': return '🌐'
-    case 'json': return '📋'
-    case 'md': return '📝'
-    case 'png': case 'jpg': case 'svg': return '🖼'
-    case 'gitignore': return '🔒'
-    default: return '📄'
+    case 'tsx': case 'jsx': return 'Rx'
+    case 'ts': return 'TS'
+    case 'js': return 'JS'
+    case 'css': return 'CS'
+    case 'html': return 'HT'
+    case 'json': return '{}'
+    case 'md': return 'MD'
+    case 'png': case 'jpg': case 'svg': return 'IM'
+    case 'gitignore': return 'GI'
+    default: return 'FI'
   }
 }
 

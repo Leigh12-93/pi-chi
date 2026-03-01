@@ -31,8 +31,9 @@ import type { ToolContext } from '@/lib/tools'
 // Module-level edit fail tracking — persists across requests per project
 // Auto-expires entries after 10 minutes to prevent unbounded growth
 // ═══════════════════════════════════════════════════════════════════
-const activeStreams = new Map<string, number>()
+const activeStreams = new Map<string, { count: number; ts: number }>()
 const MAX_CONCURRENT_STREAMS = 3
+const STREAM_ENTRY_TTL = 5 * 60 * 1000 // 5 min TTL for stale entries
 
 const usageTracker = new Map<string, { tokens: number; requests: number; ts: number }>()
 const MAX_USAGE_ENTRIES = 500
@@ -67,7 +68,6 @@ function getEditFailCounts(projectId: string | null): Map<string, number> {
 // ═══════════════════════════════════════════════════════════════════
 function classifyModelComplexity(messages: any[], fileCount: number): { model: string; reason: string } {
   const lastMsg = messages.findLast((m: any) => m.role === 'user')
-  // Extract text from UIMessage parts or legacy content string
   let text = ''
   if (lastMsg) {
     if (typeof lastMsg.content === 'string') {
@@ -82,15 +82,25 @@ function classifyModelComplexity(messages: any[], fileCount: number): { model: s
   const lower = text.toLowerCase()
   const wordCount = text.split(/\s+/).length
 
-  // Opus indicators: complex architecture, multi-file refactors, system design
-  const opusKeywords = ['architect', 'refactor', 'redesign', 'migrate', 'optimize performance', 'system design', 'rewrite entire', 'full rewrite']
-  if (opusKeywords.some(k => lower.includes(k)) || (wordCount > 200 && fileCount > 10)) {
+  // Opus indicators: complex architecture, multi-file refactors, system design, debugging
+  const opusPatterns = [
+    'architect', 'refactor', 'redesign', 'migrate', 'optimize performance',
+    'system design', 'rewrite entire', 'full rewrite', 'debug.*complex',
+    'build.*from scratch', 'implement.*auth', 'implement.*database',
+    'convert.*to', 'design.*api', 'security audit', 'performance audit',
+  ]
+  if (opusPatterns.some(k => new RegExp(k).test(lower)) || (wordCount > 200 && fileCount > 10)) {
     return { model: 'claude-opus-4-20250514', reason: 'Complex task detected — using Opus for best reasoning' }
   }
 
-  // Haiku indicators: simple edits, quick fixes, small changes
-  const haikuKeywords = ['fix typo', 'rename', 'change color', 'change text', 'update title', 'small change', 'quick fix', 'add comment']
-  if (haikuKeywords.some(k => lower.includes(k)) || (wordCount < 20 && fileCount <= 3)) {
+  // Haiku indicators: simple edits, quick fixes, small questions
+  const haikuPatterns = [
+    'fix typo', 'rename', 'change color', 'change text', 'update title',
+    'small change', 'quick fix', 'add comment', 'what is', 'what does',
+    'explain', 'how does', 'remove.*line', 'delete.*line', 'change.*to',
+  ]
+  const hasAttachments = lastMsg?.parts?.some((p: any) => p.type === 'file')
+  if (!hasAttachments && haikuPatterns.some(k => new RegExp(k).test(lower)) && wordCount < 30 && fileCount <= 5) {
     return { model: 'claude-haiku-35-20241022', reason: 'Simple task — using Haiku for speed' }
   }
 
@@ -118,15 +128,20 @@ export async function POST(req: Request) {
     })
   }
 
-  // Concurrent stream limit — max 3 per IP
-  const currentStreams = activeStreams.get(ip) || 0
+  // Concurrent stream limit — max 3 per IP (with TTL to prevent stale entries)
+  const now = Date.now()
+  for (const [k, v] of activeStreams) {
+    if (now - v.ts > STREAM_ENTRY_TTL) activeStreams.delete(k)
+  }
+  const entry = activeStreams.get(ip)
+  const currentStreams = entry?.count || 0
   if (currentStreams >= MAX_CONCURRENT_STREAMS) {
     return new Response(JSON.stringify({ error: 'Too many concurrent requests. Please wait for current responses to complete.' }), {
       status: 429,
       headers: { 'Content-Type': 'application/json' },
     })
   }
-  activeStreams.set(ip, currentStreams + 1)
+  activeStreams.set(ip, { count: currentStreams + 1, ts: now })
 
   // Auth check
   const session = await getSession()
@@ -157,6 +172,14 @@ export async function POST(req: Request) {
   }
   const projectName = body.projectName || 'untitled'
   const projectId = body.projectId || null
+
+  // Verify the user owns the project before proceeding
+  if (projectId) {
+    const projCheck = await supabaseFetch(`/forge_projects?id=eq.${encodeURIComponent(projectId)}&github_username=eq.${encodeURIComponent(session.githubUsername)}&select=id&limit=1`)
+    if (!projCheck.ok || !Array.isArray(projCheck.data) || projCheck.data.length === 0) {
+      return new Response(JSON.stringify({ error: 'Project not found or access denied' }), { status: 403, headers: { 'Content-Type': 'application/json' } })
+    }
+  }
 
   const ALLOWED_MODELS = [
     'claude-sonnet-4-20250514',
@@ -372,9 +395,9 @@ export async function POST(req: Request) {
     // Decrement concurrent stream count (only once)
     if (streamCounted) {
       streamCounted = false
-      const count = activeStreams.get(ip) || 1
-      if (count <= 1) activeStreams.delete(ip)
-      else activeStreams.set(ip, count - 1)
+      const se = activeStreams.get(ip)
+      if (!se || se.count <= 1) activeStreams.delete(ip)
+      else activeStreams.set(ip, { count: se.count - 1, ts: Date.now() })
     }
 
     console.warn(`[forge] rid=${requestId} Context overflow: est_input=${Math.round(estimatedInputTokens)} available=${availableForOutput} limit=${contextLimit}`)
@@ -550,9 +573,9 @@ export async function POST(req: Request) {
             // Decrement concurrent stream count (only once)
             if (streamCounted) {
               streamCounted = false
-              const count = activeStreams.get(ip) || 1
-              if (count <= 1) activeStreams.delete(ip)
-              else activeStreams.set(ip, count - 1)
+              const se = activeStreams.get(ip)
+              if (!se || se.count <= 1) activeStreams.delete(ip)
+              else activeStreams.set(ip, { count: se.count - 1, ts: Date.now() })
             }
 
             console.log(`[forge] rid=${requestId} ${event.totalUsage?.totalTokens || 0} tokens, ${event.steps?.length || 0} steps`)
@@ -622,9 +645,9 @@ export async function POST(req: Request) {
     // Decrement concurrent stream count on error (only once)
     if (streamCounted) {
       streamCounted = false
-      const count = activeStreams.get(ip) || 1
-      if (count <= 1) activeStreams.delete(ip)
-      else activeStreams.set(ip, count - 1)
+      const se = activeStreams.get(ip)
+      if (!se || se.count <= 1) activeStreams.delete(ip)
+      else activeStreams.set(ip, { count: se.count - 1, ts: Date.now() })
     }
 
     const err = error instanceof Error ? error : new Error(String(error))

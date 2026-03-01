@@ -20,20 +20,28 @@ export async function GET(req: Request) {
     return NextResponse.redirect(baseUrl + '/?error=csrf_validation_failed')
   }
 
+  // PKCE: retrieve code_verifier from cookie
+  const codeVerifier = cookieStore.get('pkce_verifier')?.value
+
   try {
-    // Exchange code for access token
+    // Exchange code for access token (include PKCE code_verifier)
+    const tokenBody: Record<string, string> = {
+      client_id: (process.env.GITHUB_CLIENT_ID || '').trim(),
+      client_secret: (process.env.GITHUB_CLIENT_SECRET || '').trim(),
+      code,
+      redirect_uri: baseUrl + '/api/auth/callback',
+    }
+    if (codeVerifier) {
+      tokenBody.code_verifier = codeVerifier
+    }
+
     const tokenRes = await fetch('https://github.com/login/oauth/access_token', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
         'Accept': 'application/json',
       },
-      body: JSON.stringify({
-        client_id: (process.env.GITHUB_CLIENT_ID || '').trim(),
-        client_secret: (process.env.GITHUB_CLIENT_SECRET || '').trim(),
-        code,
-        redirect_uri: baseUrl + '/api/auth/callback',
-      }),
+      body: JSON.stringify(tokenBody),
     })
 
     const tokenData = await tokenRes.json()
@@ -90,6 +98,7 @@ export async function GET(req: Request) {
       path: '/',
     })
     response.cookies.delete('oauth_state')
+    response.cookies.delete('pkce_verifier')
 
     return response
   } catch (err: any) {

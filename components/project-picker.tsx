@@ -40,6 +40,7 @@ interface ProjectPickerProps {
   savedProjects: SavedProject[]
   loadingProjects: boolean
   onDeleteProject: (id: string) => void
+  deletingProjectId?: string | null
   isLoggedIn: boolean
   loadError?: boolean
   onRetryLoad?: () => void
@@ -85,10 +86,10 @@ const QUICK_STARTS = [
   { label: 'E-commerce', query: 'Build an e-commerce product page with image gallery, size/color selector, add to cart, reviews section, and related products. Clean, modern design like Apple Store.' },
 ]
 
-export function ProjectPicker({ onSelect, savedProjects, loadingProjects, onDeleteProject, isLoggedIn, loadError, onRetryLoad }: ProjectPickerProps) {
+export function ProjectPicker({ onSelect, savedProjects, loadingProjects, onDeleteProject, deletingProjectId, isLoggedIn, loadError, onRetryLoad }: ProjectPickerProps) {
   const [name, setName] = useState('')
   const [creating, setCreating] = useState(false)
-  const [deletingId, setDeletingId] = useState<string | null>(null)
+  const deletingId = deletingProjectId ?? null
   const [githubRepos, setGithubRepos] = useState<GitHubRepo[]>([])
   const [loadingRepos, setLoadingRepos] = useState(false)
   const [importingRepo, setImportingRepo] = useState<string | null>(null)
@@ -118,9 +119,7 @@ export function ProjectPicker({ onSelect, savedProjects, loadingProjects, onDele
   const handleDelete = async (e: React.MouseEvent, id: string) => {
     e.stopPropagation()
     if (!confirm('Delete this project? This cannot be undone.')) return
-    setDeletingId(id)
     await onDeleteProject(id)
-    setDeletingId(null)
   }
 
   const handleImportRepo = async (repo: GitHubRepo) => {
@@ -293,6 +292,7 @@ export function ProjectPicker({ onSelect, savedProjects, loadingProjects, onDele
                   onClick={() => setSearchQuery('')}
                   className={`absolute right-2.5 top-1/2 -translate-y-1/2 text-forge-text-dim hover:text-forge-text transition-opacity ${searchQuery ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}
                   tabIndex={searchQuery ? 0 : -1}
+                  aria-label="Clear search"
                 >
                   <X className="w-4 h-4" />
                 </button>
@@ -381,6 +381,7 @@ export function ProjectPicker({ onSelect, savedProjects, loadingProjects, onDele
                           disabled={deletingId === project.id}
                           className="absolute top-3 right-3 p-1.5 rounded-lg opacity-0 group-hover:opacity-100 text-forge-text-dim hover:text-forge-danger hover:bg-forge-danger/10 transition-all"
                           title="Delete project"
+                          aria-label="Delete project"
                         >
                           {deletingId === project.id ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Trash2 className="w-3.5 h-3.5" />}
                         </button>

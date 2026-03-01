@@ -8,7 +8,7 @@ export const SUPABASE_KEY = (process.env.SUPABASE_SERVICE_ROLE_KEY || '').trim()
 export async function supabaseFetch(
   path: string,
   options: RequestInit = {},
-): Promise<{ ok: boolean; data: any; status: number }> {
+): Promise<{ ok: boolean; data: unknown; status: number }> {
   if (!SUPABASE_URL || !SUPABASE_KEY) {
     return { data: null, status: 500, ok: false }
   }

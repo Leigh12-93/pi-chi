@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { getSession } from '@/lib/auth'
+import { isValidUUID } from '@/lib/validate'
 
 const SUPABASE_URL = (process.env.NEXT_PUBLIC_SUPABASE_URL || '').trim()
 const SUPABASE_KEY = (process.env.SUPABASE_SERVICE_ROLE_KEY || '').trim()
@@ -15,7 +16,11 @@ export async function GET(
 
   const { id } = await params
 
-  const res = await fetch(`${SUPABASE_URL}/rest/v1/forge_tasks?id=eq.${id}&select=*`, {
+  if (!isValidUUID(id)) {
+    return NextResponse.json({ error: 'Invalid ID format' }, { status: 400 })
+  }
+
+  const res = await fetch(`${SUPABASE_URL}/rest/v1/forge_tasks?id=eq.${encodeURIComponent(id)}&github_username=eq.${encodeURIComponent(session.githubUsername)}&select=*`, {
     headers: {
       'apikey': SUPABASE_KEY,
       'Authorization': `Bearer ${SUPABASE_KEY}`,
@@ -45,13 +50,19 @@ export async function PATCH(
   }
 
   const { id } = await params
+
+  if (!isValidUUID(id)) {
+    return NextResponse.json({ error: 'Invalid ID format' }, { status: 400 })
+  }
+
   const body = await req.json()
 
   if (body.status !== 'cancelled') {
     return NextResponse.json({ error: 'Only status: "cancelled" is supported' }, { status: 400 })
   }
 
-  const res = await fetch(`${SUPABASE_URL}/rest/v1/forge_tasks?id=eq.${id}`, {
+  // Only allow cancelling tasks the user owns
+  const res = await fetch(`${SUPABASE_URL}/rest/v1/forge_tasks?id=eq.${encodeURIComponent(id)}&github_username=eq.${encodeURIComponent(session.githubUsername)}`, {
     method: 'PATCH',
     headers: {
       'apikey': SUPABASE_KEY,
@@ -67,5 +78,8 @@ export async function PATCH(
   }
 
   const data = await res.json()
-  return NextResponse.json(Array.isArray(data) && data.length > 0 ? data[0] : { ok: true })
+  if (!Array.isArray(data) || data.length === 0) {
+    return NextResponse.json({ error: 'Task not found' }, { status: 404 })
+  }
+  return NextResponse.json(data[0])
 }

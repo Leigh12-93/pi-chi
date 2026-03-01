@@ -181,33 +181,33 @@ export function useForgeChat(props: UseForgeChatProps) {
     setHistoryLoaded(true)
     setLoadingHistory(true)
 
-    try {
-      fetch(`/api/projects/${projectId}/messages`)
-        .then(res => res.json())
-        .then(data => {
-          if (data.messages?.length > 0) {
-            // Convert persisted messages to v6 UIMessage format
-            const loaded = data.messages.map((msg: any) => ({
-              id: msg.id,
-              role: msg.role,
-              parts: [{ type: 'text', text: msg.content || '' }],
-              // Keep legacy content for backward compat with message-item
-              content: msg.content || '',
-            }))
-            setMessages(loaded)
-          }
-        })
-        .catch((err) => {
-          console.warn('Failed to load chat history:', err)
-          toast.error('Could not load chat history', { description: 'Previous messages may be missing.', duration: 4000 })
-        })
-        .finally(() => {
-          setLoadingHistory(false)
-          historyLoadingRef.current = false
-        })
-    } catch {
-      historyLoadingRef.current = false
+    const loadWithRetry = async (attempt = 0) => {
+      try {
+        const res = await fetch(`/api/projects/${projectId}/messages`)
+        if (!res.ok) throw new Error(`HTTP ${res.status}`)
+        const data = await res.json()
+        if (data.messages?.length > 0) {
+          const loaded = data.messages.map((msg: any) => ({
+            id: msg.id,
+            role: msg.role,
+            parts: [{ type: 'text', text: msg.content || '' }],
+            content: msg.content || '',
+          }))
+          setMessages(loaded)
+        }
+      } catch (err) {
+        if (attempt < 2) {
+          await new Promise(r => setTimeout(r, 1000 * (attempt + 1)))
+          return loadWithRetry(attempt + 1)
+        }
+        console.warn('Failed to load chat history after retries:', err)
+        toast.error('Could not load chat history', { description: 'Previous messages may be missing.', duration: 4000 })
+      } finally {
+        setLoadingHistory(false)
+        historyLoadingRef.current = false
+      }
     }
+    loadWithRetry()
   }, [projectId, historyLoaded, setMessages])
 
   // ─── Context warning + compaction detection from stream data parts ──

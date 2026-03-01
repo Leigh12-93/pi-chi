@@ -38,6 +38,7 @@ export default function ForgePage() {
   const [concurrentTabWarning, setConcurrentTabWarning] = useState(false)
   const [isOffline, setIsOffline] = useState(false)
   const [pendingMessage, setPendingMessage] = useState<string | null>(null)
+  const [deletingProjectId, setDeletingProjectId] = useState<string | null>(null)
 
   // Concurrent-tab detection: warn if another tab is editing the same project
   useEffect(() => {
@@ -326,12 +327,19 @@ export default function ForgePage() {
   }, [])
 
   const handleDeleteProject = useCallback(async (id: string) => {
+    setDeletingProjectId(id)
     try {
-      await fetch(`/api/projects/${id}`, { method: 'DELETE' })
-      setSavedProjects(prev => prev.filter(p => p.id !== id))
+      const res = await fetch(`/api/projects/${id}`, { method: 'DELETE' })
+      if (res.ok) {
+        setSavedProjects(prev => prev.filter(p => p.id !== id))
+      } else {
+        setErrorMessage(`Failed to delete project (HTTP ${res.status}). Please try again.`)
+      }
     } catch (err) {
       console.error('Failed to delete project:', err)
       setErrorMessage('Failed to delete project. Please try again.')
+    } finally {
+      setDeletingProjectId(null)
     }
   }, [])
 
@@ -368,6 +376,7 @@ export default function ForgePage() {
           savedProjects={savedProjects}
           loadingProjects={loadingProjects}
           onDeleteProject={handleDeleteProject}
+          deletingProjectId={deletingProjectId}
           isLoggedIn={!!session?.user}
           loadError={projectsLoadError}
           onRetryLoad={loadProjects}

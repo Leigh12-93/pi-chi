@@ -5,6 +5,13 @@ import { batchParallel } from '@/lib/github'
 import { TaskStore } from '@/lib/background-tasks'
 import type { ToolContext } from './types'
 
+/** Text file extensions that can be pulled from GitHub */
+export const PULLABLE_TEXT_EXTS = new Set(['ts','tsx','js','jsx','json','css','scss','html','md','mdx','txt','yaml','yml','toml','sql','sh','py','rb','go','rs','java','kt','swift','c','cpp','h','xml','svg','graphql','gql','prisma'])
+/** Directories to skip when pulling from GitHub */
+export const SKIP_DIRS = new Set(['node_modules','.git','.next','dist','build','.vercel','.turbo','coverage','__pycache__','.cache'])
+/** Special filenames to always include (even without extension) */
+export const ALWAYS_INCLUDE = ['Dockerfile','Makefile','.gitignore','.env.example']
+
 export function createGithubTools(ctx: ToolContext) {
   return {
     github_create_repo: tool({
@@ -315,8 +322,8 @@ export function createGithubTools(ctx: ToolContext) {
         if (!treeRes.ok) return { error: `Failed to fetch tree: ${treeRes.status}` }
         const treeData = await treeRes.json()
 
-        const textExts = new Set(['ts','tsx','js','jsx','json','css','scss','html','md','mdx','txt','yaml','yml','toml','sql','sh','py','rb','go','rs','java','kt','swift','c','cpp','h','xml','svg','graphql','gql','prisma'])
-        const skipDirs = new Set(['node_modules','.git','.next','dist','build','.vercel','.turbo','coverage','__pycache__','.cache'])
+        const textExts = PULLABLE_TEXT_EXTS
+        const skipDirs = SKIP_DIRS
 
         const blobs = (treeData.tree || []).filter((item: any) => {
           if (item.type !== 'blob' || item.size > 500000) return false
@@ -324,7 +331,7 @@ export function createGithubTools(ctx: ToolContext) {
           if (parts.some((p: string) => skipDirs.has(p))) return false
           const ext = item.path.split('.').pop()?.toLowerCase() || ''
           const basename = item.path.split('/').pop() || ''
-          if (['Dockerfile','Makefile','.gitignore','.env.example'].includes(basename)) return true
+          if (ALWAYS_INCLUDE.includes(basename)) return true
           return textExts.has(ext)
         }).slice(0, 300)
 
@@ -351,14 +358,23 @@ export function createGithubTools(ctx: ToolContext) {
         }
 
         const pulledFiles: Record<string, string> = {}
+        let failedCount = 0
         for (const r of results) {
+          if (r.status === 'rejected' || (r.status === 'fulfilled' && !r.value)) {
+            failedCount++
+            continue
+          }
           if (r.status === 'fulfilled' && r.value) {
             pulledFiles[r.value.path] = r.value.content
             ctx.vfs.write(r.value.path, r.value.content)
           }
         }
 
-        return { ok: true, fileCount: Object.keys(pulledFiles).length, files: Object.keys(pulledFiles) }
+        if (failedCount > 0 && failedCount > blobs.length * 0.3) {
+          return { error: `Too many files failed to download (${failedCount}/${blobs.length}). Check repository access and try again.` }
+        }
+
+        return { ok: true, fileCount: Object.keys(pulledFiles).length, files: Object.keys(pulledFiles), ...(failedCount > 0 ? { failedCount } : {}) }
       },
     }),
 

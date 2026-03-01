@@ -19,10 +19,20 @@ export const useTheme = () => useContext(ThemeContext)
 export function ThemeProvider({ children }: { children: ReactNode }) {
   const [theme, setTheme] = useState<Theme>('light')
 
-  // Sync with localStorage on mount (class already set by blocking script in layout)
+  // Sync with localStorage on mount, falling back to OS preference
   useEffect(() => {
     const stored = localStorage.getItem('forge-theme') as Theme | null
-    if (stored === 'dark') setTheme('dark')
+    if (stored) {
+      setTheme(stored)
+      document.documentElement.classList.toggle('dark', stored === 'dark')
+    } else {
+      // Detect OS preference
+      const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches
+      if (prefersDark) {
+        setTheme('dark')
+        document.documentElement.classList.add('dark')
+      }
+    }
   }, [])
 
   const toggleTheme = useCallback(() => {
