@@ -278,7 +278,7 @@ export async function POST(req: Request) {
         ...m,
         parts: m.parts.map((p: any) => {
           if (p.type === 'tool-invocation' || p.type?.startsWith('tool-')) {
-            return { ...p, input: { path: p.input?.path }, output: p.output?.ok !== undefined ? { ok: p.output.ok } : undefined }
+            return { ...p, input: { path: p.input?.path || p.args?.path }, output: p.output != null ? { ok: p.output?.ok } : p.result != null ? { ok: p.result?.ok } : {} }
           }
           return p
         }),
@@ -394,6 +394,27 @@ export async function POST(req: Request) {
     : contextUsage > 0.65
       ? 'warning'
       : null
+
+  // Sanitize tool part inputs before conversion — Anthropic API requires
+  // tool_use.input to be a valid dict, but the AI SDK passes input as-is.
+  // Client-sent UIMessages may have input: undefined, null, or string.
+  trimmedMessages = trimmedMessages.map((m: any) => {
+    if (m.role !== 'assistant' || !Array.isArray(m.parts)) return m
+    let modified = false
+    const sanitizedParts = m.parts.map((p: any) => {
+      // Check all tool-related part types
+      const isToolPart = p.type?.startsWith('tool-') || p.type === 'dynamic-tool'
+      if (!isToolPart) return p
+      // Ensure input is always a proper object (dict)
+      const input = p.input
+      if (input !== null && input !== undefined && typeof input === 'object' && !Array.isArray(input)) {
+        return p // Already a valid dict
+      }
+      modified = true
+      return { ...p, input: input != null ? { _raw: String(input) } : {} }
+    })
+    return modified ? { ...m, parts: sanitizedParts } : m
+  })
 
   // Convert UIMessages to ModelMessages (v6 — async)
   let messages
