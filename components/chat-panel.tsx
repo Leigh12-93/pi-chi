@@ -178,12 +178,23 @@ function renderMarkdown(text: string): string {
     .replace(/\n/g, '<br/>')
 }
 
+// Strip dangerous HTML tags that could execute code (XSS prevention)
+function sanitizeHtml(html: string): string {
+  return html
+    .replace(/<script\b[^>]*>[\s\S]*?<\/script>/gi, '')
+    .replace(/<iframe\b[^>]*>[\s\S]*?<\/iframe>/gi, '')
+    .replace(/<object\b[^>]*>[\s\S]*?<\/object>/gi, '')
+    .replace(/<embed\b[^>]*\/?>/gi, '')
+    .replace(/\bon\w+\s*=\s*["'][^"']*["']/gi, '')
+    .replace(/javascript\s*:/gi, '')
+}
+
 // Markdown HTML cache — avoids re-parsing identical text on every render
 const _mdCache = new Map<string, string>()
 function cachedRenderMarkdown(text: string): string {
   let html = _mdCache.get(text)
   if (html) return html
-  html = renderMarkdown(text)
+  html = sanitizeHtml(renderMarkdown(text))
   _mdCache.set(text, html)
   if (_mdCache.size > 300) _mdCache.delete(_mdCache.keys().next().value!)
   return html
@@ -226,6 +237,28 @@ function getToolSummary(toolName: string, args: Record<string, unknown>, result:
       if (data?.status === 'running') return `${data.type || 'Task'}: running...`
       return 'Checking...'
     }
+    case 'cancel_task': return data?.ok ? 'Task cancelled' : 'Cancelling...'
+    case 'mcp_list_servers': return data ? `${(data as any).count || 0} servers` : 'Listing...'
+    case 'mcp_connect_server': return args.serverName ? `${args.serverName}` : 'Connecting...'
+    case 'mcp_call_tool': return args.toolName ? `${args.serverName}/${args.toolName}` : 'Calling...'
+    case 'forge_check_npm_package': return args.packageName ? `${args.packageName}` : 'Checking...'
+    case 'forge_revert_commit': return data?.ok ? 'Commit reverted' : 'Reverting...'
+    case 'forge_create_branch': return args.branchName ? `${args.branchName}` : 'Creating...'
+    case 'forge_create_pr': return data?.url ? `PR created` : 'Creating PR...'
+    case 'forge_merge_pr': return data?.ok ? 'PR merged' : 'Merging...'
+    case 'forge_deployment_status': return data?.state ? `${data.state}` : 'Checking...'
+    case 'forge_check_build': return data?.ok ? 'Build passed' : (data?.error ? 'Build failed' : 'Building...')
+    case 'forge_list_branches': return data ? `${(data as any).count || 0} branches` : 'Listing...'
+    case 'forge_delete_branch': return data?.ok ? 'Branch deleted' : 'Deleting...'
+    case 'forge_read_deploy_log': return data ? 'Log retrieved' : 'Reading...'
+    case 'db_introspect': return args.table ? `${args.table}` : 'Inspecting...'
+    case 'scaffold_component': return args.name ? `${args.name}` : 'Scaffolding...'
+    case 'generate_env_file': return data?.ok ? '.env.example created' : 'Generating...'
+    case 'request_env_vars': return 'Environment setup'
+    case 'start_sandbox': return data?.ok ? 'Sandbox started' : 'Starting...'
+    case 'stop_sandbox': return data?.ok ? 'Sandbox stopped' : 'Stopping...'
+    case 'sandbox_status': return data?.running ? 'Running' : 'Checking...'
+    case 'add_image': return args.query ? `"${String(args.query).slice(0, 30)}"` : 'Finding image...'
     default: return 'Done'
   }
 }

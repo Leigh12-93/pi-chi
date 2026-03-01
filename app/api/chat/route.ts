@@ -2299,12 +2299,13 @@ export async function POST(req: Request) {
           table: z.string().describe('Table name to inspect, e.g. "forge_projects"'),
         }),
         execute: async ({ table }) => {
-          // Use Supabase's PostgREST to introspect via information_schema
-          // The service role key has access to pg_catalog
-          const url = `${SUPABASE_URL}/rest/v1/rpc/get_table_schema`
+          // Validate table name (alphanumeric + underscores only)
+          if (!/^[a-zA-Z_][a-zA-Z0-9_]*$/.test(table)) {
+            return { error: 'Invalid table name. Use only letters, numbers, and underscores.' }
+          }
 
-          // First try the RPC approach — if there's no function, fall back to reading 0 rows + headers
-          const fallbackRes = await fetch(`${SUPABASE_URL}/rest/v1/${table}?limit=0`, {
+          // Step 1: Check table exists and get row count
+          const countRes = await fetch(`${SUPABASE_URL}/rest/v1/${table}?limit=0`, {
             method: 'GET',
             headers: {
               'apikey': SUPABASE_KEY,
@@ -2314,38 +2315,12 @@ export async function POST(req: Request) {
             },
           })
 
-          if (!fallbackRes.ok) return { error: `Table "${table}" not found or not accessible (${fallbackRes.status})` }
+          if (!countRes.ok) return { error: `Table "${table}" not found or not accessible (${countRes.status})` }
 
-          const contentRange = fallbackRes.headers.get('content-range')
+          const contentRange = countRes.headers.get('content-range')
           const totalRows = contentRange ? contentRange.split('/')[1] : 'unknown'
 
-          // Get column info via a raw SQL query through PostgREST RPC
-          // Using the information_schema approach
-          const schemaRes = await fetch(`${SUPABASE_URL}/rest/v1/rpc/execute_sql`, {
-            method: 'POST',
-            headers: {
-              'apikey': SUPABASE_KEY,
-              'Authorization': `Bearer ${SUPABASE_KEY}`,
-              'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({
-              query: `SELECT column_name, data_type, is_nullable, column_default, character_maximum_length
-                      FROM information_schema.columns
-                      WHERE table_name = '${table.replace(/'/g, "''")}'
-                      ORDER BY ordinal_position`
-            }),
-          })
-
-          if (schemaRes.ok) {
-            const schemaData = await schemaRes.json()
-            return {
-              table,
-              totalRows,
-              columns: schemaData,
-            }
-          }
-
-          // Fallback: read 1 row and infer types from the data
+          // Step 2: Read 1 sample row and infer column names + types
           const sampleRes = await fetch(`${SUPABASE_URL}/rest/v1/${table}?limit=1`, {
             headers: {
               'apikey': SUPABASE_KEY,
@@ -2359,14 +2334,14 @@ export async function POST(req: Request) {
             if (Array.isArray(sample) && sample.length > 0) {
               const columns = Object.entries(sample[0]).map(([name, value]) => ({
                 column_name: name,
-                inferred_type: value === null ? 'unknown' : typeof value,
+                inferred_type: value === null ? 'unknown' : Array.isArray(value) ? 'array' : typeof value,
                 sample_value: typeof value === 'string' ? value.slice(0, 50) : value,
               }))
-              return { table, totalRows, columns, note: 'Types inferred from sample data (no RPC function available)' }
+              return { table, totalRows, columns }
             }
           }
 
-          return { table, totalRows, columns: [], note: 'Table exists but is empty and schema could not be introspected' }
+          return { table, totalRows, columns: [], note: 'Table exists but is empty — no columns could be inferred' }
         },
       }),
 
