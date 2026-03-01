@@ -102,7 +102,7 @@ export function Header({ projectName, onSwitchProject, fileCount, onAction, save
           >
             <Search className="w-3 h-3" />
             <span>Commands</span>
-            <kbd className="px-1 py-0.5 text-[9px] font-mono bg-white border border-forge-border rounded">Ctrl+K</kbd>
+            <kbd className="px-1 py-0.5 text-[9px] font-mono bg-forge-bg border border-forge-border rounded">Ctrl+K</kbd>
           </button>
         )}
         {notificationSlot}

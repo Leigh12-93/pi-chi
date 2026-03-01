@@ -61,17 +61,17 @@ function formatRelative(dateStr: string): string {
 }
 
 const FRAMEWORK_COLORS: Record<string, string> = {
-  nextjs: 'bg-blue-100 text-blue-700',
-  'vite-react': 'bg-purple-100 text-purple-700',
-  static: 'bg-gray-100 text-gray-600',
+  nextjs: 'bg-blue-500/15 text-blue-600 dark:text-blue-400',
+  'vite-react': 'bg-purple-500/15 text-purple-600 dark:text-purple-400',
+  static: 'bg-forge-surface text-forge-text-dim',
 }
 
 const LANG_COLORS: Record<string, string> = {
-  TypeScript: 'bg-blue-100 text-blue-700',
-  JavaScript: 'bg-yellow-100 text-yellow-700',
-  Python: 'bg-green-100 text-green-700',
-  Kotlin: 'bg-purple-100 text-purple-700',
-  Java: 'bg-orange-100 text-orange-700',
+  TypeScript: 'bg-blue-500/15 text-blue-600 dark:text-blue-400',
+  JavaScript: 'bg-yellow-500/15 text-yellow-700 dark:text-yellow-400',
+  Python: 'bg-green-500/15 text-green-600 dark:text-green-400',
+  Kotlin: 'bg-purple-500/15 text-purple-600 dark:text-purple-400',
+  Java: 'bg-orange-500/15 text-orange-600 dark:text-orange-400',
   HTML: 'bg-red-100 text-red-700',
   CSS: 'bg-pink-100 text-pink-700',
   Rust: 'bg-amber-100 text-amber-700',
@@ -409,10 +409,10 @@ export function ProjectPicker({ onSelect, savedProjects, loadingProjects, onDele
                           </h3>
                           <div className="flex items-center gap-1 shrink-0">
                             {repo.archived && (
-                              <span className="text-[9px] font-medium px-1.5 py-0.5 rounded bg-amber-100 text-amber-700">archived</span>
+                              <span className="text-[9px] font-medium px-1.5 py-0.5 rounded bg-amber-500/15 text-amber-600 dark:text-amber-400">archived</span>
                             )}
                             {repo.language && (
-                              <span className={`text-[9px] font-medium px-1.5 py-0.5 rounded ${LANG_COLORS[repo.language] || 'bg-gray-500/20 text-gray-400'}`}>
+                              <span className={`text-[9px] font-medium px-1.5 py-0.5 rounded ${LANG_COLORS[repo.language] || 'bg-forge-surface text-forge-text-dim'}`}>
                                 {repo.language}
                               </span>
                             )}

@@ -107,7 +107,7 @@ const colorClasses: Record<string, string> = {
   purple: 'text-purple-600 bg-purple-50 dark:text-purple-400 dark:bg-purple-950/40',
   indigo: 'text-indigo-600 bg-indigo-50 dark:text-indigo-400 dark:bg-indigo-950/40',
   orange: 'text-orange-600 bg-orange-50 dark:text-orange-400 dark:bg-orange-950/40',
-  gray: 'text-gray-600 bg-gray-100 dark:text-gray-400 dark:bg-gray-800/50',
+  gray: 'text-forge-text-dim bg-forge-surface',
   cyan: 'text-cyan-600 bg-cyan-50 dark:text-cyan-400 dark:bg-cyan-950/40',
   amber: 'text-amber-600 bg-amber-50 dark:text-amber-400 dark:bg-amber-950/40',
 }
@@ -222,7 +222,7 @@ function highlightCode(code: string, lang: string): string {
 
   // Dark-bg color palette (v0 style)
   const colorMap: Record<Token['type'], string> = {
-    comment: 'text-gray-500 italic',
+    comment: 'text-forge-text-dim italic',
     string: 'text-emerald-400',
     keyword: 'text-violet-400 font-medium',
     builtin: 'text-sky-400',
@@ -245,12 +245,12 @@ function renderMarkdown(text: string): string {
     const label = LANG_LABELS[lang] || lang || 'Code'
     const highlighted = lang ? highlightCode(code.trimEnd(), lang) : code.trimEnd().replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
     // v0-style: always dark code blocks
-    const html = `<div class="code-block-wrapper relative group/code my-3 rounded-xl overflow-hidden border border-gray-800">
-      <div class="flex items-center justify-between px-3.5 py-2 bg-gray-900 border-b border-gray-800">
-        <span class="text-[11px] font-medium text-gray-400 tracking-wide">${label}</span>
-        <button onclick="navigator.clipboard.writeText(document.getElementById('${id}').textContent).then(()=>{this.textContent='Copied!';setTimeout(()=>this.textContent='Copy',1500)})" class="text-[11px] text-gray-500 hover:text-gray-300 transition-colors px-2 py-0.5 rounded hover:bg-gray-800">Copy</button>
+    const html = `<div class="code-block-wrapper relative group/code my-3 rounded-xl overflow-hidden border border-forge-border dark:border-gray-800">
+      <div class="flex items-center justify-between px-3.5 py-2 bg-gray-50 dark:bg-gray-900 border-b border-forge-border dark:border-gray-800">
+        <span class="text-[11px] font-medium text-forge-text-dim tracking-wide">${label}</span>
+        <button onclick="navigator.clipboard.writeText(document.getElementById('${id}').textContent).then(()=>{this.textContent='Copied!';setTimeout(()=>this.textContent='Copy',1500)})" class="text-[11px] text-forge-text-dim hover:text-forge-text transition-colors px-2 py-0.5 rounded hover:bg-forge-surface">Copy</button>
       </div>
-      <pre class="bg-gray-950 text-gray-200 p-4 overflow-x-auto text-[12.5px] font-mono leading-relaxed"><code id="${id}">${highlighted}</code></pre>
+      <pre class="bg-gray-50 dark:bg-gray-950 text-gray-800 dark:text-gray-200 p-4 overflow-x-auto text-[12.5px] font-mono leading-relaxed"><code id="${id}">${highlighted}</code></pre>
     </div>`
     codeBlocks.push(html)
     return `%%CODEBLOCK_${codeBlocks.length - 1}%%`
@@ -261,25 +261,25 @@ function renderMarkdown(text: string): string {
     (_match, headerRow: string, _separator: string, bodyRows: string) => {
       const headers = headerRow.split('|').slice(1, -1).map((h: string) => h.trim())
       const rows = bodyRows.trim().split('\n').map((row: string) => row.split('|').slice(1, -1).map((c: string) => c.trim()))
-      return `<table class="w-full text-[12.5px] my-3 border-collapse border border-gray-200 dark:border-gray-700 rounded-lg overflow-hidden">
-        <thead><tr>${headers.map((h: string) => `<th class="px-3 py-1.5 text-left bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 font-semibold text-gray-700 dark:text-gray-300">${h}</th>`).join('')}</tr></thead>
-        <tbody>${rows.map((cells: string[]) => `<tr>${cells.map((c: string) => `<td class="px-3 py-1.5 border border-gray-200 dark:border-gray-700 text-gray-600 dark:text-gray-400">${c}</td>`).join('')}</tr>`).join('')}</tbody>
+      return `<table class="w-full text-[12.5px] my-3 border-collapse border border-forge-border rounded-lg overflow-hidden">
+        <thead><tr>${headers.map((h: string) => `<th class="px-3 py-1.5 text-left bg-forge-surface border border-forge-border font-semibold text-forge-text">${h}</th>`).join('')}</tr></thead>
+        <tbody>${rows.map((cells: string[]) => `<tr>${cells.map((c: string) => `<td class="px-3 py-1.5 border border-forge-border text-forge-text-dim">${c}</td>`).join('')}</tr>`).join('')}</tbody>
       </table>`
     })
 
   // Blockquotes
-  processed = processed.replace(/^(?:&gt;|>) (.+)$/gm, '<blockquote class="border-l-2 border-gray-300 dark:border-gray-600 pl-3 my-1.5 text-gray-500 dark:text-gray-400 italic text-[13px]">$1</blockquote>')
+  processed = processed.replace(/^(?:&gt;|>) (.+)$/gm, '<blockquote class="border-l-2 border-forge-border-bright pl-3 my-1.5 text-forge-text-dim italic text-[13px]">$1</blockquote>')
   processed = processed.replace(/<\/blockquote>\n<blockquote[^>]*>/g, '<br/>')
 
   // Horizontal rules
-  processed = processed.replace(/^(?:---|\*\*\*|___)\s*$/gm, '<hr class="my-4 border-gray-200 dark:border-gray-700" />')
+  processed = processed.replace(/^(?:---|\*\*\*|___)\s*$/gm, '<hr class="my-4 border-forge-border" />')
 
   // Inline formatting
   processed = processed
-    .replace(/`([^`]+)`/g, '<code class="bg-gray-100 dark:bg-gray-800 px-1.5 py-0.5 rounded text-[12.5px] font-mono text-gray-800 dark:text-gray-200 border border-gray-200 dark:border-gray-700">$1</code>')
-    .replace(/^### (.+)$/gm, '<h3 class="text-[13.5px] font-semibold mt-4 mb-1.5 text-gray-800 dark:text-gray-200">$1</h3>')
-    .replace(/^## (.+)$/gm, '<h2 class="text-sm font-bold mt-4 mb-2 text-gray-900 dark:text-gray-100">$1</h2>')
-    .replace(/\*\*(.+?)\*\*/g, '<strong class="font-semibold text-gray-900 dark:text-gray-100">$1</strong>')
+    .replace(/`([^`]+)`/g, '<code class="bg-forge-surface px-1.5 py-0.5 rounded text-[12.5px] font-mono text-forge-text border border-forge-border">$1</code>')
+    .replace(/^### (.+)$/gm, '<h3 class="text-[13.5px] font-semibold mt-4 mb-1.5 text-forge-text">$1</h3>')
+    .replace(/^## (.+)$/gm, '<h2 class="text-sm font-bold mt-4 mb-2 text-forge-text">$1</h2>')
+    .replace(/\*\*(.+?)\*\*/g, '<strong class="font-semibold text-forge-text">$1</strong>')
     .replace(/\*(.+?)\*/g, '<em>$1</em>')
     .replace(/^\d+\. (.+)$/gm, '<li class="ml-5 pl-1 list-decimal text-[13.5px] leading-[1.7]">$1</li>')
     .replace(/^- (.+)$/gm, '<li class="ml-5 pl-1 list-disc text-[13.5px] leading-[1.7]">$1</li>')
@@ -556,7 +556,7 @@ function EnvVarInputCard({
               value={values[v.name] || ''}
               onChange={(e) => setValues(prev => ({ ...prev, [v.name]: e.target.value }))}
               placeholder={v.name}
-              className="w-full px-2.5 py-1.5 rounded-lg bg-white dark:bg-gray-900 border border-amber-200 dark:border-amber-700 text-[12px] font-mono text-gray-800 dark:text-gray-200 placeholder:text-gray-400 dark:placeholder:text-gray-600 focus:outline-none focus:ring-1 focus:ring-amber-400"
+              className="w-full px-2.5 py-1.5 rounded-lg bg-forge-bg border border-amber-300/50 dark:border-amber-600/40 text-[12px] font-mono text-forge-text placeholder:text-forge-text-dim/50 focus:outline-none focus:ring-1 focus:ring-amber-400"
             />
           </div>
         ))}
@@ -570,7 +570,7 @@ function EnvVarInputCard({
             ? 'bg-emerald-500 text-white'
             : allRequiredFilled
               ? 'bg-amber-500 hover:bg-amber-600 text-white cursor-pointer'
-              : 'bg-gray-200 dark:bg-gray-700 text-gray-400 dark:text-gray-500 cursor-not-allowed'
+              : 'bg-forge-surface text-forge-text-dim/50 cursor-not-allowed'
         )}
       >
         {saved ? 'Saved!' : 'Save Environment Variables'}
@@ -931,10 +931,10 @@ const MessageItem = memo(function MessageItem({
                     </div>
                     <p className="text-amber-700 dark:text-amber-300 mb-1">{sArgs.issue || ''}</p>
                     {sArgs.suggestion && (
-                      <pre className="text-[11px] bg-gray-950 text-gray-200 rounded-lg p-2.5 mt-1.5 whitespace-pre-wrap font-mono">{sArgs.suggestion}</pre>
+                      <pre className="text-[11px] bg-forge-surface dark:bg-gray-950 text-forge-text dark:text-gray-200 rounded-lg p-2.5 mt-1.5 whitespace-pre-wrap font-mono">{sArgs.suggestion}</pre>
                     )}
                     {sArgs.file && (
-                      <span className="inline-block mt-1.5 px-1.5 py-0.5 bg-gray-100 dark:bg-gray-800 text-forge-text-dim rounded text-[10px] font-mono">{sArgs.file}</span>
+                      <span className="inline-block mt-1.5 px-1.5 py-0.5 bg-forge-surface text-forge-text-dim rounded text-[10px] font-mono">{sArgs.file}</span>
                     )}
                   </motion.div>
                 )

@@ -106,8 +106,8 @@ export function DiffViewer({ open, onClose, path, oldContent, newContent, oldLab
               <div
                 key={i}
                 className={
-                  line.type === 'add' ? 'bg-emerald-50 text-emerald-800' :
-                  line.type === 'remove' ? 'bg-red-50 text-red-800' :
+                  line.type === 'add' ? 'bg-emerald-500/10 text-emerald-700 dark:text-emerald-300' :
+                  line.type === 'remove' ? 'bg-red-500/10 text-red-700 dark:text-red-300' :
                   'text-forge-text'
                 }
               >
