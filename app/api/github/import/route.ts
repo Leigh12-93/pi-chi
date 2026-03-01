@@ -93,7 +93,7 @@ async function fetchInBatches(
 }
 
 // Recursively fetch all files from a GitHub repo tree
-async function fetchTree(owner: string, repo: string, branch: string, token: string): Promise<Record<string, string>> {
+async function fetchTree(owner: string, repo: string, branch: string, token: string): Promise<{ files: Record<string, string>; skipped: string[] }> {
   const res = await fetch(
     `https://api.github.com/repos/${owner}/${repo}/git/trees/${branch}?recursive=1`,
     { headers: GITHUB_HEADERS(token) },
@@ -106,9 +106,13 @@ async function fetchTree(owner: string, repo: string, branch: string, token: str
 
   const data = await res.json()
 
+  const skipped: string[] = []
   const blobs = (data.tree || []).filter((item: any) => {
     if (item.type !== 'blob') return false
-    if (item.size > 500000) return false // Skip files > 500KB
+    if (item.size > 500000) {
+      skipped.push(`${item.path} (${Math.round(item.size / 1024)}KB — too large)`)
+      return false
+    }
 
     const parts = item.path.split('/')
     const basename = parts[parts.length - 1] || ''
@@ -124,12 +128,22 @@ async function fetchTree(owner: string, repo: string, branch: string, token: str
 
     // Check extension
     const ext = basename.split('.').pop()?.toLowerCase() || ''
-    return TEXT_EXTENSIONS.has(ext)
+    if (!TEXT_EXTENSIONS.has(ext)) {
+      // Only report non-directory, non-obvious binary files
+      if (!basename.match(/\.(png|jpg|jpeg|gif|ico|woff2?|ttf|eot|mp[34]|wav|zip|tar|gz|pdf|webp|avif|svg)$/i)) {
+        skipped.push(`${item.path} (unsupported type)`)
+      }
+      return false
+    }
+    return true
   })
 
   // Fetch up to 300 files in batches of 10
+  const cappedAt = blobs.length > 300 ? 300 : undefined
+  if (blobs.length > 300) skipped.push(`...and ${blobs.length - 300} more files (cap: 300)`)
   const filesToFetch = blobs.slice(0, 300).map((b: any) => ({ path: b.path, sha: b.sha }))
-  return fetchInBatches(filesToFetch, owner, repo, branch, token, 10)
+  const files = await fetchInBatches(filesToFetch, owner, repo, branch, token, 10)
+  return { files, skipped }
 }
 
 export async function POST(req: Request) {
@@ -148,11 +162,12 @@ export async function POST(req: Request) {
   try {
     // Auto-detect branch if not specified
     const targetBranch = branch || await getDefaultBranch(owner, repo, session.accessToken)
-    const files = await fetchTree(owner, repo, targetBranch, session.accessToken)
+    const result = await fetchTree(owner, repo, targetBranch, session.accessToken)
     return NextResponse.json({
-      files,
-      fileCount: Object.keys(files).length,
+      files: result.files,
+      fileCount: Object.keys(result.files).length,
       branch: targetBranch,
+      skipped: result.skipped,
     })
   } catch (err: any) {
     return NextResponse.json({ error: err.message }, { status: 500 })

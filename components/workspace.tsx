@@ -208,21 +208,35 @@ export function Workspace({
     const items = e.dataTransfer.files
     if (!items.length) return
 
+    const binaryExts = new Set(['png','jpg','jpeg','gif','ico','webp','avif','bmp','svg','woff','woff2','ttf','eot','otf','mp3','mp4','wav','ogg','webm','zip','tar','gz','rar','7z','pdf','exe','dll','so','dylib','bin','dat','db','sqlite'])
     let count = 0
+    let skipped = 0
     for (let i = 0; i < items.length; i++) {
       const file = items[i]
-      // Only accept text-based files (skip binary like images > 100kb)
+      const ext = file.name.split('.').pop()?.toLowerCase() || ''
+      if (binaryExts.has(ext)) {
+        skipped++
+        continue
+      }
       if (file.size > 500_000) {
         toast.error(`Skipped ${file.name}`, { description: 'File too large (max 500KB)' })
         continue
       }
       try {
         const text = await file.text()
+        // Check for binary content (null bytes indicate non-text)
+        if (text.includes('\0')) {
+          skipped++
+          continue
+        }
         onFileChange(file.name, text)
         count++
       } catch {
         toast.error(`Failed to read ${file.name}`)
       }
+    }
+    if (skipped > 0) {
+      toast.info(`Skipped ${skipped} binary file${skipped > 1 ? 's' : ''}`, { duration: 2000 })
     }
     if (count > 0) {
       toast.success(`${count} file${count > 1 ? 's' : ''} imported`, { duration: 2500 })
@@ -725,9 +739,14 @@ export function Workspace({
           const data = await res.json()
           if (data.files && Object.keys(data.files).length > 0) {
             onBulkFileUpdate({ ...files, ...data.files })
-            toast.success(`Imported ${data.fileCount} files`, {
+            const skippedCount = data.skipped?.length || 0
+            toast.success(`Imported ${data.fileCount} files${skippedCount ? ` (${skippedCount} skipped)` : ''}`, {
               description: `From ${fieldValues.owner}/${fieldValues.repo}${data.branch ? ` (${data.branch})` : ''}`,
+              duration: skippedCount ? 5000 : 3000,
             })
+            if (skippedCount > 0) {
+              console.warn('Skipped files during import:', data.skipped)
+            }
           } else {
             throw new Error('No importable files found in repository')
           }

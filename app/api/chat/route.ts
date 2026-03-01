@@ -1765,15 +1765,33 @@ export async function POST(req: Request) {
         parameters: z.object({
           owner: z.string().describe('Repository owner'),
           repo: z.string().describe('Repository name'),
-          branch: z.string().default('master').describe('Branch to pull from'),
+          branch: z.string().optional().describe('Branch to pull from (auto-detects default if omitted)'),
         }),
         execute: async ({ owner, repo, branch }) => {
           const token = effectiveGithubToken
           if (!token) return { error: 'No GitHub token available' }
 
+          // Auto-detect default branch if not specified
+          let targetBranch = branch
+          if (!targetBranch) {
+            try {
+              const repoRes = await fetch(`https://api.github.com/repos/${owner}/${repo}`, {
+                headers: { Authorization: `Bearer ${token}`, Accept: 'application/vnd.github.v3+json' },
+              })
+              if (repoRes.ok) {
+                const repoData = await repoRes.json()
+                targetBranch = repoData.default_branch || 'main'
+              } else {
+                targetBranch = 'main'
+              }
+            } catch {
+              targetBranch = 'main'
+            }
+          }
+
           // Get the tree recursively
           const treeRes = await fetch(
-            `https://api.github.com/repos/${owner}/${repo}/git/trees/${branch}?recursive=1`,
+            `https://api.github.com/repos/${owner}/${repo}/git/trees/${targetBranch}?recursive=1`,
             { headers: { Authorization: `Bearer ${token}`, Accept: 'application/vnd.github.v3+json' } }
           )
           if (!treeRes.ok) return { error: `Failed to fetch tree: ${treeRes.status}` }
