@@ -13,6 +13,7 @@ import { getSession } from '@/lib/auth'
 import { SYSTEM_PROMPT } from '@/lib/system-prompt'
 import { getPromptExample } from '@/lib/prompt-examples'
 import { VirtualFS } from '@/lib/virtual-fs'
+import { compactMessages } from '@/lib/compaction'
 import { GITHUB_TOKEN, githubFetch } from '@/lib/github'
 import { supabaseFetch } from '@/lib/supabase-fetch'
 import {
@@ -318,8 +319,20 @@ export async function POST(req: Request) {
     return m
   })
 
-  // Estimate context size and flag if approaching model limit
-  const estimatedTokens = JSON.stringify(trimmedMessages).length / 4 // rough 4 chars/token
+  // ── Estimate FULL context size (system + tools + messages) ───
+  // Build the system prompt string early so we can measure it
+  const systemPromptStr = SYSTEM_PROMPT
+    + (activeFile && activeFileContent
+      ? `\n\nUser is currently viewing: ${activeFile}\n\`\`\`\n${activeFileContent}\n\`\`\``
+      : '')
+    + `\n\n---\nProject: "${projectName}"${projectId ? ` (id: ${projectId})` : ''}\nFile manifest:\n${manifestStr}`
+
+  let messageTokens = JSON.stringify(trimmedMessages).length / 4 // rough 4 chars/token
+  const systemTokens = systemPromptStr.length / 4
+  const TOOL_SCHEMA_OVERHEAD = 8000 // ~25 tools with Zod schemas → JSON Schema
+  const SAFETY_BUFFER = 2000 // breathing room for framing tokens
+  let estimatedInputTokens = messageTokens + systemTokens + TOOL_SCHEMA_OVERHEAD + SAFETY_BUFFER
+
   const MODEL_CONTEXT_LIMITS: Record<string, number> = {
     'claude-sonnet-4-20250514': 200000,
     'claude-opus-4-20250514': 200000,
@@ -327,10 +340,51 @@ export async function POST(req: Request) {
     'claude-haiku-35-20241022': 200000,
   }
   const contextLimit = MODEL_CONTEXT_LIMITS[selectedModel] || 200000
-  const contextUsage = estimatedTokens / contextLimit
-  const contextWarning: 'critical' | 'warning' | null = contextUsage > 0.9
+
+  // ── Layer 2: Auto-compaction via Haiku summarization ──────────
+  let compactionOccurred = false
+  let compactedTokensSaved = 0
+  if (estimatedInputTokens > contextLimit * 0.70 && trimmedMessages.length > 12) {
+    const preCompactionTokens = estimatedInputTokens
+    const result = await compactMessages(trimmedMessages, projectId, estimatedInputTokens, contextLimit)
+    trimmedMessages = result.messages
+    compactionOccurred = result.compacted
+    if (compactionOccurred) {
+      // Recalculate token estimates after compaction
+      messageTokens = JSON.stringify(trimmedMessages).length / 4
+      estimatedInputTokens = messageTokens + systemTokens + TOOL_SCHEMA_OVERHEAD + SAFETY_BUFFER
+      compactedTokensSaved = Math.round(preCompactionTokens - estimatedInputTokens)
+      console.log(`[forge] rid=${requestId} Compaction saved ~${compactedTokensSaved} tokens (${Math.round(preCompactionTokens)} → ${Math.round(estimatedInputTokens)})`)
+    }
+  }
+
+  const DESIRED_MAX_TOKENS = 64000
+  const MIN_OUTPUT_TOKENS = 4000
+  let availableForOutput = contextLimit - estimatedInputTokens
+  let dynamicMaxTokens = Math.min(DESIRED_MAX_TOKENS, Math.max(MIN_OUTPUT_TOKENS, availableForOutput))
+
+  // If even MIN_OUTPUT_TOKENS won't fit, reject early with a clear error
+  if (availableForOutput < MIN_OUTPUT_TOKENS) {
+    // Decrement concurrent stream count
+    const count = activeStreams.get(ip) || 1
+    if (count <= 1) activeStreams.delete(ip)
+    else activeStreams.set(ip, count - 1)
+
+    console.warn(`[forge] rid=${requestId} Context overflow: est_input=${Math.round(estimatedInputTokens)} available=${availableForOutput} limit=${contextLimit}`)
+    return new Response(JSON.stringify({
+      error: `Your conversation is too long for the ${contextLimit / 1000}K context window. `
+        + `Estimated input: ~${Math.round(estimatedInputTokens / 1000)}K tokens, leaving no room for a response. `
+        + `Clear your chat history or shorten your message.`,
+    }), {
+      status: 413,
+      headers: { 'Content-Type': 'application/json' },
+    })
+  }
+
+  const contextUsage = estimatedInputTokens / contextLimit
+  const contextWarning: 'critical' | 'warning' | null = contextUsage > 0.85
     ? 'critical'
-    : contextUsage > 0.7
+    : contextUsage > 0.65
       ? 'warning'
       : null
 
@@ -436,16 +490,24 @@ export async function POST(req: Request) {
           } as any)
         }
 
+        // Notify client if compaction occurred
+        if (compactionOccurred) {
+          writer.write({
+            type: 'data' as any,
+            data: JSON.stringify({
+              type: 'compaction_notice',
+              tokensSaved: compactedTokensSaved,
+            }),
+          } as any)
+        }
+
         // Use @ai-sdk/anthropic provider for prompt caching support
         const result = streamText({
           model: anthropic(selectedModel),
-          system: SYSTEM_PROMPT
-            + (promptExample ? `\n\n## Structural Guide for This Request\n${promptExample}` : '')
-            + `\n\n---\nProject: "${projectName}"${projectId ? ` (id: ${projectId})` : ''}\nFile manifest:\n${manifestStr}`
-            + (activeFile && activeFileContent
-              ? `\n\nUser is currently viewing: ${activeFile}\n\`\`\`\n${activeFileContent}\n\`\`\``
-              : ''),
+          system: systemPromptStr
+            + (promptExample ? `\n\n## Structural Guide for This Request\n${promptExample}` : ''),
           messages,
+          maxOutputTokens: dynamicMaxTokens,
           stopWhen: stepCountIs(50),
           abortSignal: streamAbort.signal,
           tools: allTools,
@@ -538,9 +600,9 @@ export async function POST(req: Request) {
     } else if (msg.includes('401') || msg.includes('auth') || msg.includes('key')) {
       status = 401
       clientMessage = 'API authentication failed. Check your Anthropic API key.'
-    } else if (msg.includes('context') || msg.includes('too long') || msg.includes('token')) {
+    } else if (msg.includes('context') || msg.includes('too long') || msg.includes('token') || msg.includes('max_tokens exceed')) {
       status = 413
-      clientMessage = 'Conversation too long for the model context window. Start a new chat or clear history.'
+      clientMessage = 'Conversation too long for the model context window. Clear your chat history or shorten your message.'
     } else if (msg.includes('abort') || msg.includes('timeout') || msg.includes('cancel')) {
       status = 408
       clientMessage = 'Request timed out. Try a shorter prompt or fewer files.'

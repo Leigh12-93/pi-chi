@@ -3,6 +3,7 @@
 import { useState, useRef, useEffect, useCallback, useMemo } from 'react'
 import { useChat } from '@ai-sdk/react'
 import { DefaultChatTransport } from 'ai'
+import type { FileUIPart } from 'ai'
 import { toast } from 'sonner'
 import { extractFileUpdates, type ToolInvocation } from '@/lib/chat/tool-utils'
 import { clearMarkdownCache } from '@/lib/chat/markdown'
@@ -35,6 +36,26 @@ function getMessageText(message: any): string {
   if (typeof message.content === 'string') return message.content
   return ''
 }
+
+/** Convert a File to a data URL */
+function fileToDataUrl(file: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader()
+    reader.onload = () => resolve(reader.result as string)
+    reader.onerror = reject
+    reader.readAsDataURL(file)
+  })
+}
+
+const IMAGE_TYPES = new Set(['image/png', 'image/jpeg', 'image/gif', 'image/webp', 'image/svg+xml'])
+const TEXT_EXTS = new Set([
+  'ts','tsx','js','jsx','json','html','css','md','txt','yaml','yml','toml','xml','sql',
+  'py','rb','go','rs','java','kt','swift','c','cpp','h','hpp','sh','bash','env',
+  'gitignore','dockerignore','csv','log','ini','cfg','conf','vue','svelte','astro',
+  'prisma','graphql','proto',
+])
+const MAX_FILE_SIZE = 2 * 1024 * 1024 // 2MB
+const MAX_ATTACHMENTS = 10
 
 export function useForgeChat(props: UseForgeChatProps) {
   const {
@@ -92,6 +113,7 @@ export function useForgeChat(props: UseForgeChatProps) {
   const [editingMessageId, setEditingMessageId] = useState<string | null>(null)
   const [editingContent, setEditingContent] = useState('')
   const [clearConfirm, setClearConfirm] = useState(false)
+  const [attachments, setAttachments] = useState<FileUIPart[]>([])
 
   // ─── Refs ─────────────────────────────────────────────────────
   const clearConfirmTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -172,8 +194,9 @@ export function useForgeChat(props: UseForgeChatProps) {
     }
   }, [projectId, historyLoaded, setMessages])
 
-  // ─── Context warning detection from stream data parts ─────────
+  // ─── Context warning + compaction detection from stream data parts ──
   const contextWarningShownRef = useRef<string | null>(null)
+  const compactionShownRef = useRef<string | null>(null)
   useEffect(() => {
     for (const msg of messages) {
       if (msg.role !== 'assistant') continue
@@ -196,6 +219,13 @@ export function useForgeChat(props: UseForgeChatProps) {
                   duration: 6000,
                 })
               }
+            }
+            if (parsed.type === 'compaction_notice' && compactionShownRef.current !== msg.id) {
+              compactionShownRef.current = msg.id
+              toast.info('Context compacted', {
+                description: 'Older messages summarized to free up context space.',
+                duration: 5000,
+              })
             }
           } catch { /* not JSON data part — ignore */ }
         }
@@ -315,12 +345,18 @@ export function useForgeChat(props: UseForgeChatProps) {
   // ─── Send / register / pending ────────────────────────────────
   const handleSend = useCallback((text?: string) => {
     const content = (text || input).trim()
-    if (!content || isLoading) return
+    if (!content && attachments.length === 0) return
+    if (isLoading) return
     setInput('')
+    const currentAttachments = attachments
+    setAttachments([])
     if (inputRef.current) inputRef.current.style.height = 'auto'
-    // v6: sendMessage takes { text } instead of { role, content }
-    sendMessage({ text: content })
-  }, [input, isLoading, sendMessage])
+    // v6: sendMessage takes { text, files }
+    sendMessage({
+      text: content || 'Process these files',
+      files: currentAttachments.length > 0 ? currentAttachments : undefined,
+    })
+  }, [input, isLoading, sendMessage, attachments])
 
   const sendMessageRef = useRef(sendMessage)
   useEffect(() => { sendMessageRef.current = sendMessage }, [sendMessage])
@@ -407,6 +443,49 @@ export function useForgeChat(props: UseForgeChatProps) {
     }
   }, [clearConfirm, setMessages])
 
+  // ─── File attachments ──────────────────────────────────────────
+  const handleAttachFiles = useCallback(async (fileList: FileList) => {
+    const newParts: FileUIPart[] = []
+    let skipped = 0
+
+    for (const file of Array.from(fileList)) {
+      if (attachments.length + newParts.length >= MAX_ATTACHMENTS) {
+        toast.error(`Max ${MAX_ATTACHMENTS} attachments`)
+        break
+      }
+      if (file.size > MAX_FILE_SIZE) {
+        toast.error(`${file.name} too large (max 2MB)`)
+        continue
+      }
+
+      const ext = file.name.split('.').pop()?.toLowerCase() || ''
+
+      if (IMAGE_TYPES.has(file.type)) {
+        const dataUrl = await fileToDataUrl(file)
+        newParts.push({ type: 'file', mediaType: file.type, url: dataUrl, filename: file.name })
+      } else if (TEXT_EXTS.has(ext) || file.type.startsWith('text/')) {
+        const text = await file.text()
+        if (text.includes('\0')) { skipped++; continue }
+        // Add to VFS so tools can operate on the file
+        onFileChange(file.name, text)
+        const dataUrl = `data:text/plain;base64,${btoa(unescape(encodeURIComponent(text)))}`
+        newParts.push({ type: 'file', mediaType: 'text/plain', url: dataUrl, filename: file.name })
+      } else if (file.type === 'application/pdf') {
+        const dataUrl = await fileToDataUrl(file)
+        newParts.push({ type: 'file', mediaType: 'application/pdf', url: dataUrl, filename: file.name })
+      } else {
+        skipped++
+      }
+    }
+
+    if (skipped > 0) toast.info(`Skipped ${skipped} unsupported file(s)`)
+    if (newParts.length > 0) setAttachments(prev => [...prev, ...newParts])
+  }, [attachments, onFileChange])
+
+  const handleRemoveAttachment = useCallback((index: number) => {
+    setAttachments(prev => prev.filter((_, i) => i !== index))
+  }, [])
+
   // ─── Computed values ──────────────────────────────────────────
   const { stepCount, estimatedTokens } = useMemo(() => {
     let steps = 0
@@ -491,14 +570,14 @@ export function useForgeChat(props: UseForgeChatProps) {
     // UI state
     selectedModel, setSelectedModel, showModelPicker, setShowModelPicker,
     copiedId, loadingHistory, editingMessageId, editingContent,
-    clearConfirm, envVars, elapsed, isEmpty,
+    clearConfirm, envVars, elapsed, isEmpty, attachments,
     stepCount, estimatedTokens, realTokens, autoRoutedModel,
     // Refs
     messagesEndRef, inputRef, clearConfirmTimer, processedInvs,
     // Handlers
     handleSend, handleCopy, handleEditMessage, handleSaveEdit,
     handleRegenerate, handleEnvVarsSave, handleCancelTask, handleScroll,
-    handleClearChat,
+    handleClearChat, handleAttachFiles, handleRemoveAttachment,
     setEditingMessageId, setEditingContent, setClearConfirm,
     stop, regenerate, setMessages, formatElapsed,
   }

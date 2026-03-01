@@ -1,10 +1,12 @@
 'use client'
 
+import { useState, useRef } from 'react'
 import {
   Loader2, Check, Trash2,
   Sparkles, ArrowUp, StopCircle,
   AlertTriangle, ChevronDown, Clock,
   Globe, FileText, FolderPlus,
+  Paperclip, ImageIcon, X,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { ErrorBoundary } from '@/components/error-boundary'
@@ -17,6 +19,8 @@ export type ChatPanelProps = UseForgeChatProps
 
 export function ChatPanel(props: ChatPanelProps) {
   const chat = useForgeChat(props)
+  const [isDraggingChat, setIsDraggingChat] = useState(false)
+  const fileInputRef = useRef<HTMLInputElement>(null)
 
   return (
     <ErrorBoundary>
@@ -137,7 +141,41 @@ export function ChatPanel(props: ChatPanelProps) {
 
       {/* Input area */}
       <div className="border-t border-forge-border p-3 shrink-0 safe-bottom">
-        <div className="relative">
+        <div
+          className="relative"
+          onDragOver={(e) => { e.preventDefault(); setIsDraggingChat(true) }}
+          onDragLeave={() => setIsDraggingChat(false)}
+          onDrop={async (e) => {
+            e.preventDefault()
+            e.stopPropagation()
+            setIsDraggingChat(false)
+            if (e.dataTransfer.files.length > 0) {
+              await chat.handleAttachFiles(e.dataTransfer.files)
+            }
+          }}
+        >
+          {/* Drag overlay */}
+          {isDraggingChat && (
+            <div className="absolute inset-0 z-10 rounded-2xl border-2 border-dashed border-forge-accent bg-forge-accent/10 flex items-center justify-center pointer-events-none">
+              <span className="text-xs font-medium text-forge-accent">Drop files here</span>
+            </div>
+          )}
+
+          {/* Attachment chips */}
+          {chat.attachments.length > 0 && (
+            <div className="flex flex-wrap gap-1.5 px-3 pt-2 pb-1">
+              {chat.attachments.map((att, i) => (
+                <div key={i} className="flex items-center gap-1 px-2 py-1 bg-forge-surface border border-forge-border rounded-lg text-[11px]">
+                  {att.mediaType?.startsWith('image/') ? <ImageIcon className="w-3 h-3" /> : <Paperclip className="w-3 h-3" />}
+                  <span className="max-w-[120px] truncate text-forge-text-dim">{att.filename || 'file'}</span>
+                  <button onClick={() => chat.handleRemoveAttachment(i)} className="p-0.5 text-forge-text-dim hover:text-red-500 transition-colors">
+                    <X className="w-2.5 h-2.5" />
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
+
           <textarea
             ref={chat.inputRef}
             value={chat.input}
@@ -154,8 +192,28 @@ export function ChatPanel(props: ChatPanelProps) {
             }}
             placeholder={chat.isEmpty ? 'Describe what you want to build...' : 'Ask for changes, new features, fixes...'}
             rows={1}
-            className="w-full bg-forge-surface border border-forge-border rounded-2xl pl-4 pr-12 py-3 text-[13.5px] text-forge-text placeholder:text-forge-text-dim/40 outline-none focus:border-forge-accent/40 focus:shadow-md shadow-sm resize-none transition-all"
+            className="w-full bg-forge-surface border border-forge-border rounded-2xl pl-10 pr-12 py-3 text-[13.5px] text-forge-text placeholder:text-forge-text-dim/40 outline-none focus:border-forge-accent/40 focus:shadow-md shadow-sm resize-none transition-all"
           />
+
+          {/* Paperclip file picker button */}
+          <input
+            type="file"
+            ref={fileInputRef}
+            className="hidden"
+            multiple
+            onChange={(e) => {
+              if (e.target.files) chat.handleAttachFiles(e.target.files)
+              e.target.value = ''
+            }}
+          />
+          <button
+            onClick={() => fileInputRef.current?.click()}
+            className="absolute left-2.5 bottom-2.5 p-1.5 text-forge-text-dim hover:text-forge-text transition-colors rounded-lg hover:bg-forge-surface-hover"
+            title="Attach files"
+          >
+            <Paperclip className="w-4 h-4" />
+          </button>
+
           <div className="absolute right-2 bottom-1.5">
             {chat.isLoading ? (
               <button onClick={chat.stop} className="p-2 rounded-xl bg-red-100 dark:bg-red-900/40 text-forge-danger hover:bg-red-200 dark:hover:bg-red-800/60 transition-colors" title="Stop generating (Esc)">
@@ -164,9 +222,12 @@ export function ChatPanel(props: ChatPanelProps) {
             ) : (
               <motion.button
                 onClick={() => chat.handleSend()}
-                disabled={!chat.input.trim()}
+                disabled={!chat.input.trim() && chat.attachments.length === 0}
                 initial={{ scale: 0.9, opacity: 0.5 }}
-                animate={{ scale: chat.input.trim() ? 1 : 0.9, opacity: chat.input.trim() ? 1 : 0.5 }}
+                animate={{
+                  scale: (chat.input.trim() || chat.attachments.length > 0) ? 1 : 0.9,
+                  opacity: (chat.input.trim() || chat.attachments.length > 0) ? 1 : 0.5,
+                }}
                 transition={{ type: 'spring', stiffness: 400, damping: 20 }}
                 className="p-2 rounded-xl bg-forge-text text-forge-bg hover:opacity-90 disabled:cursor-not-allowed transition-colors"
                 title="Send message"

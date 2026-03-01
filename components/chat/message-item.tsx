@@ -5,6 +5,7 @@ import {
   Loader2, Copy, Check, Pencil,
   Terminal, Lightbulb, RefreshCw,
   CheckCircle, XCircle, StopCircle, ExternalLink,
+  Paperclip, ImageIcon,
 } from 'lucide-react'
 import { motion } from 'framer-motion'
 import { cn } from '@/lib/utils'
@@ -108,6 +109,18 @@ export const MessageItem = memo(function MessageItem({
             </div>
             <div className="px-4 py-2.5 rounded-2xl rounded-br-md bg-forge-surface border border-forge-border text-[13.5px] text-forge-text leading-relaxed shadow-sm transition-shadow hover:shadow-md">
               {textContent}
+              {parts?.filter(p => p.type === 'file').map((filePart: any, fi: number) => (
+                <div key={fi} className="mt-1.5">
+                  {filePart.mediaType?.startsWith('image/') ? (
+                    <img src={filePart.url} alt={filePart.filename || 'image'} className="max-w-[200px] max-h-[150px] rounded-lg border border-forge-border" />
+                  ) : (
+                    <div className="inline-flex items-center gap-1 px-2 py-1 bg-forge-bg/50 border border-forge-border rounded-md text-[10px] text-forge-text-dim">
+                      <Paperclip className="w-3 h-3" />
+                      {filePart.filename || 'Attached file'}
+                    </div>
+                  )}
+                </div>
+              ))}
             </div>
           </div>
         )
