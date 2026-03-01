@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useRef, useEffect, useCallback, useMemo } from 'react'
+import { useState, useRef, useEffect, useCallback, useMemo, memo } from 'react'
 import { useChat } from '@ai-sdk/react'
 import {
   Send, Loader2, Bot, Copy, Check, Trash2,
@@ -177,6 +177,17 @@ function renderMarkdown(text: string): string {
     .replace(/\n/g, '<br/>')
 }
 
+// Markdown HTML cache — avoids re-parsing identical text on every render
+const _mdCache = new Map<string, string>()
+function cachedRenderMarkdown(text: string): string {
+  let html = _mdCache.get(text)
+  if (html) return html
+  html = renderMarkdown(text)
+  _mdCache.set(text, html)
+  if (_mdCache.size > 300) _mdCache.delete(_mdCache.keys().next().value!)
+  return html
+}
+
 function getToolSummary(toolName: string, args: Record<string, unknown>, result: unknown): string {
   const data = (result && typeof result === 'object') ? result as Record<string, unknown> : null
   if (data?.error) return `Error: ${String(data.error).slice(0, 80)}`
@@ -284,6 +295,336 @@ function extractFileUpdates(
       return null
   }
 }
+
+// ═══════════════════════════════════════════════════════════════════
+// Memoized message component — prevents re-rendering completed
+// messages when new content streams in
+// ═══════════════════════════════════════════════════════════════════
+
+interface MessageItemProps {
+  message: { id: string; role: string; content: string; parts?: Array<{ type: string; text?: string; toolInvocation?: ToolInvocation }> }
+  copiedId: string | null
+  isEditing: boolean
+  editingContent: string
+  isLoading: boolean
+  onCopy: (id: string, content: string) => void
+  onEditMessage: (id: string, content: string) => void
+  onSaveEdit: () => void
+  onCancelEdit: () => void
+  onSetEditingContent: (content: string) => void
+  onRegenerate: (id: string) => void
+}
+
+const MessageItem = memo(function MessageItem({
+  message, copiedId, isEditing, editingContent, isLoading,
+  onCopy, onEditMessage, onSaveEdit, onCancelEdit, onSetEditingContent, onRegenerate,
+}: MessageItemProps) {
+  const isUser = message.role === 'user'
+  const textContent = typeof message.content === 'string' ? message.content : ''
+  const parts = (message as any).parts as Array<{ type: string; text?: string; toolInvocation?: ToolInvocation }> | undefined
+
+  return (
+    <div className={cn('animate-fade-in', isUser ? 'flex justify-end' : '')}>
+      {isUser ? (
+        isEditing ? (
+          <div className="max-w-[85%] w-full">
+            <textarea
+              value={editingContent}
+              onChange={e => onSetEditingContent(e.target.value)}
+              className="w-full bg-forge-surface border border-forge-accent/50 rounded-xl px-3.5 py-2.5 text-sm text-forge-text outline-none resize-none"
+              rows={3}
+              autoFocus
+            />
+            <div className="flex justify-end gap-1.5 mt-1">
+              <button onClick={onCancelEdit} className="px-2 py-1 text-[10px] text-forge-text-dim hover:text-forge-text rounded transition-colors">Cancel</button>
+              <button onClick={onSaveEdit} className="px-2 py-1 text-[10px] font-medium text-white bg-forge-accent rounded hover:bg-forge-accent-hover transition-colors">Resend</button>
+            </div>
+          </div>
+        ) : (
+          <div className="group/user flex items-start gap-1 max-w-[85%]">
+            <button
+              onClick={() => onEditMessage(message.id, textContent)}
+              className="p-1 mt-1.5 rounded opacity-0 group-hover/user:opacity-100 text-forge-text-dim hover:text-forge-text hover:bg-forge-surface transition-all"
+              title="Edit message"
+            >
+              <Pencil className="w-3 h-3" />
+            </button>
+            <div className="px-3.5 py-2.5 rounded-2xl rounded-br-sm bg-forge-accent text-sm text-white shadow-sm">
+              {textContent}
+            </div>
+          </div>
+        )
+      ) : parts && parts.length > 0 ? (
+        /* Render parts in order — text and tool calls interleaved */
+        <div className="space-y-1.5 group/assistant">
+          {(() => {
+          // Pre-compute: find the LAST check_task_status index so we can collapse all earlier ones
+          let lastCheckIdx = -1
+          for (let i = parts.length - 1; i >= 0; i--) {
+            if (parts[i].type === 'tool-invocation' && parts[i].toolInvocation?.toolName === 'check_task_status') {
+              lastCheckIdx = i
+              break
+            }
+          }
+          return parts.map((part, partIdx) => {
+            // Collapse ALL check_task_status polls into ONE — only render the last one
+            if (part.type === 'tool-invocation' && part.toolInvocation?.toolName === 'check_task_status') {
+              if (partIdx !== lastCheckIdx) return null
+            }
+            if (part.type === 'text' && part.text) {
+              return (
+                <div key={partIdx} className="relative group">
+                  <div
+                    className="text-sm sm:text-[13px] leading-relaxed text-gray-700 dark:text-gray-300 [&_pre]:my-2 [&_code]:text-xs sm:[&_code]:text-[12px]"
+                    dangerouslySetInnerHTML={{ __html: cachedRenderMarkdown(part.text) }}
+                  />
+                  <button
+                    onClick={() => onCopy(`${message.id}-${partIdx}`, part.text!)}
+                    className="absolute top-0 right-0 opacity-0 group-hover:opacity-100 sm:transition-opacity p-2 sm:p-1 rounded hover:bg-forge-surface"
+                    aria-label="Copy message"
+                    title="Copy"
+                  >
+                    {copiedId === `${message.id}-${partIdx}` ? <Check className="w-4 h-4 sm:w-3 sm:h-3 text-emerald-500" /> : <Copy className="w-4 h-4 sm:w-3 sm:h-3 text-forge-text-dim" />}
+                  </button>
+                </div>
+              )
+            }
+
+            if (part.type === 'tool-invocation' && part.toolInvocation) {
+              const inv = part.toolInvocation
+              const info = TOOL_LABELS[inv.toolName] || { label: inv.toolName.replace(/_/g, ' '), Icon: Terminal, color: 'gray' }
+              const isRunning = inv.state !== 'result'
+              const hasError = inv.result && typeof inv.result === 'object' && 'error' in inv.result
+              const summary = getToolSummary(inv.toolName, inv.args || {}, inv.result)
+              const resultData = (inv.result && typeof inv.result === 'object') ? inv.result as Record<string, unknown> : null
+
+              // ── Think panel ──
+              if (inv.toolName === 'think' && inv.state === 'result') {
+                const planFiles = Array.isArray(inv.args?.files) ? inv.args.files as string[] : []
+                return (
+                  <div key={partIdx} className="border border-purple-200 dark:border-purple-800 bg-purple-50 dark:bg-purple-950/30 rounded-lg p-2.5 text-[11px]">
+                    <div className="flex items-center gap-1.5 mb-1.5 text-purple-600 dark:text-purple-400">
+                      <Brain className="w-3.5 h-3.5" />
+                      <span className="font-medium">Planning</span>
+                    </div>
+                    <div className="text-purple-700 dark:text-purple-300 leading-relaxed whitespace-pre-wrap">
+                      {String(inv.args?.plan || '').slice(0, 300)}
+                    </div>
+                    {planFiles.length > 0 && (
+                      <div className="mt-1.5 flex flex-wrap gap-1">
+                        {planFiles.map((f: string, fi: number) => (
+                          <span key={fi} className="px-1.5 py-0.5 bg-purple-100 dark:bg-purple-900/50 text-purple-600 dark:text-purple-400 rounded text-[10px] font-mono">{f}</span>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )
+              }
+
+              // ── Suggest improvement panel ──
+              if (inv.toolName === 'suggest_improvement' && inv.state === 'result') {
+                const sArgs = (inv.args || {}) as Record<string, string>
+                const priority = sArgs.priority || 'medium'
+                const priorityColor = priority === 'high' ? 'text-red-600 bg-red-50 dark:text-red-400 dark:bg-red-950/40' : priority === 'medium' ? 'text-amber-600 bg-amber-50 dark:text-amber-400 dark:bg-amber-950/40' : 'text-blue-600 bg-blue-50 dark:text-blue-400 dark:bg-blue-950/40'
+                return (
+                  <div key={partIdx} className="border border-amber-200 dark:border-amber-800 bg-amber-50 dark:bg-amber-950/30 rounded-lg p-2.5 text-[11px]">
+                    <div className="flex items-center gap-1.5 mb-1">
+                      <Lightbulb className="w-3.5 h-3.5 text-amber-600 dark:text-amber-400" />
+                      <span className="font-medium text-amber-600 dark:text-amber-400">Improvement Suggestion</span>
+                      <span className={cn('px-1.5 py-0.5 rounded text-[9px] font-medium uppercase', priorityColor)}>{priority}</span>
+                    </div>
+                    <p className="text-amber-700 dark:text-amber-300 mb-1">{sArgs.issue || ''}</p>
+                    {sArgs.suggestion && (
+                      <pre className="text-[10px] bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 rounded p-2 mt-1 whitespace-pre-wrap font-mono">{sArgs.suggestion}</pre>
+                    )}
+                    {sArgs.file && (
+                      <span className="inline-block mt-1 px-1.5 py-0.5 bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400 rounded text-[10px] font-mono">{sArgs.file}</span>
+                    )}
+                  </div>
+                )
+              }
+
+              // ── Deploy success card with clickable URL ──
+              const deployUrl = resultData?.url as string | undefined
+              const isDeployTool = inv.toolName === 'deploy_to_vercel' || inv.toolName === 'check_task_status'
+              const taskStatus = resultData?.status as string | undefined
+              const isTaskCompleted = inv.toolName === 'check_task_status' && taskStatus === 'completed'
+              const isTaskRunning = inv.toolName === 'check_task_status' && taskStatus === 'running'
+              const isTaskFailed = inv.toolName === 'check_task_status' && taskStatus === 'failed'
+
+              if (isDeployTool && !isRunning && deployUrl && !hasError) {
+                return (
+                  <div key={partIdx} className="border border-emerald-200 dark:border-emerald-800 bg-emerald-50 dark:bg-emerald-950/30 rounded-lg p-3 text-[11px]">
+                    <div className="flex items-center gap-2 mb-2">
+                      <CheckCircle className="w-4 h-4 text-emerald-500" />
+                      <span className="font-medium text-emerald-700 dark:text-emerald-400">
+                        {inv.toolName === 'deploy_to_vercel' ? 'Deployed successfully' : `${String(resultData?.type || 'Task')} completed`}
+                      </span>
+                    </div>
+                    <a
+                      href={deployUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="flex items-center gap-1.5 text-[11px] text-forge-accent hover:underline font-mono break-all"
+                    >
+                      {deployUrl}
+                      <ExternalLink className="w-3 h-3 shrink-0" />
+                    </a>
+                  </div>
+                )
+              }
+
+              // ── check_task_status: running → blue progress indicator ──
+              if (inv.toolName === 'check_task_status' && (isRunning || isTaskRunning)) {
+                const taskProgress = resultData?.progress as string | undefined
+                const taskCreatedAt = resultData?.created_at ? new Date(resultData.created_at as string).getTime() : 0
+                const taskElapsed = taskCreatedAt ? Math.floor((Date.now() - taskCreatedAt) / 1000) : 0
+                return (
+                  <div
+                    key={partIdx}
+                    className="flex items-center gap-2 px-2.5 py-1.5 rounded-lg text-[11px] border border-blue-200 dark:border-blue-800 bg-blue-50 dark:bg-blue-950/30 animate-shimmer"
+                  >
+                    <div className="w-5 h-5 rounded flex items-center justify-center shrink-0 text-blue-600 dark:text-blue-400 bg-blue-100 dark:bg-blue-900/50">
+                      <Loader2 className="w-3 h-3 animate-spin" />
+                    </div>
+                    <span className="truncate flex-1 text-blue-600 dark:text-blue-400">
+                      {taskProgress || `${resultData?.type || 'Task'}: in progress...`}
+                      {taskElapsed > 0 && ` · ${taskElapsed}s`}
+                    </span>
+                  </div>
+                )
+              }
+
+              // ── check_task_status: failed → red error ──
+              if (isTaskFailed) {
+                return (
+                  <div
+                    key={partIdx}
+                    className="flex items-center gap-2 px-2.5 py-1.5 rounded-lg text-[11px] border border-red-200 dark:border-red-800 bg-red-50 dark:bg-red-950/30"
+                  >
+                    <div className="w-5 h-5 rounded flex items-center justify-center shrink-0 text-red-600 dark:text-red-400 bg-red-100 dark:bg-red-900/50">
+                      <XCircle className="w-3 h-3" />
+                    </div>
+                    <span className="truncate flex-1 text-red-600 dark:text-red-400">
+                      {`${resultData?.type || 'Task'}: failed${resultData?.error ? ` — ${String(resultData.error).slice(0, 80)}` : ''}`}
+                    </span>
+                  </div>
+                )
+              }
+
+              // ── check_task_status: completed without URL ──
+              if (isTaskCompleted) {
+                return (
+                  <div
+                    key={partIdx}
+                    className="flex items-center gap-2 px-2.5 py-1.5 rounded-lg text-[11px] border border-emerald-200 dark:border-emerald-800 bg-emerald-50 dark:bg-emerald-950/30"
+                  >
+                    <div className="w-5 h-5 rounded flex items-center justify-center shrink-0 text-emerald-600 dark:text-emerald-400 bg-emerald-100 dark:bg-emerald-900/50">
+                      <CheckCircle className="w-3 h-3" />
+                    </div>
+                    <span className="truncate flex-1 text-emerald-600 dark:text-emerald-400">
+                      {`${resultData?.type || 'Task'}: completed`}
+                    </span>
+                  </div>
+                )
+              }
+
+              // ── Default tool chip ──
+              return (
+                <div
+                  key={partIdx}
+                  className={cn(
+                    'flex items-center gap-2 px-2.5 py-1.5 rounded-lg text-[11px] border transition-all',
+                    isRunning ? 'border-forge-border animate-shimmer'
+                      : hasError ? 'border-red-200 dark:border-red-800 bg-red-50 dark:bg-red-950/30'
+                      : 'border-forge-border bg-forge-surface/50',
+                  )}
+                >
+                  <div className={cn('w-5 h-5 rounded flex items-center justify-center shrink-0', colorClasses[info.color] || colorClasses.gray)}>
+                    {isRunning ? <Loader2 className="w-3 h-3 animate-spin" />
+                      : hasError ? <XCircle className="w-3 h-3 text-red-600 dark:text-red-400" />
+                      : <info.Icon className="w-3 h-3" />}
+                  </div>
+                  <span className={cn('truncate flex-1', hasError ? 'text-red-600 dark:text-red-400' : 'text-forge-text-dim')}>
+                    {summary}
+                  </span>
+                  {!isRunning && !hasError && <CheckCircle className="w-3 h-3 text-emerald-500 shrink-0" />}
+                </div>
+              )
+            }
+
+            return null
+          })
+        })()}
+          {!isLoading && (
+            <button
+              onClick={() => onRegenerate(message.id)}
+              className="flex items-center gap-1 mt-1 px-2 py-1 text-[10px] text-forge-text-dim hover:text-forge-accent opacity-0 group-hover/assistant:opacity-100 transition-all rounded hover:bg-forge-surface"
+              title="Regenerate response"
+            >
+              <RefreshCw className="w-3 h-3" />
+              Regenerate
+            </button>
+          )}
+        </div>
+      ) : (
+        /* Fallback for messages without parts (e.g. loaded from DB) */
+        <div className="space-y-1.5 group/assistant">
+          {textContent && (
+            <div className="relative group">
+              <div
+                className="text-sm sm:text-[13px] leading-relaxed text-gray-700 dark:text-gray-300 [&_pre]:my-2 [&_code]:text-xs sm:[&_code]:text-[12px]"
+                dangerouslySetInnerHTML={{ __html: cachedRenderMarkdown(textContent) }}
+              />
+              <button
+                onClick={() => onCopy(message.id, textContent)}
+                className="absolute top-0 right-0 opacity-0 group-hover:opacity-100 sm:transition-opacity p-2 sm:p-1 rounded hover:bg-forge-surface"
+                aria-label="Copy message"
+                title="Copy"
+              >
+                {copiedId === message.id ? <Check className="w-4 h-4 sm:w-3 sm:h-3 text-emerald-500" /> : <Copy className="w-4 h-4 sm:w-3 sm:h-3 text-forge-text-dim" />}
+              </button>
+            </div>
+          )}
+          {!isLoading && (
+            <button
+              onClick={() => onRegenerate(message.id)}
+              className="flex items-center gap-1 mt-1 px-2 py-1 text-[10px] text-forge-text-dim hover:text-forge-accent opacity-0 group-hover/assistant:opacity-100 transition-all rounded hover:bg-forge-surface"
+              title="Regenerate response"
+            >
+              <RefreshCw className="w-3 h-3" />
+              Regenerate
+            </button>
+          )}
+        </div>
+      )}
+    </div>
+  )
+}, (prev, next) => {
+  // Custom comparator: skip re-render if nothing meaningful changed for THIS message
+  if (prev.message.id !== next.message.id) return false
+  if (prev.message.content !== next.message.content) return false
+  // Parts changed? (tool invocations updating from call → result)
+  const pp = prev.message.parts
+  const np = next.message.parts
+  if ((pp?.length || 0) !== (np?.length || 0)) return false
+  if (pp && np) {
+    for (let i = 0; i < pp.length; i++) {
+      if (pp[i]?.toolInvocation?.state !== np[i]?.toolInvocation?.state) return false
+      if (pp[i]?.text !== np[i]?.text) return false
+    }
+  }
+  // copiedId: only re-render if it affects THIS message
+  const prevCopied = prev.copiedId !== null && prev.copiedId.startsWith(prev.message.id)
+  const nextCopied = next.copiedId !== null && next.copiedId.startsWith(next.message.id)
+  if (prevCopied !== nextCopied) return false
+  if (prevCopied && prev.copiedId !== next.copiedId) return false
+  // Editing state
+  if (prev.isEditing !== next.isEditing) return false
+  if (prev.isEditing && prev.editingContent !== next.editingContent) return false
+  if (prev.isLoading !== next.isLoading) return false
+  return true
+})
 
 // ═══════════════════════════════════════════════════════════════════
 // Chat Panel
@@ -634,289 +975,22 @@ export function ChatPanel({ projectName, projectId, files, onFileChange, onFileD
           </div>
         ) : (
           <div className="px-3 py-3 space-y-3">
-            {messages.map((message) => {
-              const isUser = message.role === 'user'
-              const textContent = typeof message.content === 'string' ? message.content : ''
-              const parts = (message as any).parts as Array<{ type: string; text?: string; toolInvocation?: ToolInvocation }> | undefined
-
-              return (
-                <div key={message.id} className={cn('animate-fade-in', isUser ? 'flex justify-end' : '')}>
-                  {isUser ? (
-                    editingMessageId === message.id ? (
-                      <div className="max-w-[85%] w-full">
-                        <textarea
-                          value={editingContent}
-                          onChange={e => setEditingContent(e.target.value)}
-                          className="w-full bg-forge-surface border border-forge-accent/50 rounded-xl px-3.5 py-2.5 text-sm text-forge-text outline-none resize-none"
-                          rows={3}
-                          autoFocus
-                        />
-                        <div className="flex justify-end gap-1.5 mt-1">
-                          <button onClick={() => setEditingMessageId(null)} className="px-2 py-1 text-[10px] text-forge-text-dim hover:text-forge-text rounded transition-colors">Cancel</button>
-                          <button onClick={handleSaveEdit} className="px-2 py-1 text-[10px] font-medium text-white bg-forge-accent rounded hover:bg-forge-accent-hover transition-colors">Resend</button>
-                        </div>
-                      </div>
-                    ) : (
-                      <div className="group/user flex items-start gap-1 max-w-[85%]">
-                        <button
-                          onClick={() => handleEditMessage(message.id, textContent)}
-                          className="p-1 mt-1.5 rounded opacity-0 group-hover/user:opacity-100 text-forge-text-dim hover:text-forge-text hover:bg-forge-surface transition-all"
-                          title="Edit message"
-                        >
-                          <Pencil className="w-3 h-3" />
-                        </button>
-                        <div className="px-3.5 py-2.5 rounded-2xl rounded-br-sm bg-forge-accent text-sm text-white shadow-sm">
-                          {textContent}
-                        </div>
-                      </div>
-                    )
-                  ) : parts && parts.length > 0 ? (
-                    /* Render parts in order — text and tool calls interleaved */
-                    <div className="space-y-1.5 group/assistant">
-                      {(() => {
-                      // Pre-compute: find the LAST check_task_status index so we can collapse all earlier ones
-                      let lastCheckIdx = -1
-                      for (let i = parts.length - 1; i >= 0; i--) {
-                        if (parts[i].type === 'tool-invocation' && parts[i].toolInvocation?.toolName === 'check_task_status') {
-                          lastCheckIdx = i
-                          break
-                        }
-                      }
-                      return parts.map((part, partIdx) => {
-                        // Collapse ALL check_task_status polls into ONE — only render the last one
-                        if (part.type === 'tool-invocation' && part.toolInvocation?.toolName === 'check_task_status') {
-                          if (partIdx !== lastCheckIdx) return null
-                        }
-                        if (part.type === 'text' && part.text) {
-                          return (
-                            <div key={partIdx} className="relative group">
-                              <div
-                                className="text-sm sm:text-[13px] leading-relaxed text-gray-700 dark:text-gray-300 [&_pre]:my-2 [&_code]:text-xs sm:[&_code]:text-[12px]"
-                                dangerouslySetInnerHTML={{ __html: renderMarkdown(part.text) }}
-                              />
-                              <button
-                                onClick={() => handleCopy(`${message.id}-${partIdx}`, part.text!)}
-                                className="absolute top-0 right-0 opacity-0 group-hover:opacity-100 sm:transition-opacity p-2 sm:p-1 rounded hover:bg-forge-surface"
-                                aria-label="Copy message"
-                                title="Copy"
-                              >
-                                {copiedId === `${message.id}-${partIdx}` ? <Check className="w-4 h-4 sm:w-3 sm:h-3 text-emerald-500" /> : <Copy className="w-4 h-4 sm:w-3 sm:h-3 text-forge-text-dim" />}
-                              </button>
-                            </div>
-                          )
-                        }
-
-                        if (part.type === 'tool-invocation' && part.toolInvocation) {
-                          const inv = part.toolInvocation
-                          const info = TOOL_LABELS[inv.toolName] || { label: inv.toolName.replace(/_/g, ' '), Icon: Terminal, color: 'gray' }
-                          const isRunning = inv.state !== 'result'
-                          const hasError = inv.result && typeof inv.result === 'object' && 'error' in inv.result
-                          const summary = getToolSummary(inv.toolName, inv.args || {}, inv.result)
-                          const resultData = (inv.result && typeof inv.result === 'object') ? inv.result as Record<string, unknown> : null
-
-                          // ── Think panel ──
-                          if (inv.toolName === 'think' && inv.state === 'result') {
-                            const planFiles = Array.isArray(inv.args?.files) ? inv.args.files as string[] : []
-                            return (
-                              <div key={partIdx} className="border border-purple-200 dark:border-purple-800 bg-purple-50 dark:bg-purple-950/30 rounded-lg p-2.5 text-[11px]">
-                                <div className="flex items-center gap-1.5 mb-1.5 text-purple-600 dark:text-purple-400">
-                                  <Brain className="w-3.5 h-3.5" />
-                                  <span className="font-medium">Planning</span>
-                                </div>
-                                <div className="text-purple-700 dark:text-purple-300 leading-relaxed whitespace-pre-wrap">
-                                  {String(inv.args?.plan || '').slice(0, 300)}
-                                </div>
-                                {planFiles.length > 0 && (
-                                  <div className="mt-1.5 flex flex-wrap gap-1">
-                                    {planFiles.map((f: string, fi: number) => (
-                                      <span key={fi} className="px-1.5 py-0.5 bg-purple-100 dark:bg-purple-900/50 text-purple-600 dark:text-purple-400 rounded text-[10px] font-mono">{f}</span>
-                                    ))}
-                                  </div>
-                                )}
-                              </div>
-                            )
-                          }
-
-                          // ── Suggest improvement panel ──
-                          if (inv.toolName === 'suggest_improvement' && inv.state === 'result') {
-                            const sArgs = (inv.args || {}) as Record<string, string>
-                            const priority = sArgs.priority || 'medium'
-                            const priorityColor = priority === 'high' ? 'text-red-600 bg-red-50 dark:text-red-400 dark:bg-red-950/40' : priority === 'medium' ? 'text-amber-600 bg-amber-50 dark:text-amber-400 dark:bg-amber-950/40' : 'text-blue-600 bg-blue-50 dark:text-blue-400 dark:bg-blue-950/40'
-                            return (
-                              <div key={partIdx} className="border border-amber-200 dark:border-amber-800 bg-amber-50 dark:bg-amber-950/30 rounded-lg p-2.5 text-[11px]">
-                                <div className="flex items-center gap-1.5 mb-1">
-                                  <Lightbulb className="w-3.5 h-3.5 text-amber-600 dark:text-amber-400" />
-                                  <span className="font-medium text-amber-600 dark:text-amber-400">Improvement Suggestion</span>
-                                  <span className={cn('px-1.5 py-0.5 rounded text-[9px] font-medium uppercase', priorityColor)}>{priority}</span>
-                                </div>
-                                <p className="text-amber-700 dark:text-amber-300 mb-1">{sArgs.issue || ''}</p>
-                                {sArgs.suggestion && (
-                                  <pre className="text-[10px] bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 rounded p-2 mt-1 whitespace-pre-wrap font-mono">{sArgs.suggestion}</pre>
-                                )}
-                                {sArgs.file && (
-                                  <span className="inline-block mt-1 px-1.5 py-0.5 bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400 rounded text-[10px] font-mono">{sArgs.file}</span>
-                                )}
-                              </div>
-                            )
-                          }
-
-                          // ── Deploy success card with clickable URL ──
-                          const deployUrl = resultData?.url as string | undefined
-                          const isDeployTool = inv.toolName === 'deploy_to_vercel' || inv.toolName === 'check_task_status'
-                          const taskStatus = resultData?.status as string | undefined
-                          const isTaskCompleted = inv.toolName === 'check_task_status' && taskStatus === 'completed'
-                          const isTaskRunning = inv.toolName === 'check_task_status' && taskStatus === 'running'
-                          const isTaskFailed = inv.toolName === 'check_task_status' && taskStatus === 'failed'
-
-                          if (isDeployTool && !isRunning && deployUrl && !hasError) {
-                            return (
-                              <div key={partIdx} className="border border-emerald-200 dark:border-emerald-800 bg-emerald-50 dark:bg-emerald-950/30 rounded-lg p-3 text-[11px]">
-                                <div className="flex items-center gap-2 mb-2">
-                                  <CheckCircle className="w-4 h-4 text-emerald-500" />
-                                  <span className="font-medium text-emerald-700 dark:text-emerald-400">
-                                    {inv.toolName === 'deploy_to_vercel' ? 'Deployed successfully' : `${String(resultData?.type || 'Task')} completed`}
-                                  </span>
-                                </div>
-                                <a
-                                  href={deployUrl}
-                                  target="_blank"
-                                  rel="noopener noreferrer"
-                                  className="flex items-center gap-1.5 text-[11px] text-forge-accent hover:underline font-mono break-all"
-                                >
-                                  {deployUrl}
-                                  <ExternalLink className="w-3 h-3 shrink-0" />
-                                </a>
-                              </div>
-                            )
-                          }
-
-                          // ── check_task_status: running → blue progress indicator ──
-                          if (inv.toolName === 'check_task_status' && (isRunning || isTaskRunning)) {
-                            const taskProgress = resultData?.progress as string | undefined
-                            const taskCreatedAt = resultData?.created_at ? new Date(resultData.created_at as string).getTime() : 0
-                            const taskElapsed = taskCreatedAt ? Math.floor((Date.now() - taskCreatedAt) / 1000) : 0
-                            return (
-                              <div
-                                key={partIdx}
-                                className="flex items-center gap-2 px-2.5 py-1.5 rounded-lg text-[11px] border border-blue-200 dark:border-blue-800 bg-blue-50 dark:bg-blue-950/30 animate-shimmer"
-                              >
-                                <div className="w-5 h-5 rounded flex items-center justify-center shrink-0 text-blue-600 dark:text-blue-400 bg-blue-100 dark:bg-blue-900/50">
-                                  <Loader2 className="w-3 h-3 animate-spin" />
-                                </div>
-                                <span className="truncate flex-1 text-blue-600 dark:text-blue-400">
-                                  {taskProgress || `${resultData?.type || 'Task'}: in progress...`}
-                                  {taskElapsed > 0 && ` · ${taskElapsed}s`}
-                                </span>
-                              </div>
-                            )
-                          }
-
-                          // ── check_task_status: failed → red error ──
-                          if (isTaskFailed) {
-                            return (
-                              <div
-                                key={partIdx}
-                                className="flex items-center gap-2 px-2.5 py-1.5 rounded-lg text-[11px] border border-red-200 dark:border-red-800 bg-red-50 dark:bg-red-950/30"
-                              >
-                                <div className="w-5 h-5 rounded flex items-center justify-center shrink-0 text-red-600 dark:text-red-400 bg-red-100 dark:bg-red-900/50">
-                                  <XCircle className="w-3 h-3" />
-                                </div>
-                                <span className="truncate flex-1 text-red-600 dark:text-red-400">
-                                  {`${resultData?.type || 'Task'}: failed${resultData?.error ? ` — ${String(resultData.error).slice(0, 80)}` : ''}`}
-                                </span>
-                              </div>
-                            )
-                          }
-
-                          // ── check_task_status: completed without URL ──
-                          if (isTaskCompleted) {
-                            return (
-                              <div
-                                key={partIdx}
-                                className="flex items-center gap-2 px-2.5 py-1.5 rounded-lg text-[11px] border border-emerald-200 dark:border-emerald-800 bg-emerald-50 dark:bg-emerald-950/30"
-                              >
-                                <div className="w-5 h-5 rounded flex items-center justify-center shrink-0 text-emerald-600 dark:text-emerald-400 bg-emerald-100 dark:bg-emerald-900/50">
-                                  <CheckCircle className="w-3 h-3" />
-                                </div>
-                                <span className="truncate flex-1 text-emerald-600 dark:text-emerald-400">
-                                  {`${resultData?.type || 'Task'}: completed`}
-                                </span>
-                              </div>
-                            )
-                          }
-
-                          // ── Default tool chip ──
-                          return (
-                            <div
-                              key={partIdx}
-                              className={cn(
-                                'flex items-center gap-2 px-2.5 py-1.5 rounded-lg text-[11px] border transition-all',
-                                isRunning ? 'border-forge-border animate-shimmer'
-                                  : hasError ? 'border-red-200 dark:border-red-800 bg-red-50 dark:bg-red-950/30'
-                                  : 'border-forge-border bg-forge-surface/50',
-                              )}
-                            >
-                              <div className={cn('w-5 h-5 rounded flex items-center justify-center shrink-0', colorClasses[info.color] || colorClasses.gray)}>
-                                {isRunning ? <Loader2 className="w-3 h-3 animate-spin" />
-                                  : hasError ? <XCircle className="w-3 h-3 text-red-600 dark:text-red-400" />
-                                  : <info.Icon className="w-3 h-3" />}
-                              </div>
-                              <span className={cn('truncate flex-1', hasError ? 'text-red-600 dark:text-red-400' : 'text-forge-text-dim')}>
-                                {summary}
-                              </span>
-                              {!isRunning && !hasError && <CheckCircle className="w-3 h-3 text-emerald-500 shrink-0" />}
-                            </div>
-                          )
-                        }
-
-                        return null
-                      })
-                    })()}
-                      {!isLoading && (
-                        <button
-                          onClick={() => handleRegenerate(message.id)}
-                          className="flex items-center gap-1 mt-1 px-2 py-1 text-[10px] text-forge-text-dim hover:text-forge-accent opacity-0 group-hover/assistant:opacity-100 transition-all rounded hover:bg-forge-surface"
-                          title="Regenerate response"
-                        >
-                          <RefreshCw className="w-3 h-3" />
-                          Regenerate
-                        </button>
-                      )}
-                    </div>
-                  ) : (
-                    /* Fallback for messages without parts (e.g. loaded from DB) */
-                    <div className="space-y-1.5 group/assistant">
-                      {textContent && (
-                        <div className="relative group">
-                          <div
-                            className="text-sm sm:text-[13px] leading-relaxed text-gray-700 dark:text-gray-300 [&_pre]:my-2 [&_code]:text-xs sm:[&_code]:text-[12px]"
-                            dangerouslySetInnerHTML={{ __html: renderMarkdown(textContent) }}
-                          />
-                          <button
-                            onClick={() => handleCopy(message.id, textContent)}
-                            className="absolute top-0 right-0 opacity-0 group-hover:opacity-100 sm:transition-opacity p-2 sm:p-1 rounded hover:bg-forge-surface"
-                            aria-label="Copy message"
-                            title="Copy"
-                          >
-                            {copiedId === message.id ? <Check className="w-4 h-4 sm:w-3 sm:h-3 text-emerald-500" /> : <Copy className="w-4 h-4 sm:w-3 sm:h-3 text-forge-text-dim" />}
-                          </button>
-                        </div>
-                      )}
-                      {!isLoading && (
-                        <button
-                          onClick={() => handleRegenerate(message.id)}
-                          className="flex items-center gap-1 mt-1 px-2 py-1 text-[10px] text-forge-text-dim hover:text-forge-accent opacity-0 group-hover/assistant:opacity-100 transition-all rounded hover:bg-forge-surface"
-                          title="Regenerate response"
-                        >
-                          <RefreshCw className="w-3 h-3" />
-                          Regenerate
-                        </button>
-                      )}
-                    </div>
-                  )}
-                </div>
-              )
-            })}
+            {messages.map((message) => (
+              <MessageItem
+                key={message.id}
+                message={message}
+                copiedId={copiedId}
+                isEditing={editingMessageId === message.id}
+                editingContent={editingContent}
+                isLoading={isLoading}
+                onCopy={handleCopy}
+                onEditMessage={handleEditMessage}
+                onSaveEdit={handleSaveEdit}
+                onCancelEdit={() => setEditingMessageId(null)}
+                onSetEditingContent={setEditingContent}
+                onRegenerate={handleRegenerate}
+              />
+            ))}
 
             {isLoading && (
               <div className="flex items-center gap-3 text-xs py-3 px-2 animate-fade-in">
