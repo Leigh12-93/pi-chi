@@ -83,12 +83,70 @@ export function useForgeChat(props: UseForgeChatProps) {
   useEffect(() => { envVarsRef.current = envVars }, [envVars])
   useEffect(() => { activeFileRef.current = activeFile }, [activeFile])
 
+  // ─── Pre-flight message compaction (runs before sending to server) ───
+  function compactMessagesForSend(msgs: any[]): any[] {
+    if (msgs.length <= 10) return msgs
+
+    // Estimate body size: messages + files
+    const filesPayload = filesRef.current
+    const filesSize = Object.values(filesPayload).reduce((sum, v) => sum + v.length, 0)
+    let msgsSize = 0
+    for (const m of msgs) {
+      if (Array.isArray(m.parts)) {
+        for (const p of m.parts) {
+          if (p.type === 'text') msgsSize += (p.text?.length || 0)
+          else msgsSize += 500 // tool parts overhead estimate
+        }
+      } else if (typeof m.content === 'string') {
+        msgsSize += m.content.length
+      }
+    }
+    const estimatedBodyBytes = filesSize + msgsSize + 5000
+
+    // Aggressive compaction if body would exceed ~3MB (Vercel limit is 4.5MB)
+    if (estimatedBodyBytes > 3 * 1024 * 1024) {
+      const first2 = msgs.slice(0, 2)
+      const recent6 = msgs.slice(-6)
+      const dropped = msgs.length - 8
+      const summaryMsg = {
+        id: `preflight-compact-${Date.now()}`,
+        role: 'assistant' as const,
+        content: '',
+        parts: [{ type: 'text' as const, text: `[Pre-flight compaction: ${dropped} older messages removed to fit request size limit]` }],
+      }
+      console.log(`[forge:preflight] Compacted ${dropped} messages (body ~${(estimatedBodyBytes / 1024 / 1024).toFixed(1)}MB)`)
+      return [...first2, summaryMsg, ...recent6]
+    }
+
+    // Strip tool invocation details from older messages to reduce token count
+    if (msgs.length > 14) {
+      return msgs.map((m: any, i: number) => {
+        if (i >= msgs.length - 8) return m // keep recent 8 intact
+        if (m.role !== 'assistant' || !Array.isArray(m.parts)) return m
+        const textParts = m.parts.filter((p: any) => p.type === 'text')
+        const toolParts = m.parts.filter((p: any) => p.type !== 'text')
+        if (toolParts.length === 0) return m
+        const toolSummary = toolParts.map((p: any) => {
+          const name = p.toolName || p.type?.replace(/^tool-/, '') || 'tool'
+          const path = p.input?.path || p.args?.path || ''
+          return path ? `${name}(${path})` : name
+        }).join(', ')
+        return {
+          ...m,
+          parts: [...textParts, { type: 'text', text: `\n[Tools: ${toolSummary}]` }],
+        }
+      })
+    }
+
+    return msgs
+  }
+
   // ─── Memoized transport (stable across renders) ─────────────
   const transport = useMemo(() => new DefaultChatTransport({
     api: '/api/chat',
     prepareSendMessagesRequest: ({ messages: msgs }) => ({
       body: {
-        messages: msgs,
+        messages: compactMessagesForSend(msgs),
         projectName: projectNameRef.current,
         projectId: projectIdRef.current,
         files: filesRef.current,
@@ -106,6 +164,7 @@ export function useForgeChat(props: UseForgeChatProps) {
   // v6 uses transport instead of api, sendMessage instead of append,
   // status instead of isLoading, and parts-based messages
   const retryAfterCompactRef = useRef(false)
+  const pendingRetryTextRef = useRef<string | null>(null)
 
   const {
     messages,
@@ -122,26 +181,52 @@ export function useForgeChat(props: UseForgeChatProps) {
       // Auto-compact and retry on 413 (context too long)
       if (!retryAfterCompactRef.current && (err.message?.includes('413') || err.message?.includes('too long') || err.message?.includes('context'))) {
         retryAfterCompactRef.current = true
-        toast.info('Context too long, compacting and retrying...', { duration: 3000 })
-        // Trim older messages client-side as an emergency compaction
-        if (messages.length > 10) {
+        toast.info('Context too long — compacting and retrying...', { duration: 4000 })
+        // Find the last user message for retry
+        const lastUserMsg = [...messages].reverse().find(m => m.role === 'user')
+        const retryText = lastUserMsg ? getMessageText(lastUserMsg) : null
+        // Trim older messages client-side as emergency compaction
+        if (messages.length > 6) {
           const first2 = messages.slice(0, 2)
-          const recent8 = messages.slice(-8)
+          const recent4 = messages.slice(-4)
+          const dropped = messages.length - 6
           const summaryMsg = {
             id: `client-compact-${Date.now()}`,
             role: 'assistant' as const,
             content: '',
-            parts: [{ type: 'text' as const, text: `[Conversation compacted — ${messages.length - 10} older messages removed to free context space]` }],
+            parts: [{ type: 'text' as const, text: `[Conversation compacted — ${dropped} older messages removed to free context space]` }],
           }
-          setMessages([...first2, summaryMsg as any, ...recent8])
+          setMessages([...first2, summaryMsg as any, ...recent4])
+          // Queue retry — effect below will pick it up after state settles
+          if (retryText) {
+            pendingRetryTextRef.current = retryText
+          } else {
+            retryAfterCompactRef.current = false
+          }
+        } else {
+          retryAfterCompactRef.current = false
         }
-        retryAfterCompactRef.current = false
       }
     },
   })
 
   // Derive isLoading from status (v6 pattern)
   const isLoading = status === 'streaming' || status === 'submitted'
+
+  // ─── 413 retry: after emergency compaction, resend the last user message ──
+  useEffect(() => {
+    if (pendingRetryTextRef.current && !isLoading && retryAfterCompactRef.current) {
+      const text = pendingRetryTextRef.current
+      pendingRetryTextRef.current = null
+      retryAfterCompactRef.current = false
+      // Small delay to let React settle after setMessages
+      const timer = setTimeout(() => {
+        console.log('[forge:retry] Retrying after emergency compaction')
+        sendMessage({ text })
+      }, 300)
+      return () => clearTimeout(timer)
+    }
+  }, [messages, isLoading, sendMessage]) // messages change triggers this after setMessages
 
   // ─── UI state ─────────────────────────────────────────────────
   const [input, setInput] = useState('')

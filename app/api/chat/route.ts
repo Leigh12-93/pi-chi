@@ -287,7 +287,7 @@ export async function POST(req: Request) {
   }
 
   // ── Cost optimization: trim conversation history ──────────────
-  const MAX_HISTORY = 40
+  const MAX_HISTORY = 30
   const FULL_DETAIL_WINDOW = 4
   const MEDIUM_DETAIL_WINDOW = 8
 
@@ -361,7 +361,7 @@ export async function POST(req: Request) {
 
   let messageTokens = JSON.stringify(trimmedMessages).length / 4 // rough 4 chars/token
   const systemTokens = systemPromptStr.length / 4
-  const TOOL_SCHEMA_OVERHEAD = 8000 // ~25 tools with Zod schemas → JSON Schema
+  const TOOL_SCHEMA_OVERHEAD = 16000 // ~40 tools with Zod schemas → JSON Schema (measured)
   const SAFETY_BUFFER = 2000 // breathing room for framing tokens
   let estimatedInputTokens = messageTokens + systemTokens + TOOL_SCHEMA_OVERHEAD + SAFETY_BUFFER
 
@@ -376,7 +376,7 @@ export async function POST(req: Request) {
   // ── Layer 2: Auto-compaction via Haiku summarization ──────────
   let compactionOccurred = false
   let compactedTokensSaved = 0
-  if (estimatedInputTokens > contextLimit * 0.70 && trimmedMessages.length > 12) {
+  if (estimatedInputTokens > contextLimit * 0.50 && trimmedMessages.length > 6) {
     const preCompactionTokens = estimatedInputTokens
     const result = await compactMessages(trimmedMessages, projectId, estimatedInputTokens, contextLimit)
     trimmedMessages = result.messages

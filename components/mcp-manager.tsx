@@ -121,7 +121,7 @@ export function MCPManager({ isOpen, onClose }: MCPManagerProps) {
   }
 
   const connectPresetServer = async (preset: typeof MCP_SERVER_TEMPLATES[0]) => {
-    const token = preset.authType !== 'none' ? prompt(`Enter ${preset.name} API key or token:`) : undefined
+    const token = preset.authType !== 'none' ? prompt(`Enter ${preset.name} API key or token:`) ?? undefined : undefined
     if (preset.authType !== 'none' && !token) return
     
     await connectServer({

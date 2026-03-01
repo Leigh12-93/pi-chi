@@ -10,7 +10,7 @@ import { anthropic } from '@ai-sdk/anthropic'
 const COMPACTION_MODEL = (process.env.COMPACTION_MODEL || 'claude-haiku-35-20241022').trim()
 
 // Constants
-const COMPACTION_THRESHOLD = 0.50        // Trigger at 50% of context limit — compact early to avoid 413 errors
+const COMPACTION_THRESHOLD = 0.35        // Trigger at 35% of context limit — compact early to avoid 413 errors
 const PRESERVE_FIRST = 2                 // Keep first 2 messages (initial context)
 const PRESERVE_RECENT = 8               // Keep last 8 messages (current work)
 const MAX_SUMMARY_INPUT_CHARS = 50000   // Cap Haiku input at ~12.5K tokens
