@@ -3,7 +3,7 @@
 // ═══════════════════════════════════════════════════════════════════
 
 export const VERCEL_TOKEN = (process.env.FORGE_DEPLOY_TOKEN || process.env.VERCEL_TOKEN || '').trim()
-export const VERCEL_TEAM = process.env.VERCEL_TEAM_ID || ''
+export const VERCEL_TEAM = (process.env.VERCEL_TEAM_ID || '').trim()
 
 export function detectFramework(files: Record<string, string>): string | undefined {
   if (files['next.config.ts'] || files['next.config.js'] || files['next.config.mjs']) return 'nextjs'

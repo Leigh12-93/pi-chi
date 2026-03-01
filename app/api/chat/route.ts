@@ -66,6 +66,14 @@ function getEditFailCounts(projectId: string | null): Map<string, number> {
 // Lightweight model auto-routing — suggests optimal model when user
 // hasn't explicitly selected one
 // ═══════════════════════════════════════════════════════════════════
+
+// Pre-compiled regexes for model classification (avoid recompiling on every request)
+const OPUS_RE = /architect|refactor|redesign|migrate|optimize performance|system design|rewrite entire|full rewrite|debug.*complex|build.*from scratch|implement.*auth|implement.*database|convert.*to|design.*api|security audit|performance audit/
+const HAIKU_RE = /fix typo|rename|change color|change text|update title|small change|quick fix|add comment|what is|what does|explain|how does|remove.*line|delete.*line|change.*to/
+
+// Repo owner — only this GitHub user can use self-modification tools
+const FORGE_OWNER = 'leigh12-93'
+
 function classifyModelComplexity(messages: any[], fileCount: number): { model: string; reason: string } {
   const lastMsg = messages.findLast((m: any) => m.role === 'user')
   let text = ''
@@ -83,24 +91,13 @@ function classifyModelComplexity(messages: any[], fileCount: number): { model: s
   const wordCount = text.split(/\s+/).length
 
   // Opus indicators: complex architecture, multi-file refactors, system design, debugging
-  const opusPatterns = [
-    'architect', 'refactor', 'redesign', 'migrate', 'optimize performance',
-    'system design', 'rewrite entire', 'full rewrite', 'debug.*complex',
-    'build.*from scratch', 'implement.*auth', 'implement.*database',
-    'convert.*to', 'design.*api', 'security audit', 'performance audit',
-  ]
-  if (opusPatterns.some(k => new RegExp(k).test(lower)) || (wordCount > 200 && fileCount > 10)) {
+  if (OPUS_RE.test(lower) || (wordCount > 200 && fileCount > 10)) {
     return { model: 'claude-opus-4-20250514', reason: 'Complex task detected — using Opus for best reasoning' }
   }
 
   // Haiku indicators: simple edits, quick fixes, small questions
-  const haikuPatterns = [
-    'fix typo', 'rename', 'change color', 'change text', 'update title',
-    'small change', 'quick fix', 'add comment', 'what is', 'what does',
-    'explain', 'how does', 'remove.*line', 'delete.*line', 'change.*to',
-  ]
   const hasAttachments = lastMsg?.parts?.some((p: any) => p.type === 'file')
-  if (!hasAttachments && haikuPatterns.some(k => new RegExp(k).test(lower)) && wordCount < 30 && fileCount <= 5) {
+  if (!hasAttachments && HAIKU_RE.test(lower) && wordCount < 30 && fileCount <= 5) {
     return { model: 'claude-haiku-35-20241022', reason: 'Simple task — using Haiku for speed' }
   }
 
@@ -511,7 +508,8 @@ export async function POST(req: Request) {
     ...createProjectTools(ctx),
     ...createGithubTools(ctx),
     ...createDeployTools(ctx),
-    ...createSelfModTools(ctx),
+    // Self-mod tools restricted to repo owner only (S-16 security gate)
+    ...(session.githubUsername.toLowerCase() === FORGE_OWNER ? createSelfModTools(ctx) : {}),
     ...createDbTools(ctx),
     ...createUtilityTools(ctx),
   }

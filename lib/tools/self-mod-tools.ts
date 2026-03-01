@@ -342,7 +342,8 @@ export function createSelfModTools(ctx: ToolContext) {
         branch: z.string().describe('Branch name to delete (cannot be master)'),
       }),
       execute: async ({ branch }) => {
-        if (branch === 'master' || branch === 'main') return { error: 'Cannot delete master/main branch' }
+        const PROTECTED_BRANCHES = ['master', 'main', 'production']
+        if (PROTECTED_BRANCHES.includes(branch.toLowerCase())) return { error: 'Cannot delete protected branches (master/main/production)' }
         const token = GITHUB_TOKEN
         if (!token) return { error: 'No GitHub token configured' }
         const result = await ctx.githubFetch(`/repos/Leigh12-93/forge/git/refs/heads/${branch}`, token, {
