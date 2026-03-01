@@ -92,6 +92,7 @@ export function createDeployTools(ctx: ToolContext) {
                 Authorization: `Bearer ${token}`,
                 'Content-Type': 'application/json',
               },
+              signal: AbortSignal.timeout(ctx.defaultTimeout),
               body: JSON.stringify({
                 name: 'forge',
                 target: 'preview',
@@ -118,6 +119,7 @@ export function createDeployTools(ctx: ToolContext) {
               try {
                 const check = await fetch(`https://api.vercel.com/v13/deployments/${deployId}${teamParam}`, {
                   headers: { Authorization: `Bearer ${token}` },
+                  signal: AbortSignal.timeout(ctx.defaultTimeout),
                 })
                 if (check.ok) {
                   const checkData = await check.json()
@@ -127,6 +129,7 @@ export function createDeployTools(ctx: ToolContext) {
                     try {
                       const logsRes = await fetch(`https://api.vercel.com/v2/deployments/${deployId}/events${teamParam}`, {
                         headers: { Authorization: `Bearer ${token}` },
+                        signal: AbortSignal.timeout(ctx.defaultTimeout),
                       })
                       if (logsRes.ok) {
                         const events = await logsRes.json()
@@ -187,11 +190,13 @@ export function createDeployTools(ctx: ToolContext) {
         const teamParam = VERCEL_TEAM ? `?teamId=${VERCEL_TEAM}` : ''
         const res = await fetch(`https://api.vercel.com/v6/deployments${teamParam}&limit=3&projectId=forge`, {
           headers: { Authorization: `Bearer ${token}` },
+          signal: AbortSignal.timeout(ctx.defaultTimeout),
         })
         if (!res.ok) {
           // Try alternative: list by name
           const res2 = await fetch(`https://api.vercel.com/v6/deployments${teamParam ? teamParam + '&' : '?'}limit=3`, {
             headers: { Authorization: `Bearer ${token}` },
+            signal: AbortSignal.timeout(ctx.defaultTimeout),
           })
           if (!res2.ok) return { error: `Vercel API ${res2.status}` }
           const data2 = await res2.json()
@@ -236,6 +241,7 @@ export function createDeployTools(ctx: ToolContext) {
         const teamParam = VERCEL_TEAM ? `?teamId=${VERCEL_TEAM}` : ''
         const res = await fetch(`https://api.vercel.com/v2/deployments/${deploymentId}/events${teamParam}`, {
           headers: { Authorization: `Bearer ${token}` },
+          signal: AbortSignal.timeout(ctx.defaultTimeout),
         })
         if (!res.ok) return { error: `Vercel API ${res.status}` }
         const events = await res.json()

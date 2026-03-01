@@ -72,6 +72,27 @@ function isProjectReady(files: Record<string, string>): boolean {
   return hasPackageJson && hasMainFile
 }
 
+function BuildingPlaceholder() {
+  return (
+    <div className="flex items-center justify-center h-full bg-zinc-900 text-zinc-400">
+      <div className="text-center">
+        <div className="animate-pulse text-lg mb-2">Building preview...</div>
+        <div className="text-sm text-zinc-500">Sandbox is starting up</div>
+      </div>
+    </div>
+  )
+}
+
+/** Normalize error messages for dedup — strip line numbers, stack frames, collapse whitespace */
+function normalizeError(msg: string): string {
+  return msg
+    .replace(/:\d+:\d+/g, '')     // strip line:col
+    .replace(/at .+\n?/g, '')     // strip stack frames
+    .replace(/\s+/g, ' ')         // collapse whitespace
+    .trim()
+    .slice(0, 200)                // cap length
+}
+
 export function PreviewPanel({ files, projectId, onFixErrors }: PreviewPanelProps) {
   const [viewMode, setViewMode] = useState<ViewMode>('desktop')
   const [refreshKey, setRefreshKey] = useState(0)
@@ -100,6 +121,12 @@ export function PreviewPanel({ files, projectId, onFixErrors }: PreviewPanelProp
   const sandboxUrlRef = useRef<string | null>(null) // stable ref for sync effect
   const errorAutoFeedRef = useRef<Map<string, number>>(new Map()) // error → attempt count (cap at 3)
   const errorFeedTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const [iframeError, setIframeError] = useState<string | null>(null)
+  const lastAutoFeedRef = useRef(0) // global cooldown for error auto-feed
+  const consoleLogsRef = useRef(consoleLogs) // stable ref for message listener
+
+  // Keep consoleLogsRef in sync without causing re-renders in message listener
+  useEffect(() => { consoleLogsRef.current = consoleLogs }, [consoleLogs])
 
   const addLog = useCallback((msg: string, level: ConsoleEntry['level'] = 'system', source: ConsoleEntry['source'] = 'forge') => {
     const ts = new Date().toLocaleTimeString('en-AU', { hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit' })
@@ -202,6 +229,13 @@ export function PreviewPanel({ files, projectId, onFixErrors }: PreviewPanelProp
         if (projectType === 'nextjs') return createEmptyState('Next.js project', 'Waiting for app/page.tsx...')
         if (projectType === 'vite') return createEmptyState('Vite project', 'Waiting for src/App.tsx...')
         return createEmptyState('Building...', 'Preview will appear when ready')
+      }
+
+      // If the project has JSX/TSX files, don't attempt fragile regex extraction —
+      // return a sentinel so the render layer can show BuildingPlaceholder instead
+      const hasJSX = Object.keys(files).some(f => f.endsWith('.tsx') || f.endsWith('.jsx'))
+      if (hasJSX && projectType !== 'static') {
+        return '__JSX_BUILDING_PLACEHOLDER__'
       }
 
       // Multi-pattern JSX extraction — handles return(), return <>, arrow => (), arrow => <>
@@ -475,20 +509,23 @@ export function PreviewPanel({ files, projectId, onFixErrors }: PreviewPanelProp
         setShowConsole(true)
         // Auto-feed error to AI (debounced, max 3 attempts per unique error)
         if (onFixErrors) {
-          const errorKey = message.slice(0, 200) // normalize for dedup
+          const errorKey = normalizeError(message) // normalize for dedup
           const attempts = errorAutoFeedRef.current.get(errorKey) || 0
           if (attempts < 3) {
+            // Global cooldown: skip if last auto-feed was <30s ago
+            if (Date.now() - lastAutoFeedRef.current < 30000) return
             errorAutoFeedRef.current.set(errorKey, attempts + 1)
             // Debounce: wait 2s to batch multiple errors from same render
             if (errorFeedTimerRef.current) clearTimeout(errorFeedTimerRef.current)
             errorFeedTimerRef.current = setTimeout(() => {
-              // Collect all recent unfed errors
-              const recentErrors = consoleLogs
+              // Collect all recent unfed errors (use ref to avoid stale closure)
+              const recentErrors = consoleLogsRef.current
                 .filter(e => e.level === 'error')
                 .map(e => e.message)
               // Include the current error too (it may not be in consoleLogs yet due to batched state)
               const allErrors = [...new Set([...recentErrors, message])]
               const errorText = allErrors.slice(-5).join('\n') // max 5 errors
+              lastAutoFeedRef.current = Date.now()
               onFixErrors(`[Auto-detected preview error — attempt ${attempts + 1}/3]\n\nThe preview has runtime errors. Please fix them:\n\n\`\`\`\n${errorText}\n\`\`\``)
             }, 2000)
           }
@@ -497,7 +534,7 @@ export function PreviewPanel({ files, projectId, onFixErrors }: PreviewPanelProp
     }
     window.addEventListener('message', handler)
     return () => window.removeEventListener('message', handler)
-  }, [addLog, onFixErrors, consoleLogs])
+  }, [addLog, onFixErrors]) // consoleLogs accessed via consoleLogsRef to avoid re-registering listener
 
   // Reset auto-feed attempts when files change (user or AI made fixes)
   const prevFileHashRef = useRef<string>('')
@@ -728,15 +765,22 @@ export function PreviewPanel({ files, projectId, onFixErrors }: PreviewPanelProp
       <div className="flex-1 overflow-hidden bg-white relative">
         <div className={cn('h-full transition-all', widthClasses[viewMode])}>
           {/* Static preview iframe — always present as base layer, srcDoc updates reactively */}
-          <iframe
-            srcDoc={previewHtml}
-            className={cn(
-              'w-full h-full border-0 absolute inset-0 transition-opacity duration-300',
-              (isSandboxActive || showCachedPreview) ? 'opacity-0 pointer-events-none' : 'opacity-100',
-            )}
-            sandbox="allow-scripts allow-same-origin"
-            title="Static Preview"
-          />
+          {previewHtml === '__JSX_BUILDING_PLACEHOLDER__' && !isSandboxActive && !showCachedPreview ? (
+            <div className="absolute inset-0">
+              <BuildingPlaceholder />
+            </div>
+          ) : (
+            <iframe
+              srcDoc={previewHtml === '__JSX_BUILDING_PLACEHOLDER__' ? '' : previewHtml}
+              className={cn(
+                'w-full h-full border-0 absolute inset-0 transition-opacity duration-300',
+                (isSandboxActive || showCachedPreview) ? 'opacity-0 pointer-events-none' : 'opacity-100',
+              )}
+              sandbox="allow-scripts allow-same-origin"
+              title="Static Preview"
+              onError={() => setIframeError('Preview failed to load')}
+            />
+          )}
 
           {/* Cached sandbox iframe — shown dimmed when sandbox is offline */}
           {showCachedPreview && cachedSandboxUrl && (
@@ -897,6 +941,22 @@ export function PreviewPanel({ files, projectId, onFixErrors }: PreviewPanelProp
             </div>
           )}
 
+          {/* Iframe error overlay */}
+          {iframeError && (
+            <div className="absolute top-3 left-3 right-3 z-10 animate-fade-in">
+              <div className="bg-white/95 backdrop-blur border border-red-200 rounded-lg p-3 shadow-lg flex items-center gap-2 max-w-sm mx-auto">
+                <AlertTriangle className="w-4 h-4 text-red-500 shrink-0" />
+                <p className="text-xs text-red-700 flex-1">{iframeError}</p>
+                <button
+                  onClick={() => setIframeError(null)}
+                  className="p-0.5 text-red-400 hover:text-red-600 transition-colors"
+                >
+                  <X className="w-3 h-3" />
+                </button>
+              </div>
+            </div>
+          )}
+
           {/* Live sandbox iframe */}
           {isSandboxActive && (
             <>
@@ -912,6 +972,7 @@ export function PreviewPanel({ files, projectId, onFixErrors }: PreviewPanelProp
                 title="Live Preview"
                 allow="cross-origin-isolated"
                 onLoad={() => setIframeLoading(false)}
+                onError={() => setIframeError('Preview failed to load')}
               />
             </>
           )}

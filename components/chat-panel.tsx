@@ -1219,10 +1219,22 @@ export function ChatPanel({ projectName, projectId, files, onFileChange, onFileD
   const processedInvs = useRef(new Set<string>())
   const historyLoadingRef = useRef(false)
   const localFiles = useRef<Record<string, string>>({})
+  const isNearBottomRef = useRef(true)
 
   useEffect(() => {
     localFiles.current = { ...files }
   }, [files])
+
+  // Clear markdown render cache when switching projects to avoid stale rendered content
+  useEffect(() => {
+    _mdCache.clear()
+  }, [projectId])
+
+  // Smart scroll: only auto-scroll when user is near the bottom
+  const handleScroll = useCallback((e: React.UIEvent<HTMLDivElement>) => {
+    const el = e.currentTarget
+    isNearBottomRef.current = el.scrollHeight - el.scrollTop - el.clientHeight < 150
+  }, [])
 
   // Escape to stop generation
   useEffect(() => {
@@ -1234,9 +1246,11 @@ export function ChatPanel({ projectName, projectId, files, onFileChange, onFileD
     return () => window.removeEventListener('keydown', handler)
   }, [isLoading, stop])
 
-  // Auto-scroll
+  // Auto-scroll only when user is near the bottom (prevents hijacking scroll position when reading history)
   useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'auto' })
+    if (isNearBottomRef.current) {
+      messagesEndRef.current?.scrollIntoView({ behavior: 'auto' })
+    }
   }, [messages, isLoading])
 
   // Load chat history on mount
@@ -1324,6 +1338,7 @@ export function ChatPanel({ projectName, projectId, files, onFileChange, onFileD
     }
   }, [messages, onBulkFileUpdate, onFileDelete])
 
+  // useChat handles optimistic rendering — user message appears immediately in messages array
   const handleSend = useCallback((text?: string) => {
     const content = (text || input).trim()
     if (!content || isLoading) return
@@ -1390,7 +1405,7 @@ export function ChatPanel({ projectName, projectId, files, onFileChange, onFileD
     setMessages(newMessages)
     processedInvs.current.clear()
     setEditingMessageId(null)
-    setTimeout(() => append({ role: 'user', content: editingContent.trim() }), 100)
+    queueMicrotask(() => append({ role: 'user', content: editingContent.trim() }))
   }
 
   const handleRegenerate = (messageId: string) => {
@@ -1401,7 +1416,7 @@ export function ChatPanel({ projectName, projectId, files, onFileChange, onFileD
     const newMessages = messages.slice(0, msgIndex)
     setMessages(newMessages)
     processedInvs.current.clear()
-    setTimeout(() => append({ role: 'user', content: typeof userMsg.content === 'string' ? userMsg.content : '' }), 100)
+    queueMicrotask(() => append({ role: 'user', content: typeof userMsg.content === 'string' ? userMsg.content : '' }))
   }
 
   const { stepCount, estimatedTokens } = useMemo(() => {
@@ -1466,7 +1481,7 @@ export function ChatPanel({ projectName, projectId, files, onFileChange, onFileD
     <ErrorBoundary>
     <div className="h-full flex flex-col bg-forge-bg">
       {/* Messages area — no header, clean like v0 */}
-      <div className="flex-1 overflow-y-auto">
+      <div className="flex-1 overflow-y-auto" onScroll={handleScroll} role="log" aria-live="polite" aria-label="Chat messages">
         {loadingHistory ? (
           <div className="px-4 py-6 space-y-4 animate-fade-in">
             {[1, 2, 3].map(i => (

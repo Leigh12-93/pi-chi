@@ -72,6 +72,7 @@ interface WorkspaceProps {
   onSwitchProject: () => void
   githubToken?: string
   autoSaveError?: boolean
+  onManualSave?: () => Promise<void>
   onUpdateSettings?: (settings: { name?: string; description?: string }) => void
 }
 
@@ -98,7 +99,7 @@ function detectFramework(files: Record<string, string>): string | undefined {
 export function Workspace({
   projectName, projectId, files, activeFile,
   onFileSelect, onFileChange, onFileDelete, onBulkFileUpdate, onSwitchProject,
-  githubToken, autoSaveError, onUpdateSettings,
+  githubToken, autoSaveError, onManualSave, onUpdateSettings,
 }: WorkspaceProps) {
   const [rightTab, setRightTab] = useState<'code' | 'preview' | 'split'>('code')
   const [mobileTab, setMobileTab] = useState<MobileTab>('chat')
@@ -352,8 +353,22 @@ export function Workspace({
     }
   }, [autoSaveError])
 
+  // Warn before closing tab when auto-save has failed (unsaved changes)
+  useEffect(() => {
+    const handler = (e: BeforeUnloadEvent) => {
+      if (autoSaveError) {
+        e.preventDefault()
+        e.returnValue = ''
+      }
+    }
+    window.addEventListener('beforeunload', handler)
+    return () => window.removeEventListener('beforeunload', handler)
+  }, [autoSaveError])
+
   const handleSave = useCallback(async () => {
     if (!projectId || Object.keys(files).length === 0) return
+    // Cancel pending auto-save timer and sync hash in parent
+    onManualSave?.()
     setSaveStatus('saving')
     try {
       const res = await fetch(`/api/projects/${projectId}`, {
@@ -382,7 +397,7 @@ export function Workspace({
       toast.error('Save failed', { description: 'Network error' })
       setTimeout(() => setSaveStatus('idle'), 2000)
     }
-  }, [projectId, files])
+  }, [projectId, files, onManualSave])
 
   const handleAction = useCallback((action: string) => {
     switch (action) {
@@ -640,7 +655,7 @@ export function Workspace({
 
       {/* Desktop layout */}
       <div className="flex-1 hidden md:flex flex-col overflow-hidden">
-        <PanelGroup direction="horizontal">
+        <PanelGroup direction="horizontal" autoSaveId="forge-workspace-panels">
           <Panel defaultSize={30} minSize={20} maxSize={50}>
             {chatPanel}
           </Panel>
@@ -648,7 +663,7 @@ export function Workspace({
           <Panel defaultSize={70} minSize={40}>
             <div className="h-full flex flex-col overflow-hidden">
               <div className="flex-1 overflow-hidden">
-                <PanelGroup direction="horizontal">
+                <PanelGroup direction="horizontal" autoSaveId="forge-sidebar-panels">
                   {showSidebar && (
                     <>
                       <Panel defaultSize={20} minSize={12} maxSize={35}>

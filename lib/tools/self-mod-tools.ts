@@ -101,6 +101,7 @@ export function createSelfModTools(ctx: ToolContext) {
             Authorization: `Bearer ${token}`,
             'Content-Type': 'application/json',
           },
+          signal: AbortSignal.timeout(ctx.defaultTimeout),
           body: JSON.stringify({
             name: 'forge',
             gitSource: {
@@ -277,6 +278,7 @@ export function createSelfModTools(ctx: ToolContext) {
         try {
           const res = await fetch(`https://registry.npmjs.org/${encodeURIComponent(name)}`, {
             headers: { Accept: 'application/json' },
+            signal: AbortSignal.timeout(ctx.defaultTimeout),
           })
           if (res.status === 404) return { exists: false, name, error: `Package "${name}" does NOT exist on npm. Do not add it to package.json.` }
           if (!res.ok) return { error: `npm registry returned ${res.status}` }

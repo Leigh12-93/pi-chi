@@ -287,13 +287,10 @@ export function createGithubTools(ctx: ToolContext) {
         let targetBranch = branch
         if (!targetBranch) {
           try {
-            const branchCtrl = new AbortController()
-            const branchTimeout = setTimeout(() => branchCtrl.abort(), 30000)
             const repoRes = await fetch(`${GITHUB_API}/repos/${owner}/${repo}`, {
               headers: { Authorization: `Bearer ${token}`, Accept: 'application/vnd.github.v3+json' },
-              signal: branchCtrl.signal,
+              signal: AbortSignal.timeout(ctx.defaultTimeout),
             })
-            clearTimeout(branchTimeout)
             if (repoRes.ok) {
               const repoData = await repoRes.json()
               targetBranch = repoData.default_branch || 'main'
@@ -306,13 +303,10 @@ export function createGithubTools(ctx: ToolContext) {
         }
 
         // Get the tree recursively
-        const treeCtrl = new AbortController()
-        const treeTimeout = setTimeout(() => treeCtrl.abort(), 30000)
         const treeRes = await fetch(
           `${GITHUB_API}/repos/${owner}/${repo}/git/trees/${targetBranch}?recursive=1`,
-          { headers: { Authorization: `Bearer ${token}`, Accept: 'application/vnd.github.v3+json' }, signal: treeCtrl.signal }
+          { headers: { Authorization: `Bearer ${token}`, Accept: 'application/vnd.github.v3+json' }, signal: AbortSignal.timeout(ctx.defaultTimeout) }
         )
-        clearTimeout(treeTimeout)
         if (!treeRes.ok) return { error: `Failed to fetch tree: ${treeRes.status}` }
         const treeData = await treeRes.json()
 
@@ -337,7 +331,7 @@ export function createGithubTools(ctx: ToolContext) {
             batch.map(async (item: any) => {
               const res = await fetch(
                 `${GITHUB_API}/repos/${owner}/${repo}/git/blobs/${item.sha}`,
-                { headers: { Authorization: `Bearer ${token}`, Accept: 'application/vnd.github.v3+json' }, signal: AbortSignal.timeout(15000) }
+                { headers: { Authorization: `Bearer ${token}`, Accept: 'application/vnd.github.v3+json' }, signal: AbortSignal.timeout(ctx.defaultTimeout) }
               )
               if (!res.ok) return null
               const data = await res.json()

@@ -10,6 +10,7 @@ export interface ToolContext {
   clientEnvVars: Record<string, string>
   editFailCounts: Map<string, number>
   taskStore: TaskStore
+  defaultTimeout: number  // milliseconds per tool call, default 30000
   supabaseFetch: (path: string, options?: RequestInit) => Promise<{ data: any; status: number; ok: boolean }>
   githubFetch: (path: string, token: string, options?: RequestInit) => Promise<any>
 }

@@ -36,6 +36,7 @@ export default function ForgePage() {
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
   const [restoringProject, setRestoringProject] = useState(false)
   const [concurrentTabWarning, setConcurrentTabWarning] = useState(false)
+  const [isOffline, setIsOffline] = useState(false)
 
   // Concurrent-tab detection: warn if another tab is editing the same project
   useEffect(() => {
@@ -204,6 +205,52 @@ export default function ForgePage() {
     }
   }, [files, projectId])
 
+  // Manual save — cancels pending auto-save, saves immediately, updates hash
+  const handleManualSave = useCallback(async () => {
+    if (!projectId || Object.keys(files).length === 0) return
+    if (autoSaveTimer.current) clearTimeout(autoSaveTimer.current)
+    if (savingRef.current) return
+    savingRef.current = true
+    try {
+      const res = await fetch(`/api/projects/${projectId}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ files }),
+      })
+      if (res.ok) {
+        lastSavedHash.current = hashFileMapDeep(files)
+        setAutoSaveError(false)
+      } else {
+        setAutoSaveError(true)
+      }
+    } catch {
+      setAutoSaveError(true)
+    } finally {
+      savingRef.current = false
+    }
+  }, [projectId, files])
+
+  // Offline/reconnection handling — retry save when coming back online
+  useEffect(() => {
+    const goOffline = () => setIsOffline(true)
+    const goOnline = () => {
+      setIsOffline(false)
+      // Retry save on reconnection
+      if (projectId && Object.keys(files).length > 0) {
+        const hash = hashFileMapDeep(files)
+        if (hash !== lastSavedHash.current) {
+          handleManualSave()
+        }
+      }
+    }
+    window.addEventListener('offline', goOffline)
+    window.addEventListener('online', goOnline)
+    return () => {
+      window.removeEventListener('offline', goOffline)
+      window.removeEventListener('online', goOnline)
+    }
+  }, [projectId, files, handleManualSave])
+
   const handleSelectProject = useCallback(async (name: string, id?: string, initialFiles?: Record<string, string>) => {
     if (id) {
       try {
@@ -309,6 +356,11 @@ export default function ForgePage() {
             {errorMessage}
           </div>
         )}
+        {isOffline && (
+          <div className="fixed bottom-4 left-4 z-50 bg-yellow-500/10 border border-yellow-500/20 text-yellow-400 px-4 py-2 rounded-lg text-sm">
+            You&apos;re offline. Changes will save when you reconnect.
+          </div>
+        )}
         <ProjectPicker
           onSelect={handleSelectProject}
           savedProjects={savedProjects}
@@ -336,6 +388,11 @@ export default function ForgePage() {
           <button onClick={() => setConcurrentTabWarning(false)} className="text-amber-300 hover:text-amber-100 font-medium ml-1">Dismiss</button>
         </div>
       )}
+      {isOffline && (
+        <div className="fixed bottom-4 left-4 z-50 bg-yellow-500/10 border border-yellow-500/20 text-yellow-400 px-4 py-2 rounded-lg text-sm">
+          You&apos;re offline. Changes will save when you reconnect.
+        </div>
+      )}
       <Workspace
         projectName={projectName}
         projectId={projectId}
@@ -354,6 +411,7 @@ export default function ForgePage() {
         }}
         githubToken={githubToken}
         autoSaveError={autoSaveError}
+        onManualSave={handleManualSave}
         onUpdateSettings={(settings) => {
           if (settings.name) setProjectName(settings.name)
         }}

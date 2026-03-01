@@ -22,6 +22,11 @@ import type { ToolContext } from '@/lib/tools'
 // Module-level edit fail tracking — persists across requests per project
 // Auto-expires entries after 10 minutes to prevent unbounded growth
 // ═══════════════════════════════════════════════════════════════════
+const activeStreams = new Map<string, number>()
+const MAX_CONCURRENT_STREAMS = 3
+
+const usageTracker = new Map<string, { tokens: number; requests: number; ts: number }>()
+
 const editFailCache = new Map<string, { counts: Map<string, number>; ts: number }>()
 function getEditFailCounts(projectId: string | null): Map<string, number> {
   const key = projectId || '_anon'
@@ -51,6 +56,8 @@ function getEditFailCounts(projectId: string | null): Map<string, number> {
 // ═══════════════════════════════════════════════════════════════════
 
 export async function POST(req: Request) {
+  const requestId = crypto.randomUUID()
+
   // Rate limit — 20 requests/minute per IP
   // NOTE: x-forwarded-for is trusted here because this runs on Vercel which sets it reliably.
   // If self-hosting behind a different proxy, configure trusted proxy headers accordingly.
@@ -65,6 +72,16 @@ export async function POST(req: Request) {
       headers: { 'Content-Type': 'application/json', 'Retry-After': String(Math.ceil(limit.resetIn / 1000)) },
     })
   }
+
+  // Concurrent stream limit — max 3 per IP
+  const currentStreams = activeStreams.get(ip) || 0
+  if (currentStreams >= MAX_CONCURRENT_STREAMS) {
+    return new Response(JSON.stringify({ error: 'Too many concurrent requests. Please wait for current responses to complete.' }), {
+      status: 429,
+      headers: { 'Content-Type': 'application/json' },
+    })
+  }
+  activeStreams.set(ip, currentStreams + 1)
 
   // Auth check — prevent unauthenticated access to the AI endpoint
   const session = await getSession()
@@ -271,75 +288,112 @@ export async function POST(req: Request) {
     clientEnvVars,
     editFailCounts,
     taskStore,
+    defaultTimeout: 30000,
     supabaseFetch,
     githubFetch,
   }
 
-  const result = streamText({
-    // Prompt caching: system prompt + tool definitions cached by Anthropic.
-    // 90% input token discount on cached prefix for subsequent requests in same session.
-    model: anthropic(selectedModel, { cacheControl: true }),
-    system: SYSTEM_PROMPT
-      + `\n\n---\nProject: "${projectName}"${projectId ? ` (id: ${projectId})` : ''}\nFile manifest:\n${manifestStr}`
-      + (activeFile && activeFileContent
-        ? `\n\nUser is currently viewing: ${activeFile}\n\`\`\`\n${activeFileContent}\n\`\`\``
-        : ''),
-    messages,
-    maxSteps: 50,
-    abortSignal: streamAbort.signal,
-    tools: {
-      ...createFileTools(ctx),
-      ...createProjectTools(ctx),
-      ...createGithubTools(ctx),
-      ...createDeployTools(ctx),
-      ...createSelfModTools(ctx),
-      ...createDbTools(ctx),
-      ...createUtilityTools(ctx),
-    },
+  try {
+    const result = streamText({
+      // Prompt caching: system prompt + tool definitions cached by Anthropic.
+      // 90% input token discount on cached prefix for subsequent requests in same session.
+      model: anthropic(selectedModel, { cacheControl: true }),
+      system: SYSTEM_PROMPT
+        + `\n\n---\nProject: "${projectName}"${projectId ? ` (id: ${projectId})` : ''}\nFile manifest:\n${manifestStr}`
+        + (activeFile && activeFileContent
+          ? `\n\nUser is currently viewing: ${activeFile}\n\`\`\`\n${activeFileContent}\n\`\`\``
+          : ''),
+      messages,
+      maxSteps: 50,
+      abortSignal: streamAbort.signal,
+      tools: {
+        ...createFileTools(ctx),
+        ...createProjectTools(ctx),
+        ...createGithubTools(ctx),
+        ...createDeployTools(ctx),
+        ...createSelfModTools(ctx),
+        ...createDbTools(ctx),
+        ...createUtilityTools(ctx),
+      },
 
-    onFinish: async (event) => {
-      clearTimeout(streamTimeout)
-      console.log(`[forge] ${event.usage?.totalTokens || 0} tokens, ${event.steps?.length || 0} steps`)
+      onFinish: async (event) => {
+        clearTimeout(streamTimeout)
 
-      // Notify client if stream was aborted due to timeout
-      if (streamAbort.signal.aborted) {
-        streamData.append({ type: 'error', message: 'Response timed out after 5 minutes. Try a simpler request.' })
-      }
+        // Decrement concurrent stream count
+        const count = activeStreams.get(ip) || 1
+        if (count <= 1) activeStreams.delete(ip)
+        else activeStreams.set(ip, count - 1)
 
-      // Stream real token usage to client
-      if (event.usage) {
-        streamData.append({
-          type: 'usage',
-          promptTokens: event.usage.promptTokens,
-          completionTokens: event.usage.completionTokens,
-          totalTokens: event.usage.totalTokens,
-        })
-      }
+        console.log(`[forge] rid=${requestId} ${event.usage?.totalTokens || 0} tokens, ${event.steps?.length || 0} steps`)
 
-      // Save assistant message to database BEFORE closing stream
-      // so we can still warn the client if the save fails.
-      if (projectId && event.text) {
-        try {
-          await supabaseFetch('/forge_chat_messages', {
-            method: 'POST',
-            body: JSON.stringify({
-              project_id: projectId,
-              role: 'assistant',
-              content: event.text,
-              tool_invocations: event.toolCalls || null,
-            }),
-          })
-        } catch (error) {
-          console.error('Failed to save assistant message:', error)
-          try {
-            streamData.append({ type: 'warning', message: 'Chat history could not be saved. Your work is safe but this conversation may not persist.' })
-          } catch { /* stream closing race — non-fatal */ }
+        // Notify client if stream was aborted due to timeout
+        if (streamAbort.signal.aborted) {
+          streamData.append({ type: 'error', message: 'Response timed out after 5 minutes. Try a simpler request.' })
         }
-      }
 
-      try { await streamData.close() } catch { /* stream already closed */ }
-    },
-  })
+        // Stream real token usage to client
+        if (event.usage) {
+          streamData.append({
+            type: 'usage',
+            promptTokens: event.usage.promptTokens,
+            completionTokens: event.usage.completionTokens,
+            totalTokens: event.usage.totalTokens,
+          })
+        }
 
-  return result.toDataStreamResponse({ data: streamData })
+        // Server-side usage tracking per user
+        if (event.usage && session?.user) {
+          const userId = (session as any).githubUsername || 'unknown'
+          const prev = usageTracker.get(userId) || { tokens: 0, requests: 0, ts: Date.now() }
+          prev.tokens += event.usage.totalTokens || 0
+          prev.requests += 1
+          prev.ts = Date.now()
+          usageTracker.set(userId, prev)
+          console.log(`[forge:usage] user=${userId} req_tokens=${event.usage.totalTokens} cumulative=${prev.tokens} requests=${prev.requests}`)
+        }
+
+        // Save assistant message to database BEFORE closing stream
+        // so we can still warn the client if the save fails.
+        if (projectId && event.text) {
+          try {
+            await supabaseFetch('/forge_chat_messages', {
+              method: 'POST',
+              body: JSON.stringify({
+                project_id: projectId,
+                role: 'assistant',
+                content: event.text,
+                tool_invocations: event.toolCalls || null,
+              }),
+            })
+          } catch (error) {
+            console.error('Failed to save assistant message:', error)
+            try {
+              streamData.append({ type: 'warning', message: 'Chat history could not be saved. Your work is safe but this conversation may not persist.' })
+            } catch { /* stream closing race — non-fatal */ }
+          }
+        }
+
+        try { await streamData.close() } catch { /* stream already closed */ }
+      },
+    })
+
+    return result.toDataStreamResponse({ data: streamData })
+  } catch (error) {
+    clearTimeout(streamTimeout)
+
+    // Decrement concurrent stream count on error
+    const count = activeStreams.get(ip) || 1
+    if (count <= 1) activeStreams.delete(ip)
+    else activeStreams.set(ip, count - 1)
+
+    console.error(`[forge] rid=${requestId} Stream error:`, error)
+    try {
+      streamData.append({ type: 'error', message: error instanceof Error ? error.message : 'Stream failed' })
+      await streamData.close()
+    } catch { /* stream already closed */ }
+    return new Response(JSON.stringify({ error: 'Stream failed unexpectedly. Please try again.' }), {
+      status: 500,
+      headers: { 'Content-Type': 'application/json' },
+    })
+  }
 }

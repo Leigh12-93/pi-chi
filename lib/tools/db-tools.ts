@@ -82,6 +82,9 @@ export function createDbTools(ctx: ToolContext) {
             return result.ok ? { ok: true, data: result.data } : { error: JSON.stringify(result.data) }
           }
           case 'delete': {
+            if (!filters || Object.keys(filters).length === 0) {
+              return { error: 'DELETE requires at least one filter. Refusing to delete entire table.' }
+            }
             const result = await supabaseFetch(`${path}${filterStr}`, {
               method: 'DELETE',
             })
@@ -175,16 +178,23 @@ export function createDbTools(ctx: ToolContext) {
             .not('path', 'in', `(${filePaths.map(p => `"${p}"`).join(',')})`)
         }
 
-        // Upsert current files
+        // Upsert current files in batches of 50 to avoid payload limits
         if (filePaths.length > 0) {
           const rows = filePaths.map(path => ({
             project_id: projectId,
             path,
             content: files[path],
           }))
-          await supabase
-            .from('forge_project_files')
-            .upsert(rows, { onConflict: 'project_id,path' })
+          const BATCH_SIZE = 50
+          for (let i = 0; i < rows.length; i += BATCH_SIZE) {
+            const batch = rows.slice(i, i + BATCH_SIZE)
+            const upsertRes = await supabaseFetch(`/forge_project_files`, {
+              method: 'POST',
+              headers: { 'Prefer': 'resolution=merge-duplicates' },
+              body: JSON.stringify(batch),
+            })
+            if (!upsertRes.ok) return { error: `Failed to save files (batch ${Math.floor(i / BATCH_SIZE) + 1})` }
+          }
         }
 
         return { ok: true, savedFiles: filePaths.length }
