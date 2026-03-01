@@ -29,15 +29,15 @@ export function createDeployTools(ctx: ToolContext) {
 
         const fw = framework === 'static' ? undefined : (framework || detectFramework(files))
 
-        const { taskId, error } = await TaskStore.createPersistent(
+        const deployResult = await TaskStore.createPersistent(
           ctx.supabaseFetch,
           ctx.projectId,
           'deploy',
           (onProgress) => vercelDeploy(ctx.projectName, files, fw, onProgress, Object.keys(ctx.clientEnvVars).length > 0 ? ctx.clientEnvVars : undefined),
         )
-        if (error) return { error }
+        if (!deployResult.ok) return { error: deployResult.error }
         const envNote = Object.keys(ctx.clientEnvVars).length > 0 ? ` with ${Object.keys(ctx.clientEnvVars).length} env vars` : ''
-        return { taskId, status: 'running', message: `Deploying ${Object.keys(files).length} files${fw ? ` (${fw})` : ''}${envNote}. Use check_task_status to monitor progress.` }
+        return { taskId: deployResult.taskId, status: 'running', message: `Deploying ${Object.keys(files).length} files${fw ? ` (${fw})` : ''}${envNote}. Use check_task_status to monitor progress.` }
       },
     }),
 
@@ -80,7 +80,7 @@ export function createDeployTools(ctx: ToolContext) {
         const token = VERCEL_TOKEN
         if (!token) return { error: 'No Vercel deploy token configured' }
 
-        const { taskId, error } = await TaskStore.createPersistent(
+        const buildResult = await TaskStore.createPersistent(
           ctx.supabaseFetch,
           ctx.projectId,
           'check_build',
@@ -172,8 +172,8 @@ export function createDeployTools(ctx: ToolContext) {
             }
           },
         )
-        if (error) return { error }
-        return { taskId, status: 'running', message: 'Preview build started. Use check_task_status to monitor progress (may take 60-90 seconds).' }
+        if (!buildResult.ok) return { error: buildResult.error }
+        return { taskId: buildResult.taskId, status: 'running', message: 'Preview build started. Use check_task_status to monitor progress (may take 60-90 seconds).' }
       },
     }),
 

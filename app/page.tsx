@@ -32,17 +32,21 @@ export default function ForgePage() {
   const savingRef = useRef(false)
   const [autoSaveError, setAutoSaveError] = useState(false)
   const [projectsLoadError, setProjectsLoadError] = useState(false)
+  const [errorMessage, setErrorMessage] = useState<string | null>(null)
+  const [restoringProject, setRestoringProject] = useState(false)
 
   // Restore project from sessionStorage on mount (survives refresh)
   useEffect(() => {
     if (restoredRef.current) return
     restoredRef.current = true
     try {
-      const stored = sessionStorage.getItem('forge_active_project')
-      if (!stored) return
-      const { id, name } = JSON.parse(stored)
+      const raw = sessionStorage.getItem('forge_active_project')
+      if (!raw) return
+      const stored: { id?: string; name?: string; activeFile?: string } = JSON.parse(raw)
+      const { id, name } = stored
       if (id && name) {
         // Load the saved project from API
+        setRestoringProject(true)
         fetch(`/api/projects/${id}`)
           .then(res => res.ok ? res.json() : null)
           .then(data => {
@@ -51,12 +55,17 @@ export default function ForgePage() {
               setProjectName(data.name)
               setFiles(data.files || {})
               lastSavedHash.current = JSON.stringify(data.files || {})
+              // Restore active file if it still exists
+              if (stored.activeFile && data.files?.[stored.activeFile]) {
+                setActiveFile(stored.activeFile)
+              }
             } else {
               // Project was deleted — clear storage
               sessionStorage.removeItem('forge_active_project')
             }
           })
           .catch(() => sessionStorage.removeItem('forge_active_project'))
+          .finally(() => setRestoringProject(false))
       } else if (name) {
         // Unsaved project — just restore the name (files are lost on refresh)
         setProjectName(name)
@@ -64,11 +73,19 @@ export default function ForgePage() {
     } catch { /* ignore corrupt storage */ }
   }, [])
 
+  // Auto-clear error message after 5 seconds
+  useEffect(() => {
+    if (errorMessage) {
+      const t = setTimeout(() => setErrorMessage(null), 5000)
+      return () => clearTimeout(t)
+    }
+  }, [errorMessage])
+
   // Persist active project to sessionStorage + push history state
   useEffect(() => {
     try {
       if (projectName) {
-        sessionStorage.setItem('forge_active_project', JSON.stringify({ id: projectId, name: projectName }))
+        sessionStorage.setItem('forge_active_project', JSON.stringify({ id: projectId, name: projectName, activeFile }))
         // Push a history entry so browser back goes to project picker, not off-site
         if (!window.history.state?.forgeProject) {
           window.history.pushState({ forgeProject: true }, '', window.location.href)
@@ -77,7 +94,7 @@ export default function ForgePage() {
         sessionStorage.removeItem('forge_active_project')
       }
     } catch { /* sessionStorage unavailable (private browsing) — non-fatal */ }
-  }, [projectId, projectName])
+  }, [projectId, projectName, activeFile])
 
   // Handle browser back button — go to project picker instead of leaving the site
   useEffect(() => {
@@ -170,10 +187,10 @@ export default function ForgePage() {
           return
         }
         console.error('Failed to load project:', res.status)
-        alert(`Failed to load project (${res.status}). Starting fresh.`)
+        setErrorMessage(`Failed to load project (${res.status}). Starting fresh.`)
       } catch (err) {
         console.error('Failed to load project:', err)
-        alert('Failed to load project. Starting fresh.')
+        setErrorMessage('Failed to load project. Starting fresh.')
       }
     }
 
@@ -191,6 +208,7 @@ export default function ForgePage() {
         }
       } catch (err) {
         console.error('Failed to create project:', err)
+        setErrorMessage('Failed to save project to cloud. Working in local-only mode.')
       }
     }
 
@@ -222,15 +240,33 @@ export default function ForgePage() {
       setSavedProjects(prev => prev.filter(p => p.id !== id))
     } catch (err) {
       console.error('Failed to delete project:', err)
-      alert('Failed to delete project. Please try again.')
+      setErrorMessage('Failed to delete project. Please try again.')
     }
   }, [])
 
   const githubToken = session?.accessToken
 
+  if (restoringProject && !projectName) {
+    return (
+      <ErrorBoundary>
+        <div className="flex items-center justify-center h-screen bg-zinc-950">
+          <div className="flex items-center gap-3 text-zinc-400">
+            <div className="h-5 w-5 border-2 border-zinc-600 border-t-zinc-300 rounded-full animate-spin" />
+            <span className="text-sm">Restoring project...</span>
+          </div>
+        </div>
+      </ErrorBoundary>
+    )
+  }
+
   if (!projectName) {
     return (
       <ErrorBoundary>
+        {errorMessage && (
+          <div className="fixed top-4 right-4 z-50 bg-red-500/10 border border-red-500/20 text-red-400 px-4 py-2 rounded-lg text-sm animate-in fade-in">
+            {errorMessage}
+          </div>
+        )}
         <ProjectPicker
           onSelect={handleSelectProject}
           savedProjects={savedProjects}
@@ -246,6 +282,11 @@ export default function ForgePage() {
 
   return (
     <ErrorBoundary>
+      {errorMessage && (
+        <div className="fixed top-4 right-4 z-50 bg-red-500/10 border border-red-500/20 text-red-400 px-4 py-2 rounded-lg text-sm animate-in fade-in">
+          {errorMessage}
+        </div>
+      )}
       <Workspace
         projectName={projectName}
         projectId={projectId}

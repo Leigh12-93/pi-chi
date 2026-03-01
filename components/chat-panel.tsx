@@ -305,9 +305,22 @@ const PURIFY_CONFIG = {
   ],
   ALLOWED_ATTR: [
     'class', 'id', 'style', 'href', 'src', 'alt', 'title', 'target', 'rel',
-    'onclick', // only for our copy buttons; DOMPurify hooks below further restrict this
+    'onclick', // only for our copy buttons; DOMPurify hook below further restricts this
   ],
   ALLOW_DATA_ATTR: false,
+}
+
+// Register DOMPurify hook once at module level (not per-call)
+// Only allow onclick on buttons with our specific clipboard pattern
+if (typeof window !== 'undefined') {
+  DOMPurify.addHook('uponSanitizeAttribute', (node: Element, data) => {
+    if (data.attrName === 'onclick') {
+      const val = String(data.attrValue || '')
+      if (node.tagName !== 'BUTTON' || !val.startsWith('navigator.clipboard')) {
+        data.keepAttr = false
+      }
+    }
+  })
 }
 
 function sanitizeHtml(html: string): string {
@@ -319,18 +332,7 @@ function sanitizeHtml(html: string): string {
       .replace(/\bon\w+\s*=\s*["'][^"']*["']/gi, '')
       .replace(/javascript\s*:/gi, '')
   }
-  // Only allow onclick on buttons with our specific clipboard pattern
-  DOMPurify.addHook('uponSanitizeAttribute', (node: Element, data) => {
-    if (data.attrName === 'onclick') {
-      const val = String(data.attrValue || '')
-      if (node.tagName !== 'BUTTON' || !val.startsWith('navigator.clipboard')) {
-        data.keepAttr = false
-      }
-    }
-  })
-  const clean = DOMPurify.sanitize(html, PURIFY_CONFIG)
-  DOMPurify.removeHook('uponSanitizeAttribute')
-  return clean
+  return DOMPurify.sanitize(html, PURIFY_CONFIG)
 }
 
 // Markdown HTML cache — avoids re-parsing identical text on every render
@@ -1130,6 +1132,7 @@ export function ChatPanel({ projectName, projectId, files, onFileChange, onFileD
     isLoading,
     error,
     append,
+    reload,
     data,
   } = useChat({
     api: '/api/chat',
@@ -1391,6 +1394,15 @@ export function ChatPanel({ projectName, projectId, files, onFileChange, onFileD
 
   const isEmpty = messages.length === 0
 
+  // Friendly error messages for common stream failures
+  const errorMessage = error
+    ? error.message?.includes('429') ? 'Rate limited. Please wait a moment and retry.'
+    : error.message?.includes('401') ? 'Session expired. Please sign in again.'
+    : error.message?.includes('fetch') || error.message?.includes('network')
+      ? 'Connection lost. Check your internet and retry.'
+    : error.message || 'Something went wrong. Please try again.'
+    : null
+
   return (
     <ErrorBoundary>
     <div className="h-full flex flex-col bg-forge-panel border-r border-forge-border">
@@ -1528,14 +1540,20 @@ export function ChatPanel({ projectName, projectId, files, onFileChange, onFileD
             )}
 
             {error && (
-              <div className="flex items-start gap-2.5 text-xs bg-red-50 border border-red-200 rounded-xl px-3.5 py-3 animate-fade-in">
-                <div className="w-6 h-6 rounded-full bg-red-100 flex items-center justify-center shrink-0 mt-0.5">
+              <div className="flex items-start gap-2.5 text-xs bg-red-50 dark:bg-red-950/30 border border-red-200 dark:border-red-800 rounded-xl px-3.5 py-3 animate-fade-in">
+                <div className="w-6 h-6 rounded-full bg-red-100 dark:bg-red-900/50 flex items-center justify-center shrink-0 mt-0.5">
                   <AlertTriangle className="w-3.5 h-3.5 text-red-500" />
                 </div>
                 <div className="flex-1 min-w-0">
-                  <p className="font-medium text-red-700 mb-0.5">Something went wrong</p>
-                  <p className="text-red-500 leading-relaxed">{error.message}</p>
+                  <p className="font-medium text-red-700 dark:text-red-400 mb-0.5">Something went wrong</p>
+                  <p className="text-red-500 dark:text-red-400/80 leading-relaxed">{errorMessage}</p>
                 </div>
+                <button
+                  onClick={() => reload()}
+                  className="shrink-0 px-3 py-1.5 bg-red-100 dark:bg-red-900/50 hover:bg-red-200 dark:hover:bg-red-800/60 text-red-700 dark:text-red-400 rounded-lg text-[11px] font-medium transition-colors"
+                >
+                  Retry
+                </button>
               </div>
             )}
 

@@ -122,6 +122,8 @@ export function Workspace({
   const dragCounterRef = useRef(0)
   const chatSendRef = useRef<((message: string) => void) | null>(null)
   const initialFilesRef = useRef<Record<string, string>>({})
+  const filesRef = useRef(files)
+  filesRef.current = files
 
   // Capture initial file state on first render to track modifications
   useEffect(() => {
@@ -355,8 +357,9 @@ export function Workspace({
         }, ...prev].slice(0, 50))
         toast.success('Project saved', { description: `${Object.keys(files).length} files saved` })
       } else {
+        console.error(`Auto-save failed: ${res.status}`)
         setSaveStatus('error')
-        toast.error('Save failed', { description: 'Could not save to database' })
+        toast.error('Save failed', { description: `Could not save to database (HTTP ${res.status})` })
       }
       setTimeout(() => setSaveStatus('idle'), 2000)
     } catch {
@@ -421,9 +424,11 @@ export function Workspace({
   const handleFileRename = (oldPath: string, newPath: string) => {
     setOpenFiles(prev => prev.map(f => f === oldPath ? newPath : f))
     if (activeFile === oldPath) onFileSelect(newPath)
-    if (files[oldPath]) {
-      onFileChange(newPath, files[oldPath])
-      onFileDelete(oldPath)
+    if (files[oldPath] !== undefined) {
+      const updated = { ...files }
+      updated[newPath] = updated[oldPath]
+      delete updated[oldPath]
+      onBulkFileUpdate(updated)
     }
   }
 

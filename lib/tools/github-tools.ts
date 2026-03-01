@@ -21,7 +21,7 @@ export function createGithubTools(ctx: ToolContext) {
         const files = ctx.vfs.toRecord()
         if (Object.keys(files).length === 0) return { error: 'No files to push.' }
 
-        const { taskId, error } = await TaskStore.createPersistent(
+        const createResult = await TaskStore.createPersistent(
           ctx.supabaseFetch,
           ctx.projectId,
           'github_create',
@@ -92,8 +92,8 @@ export function createGithubTools(ctx: ToolContext) {
             }
           },
         )
-        if (error) return { error }
-        return { taskId, status: 'running', message: `Creating repo and pushing ${Object.keys(files).length} files. Use check_task_status to monitor.` }
+        if (!createResult.ok) return { error: createResult.error }
+        return { taskId: createResult.taskId, status: 'running', message: `Creating repo and pushing ${Object.keys(files).length} files. Use check_task_status to monitor.` }
       },
     }),
 
@@ -112,7 +112,7 @@ export function createGithubTools(ctx: ToolContext) {
         const files = ctx.vfs.toRecord()
         if (Object.keys(files).length === 0) return { error: 'No files to push.' }
 
-        const { taskId, error } = await TaskStore.createPersistent(
+        const pushResult = await TaskStore.createPersistent(
           ctx.supabaseFetch,
           ctx.projectId,
           'github_push',
@@ -163,8 +163,8 @@ export function createGithubTools(ctx: ToolContext) {
             }
           },
         )
-        if (error) return { error }
-        return { taskId, status: 'running', message: `Pushing ${Object.keys(files).length} files to ${owner}/${repo}. Use check_task_status to monitor.` }
+        if (!pushResult.ok) return { error: pushResult.error }
+        return { taskId: pushResult.taskId, status: 'running', message: `Pushing ${Object.keys(files).length} files to ${owner}/${repo}. Use check_task_status to monitor.` }
       },
     }),
 

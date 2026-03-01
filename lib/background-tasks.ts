@@ -84,7 +84,7 @@ export class TaskStore {
     projectId: string | null,
     type: string,
     operation: (onProgress: (msg: string) => Promise<void>) => Promise<unknown>,
-  ): Promise<{ taskId: string; error?: string }> {
+  ): Promise<{ ok: true; taskId: string } | { ok: false; error: string }> {
     // Insert the task row
     const insertResult = await sbFetch('/forge_tasks', {
       method: 'POST',
@@ -96,7 +96,7 @@ export class TaskStore {
     })
 
     if (!insertResult.ok || !Array.isArray(insertResult.data) || insertResult.data.length === 0) {
-      return { taskId: '', error: 'Failed to create task record' }
+      return { ok: false, error: 'Failed to create task record' }
     }
 
     const taskId = (insertResult.data[0] as { id: string }).id
@@ -118,33 +118,52 @@ export class TaskStore {
       try {
         const result = await operation(onProgress)
         if (controller.signal.aborted) return // cancelled while running
-        await sbFetch(`/forge_tasks?id=eq.${taskId}`, {
-          method: 'PATCH',
-          body: JSON.stringify({
-            status: 'completed',
-            result: typeof result === 'object' ? result : { value: result },
-          }),
-        })
+        // Retry loop for DB completion write
+        let retries = 2
+        while (retries >= 0) {
+          try {
+            const res = await sbFetch(`/forge_tasks?id=eq.${taskId}`, {
+              method: 'PATCH',
+              body: JSON.stringify({
+                status: 'completed',
+                result: typeof result === 'object' ? result : { value: result },
+              }),
+            })
+            if (res.ok) break
+            retries--
+            if (retries >= 0) await new Promise(r => setTimeout(r, 1000))
+          } catch {
+            retries--
+            if (retries >= 0) await new Promise(r => setTimeout(r, 1000))
+          }
+        }
       } catch (err) {
         if (controller.signal.aborted) return // cancelled — row already patched
-        try {
-          await sbFetch(`/forge_tasks?id=eq.${taskId}`, {
-            method: 'PATCH',
-            body: JSON.stringify({
-              status: 'failed',
-              error: err instanceof Error ? err.message : String(err),
-            }),
-          })
-        } catch {
-          // Status update failed — task will stay "running" in DB
-          console.error(`Failed to update task ${taskId} status:`, err)
+        // Retry loop for DB failure write
+        let retries = 2
+        while (retries >= 0) {
+          try {
+            const res = await sbFetch(`/forge_tasks?id=eq.${taskId}`, {
+              method: 'PATCH',
+              body: JSON.stringify({
+                status: 'failed',
+                error: err instanceof Error ? err.message : String(err),
+              }),
+            })
+            if (res.ok) break
+            retries--
+            if (retries >= 0) await new Promise(r => setTimeout(r, 1000))
+          } catch {
+            retries--
+            if (retries >= 0) await new Promise(r => setTimeout(r, 1000))
+          }
         }
       } finally {
         persistentControllers.delete(taskId)
       }
     })()
 
-    return { taskId }
+    return { ok: true, taskId }
   }
 
   /**

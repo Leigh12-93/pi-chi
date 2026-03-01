@@ -49,6 +49,9 @@ async function getDefaultBranch(owner: string, repo: string, token: string): Pro
   if (res.status === 404) {
     throw new Error(`Repository "${owner}/${repo}" not found. Check the name and your access permissions.`)
   }
+  if (res.status >= 500) {
+    throw new Error(`GitHub server error (${res.status}). Try again later.`)
+  }
   if (!res.ok) return 'main'
   const data = await res.json()
   return data.default_branch || 'main'
@@ -127,7 +130,7 @@ async function fetchInBatches(
 }
 
 // Recursively fetch all files from a GitHub repo tree
-async function fetchTree(owner: string, repo: string, branch: string, token: string): Promise<{ files: Record<string, string>; skipped: string[] }> {
+async function fetchTree(owner: string, repo: string, branch: string, token: string): Promise<{ files: Record<string, string>; skipped: string[]; failedFiles: string[] }> {
   const res = await fetch(
     `https://api.github.com/repos/${owner}/${repo}/git/trees/${branch}?recursive=1`,
     { headers: GITHUB_HEADERS(token) },
@@ -139,6 +142,10 @@ async function fetchTree(owner: string, repo: string, branch: string, token: str
   }
 
   const data = await res.json()
+
+  if (data.truncated) {
+    console.warn(`[github-import] Tree truncated for ${owner}/${repo} — some files may be missing`)
+  }
 
   const skipped: string[] = []
   const blobs = (data.tree || []).filter((item: any) => {
@@ -177,7 +184,16 @@ async function fetchTree(owner: string, repo: string, branch: string, token: str
   if (blobs.length > 300) skipped.push(`...and ${blobs.length - 300} more files (cap: 300)`)
   const filesToFetch = blobs.slice(0, 300).map((b: any) => ({ path: b.path, sha: b.sha }))
   const files = await fetchInBatches(filesToFetch, owner, repo, branch, token, 10)
-  return { files, skipped }
+
+  // Track files that were requested but not returned (fetch failures)
+  const failedFiles: string[] = []
+  for (const item of filesToFetch) {
+    if (!(item.path in files)) {
+      failedFiles.push(item.path)
+    }
+  }
+
+  return { files, skipped, failedFiles }
 }
 
 export async function POST(req: Request) {
@@ -186,7 +202,12 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: 'Not authenticated' }, { status: 401 })
   }
 
-  const body = await req.json()
+  let body: any
+  try {
+    body = await req.json()
+  } catch {
+    return NextResponse.json({ error: 'Invalid JSON in request body' }, { status: 400 })
+  }
   const { owner, repo, branch } = body
 
   if (!owner || !repo) {
@@ -205,12 +226,16 @@ export async function POST(req: Request) {
       ),
     ])
 
-    return NextResponse.json({
+    const response: any = {
       files: importResult.files,
       fileCount: Object.keys(importResult.files).length,
       branch: targetBranch,
       skipped: importResult.skipped,
-    })
+    }
+    if (importResult.failedFiles.length > 0) {
+      response.failedFiles = importResult.failedFiles
+    }
+    return NextResponse.json(response)
   } catch (err: any) {
     const status = err.message?.includes('timed out') ? 504 : 500
     return NextResponse.json({ error: err.message }, { status })

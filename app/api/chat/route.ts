@@ -75,11 +75,35 @@ export async function POST(req: Request) {
     })
   }
 
-  const body = await req.json()
+  let body: any
+  try {
+    body = await req.json()
+  } catch {
+    return new Response(JSON.stringify({ error: 'Invalid JSON in request body.' }), {
+      status: 400,
+      headers: { 'Content-Type': 'application/json' },
+    })
+  }
   const projectName = body.projectName || 'untitled'
   const projectId = body.projectId || null
   const ALLOWED_MODELS = ['claude-sonnet-4-20250514', 'claude-haiku-35-20241022', 'claude-opus-4-20250514']
   const selectedModel = ALLOWED_MODELS.includes(body.model) ? body.model : 'claude-sonnet-4-20250514'
+
+  if (!Array.isArray(body.messages)) {
+    return new Response(JSON.stringify({ error: 'messages must be an array.' }), {
+      status: 400,
+      headers: { 'Content-Type': 'application/json' },
+    })
+  }
+
+  // Post-parse size check for chunked transfers (content-length may be absent)
+  const bodySize = JSON.stringify(body.files || {}).length
+  if (bodySize > 8 * 1024 * 1024) {
+    return new Response(JSON.stringify({ error: 'Request too large. Maximum body size is 8MB.' }), {
+      status: 413,
+      headers: { 'Content-Type': 'application/json' },
+    })
+  }
 
   // Use GitHub token from session (not request body) — prevents token leaking via logs
   const effectiveGithubToken = session.accessToken || GITHUB_TOKEN
@@ -266,6 +290,11 @@ export async function POST(req: Request) {
       clearTimeout(streamTimeout)
       console.log(`[forge] ${event.usage?.totalTokens || 0} tokens, ${event.steps?.length || 0} steps`)
 
+      // Notify client if stream was aborted due to timeout
+      if (streamAbort.signal.aborted) {
+        streamData.append({ type: 'error', message: 'Response timed out after 5 minutes. Try a simpler request.' })
+      }
+
       // Stream real token usage to client
       if (event.usage) {
         streamData.append({
@@ -275,7 +304,7 @@ export async function POST(req: Request) {
           totalTokens: event.usage.totalTokens,
         })
       }
-      await streamData.close()
+      try { await streamData.close() } catch { /* stream already closed */ }
 
       // Save assistant message to database if projectId exists
       if (projectId && event.text) {
