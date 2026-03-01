@@ -325,6 +325,16 @@ export function PreviewPanel({ files, projectId, onFixErrors, onCapturePreview }
     })
   }, [])
 
+  // Warm up: pre-check sandbox availability on mount so it's ready instantly
+  useEffect(() => {
+    if (projectId && sandboxAvailableRef.current === null) {
+      fetch('/api/sandbox?check=true')
+        .then(res => res.json())
+        .then(data => { sandboxAvailableRef.current = data.available === true })
+        .catch(() => { sandboxAvailableRef.current = false })
+    }
+  }, [projectId])
+
   // Cache sandbox URL when it's live so we can show it after sandbox dies
   useEffect(() => {
     if (sandboxUrl && sandboxStatus === 'running') {
@@ -631,7 +641,7 @@ export function PreviewPanel({ files, projectId, onFixErrors, onCapturePreview }
 
       hasAutoStartedRef.current = true
       startSandbox()
-    }, 1500) // 1.5s debounce — fast enough to feel instant, slow enough to batch rapid writes
+    }, 500) // 0.5s debounce — start sandbox as fast as possible
 
     return () => {
       if (autoStartTimeoutRef.current) clearTimeout(autoStartTimeoutRef.current)
@@ -1318,6 +1328,25 @@ export function PreviewPanel({ files, projectId, onFixErrors, onCapturePreview }
                   </button>
                 </div>
               </div>
+            </div>
+          )}
+
+          {/* Floating Fix with AI button — visible when console has errors, regardless of console panel state */}
+          {!showConsole && consoleLogs.some(e => e.level === 'error') && onFixErrors && (
+            <div className="absolute top-3 right-3 z-20 animate-fade-in">
+              <button
+                onClick={() => {
+                  const errors = consoleLogs
+                    .filter(e => e.level === 'error')
+                    .map(e => e.message)
+                    .join('\n')
+                  onFixErrors(`The preview has runtime errors. Please fix them:\n\n\`\`\`\n${errors}\n\`\`\``)
+                }}
+                className="flex items-center gap-2 px-3 py-2 bg-red-500 hover:bg-red-600 text-white text-xs font-medium rounded-lg shadow-lg transition-colors"
+              >
+                <AlertTriangle className="w-3.5 h-3.5" />
+                <span>Fix {Math.min(consoleLogs.filter(e => e.level === 'error').length, 9)} error{consoleLogs.filter(e => e.level === 'error').length !== 1 ? 's' : ''} with AI</span>
+              </button>
             </div>
           )}
 

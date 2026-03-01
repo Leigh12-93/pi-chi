@@ -199,7 +199,9 @@ export function Workspace({
   const handleFileSelect = useCallback((path: string) => {
     onFileSelect(path)
     setOpenFiles(prev => prev.includes(path) ? prev : [...prev, path])
-    setMobileTab('code')
+    // Only switch to code tab if user is on files tab (manual browsing)
+    // Don't switch if on chat or preview — let smart switching handle it
+    setMobileTab(prev => prev === 'files' ? 'code' : prev)
   }, [onFileSelect])
 
   handleFileSelectRef.current = handleFileSelect
@@ -447,6 +449,47 @@ export function Workspace({
     { key: 'f', ctrlKey: true, action: () => setShowFileSearch(prev => !prev), description: 'Search in files' },
   ])
 
+  // ─── Smart mobile view switching ─────────────────────────────
+  // Track when files are created/modified by AI and auto-switch to preview on mobile.
+  // Stays on chat if the user is actively typing or if there are errors.
+  const prevFileCountRef = useRef(Object.keys(files).length)
+  const mobileAutoSwitchTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const userInteractingRef = useRef(false)
+
+  // Mark user as interacting when they explicitly switch tabs
+  const handleMobileTabSwitch = useCallback((tab: MobileTab) => {
+    userInteractingRef.current = true
+    setMobileTab(tab)
+    // Reset after 10s — so auto-switching resumes once user is idle
+    setTimeout(() => { userInteractingRef.current = false }, 10000)
+  }, [])
+
+  useEffect(() => {
+    const currentCount = Object.keys(files).length
+    const prevCount = prevFileCountRef.current
+    prevFileCountRef.current = currentCount
+
+    // Only auto-switch on mobile when NOT in preview and files were added/modified
+    if (currentCount > prevCount && currentCount >= 3 && mobileTab === 'chat' && !userInteractingRef.current) {
+      // Debounce to avoid flickering during rapid AI writes
+      if (mobileAutoSwitchTimerRef.current) clearTimeout(mobileAutoSwitchTimerRef.current)
+      mobileAutoSwitchTimerRef.current = setTimeout(() => {
+        setMobileTab('preview')
+      }, 3000) // Wait 3s for AI to finish the current batch before switching
+    }
+
+    return () => {
+      if (mobileAutoSwitchTimerRef.current) clearTimeout(mobileAutoSwitchTimerRef.current)
+    }
+  }, [files, mobileTab])
+
+  // Auto-switch back to chat when a pending chat message is set (error fix, deploy feedback, etc.)
+  useEffect(() => {
+    if (pendingChatMessage && mobileTab !== 'chat') {
+      setMobileTab('chat')
+    }
+  }, [pendingChatMessage, mobileTab])
+
   const paletteCommands = useMemo(() => [
     { id: 'save', label: 'Save Project', description: 'Save all files to database', shortcut: 'Ctrl+S', icon: Save, category: 'actions' as const, action: handleSave },
     { id: 'deploy', label: 'Deploy to Vercel', description: 'Create production deployment', icon: Rocket, category: 'actions' as const, action: () => setActiveDialog('deploy') },
@@ -684,14 +727,14 @@ export function Workspace({
               </div>
             </div>
           )}
-          {mobileTab === 'preview' && <PreviewPanel files={files} projectId={projectId} onFixErrors={(msg) => { setPendingChatMessage(msg); setMobileTab('chat') }} onCapturePreview={(msg) => { setPendingChatMessage(msg); setMobileTab('chat') }} />}
+          {mobileTab === 'preview' && <PreviewPanel files={files} projectId={projectId} onFixErrors={(msg) => { setPendingChatMessage(msg) }} onCapturePreview={(msg) => { setPendingChatMessage(msg) }} />}
         </div>
 
         <div className="flex items-center justify-around border-t border-forge-border bg-forge-panel py-1.5 shrink-0 safe-bottom">
           {MOBILE_TABS.map(tab => (
             <button
               key={tab.id}
-              onClick={() => setMobileTab(tab.id)}
+              onClick={() => handleMobileTabSwitch(tab.id)}
               className={cn(
                 'flex flex-col items-center gap-0.5 px-4 py-2 rounded-xl transition-all min-w-[64px] min-h-[48px] focus:outline-none focus-visible:ring-2 focus-visible:ring-forge-accent/50 active:scale-95',
                 mobileTab === tab.id
