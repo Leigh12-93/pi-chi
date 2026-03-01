@@ -104,6 +104,21 @@ export async function vercelDeploy(name: string, files: Record<string, string>, 
     return { url: deployUrl, id: deployId, readyState: state, note: 'Build still in progress. Use check_task_status or forge_deployment_status to check later.' }
   }
 
+  // Fetch the stable project URL (alias) in addition to the unique deployment URL
+  let productionUrl = deployUrl
+  try {
+    const aliasRes = await fetch(`https://api.vercel.com/v9/projects/${deployName}${teamParam}`, {
+      headers: { Authorization: `Bearer ${VERCEL_TOKEN}` },
+    })
+    if (aliasRes.ok) {
+      const projectData = await aliasRes.json()
+      const aliases = projectData.targets?.production?.alias || projectData.alias || []
+      if (aliases.length > 0) {
+        productionUrl = `https://${aliases[0]}`
+      }
+    }
+  } catch { /* non-critical — fall back to deployment URL */ }
+
   await progress('Finalizing...')
-  return { url: deployUrl, id: deployId, readyState: state, framework: fw, fileCount: Object.keys(files).length }
+  return { url: productionUrl, deployUrl, id: deployId, readyState: state, framework: fw, fileCount: Object.keys(files).length }
 }

@@ -74,6 +74,16 @@ const TOOL_LABELS: Record<string, { label: string; Icon: LucideIcon; color: stri
   check_task_status: { label: 'Checking task', Icon: RefreshCw, color: 'blue' },
   grep_files: { label: 'Grepping files', Icon: BookOpen, color: 'purple' },
   add_dependency: { label: 'Adding package', Icon: Package, color: 'green' },
+  validate_file: { label: 'Validating file', Icon: CheckCircle, color: 'green' },
+  check_coherence: { label: 'Checking coherence', Icon: Search, color: 'purple' },
+  capture_preview: { label: 'Capturing preview', Icon: Eye, color: 'cyan' },
+  generate_tests: { label: 'Generating tests', Icon: FileText, color: 'indigo' },
+  check_dependency_health: { label: 'Checking package health', Icon: Package, color: 'yellow' },
+  search_references: { label: 'Searching references', Icon: BookOpen, color: 'purple' },
+  get_reference_code: { label: 'Loading reference', Icon: BookOpen, color: 'blue' },
+  save_preference: { label: 'Saving preference', Icon: Save, color: 'green' },
+  load_preferences: { label: 'Loading preferences', Icon: Database, color: 'blue' },
+  set_custom_domain: { label: 'Setting domain', Icon: Globe, color: 'blue' },
 }
 
 const MODEL_OPTIONS = [
@@ -348,7 +358,8 @@ function getToolSummary(toolName: string, args: Record<string, unknown>, result:
     case 'create_project': return args.template ? `${args.template} template` : 'Scaffolding...'
     case 'github_create_repo': return args.repoName ? `${args.repoName}` : 'Creating...'
     case 'github_push_update': return data?.ok ? `${data.filesCount} files pushed` : 'Pushing...'
-    case 'deploy_to_vercel': return data?.url ? `${data.url}` : 'Deploying...'
+    case 'deploy_to_vercel': return data?.url ? `Live at ${data.url}` : 'Deploying...'
+    case 'set_custom_domain': return data?.ok ? `${args.domain} configured` : (data?.error ? `Failed: ${String(data.error).slice(0, 60)}` : `Setting ${args.domain}...`)
     case 'list_files': return data ? `${data.count || 0} files` : 'Listing...'
     case 'search_files': return data ? `${data.count || 0} matches` : 'Searching...'
     case 'grep_files': return data ? `${data.count || 0} matches for /${args.pattern}/` : `Grepping /${args.pattern}/...`
@@ -1334,6 +1345,35 @@ export function ChatPanel({ projectName, projectId, files, onFileChange, onFileD
             onFileDelete(path)
           }
         }
+
+        // Handle capture_preview — trigger screenshot of preview iframe
+        if (inv.toolName === 'capture_preview' && inv.state === 'result') {
+          const captureKey = `capture:${msg.id}:${i}`
+          if (!processedInvs.current.has(captureKey)) {
+            processedInvs.current.add(captureKey)
+            try {
+              const iframe = document.getElementById('forge-preview-iframe') as HTMLIFrameElement | null
+              if (iframe?.contentDocument?.body) {
+                // Capture the iframe's inner HTML as a text summary for AI review
+                const body = iframe.contentDocument.body
+                const html = body.innerHTML.slice(0, 3000)
+                const textContent = body.innerText.slice(0, 1500)
+                const styles = Array.from(body.querySelectorAll('[class]'))
+                  .slice(0, 20)
+                  .map(el => `<${el.tagName.toLowerCase()} class="${el.className}">`)
+                  .join('\n')
+                append({
+                  role: 'user',
+                  content: `[Preview Capture — DOM snapshot for visual review]\n\nVisible text:\n${textContent}\n\nElement structure (first 20 styled elements):\n${styles}\n\nRaw HTML (truncated):\n\`\`\`html\n${html}\n\`\`\``,
+                })
+              } else {
+                toast.info('Preview capture: iframe not accessible (cross-origin or not loaded)')
+              }
+            } catch {
+              // Silently fail — capture is best-effort
+            }
+          }
+        }
       }
     }
   }, [messages, onBulkFileUpdate, onFileDelete])
@@ -1443,6 +1483,14 @@ export function ChatPanel({ projectName, projectId, files, onFileChange, onFileD
     if (usageEntries.length === 0) return 0
     const last = usageEntries[usageEntries.length - 1] as Record<string, unknown>
     return (last?.totalTokens as number) || 0
+  }, [data])
+
+  const autoRoutedModel = useMemo(() => {
+    if (!data || !Array.isArray(data)) return null
+    const suggestion = data.findLast((d: unknown) => d && typeof d === 'object' && (d as Record<string, unknown>).type === 'model_suggestion')
+    if (!suggestion) return null
+    const s = suggestion as Record<string, unknown>
+    return { model: String(s.model || ''), reason: String(s.reason || '') }
   }, [data])
 
   // Elapsed time tracking
@@ -1660,6 +1708,12 @@ export function ChatPanel({ projectName, projectId, files, onFileChange, onFileD
             </span>
           </div>
           <div className="flex items-center gap-2">
+            {autoRoutedModel && (
+              <span className="text-[10px] text-forge-text-dim/50 flex items-center gap-0.5" title={autoRoutedModel.reason}>
+                <Sparkles className="w-2.5 h-2.5" />
+                {autoRoutedModel.model.includes('haiku') ? 'Haiku' : autoRoutedModel.model.includes('opus') ? 'Opus' : 'Sonnet'}
+              </span>
+            )}
             {(realTokens || estimatedTokens) > 0 && (
               <span className="text-[10px] text-forge-text-dim/40" title={realTokens ? 'Actual API token usage' : 'Estimated token usage'}>
                 {realTokens ? '' : '~'}{(realTokens || estimatedTokens) > 1000 ? `${((realTokens || estimatedTokens) / 1000).toFixed(1)}k` : (realTokens || estimatedTokens)} tokens

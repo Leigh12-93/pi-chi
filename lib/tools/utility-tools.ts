@@ -599,7 +599,7 @@ describe('${componentName}', () => {
           method: 'POST',
           headers: { 'Content-Type': 'application/json', 'Prefer': 'resolution=merge-duplicates' },
           body: JSON.stringify({
-            github_username: ctx.projectName,
+            github_username: ctx.githubUsername || 'unknown',
             preference_key: key,
             preference_value: value,
             updated_at: new Date().toISOString(),
@@ -614,7 +614,7 @@ describe('${componentName}', () => {
       description: 'Load all saved user preferences. Call at the start of a session to personalize outputs based on learned preferences.',
       parameters: z.object({}),
       execute: async () => {
-        const result = await supabaseFetch(`/forge_user_preferences?github_username=eq.${encodeURIComponent(ctx.projectName)}&order=updated_at.desc`)
+        const result = await supabaseFetch(`/forge_user_preferences?github_username=eq.${encodeURIComponent(ctx.githubUsername || 'unknown')}&order=updated_at.desc`)
         if (!result.ok) return { error: `Failed to load preferences: ${JSON.stringify(result.data)}` }
         const prefs = Array.isArray(result.data) ? result.data : []
         if (prefs.length === 0) return { preferences: [], message: 'No saved preferences yet. Learn and save them as you work.' }

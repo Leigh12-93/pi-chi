@@ -296,6 +296,49 @@ export function createDeployTools(ctx: ToolContext) {
       },
     }),
 
+    set_custom_domain: tool({
+      description: 'Set or check a custom domain for a Vercel deployment. Users can add their own domain to their deployed project.',
+      parameters: z.object({
+        domain: z.string().describe('The custom domain to add (e.g., "myapp.com" or "app.mysite.com")'),
+        projectName: z.string().optional().describe('Vercel project name (defaults to current project)'),
+      }),
+      execute: async ({ domain, projectName: pName }) => {
+        const token = VERCEL_TOKEN
+        if (!token) return { error: 'No Vercel deploy token configured' }
+        const name = (pName || ctx.projectName).replace(/\s+/g, '-').toLowerCase().replace(/[^a-z0-9-]/g, '').slice(0, 52)
+        const teamParam = VERCEL_TEAM ? `?teamId=${VERCEL_TEAM}` : ''
+
+        try {
+          const res = await fetch(`https://api.vercel.com/v10/projects/${name}/domains${teamParam}`, {
+            method: 'POST',
+            headers: {
+              Authorization: `Bearer ${token}`,
+              'Content-Type': 'application/json',
+            },
+            signal: AbortSignal.timeout(ctx.defaultTimeout),
+            body: JSON.stringify({ name: domain }),
+          })
+          const data = await res.json()
+          if (!res.ok) {
+            if (data.error?.code === 'domain_already_in_use') {
+              return { error: `Domain "${domain}" is already in use by another Vercel project. Remove it there first or use a different domain.` }
+            }
+            return { error: data.error?.message || `Vercel API ${res.status}` }
+          }
+          return {
+            ok: true,
+            domain,
+            verified: data.verified || false,
+            note: data.verified
+              ? `Domain "${domain}" added and verified! Your site is live at https://${domain}`
+              : `Domain "${domain}" added. You need to configure DNS:\n- Add a CNAME record pointing "${domain}" to "cname.vercel-dns.com"\n- Or add an A record pointing to 76.76.21.21\nOnce DNS propagates, the domain will be verified automatically.`,
+          }
+        } catch (err) {
+          return { error: `Failed to set domain: ${err instanceof Error ? err.message : 'unknown error'}` }
+        }
+      },
+    }),
+
     sandbox_status: tool({
       description: 'Check the status of the preview sandbox for the current project.',
       parameters: z.object({}),
