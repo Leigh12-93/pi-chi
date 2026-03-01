@@ -170,6 +170,64 @@ function BuildPhaseIndicator({ phase }: { phase: BuildPhase }) {
   )
 }
 
+/** Detect missing imports in project files — catches errors BEFORE they crash the sandbox */
+function detectMissingImports(files: Record<string, string>): string[] {
+  const filePaths = new Set(Object.keys(files))
+  const errors: string[] = []
+
+  // Build a set of resolvable paths (with common extensions)
+  const resolvable = new Set<string>()
+  for (const p of filePaths) {
+    resolvable.add(p)
+    // Strip extensions for bare import matching
+    resolvable.add(p.replace(/\.(tsx?|jsx?|mjs|cjs)$/, ''))
+    // Also add /index variants
+    const dir = p.replace(/\/index\.(tsx?|jsx?|mjs|cjs)$/, '')
+    if (dir !== p) resolvable.add(dir)
+  }
+
+  for (const [filePath, content] of Object.entries(files)) {
+    if (!filePath.match(/\.(tsx?|jsx?|mjs)$/)) continue
+
+    // Match: import ... from '@/...' or from './' or from '../'
+    const importRegex = /import\s+(?:[\w{},\s*]+)\s+from\s+['"](@\/[^'"]+|\.\.?\/[^'"]+)['"]/g
+    let match: RegExpExecArray | null
+    while ((match = importRegex.exec(content)) !== null) {
+      let importPath = match[1]
+
+      // Resolve @/ to root
+      if (importPath.startsWith('@/')) {
+        importPath = importPath.slice(2)
+      } else {
+        // Resolve relative imports
+        const dir = filePath.split('/').slice(0, -1).join('/')
+        const parts = importPath.split('/')
+        const resolved: string[] = dir ? dir.split('/') : []
+        for (const part of parts) {
+          if (part === '..') resolved.pop()
+          else if (part !== '.') resolved.push(part)
+        }
+        importPath = resolved.join('/')
+      }
+
+      // Check if it resolves to an existing file
+      if (!resolvable.has(importPath) &&
+          !resolvable.has(importPath + '/index') &&
+          !filePaths.has(importPath + '.ts') &&
+          !filePaths.has(importPath + '.tsx') &&
+          !filePaths.has(importPath + '.js') &&
+          !filePaths.has(importPath + '.jsx')) {
+        // Extract the component/module name from the import statement
+        const nameMatch = match[0].match(/import\s+(?:{?\s*(\w+)[\s,}]|(\w+))/)
+        const name = nameMatch?.[1] || nameMatch?.[2] || importPath.split('/').pop()
+        errors.push(`Missing module: "${match[1]}" imported in ${filePath} (${name} not found)`)
+      }
+    }
+  }
+
+  return [...new Set(errors)] // dedup
+}
+
 /** Known sandbox/browser noise patterns that are NOT fixable by editing user code */
 const SANDBOX_NOISE_PATTERNS = [
   /tracking prevention/i,                        // Edge Tracking Prevention
@@ -246,10 +304,16 @@ export function PreviewPanel({ files, projectId, onFixErrors, onCapturePreview }
   useEffect(() => { consoleLogsRef.current = consoleLogs }, [consoleLogs])
   useEffect(() => { onFixErrorsRef.current = onFixErrors }, [onFixErrors])
 
+  // Missing imports detected in project files
+  const [missingImports, setMissingImports] = useState<string[]>([])
+  const missingImportsFedRef = useRef(false) // only auto-feed once per set of missing imports
+
   // Clear error autofeed state on project switch
   useEffect(() => {
     errorAutoFeedRef.current.clear()
     lastAutoFeedRef.current = 0
+    missingImportsFedRef.current = false
+    setMissingImports([])
   }, [projectId])
 
   const addLog = useCallback((msg: string, level: ConsoleEntry['level'] = 'system', source: ConsoleEntry['source'] = 'forge') => {
@@ -769,10 +833,26 @@ export function PreviewPanel({ files, projectId, onFixErrors, onCapturePreview }
   useEffect(() => {
     const h = hashFileMapDeep(files)
     if (prevFileHashRef.current && h !== prevFileHashRef.current) {
-      // Files changed — give the new code a chance, but don't fully reset
-      // (the 3-attempt cap per error message still applies)
+      // Files changed — re-scan for missing imports
+      missingImportsFedRef.current = false
     }
     prevFileHashRef.current = h
+
+    // Scan for missing imports (debounced naturally by file hash check)
+    const missing = detectMissingImports(files)
+    setMissingImports(missing)
+
+    // Auto-feed missing imports to AI (once per unique set)
+    if (missing.length > 0 && !missingImportsFedRef.current && onFixErrorsRef.current) {
+      missingImportsFedRef.current = true
+      const errorText = missing.join('\n')
+      // Small delay to let the AI finish current tool calls
+      setTimeout(() => {
+        onFixErrorsRef.current?.(`[Auto-detected missing imports]\n\nThe preview is crashing because of missing component files. Please create the missing files:\n\n\`\`\`\n${errorText}\n\`\`\`\n\nCreate each missing component with a proper default export. This is blocking the live preview.`)
+      }, 3000)
+    } else if (missing.length === 0) {
+      setMissingImports([])
+    }
   }, [files])
 
   // Cleanup timer on unmount
@@ -1176,6 +1256,39 @@ export function PreviewPanel({ files, projectId, onFixErrors, onCapturePreview }
                 <span className="text-[10px] text-forge-text-dim/60">
                   {Object.keys(files).length} files detected
                 </span>
+              </div>
+            </div>
+          )}
+
+          {/* Missing imports overlay — shown when files have dangling imports */}
+          {missingImports.length > 0 && (isSandboxActive || isSandboxLoading) && (
+            <div className="absolute inset-0 z-20 flex items-center justify-center bg-forge-bg/80 backdrop-blur-sm animate-fade-in">
+              <div className="bg-forge-bg border border-red-300 dark:border-red-500/40 rounded-xl p-5 shadow-xl max-w-sm mx-4">
+                <div className="flex items-start gap-3">
+                  <div className="w-9 h-9 rounded-lg bg-red-500/10 flex items-center justify-center shrink-0">
+                    <AlertTriangle className="w-5 h-5 text-red-500" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-medium text-forge-text">Missing Components</p>
+                    <p className="text-xs text-forge-text-dim mt-1">The preview crashed because imported files don&apos;t exist yet:</p>
+                    <div className="mt-2 space-y-1 max-h-32 overflow-y-auto">
+                      {missingImports.slice(0, 5).map((err, i) => (
+                        <div key={i} className="text-[11px] font-mono text-red-500 dark:text-red-400 bg-red-500/5 rounded px-2 py-1">
+                          {err.replace(/^Missing module: /, '')}
+                        </div>
+                      ))}
+                      {missingImports.length > 5 && (
+                        <div className="text-[10px] text-forge-text-dim">+{missingImports.length - 5} more</div>
+                      )}
+                    </div>
+                    <div className="mt-3 flex items-center gap-2">
+                      <div className="flex items-center gap-1.5 text-[10px] text-forge-accent">
+                        <Loader2 className="w-3 h-3 animate-spin" />
+                        <span>AI is creating missing files...</span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
               </div>
             </div>
           )}
