@@ -14,38 +14,65 @@ import { getToolSummary, type ToolInvocation } from '@/lib/chat/tool-utils'
 import { cachedRenderMarkdown } from '@/lib/chat/markdown'
 import { ThinkPanel } from './think-panel'
 import { EnvVarInputCard } from './env-var-input-card'
-import { CollapsibleToolGroup, groupToolInvocations } from './tool-group'
+import { CollapsibleToolGroup, groupToolInvocations, type RenderItem } from './tool-group'
+
+/** A single part from the AI SDK message (v4 or v6 format) */
+interface MessagePart {
+  type: string
+  text?: string
+  toolName?: string
+  state?: string
+  input?: Record<string, unknown>
+  output?: unknown
+  errorText?: string
+  toolInvocation?: ToolInvocation
+  // File attachment parts
+  mediaType?: string
+  url?: string
+  filename?: string
+}
 
 /** Extract a ToolInvocation from a part, handling both v4 and v6 formats */
-function extractToolInvocation(part: any): ToolInvocation | null {
+function extractToolInvocation(part: Record<string, unknown>): ToolInvocation | null {
   // v4 format: part.toolInvocation
-  if (part.toolInvocation) return part.toolInvocation
+  if (part.toolInvocation) return part.toolInvocation as ToolInvocation
   // v6 format: part itself has toolName, state, input, output
   if (part.toolName) {
+    const state = part.state as string
     return {
-      toolName: part.toolName,
-      state: part.state === 'output-available' ? 'result'
-        : part.state === 'input-available' ? 'call'
-        : part.state === 'output-error' ? 'result'
-        : part.state || 'result',
-      args: part.input || {},
-      result: part.state === 'output-error' ? { error: part.errorText || 'Tool error' } : part.output,
+      toolName: part.toolName as string,
+      state: state === 'output-available' ? 'result'
+        : state === 'input-available' ? 'call'
+        : state === 'output-error' ? 'result'
+        : state || 'result',
+      args: (part.input as Record<string, unknown>) || {},
+      result: state === 'output-error'
+        ? { error: (part.errorText as string) || 'Tool error' }
+        : part.output as Record<string, unknown> | undefined,
     }
   }
   return null
 }
 
+/** Message shape expected by this component — uses Record for broad compatibility with UIMessage */
+interface ChatMessage {
+  id: string
+  role: string
+  content?: string
+  parts?: Array<Record<string, unknown>>
+}
+
 /** Get text from message (supports both v4 content and v6 parts) */
-function getTextContent(message: any): string {
+function getTextContent(message: ChatMessage): string {
   if (typeof message.content === 'string') return message.content
   if (Array.isArray(message.parts)) {
-    return message.parts.filter((p: any) => p.type === 'text').map((p: any) => p.text || '').join('')
+    return message.parts.filter((p) => p.type === 'text').map((p) => (p.text as string) || '').join('')
   }
   return ''
 }
 
 export interface MessageItemProps {
-  message: { id: string; role: string; content?: string; parts?: Array<any> }
+  message: ChatMessage
   copiedId: string | null
   isEditing: boolean
   editingContent: string
@@ -68,7 +95,7 @@ export const MessageItem = memo(function MessageItem({
 }: MessageItemProps) {
   const isUser = message.role === 'user'
   const textContent = getTextContent(message)
-  const parts = (message as any).parts as Array<any> | undefined
+  const parts = message.parts
 
   const showStreamingCursor = isLoading && isLast && !isUser
 
@@ -109,18 +136,23 @@ export const MessageItem = memo(function MessageItem({
             </div>
             <div className="px-4 py-2.5 rounded-2xl rounded-br-md bg-forge-surface border border-forge-border text-[13.5px] text-forge-text leading-relaxed shadow-sm transition-shadow hover:shadow-md">
               {textContent}
-              {parts?.filter(p => p.type === 'file').map((filePart: any, fi: number) => (
-                <div key={fi} className="mt-1.5">
-                  {filePart.mediaType?.startsWith('image/') ? (
-                    <img src={filePart.url} alt={filePart.filename || 'image'} className="max-w-[200px] max-h-[150px] rounded-lg border border-forge-border" />
-                  ) : (
-                    <div className="inline-flex items-center gap-1 px-2 py-1 bg-forge-bg/50 border border-forge-border rounded-md text-[10px] text-forge-text-dim">
-                      <Paperclip className="w-3 h-3" />
-                      {filePart.filename || 'Attached file'}
-                    </div>
-                  )}
-                </div>
-              ))}
+              {parts?.filter(p => p.type === 'file').map((filePart, fi) => {
+                const mType = filePart.mediaType as string | undefined
+                const fUrl = filePart.url as string | undefined
+                const fName = filePart.filename as string | undefined
+                return (
+                  <div key={fi} className="mt-1.5">
+                    {mType?.startsWith('image/') ? (
+                      <img src={fUrl} alt={fName || 'image'} className="max-w-[200px] max-h-[150px] rounded-lg border border-forge-border" />
+                    ) : (
+                      <div className="inline-flex items-center gap-1 px-2 py-1 bg-forge-bg/50 border border-forge-border rounded-md text-[10px] text-forge-text-dim">
+                        <Paperclip className="w-3 h-3" />
+                        {fName || 'Attached file'}
+                      </div>
+                    )}
+                  </div>
+                )
+              })}
             </div>
           </div>
         )
@@ -128,8 +160,8 @@ export const MessageItem = memo(function MessageItem({
         <div className="space-y-2 group/assistant">
           {(() => {
           // Detect tool parts: both v4 (type==='tool-invocation') and v6 (type starts with 'tool-')
-          const isToolPart = (p: any) => p.type === 'tool-invocation' || (p.type?.startsWith('tool-') && p.type !== 'text')
-          const getToolName = (p: any) => p.toolInvocation?.toolName || p.toolName || p.type?.replace(/^tool-/, '') || ''
+          const isToolPart = (p: Record<string, unknown>) => p.type === 'tool-invocation' || (typeof p.type === 'string' && p.type?.startsWith('tool-') && p.type !== 'text')
+          const getToolName = (p: Record<string, unknown>) => (p.toolInvocation as ToolInvocation | undefined)?.toolName || (p.toolName as string) || (typeof p.type === 'string' ? p.type?.replace(/^tool-/, '') : '') || ''
 
           let lastCheckIdx = -1
           for (let i = parts.length - 1; i >= 0; i--) {
@@ -150,13 +182,14 @@ export const MessageItem = memo(function MessageItem({
 
           let lastTextItemIdx = -1
           for (let gi = grouped.length - 1; gi >= 0; gi--) {
-            if (grouped[gi].type === 'part' && (grouped[gi] as any).part.type === 'text') {
+            const gItem = grouped[gi]
+            if (gItem.type === 'part' && gItem.part.type === 'text') {
               lastTextItemIdx = gi
               break
             }
           }
 
-          return grouped.map((item, itemIdx) => {
+          return grouped.map((item: RenderItem, itemIdx: number) => {
             if (item.type === 'tool-group') {
               return <CollapsibleToolGroup key={`group-${itemIdx}`} tools={item.tools} />
             }
@@ -436,10 +469,12 @@ export const MessageItem = memo(function MessageItem({
   if (pp && np) {
     for (let i = 0; i < pp.length; i++) {
       // v6: compare state directly on part or via toolInvocation
-      const pState = pp[i]?.state || pp[i]?.toolInvocation?.state
-      const nState = np[i]?.state || np[i]?.toolInvocation?.state
+      const pPart = pp[i] as Record<string, unknown> | undefined
+      const nPart = np[i] as Record<string, unknown> | undefined
+      const pState = (pPart?.state as string) || (pPart?.toolInvocation as ToolInvocation | undefined)?.state
+      const nState = (nPart?.state as string) || (nPart?.toolInvocation as ToolInvocation | undefined)?.state
       if (pState !== nState) return false
-      if (pp[i]?.text !== np[i]?.text) return false
+      if ((pPart?.text as string) !== (nPart?.text as string)) return false
     }
   }
   const prevCopied = prev.copiedId !== null && prev.copiedId.startsWith(prev.message.id)

@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { getLanguageFromPath } from '@/lib/utils'
 
 interface StatusBarProps {
@@ -33,12 +33,14 @@ export function StatusBar({ activeFile, fileCount, framework, saveStatus = 'idle
   // Track displayed status with crossfade: fade out old, then fade in new
   const [displayed, setDisplayed] = useState(saveStatus)
   const [visible, setVisible] = useState(saveStatus !== 'idle')
+  const displayedRef = useRef(displayed)
+  displayedRef.current = displayed
 
   useEffect(() => {
     if (saveStatus === 'idle') {
       // Fade out then clear
       setVisible(false)
-    } else if (saveStatus !== displayed) {
+    } else if (saveStatus !== displayedRef.current) {
       // Fade out, swap text, fade in
       setVisible(false)
       const timer = setTimeout(() => {
@@ -49,7 +51,7 @@ export function StatusBar({ activeFile, fileCount, framework, saveStatus = 'idle
     } else {
       setVisible(true)
     }
-  }, [saveStatus]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [saveStatus])
 
   const info = SAVE_TEXT[displayed]
 

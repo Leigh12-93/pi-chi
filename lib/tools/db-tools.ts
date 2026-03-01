@@ -98,12 +98,10 @@ export function createDbTools(ctx: ToolContext) {
             return result.ok ? { ok: true, data: result.data } : { error: JSON.stringify(result.data) }
           }
           case 'upsert': {
-            const headers: Record<string, string> = {}
-            if (onConflict) headers['Prefer'] = `return=representation,resolution=merge-duplicates`
             const queryStr = onConflict ? `?on_conflict=${onConflict}` : ''
             const result = await supabaseFetch(`${path}${queryStr}`, {
               method: 'POST',
-              headers,
+              headers: { 'Prefer': 'return=representation,resolution=merge-duplicates' },
               body: JSON.stringify(data),
             })
             return result.ok ? { ok: true, data: result.data } : { error: JSON.stringify(result.data) }
@@ -197,8 +195,10 @@ export function createDbTools(ctx: ToolContext) {
             .map((f: any) => f.path)
             .filter((p: string) => !filePaths.includes(p))
 
-          for (const p of pathsToDelete) {
-            await supabaseFetch(`/forge_project_files?project_id=eq.${projectId}&path=eq.${encodeURIComponent(p)}`, {
+          if (pathsToDelete.length > 0) {
+            // Batch delete in a single request using PostgREST .in() filter
+            const encoded = pathsToDelete.map((p: string) => `"${p.replace(/"/g, '\\"')}"`).join(',')
+            await supabaseFetch(`/forge_project_files?project_id=eq.${projectId}&path=in.(${encoded})`, {
               method: 'DELETE',
             })
           }

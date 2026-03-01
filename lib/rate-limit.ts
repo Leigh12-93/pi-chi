@@ -20,7 +20,7 @@ export function rateLimit(
     const now = Date.now()
 
     // Lazy cleanup: evict expired entries on each call (O(n) but n is small — IPs with active sessions)
-    if (store.size > 500) {
+    if (store.size > 100) {
       for (const [key, entry] of store) {
         if (now > entry.resetAt) store.delete(key)
       }

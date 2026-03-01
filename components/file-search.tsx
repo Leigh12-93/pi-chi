@@ -18,6 +18,24 @@ interface SearchResult {
   matchEnd: number
 }
 
+/** Highlight all occurrences of query in text, case-insensitive */
+function HighlightedText({ text, query }: { text: string; query: string }) {
+  if (!query) return <>{text}</>
+  const escaped = query.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+  const parts = text.split(new RegExp(`(${escaped})`, 'gi'))
+  return (
+    <>
+      {parts.map((part, i) =>
+        part.toLowerCase() === query.toLowerCase() ? (
+          <mark key={i} className="bg-forge-accent/30 text-forge-text">{part}</mark>
+        ) : (
+          <span key={i}>{part}</span>
+        )
+      )}
+    </>
+  )
+}
+
 export function FileSearch({ files, onResultClick, open, onClose }: FileSearchProps) {
   const [query, setQuery] = useState('')
   const inputRef = useRef<HTMLInputElement>(null)
@@ -104,7 +122,9 @@ export function FileSearch({ files, onResultClick, open, onClose }: FileSearchPr
                   <span className="font-medium text-forge-text truncate">{result.path}</span>
                   <span className="text-forge-text-dim shrink-0">:{result.line}</span>
                 </div>
-                <p className="text-[11px] text-forge-text-dim truncate font-mono mt-0.5">{result.text}</p>
+                <p className="text-[11px] text-forge-text-dim truncate font-mono mt-0.5">
+                  <HighlightedText text={result.text} query={query} />
+                </p>
               </div>
             </button>
           ))}

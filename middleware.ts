@@ -11,8 +11,8 @@ export function middleware(request: NextRequest) {
     `style-src 'self' 'unsafe-inline'`, // Tailwind requires this
     `img-src 'self' data: blob: https:`,
     `font-src 'self' data:`,
-    `connect-src 'self' https://api.github.com https://*.supabase.co https://api.vercel.com https://registry.npmjs.org https://api.npmjs.org https://api.unsplash.com`,
-    `frame-src 'self' blob:`, // For preview panel
+    `connect-src 'self' https://api.github.com https://*.supabase.co https://api.vercel.com https://registry.npmjs.org https://api.npmjs.org https://api.unsplash.com https://api.anthropic.com https://*.v0.dev`,
+    `frame-src 'self' blob: https://*.v0.dev https://*.vercel.app`, // For preview panel + v0 sandbox
     `object-src 'none'`,
     `base-uri 'self'`,
   ].join('; ')

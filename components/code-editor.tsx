@@ -51,7 +51,8 @@ export function CodeEditor({ path, content, onSave, onChange }: CodeEditorProps)
   const handleMount: OnMount = (editor) => {
     editorRef.current = editor
     // Ctrl+S to save
-    editor.addCommand(2097 /* KeyMod.CtrlCmd | KeyCode.KeyS */, () => {
+    // 2097 = KeyMod.CtrlCmd | KeyCode.KeyS (not imported to avoid bundling monaco-editor directly)
+    editor.addCommand(2097, () => {
       if (path) {
         const value = editor.getValue()
         onSave(path, value)

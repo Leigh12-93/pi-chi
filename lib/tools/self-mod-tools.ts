@@ -129,7 +129,7 @@ export function createSelfModTools(ctx: ToolContext) {
       description: 'Revert the last commit on a Forge feature branch. Use this when a self-modification breaks the build. Cannot revert on master/main — use a feature branch.',
       inputSchema: z.object({
         reason: z.string().describe('Why are you reverting?'),
-        branch: z.string().default('master').describe('Branch to revert on (should be a feature branch, not master)'),
+        branch: z.string().describe('Branch to revert on (must be a feature branch, not master)'),
       }),
       execute: async ({ reason, branch }) => {
         const token = GITHUB_TOKEN

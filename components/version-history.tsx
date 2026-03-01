@@ -104,7 +104,12 @@ export function VersionHistory({ open, onClose, snapshots, currentFiles, onResto
                 <div className="flex items-center justify-between mb-3">
                   <h3 className="text-xs font-medium text-forge-text">{selected.label}</h3>
                   <button
-                    onClick={() => { onRestore(selected); onClose() }}
+                    onClick={() => {
+                      if (window.confirm(`Restore snapshot "${selected.label}"? This will replace all current files.`)) {
+                        onRestore(selected)
+                        onClose()
+                      }
+                    }}
                     className="px-2.5 py-1 text-[10px] font-medium text-white bg-forge-accent rounded-lg hover:bg-forge-accent-hover transition-colors"
                   >
                     Restore

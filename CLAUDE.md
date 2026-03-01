@@ -39,7 +39,7 @@ components/
   header.tsx               Top bar with GitHub auth
   session-provider.tsx     NextAuth SessionProvider wrapper
 lib/
-  auth.ts                  NextAuth.js v5 config (GitHub OAuth, JWT)
+  auth.ts                  Custom JWT auth (AES-GCM encrypted PAT, PKCE S256 GitHub OAuth)
   supabase.ts              Supabase client + type definitions
   utils.ts                 cn(), formatRelative(), getFileIcon(), getLanguageFromPath()
   types.ts                 Project, FileNode, FileChange, ChatSession types
@@ -47,17 +47,19 @@ supabase/
   migrations/001_forge_tables.sql   Database schema (run in Supabase SQL editor)
 ```
 
-## AI Tools (25)
+## AI Tools (35+)
 
 | Category | Tools |
 |----------|-------|
-| Planning | `think`, `suggest_improvement` |
-| File ops | `write_file`, `read_file`, `edit_file`, `delete_file`, `list_files`, `search_files`, `rename_file`, `get_all_files` |
+| Planning | `think`, `suggest_improvement`, `web_search` |
+| File ops | `write_file`, `read_file`, `edit_file`, `delete_file`, `list_files`, `search_files`, `grep_files`, `rename_file`, `get_all_files` |
 | Project | `create_project` (nextjs/vite-react/static), `save_project` |
-| GitHub | `github_create_repo`, `github_push_update`, `github_read_file`, `github_list_repo_files`, `github_modify_external_file`, `github_search_code` |
+| GitHub | `github_create_repo`, `github_push_update`, `github_read_file`, `github_list_repo_files`, `github_modify_external_file`, `github_search_code`, `github_pull_latest` |
 | Deploy | `deploy_to_vercel` |
-| Database | `db_query`, `db_mutate` |
-| Self-Mod | `forge_read_own_source`, `forge_modify_own_source`, `forge_redeploy` |
+| Database | `db_query`, `db_mutate`, `db_introspect`, `save_project` |
+| Self-Mod | `forge_read_own_source`, `forge_modify_own_source`, `forge_redeploy`, `forge_revert_commit`, `forge_create_branch`, `forge_create_pr`, `forge_merge_pr`, `forge_check_npm_package`, `forge_list_branches`, `forge_delete_branch` |
+| Task Mgmt | `check_task_status` |
+| Model | `select_model` |
 
 ## Superpower Tools
 
@@ -143,9 +145,11 @@ https://supabase.com/dashboard/project/koghrdiduiuicaysvwci/sql/new
 
 ## Auth Flow
 
-1. User clicks "Sign in with GitHub" → NextAuth OAuth flow
+Custom JWT auth (AES-GCM encrypted PAT) with PKCE S256 GitHub OAuth:
+
+1. User clicks "Sign in with GitHub" → PKCE S256 OAuth flow
 2. GitHub returns access_token with `repo read:user user:email` scope
-3. Token stored in JWT via `jwt` callback → exposed in session via `session` callback
-4. Client reads `(session as any).accessToken` → passes to chat API as `body.githubToken`
+3. Token encrypted via AES-GCM into a JWT stored as an HTTP-only cookie
+4. Client reads session from `/api/auth/session` → passes to chat API as `body.githubToken`
 5. API uses user's token for GitHub ops (repos created under their account)
-6. Projects filtered by `github_username` (from `account.providerAccountId`)
+6. Projects filtered by `github_username` (from GitHub user profile)

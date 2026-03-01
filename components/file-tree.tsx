@@ -345,7 +345,8 @@ function TreeItem({
 
   const handleRename = () => {
     if (newName && newName !== node.name && onFileRename) {
-      const newPath = node.path.replace(node.name, newName)
+      const parentDir = node.path.substring(0, node.path.lastIndexOf('/') + 1)
+      const newPath = parentDir + newName
       onFileRename(node.path, newPath)
     }
     setIsRenaming(false)

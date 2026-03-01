@@ -5,8 +5,10 @@ import {
   Hammer, Sparkles, FolderOpen, Trash2,
   Github, Clock, Globe, ExternalLink, Loader2,
   Lock, Star, GitBranch, Download, GitFork, Archive, Search, X,
+  AlertTriangle,
 } from 'lucide-react'
 import { toast } from 'sonner'
+import { formatRelative } from '@/lib/utils'
 
 interface SavedProject {
   id: string
@@ -46,21 +48,6 @@ interface ProjectPickerProps {
   onRetryLoad?: () => void
 }
 
-function formatRelative(dateStr: string): string {
-  const date = new Date(dateStr)
-  const now = new Date()
-  const diff = now.getTime() - date.getTime()
-  const minutes = Math.floor(diff / 60000)
-  const hours = Math.floor(diff / 3600000)
-  const days = Math.floor(diff / 86400000)
-
-  if (minutes < 1) return 'just now'
-  if (minutes < 60) return `${minutes}m ago`
-  if (hours < 24) return `${hours}h ago`
-  if (days < 7) return `${days}d ago`
-  return date.toLocaleDateString('en-AU', { day: 'numeric', month: 'short' })
-}
-
 const FRAMEWORK_COLORS: Record<string, string> = {
   nextjs: 'bg-blue-500/15 text-blue-600 dark:text-blue-400',
   'vite-react': 'bg-purple-500/15 text-purple-600 dark:text-purple-400',
@@ -95,6 +82,7 @@ export function ProjectPicker({ onSelect, savedProjects, loadingProjects, onDele
   const [importingRepo, setImportingRepo] = useState<string | null>(null)
   const [tab, setTab] = useState<'projects' | 'github'>('projects')
   const [searchQuery, setSearchQuery] = useState('')
+  const [deleteConfirm, setDeleteConfirm] = useState<{ id: string; name: string } | null>(null)
 
   // Load GitHub repos when logged in
   useEffect(() => {
@@ -116,10 +104,15 @@ export function ProjectPicker({ onSelect, savedProjects, loadingProjects, onDele
     onSelect(projectName)
   }
 
-  const handleDelete = async (e: React.MouseEvent, id: string) => {
+  const handleDelete = (e: React.MouseEvent, project: SavedProject) => {
     e.stopPropagation()
-    if (!confirm('Delete this project? This cannot be undone.')) return
-    await onDeleteProject(id)
+    setDeleteConfirm({ id: project.id, name: project.name })
+  }
+
+  const confirmDelete = async () => {
+    if (!deleteConfirm) return
+    await onDeleteProject(deleteConfirm.id)
+    setDeleteConfirm(null)
   }
 
   const handleImportRepo = async (repo: GitHubRepo) => {
@@ -377,7 +370,7 @@ export function ProjectPicker({ onSelect, savedProjects, loadingProjects, onDele
                         </div>
 
                         <button
-                          onClick={e => handleDelete(e, project.id)}
+                          onClick={e => handleDelete(e, project)}
                           disabled={deletingId === project.id}
                           className="absolute top-3 right-3 p-1.5 rounded-lg opacity-0 group-hover:opacity-100 text-forge-text-dim hover:text-forge-danger hover:bg-forge-danger/10 transition-all"
                           title="Delete project"
@@ -475,6 +468,43 @@ export function ProjectPicker({ onSelect, savedProjects, loadingProjects, onDele
           Powered by Claude Sonnet 4 &middot; Self-improving AI &middot; GitHub + Vercel + Database
         </p>
       </div>
+
+      {/* Delete confirmation dialog */}
+      {deleteConfirm && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm animate-fade-in" onClick={() => setDeleteConfirm(null)}>
+          <div
+            className="bg-forge-surface border border-forge-border rounded-2xl p-6 w-full max-w-sm mx-4 shadow-xl animate-scale-in"
+            onClick={e => e.stopPropagation()}
+          >
+            <div className="flex items-center gap-3 mb-4">
+              <div className="w-10 h-10 rounded-xl bg-forge-danger/10 flex items-center justify-center shrink-0">
+                <AlertTriangle className="w-5 h-5 text-forge-danger" />
+              </div>
+              <div>
+                <h3 className="text-sm font-semibold text-forge-text">Delete Project?</h3>
+                <p className="text-xs text-forge-text-dim mt-0.5">This cannot be undone.</p>
+              </div>
+            </div>
+            <p className="text-xs text-forge-text-dim mb-5">
+              Are you sure you want to delete <span className="font-medium text-forge-text">{deleteConfirm.name}</span>?
+            </p>
+            <div className="flex items-center justify-end gap-2">
+              <button
+                onClick={() => setDeleteConfirm(null)}
+                className="px-4 py-2 text-xs font-medium rounded-lg border border-forge-border text-forge-text-dim hover:text-forge-text hover:bg-forge-bg transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={confirmDelete}
+                className="px-4 py-2 text-xs font-medium rounded-lg bg-forge-danger text-white hover:bg-forge-danger/90 transition-colors"
+              >
+                Delete
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

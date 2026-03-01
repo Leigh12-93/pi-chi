@@ -194,9 +194,9 @@ export function createGithubTools(ctx: ToolContext) {
         )
         if (result.error) return { error: result.error }
 
-        if (result.type === 'dir') {
-          // Return directory listing
-          const entries = (result as any[]).map((e: any) => ({
+        if (Array.isArray(result)) {
+          // GitHub returns an array for directory listings
+          const entries = result.map((e: any) => ({
             name: e.name,
             type: e.type,
             path: e.path,

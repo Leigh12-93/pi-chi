@@ -5,7 +5,7 @@ export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs))
 }
 
-export function formatRelative(dateStr: string): string {
+export function formatRelative(dateStr: string | number): string {
   const diff = Date.now() - new Date(dateStr).getTime()
   const mins = Math.floor(diff / 60000)
   if (mins < 1) return 'Just now'
@@ -40,7 +40,7 @@ export function getFileIcon(filename: string): string {
   }
 }
 
-/** Fast djb2 hash of file paths + content lengths. For sync/change detection. */
+/** Fast djb2 hash of file paths + content lengths. Shallow — same-length edits won't change hash. Use hashFileMapDeep for content-sensitive hashing. */
 export function hashFileMap(files: Record<string, string>): string {
   const keys = Object.keys(files).sort()
   let h = 5381

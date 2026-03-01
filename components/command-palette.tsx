@@ -40,17 +40,19 @@ export function CommandPalette({ open, onClose, commands }: CommandPaletteProps)
     )
   }, [commands, query])
 
-  // Group by category
-  const grouped = useMemo(() => {
-    const groups: Record<string, Command[]> = {}
+  // Group by category, pre-computing flat indices per item
+  const { grouped, flatItems } = useMemo(() => {
+    const groups: Record<string, Array<Command & { flatIndex: number }>> = {}
+    let idx = 0
     for (const cmd of filtered) {
       if (!groups[cmd.category]) groups[cmd.category] = []
-      groups[cmd.category].push(cmd)
+      groups[cmd.category].push({ ...cmd, flatIndex: idx })
+      idx++
     }
-    return groups
+    return { grouped: groups, flatItems: filtered }
   }, [filtered])
 
-  const flatFiltered = useMemo(() => filtered, [filtered])
+  const flatFiltered = flatItems
 
   // Reset on open
   useEffect(() => {
@@ -93,8 +95,6 @@ export function CommandPalette({ open, onClose, commands }: CommandPaletteProps)
     view: 'View',
   }
 
-  let flatIndex = 0
-
   return (
     <div className="fixed inset-0 z-[100] flex items-start justify-center pt-[10vh] sm:pt-[20vh]" onClick={onClose}>
       {/* Backdrop */}
@@ -136,13 +136,12 @@ export function CommandPalette({ open, onClose, commands }: CommandPaletteProps)
                   </span>
                 </div>
                 {cmds.map(cmd => {
-                  const idx = flatIndex++
-                  const isSelected = idx === selectedIndex
+                  const isSelected = cmd.flatIndex === selectedIndex
                   return (
                     <button
                       key={cmd.id}
                       onClick={() => { cmd.action(); onClose() }}
-                      onMouseEnter={() => setSelectedIndex(idx)}
+                      onMouseEnter={() => setSelectedIndex(cmd.flatIndex)}
                       className={cn(
                         'w-full flex items-center gap-3 px-4 py-3 sm:py-2 text-left transition-colors',
                         isSelected ? 'bg-forge-accent/10' : 'hover:bg-forge-surface',

@@ -219,10 +219,6 @@ export function ActionDialog({
       </div>
     </div>
   )
-
-  // Expose setResultData via a pattern where parent can set it
-  // Actually, the parent calls onConfirm which sets its own state.
-  // The dialog just shows running/success/error based on the Promise.
 }
 
 // ─── Specialized dialogs ──────────────────────────────────────

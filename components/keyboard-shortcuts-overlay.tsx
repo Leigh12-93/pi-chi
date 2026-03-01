@@ -49,10 +49,36 @@ export function KeyboardShortcutsOverlay({ open, onClose }: KeyboardShortcutsOve
     return () => window.removeEventListener('keydown', handler)
   }, [open, onClose])
 
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLDivElement>) => {
+    if (e.key === 'Escape') {
+      onClose()
+    } else if (e.key === 'Tab') {
+      // Keep focus within the modal
+      const modal = e.currentTarget
+      const focusable = modal.querySelectorAll<HTMLElement>(
+        'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])'
+      )
+      if (focusable.length === 0) return
+      const first = focusable[0]
+      const last = focusable[focusable.length - 1]
+      if (e.shiftKey) {
+        if (document.activeElement === first) {
+          e.preventDefault()
+          last.focus()
+        }
+      } else {
+        if (document.activeElement === last) {
+          e.preventDefault()
+          first.focus()
+        }
+      }
+    }
+  }
+
   if (!open) return null
 
   return (
-    <div className="fixed inset-0 z-[100] flex items-center justify-center" onClick={onClose}>
+    <div className="fixed inset-0 z-[100] flex items-center justify-center" onClick={onClose} onKeyDown={handleKeyDown}>
       <div className="absolute inset-0 bg-forge-overlay backdrop-blur-md animate-fade-in" />
       <div
         className="relative w-full max-w-md mx-4 bg-forge-bg rounded-2xl shadow-2xl border border-forge-border overflow-hidden animate-scale-in"

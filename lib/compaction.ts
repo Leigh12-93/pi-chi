@@ -106,12 +106,13 @@ export async function compactMessages(
     const summary = await generateCompactionSummary(middleText)
 
     // Create synthetic assistant message with the summary
-    const summaryMessage: UIMessage = {
+    const summaryText = `[Conversation Summary — ${middleMessages.length} messages compacted]\n${summary}`
+    const summaryMessage = {
       id: `compaction-${Date.now()}`,
       role: 'assistant' as const,
-      parts: [{ type: 'text' as const, text: `[Conversation Summary — ${middleMessages.length} messages compacted]\n${summary}` }],
-      content: '',
-    } as any
+      content: summaryText,
+      parts: [{ type: 'text' as const, text: summaryText }],
+    } as UIMessage
 
     const compacted = [...firstMessages, summaryMessage, ...recentMessages]
     const savedTokens = Math.round(
@@ -151,12 +152,12 @@ export async function compactMessages(
       `${middleMessages.filter(m => m.role === 'user').length} user messages and ${middleMessages.filter(m => m.role === 'assistant').length} assistant messages were compacted.`,
     ].filter(Boolean).join('\n')
 
-    const summaryMessage: UIMessage = {
+    const summaryMessage = {
       id: `compaction-fallback-${Date.now()}`,
       role: 'assistant' as const,
+      content: fallbackSummary,
       parts: [{ type: 'text' as const, text: fallbackSummary }],
-      content: '',
-    } as any
+    } as UIMessage
 
     const fallback = [...firstMessages, summaryMessage, ...recentMessages]
     const savedTokens = Math.round(

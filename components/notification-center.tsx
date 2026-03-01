@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef } from 'react'
 import { Bell, X, CheckCircle, AlertTriangle, Info, FileText, Rocket } from 'lucide-react'
-import { cn } from '@/lib/utils'
+import { cn, formatRelative } from '@/lib/utils'
 
 export interface Notification {
   id: string
@@ -93,7 +93,7 @@ export function NotificationCenter({ notifications, onMarkAllRead, onDismiss }: 
                         <p className="text-[10px] text-forge-text-dim truncate">{notif.description}</p>
                       )}
                       <span className="text-[9px] text-forge-text-dim/60">
-                        {formatTimeAgo(notif.timestamp)}
+                        {formatRelative(notif.timestamp)}
                       </span>
                     </div>
                     <button
@@ -113,12 +113,3 @@ export function NotificationCenter({ notifications, onMarkAllRead, onDismiss }: 
   )
 }
 
-function formatTimeAgo(timestamp: number): string {
-  const diff = Date.now() - timestamp
-  const minutes = Math.floor(diff / 60000)
-  if (minutes < 1) return 'just now'
-  if (minutes < 60) return `${minutes}m ago`
-  const hours = Math.floor(minutes / 60)
-  if (hours < 24) return `${hours}h ago`
-  return `${Math.floor(hours / 24)}d ago`
-}

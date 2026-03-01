@@ -19,46 +19,12 @@ import { VersionHistory, type Snapshot } from './version-history'
 import { DiffViewer } from './diff-viewer'
 import { NotificationCenter, type Notification } from './notification-center'
 import { useKeyboardShortcuts } from '@/lib/keyboard-shortcuts'
+import { detectFramework } from '@/lib/vercel'
 import { MessageSquare, FolderTree, Code2, Eye, Loader2, Save, Rocket, Upload, GitBranch, Download, SidebarOpen, FolderInput, Keyboard, Settings2, Search, History } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { toast } from 'sonner'
 import type { FileNode } from '@/lib/types'
-
-// Build tree structure from flat file map
-function buildTreeFromMap(files: Record<string, string>): FileNode[] {
-  const root: FileNode[] = []
-  const paths = Object.keys(files).sort()
-
-  for (const path of paths) {
-    const parts = path.split('/')
-    let current = root
-    for (let i = 0; i < parts.length; i++) {
-      const name = parts[i]
-      const isFile = i === parts.length - 1
-      const dirPath = parts.slice(0, i + 1).join('/')
-
-      if (isFile) {
-        current.push({ name, path, type: 'file' })
-      } else {
-        let dir = current.find(n => n.name === name && n.type === 'directory')
-        if (!dir) {
-          dir = { name, path: dirPath, type: 'directory', children: [] }
-          current.push(dir)
-        }
-        current = dir.children!
-      }
-    }
-  }
-
-  function sortNodes(nodes: FileNode[]): FileNode[] {
-    return nodes.sort((a, b) => {
-      if (a.type !== b.type) return a.type === 'directory' ? -1 : 1
-      return a.name.localeCompare(b.name)
-    }).map(n => n.children ? { ...n, children: sortNodes(n.children) } : n)
-  }
-
-  return sortNodes(root)
-}
+import { buildTreeFromMap } from '@/lib/virtual-fs'
 
 interface WorkspaceProps {
   projectName: string
@@ -80,23 +46,6 @@ interface WorkspaceProps {
 
 type MobileTab = 'chat' | 'files' | 'code' | 'preview'
 type DialogType = 'deploy' | 'push' | 'create-repo' | 'import' | null
-
-function detectFramework(files: Record<string, string>): string | undefined {
-  const pkg = files['package.json']
-  if (!pkg) return files['index.html'] ? 'Static' : undefined
-  try {
-    const parsed = JSON.parse(pkg)
-    const deps = { ...parsed.dependencies, ...parsed.devDependencies }
-    if (deps['next']) return 'Next.js'
-    if (deps['vite'] || deps['@vitejs/plugin-react']) return 'Vite'
-    if (deps['react']) return 'React'
-    if (deps['vue']) return 'Vue'
-    if (deps['svelte']) return 'Svelte'
-    return 'Node.js'
-  } catch {
-    return 'Node.js'
-  }
-}
 
 export function Workspace({
   projectName, projectId, files, activeFile,

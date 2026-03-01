@@ -30,6 +30,7 @@ export class VirtualFS {
   write(path: string, content: string): boolean {
     const safe = VirtualFS.sanitizePath(path)
     if (!safe) return false
+    // Note: string.length is UTF-16 code units, not bytes — approximate check
     if (content.length > VirtualFS.MAX_FILE_SIZE) return false
     this.files.set(safe, content)
     return true
@@ -136,4 +137,10 @@ function sortTree(nodes: TreeNode[]): TreeNode[] {
     if (a.type !== b.type) return a.type === 'directory' ? -1 : 1
     return a.name.localeCompare(b.name)
   }).map(n => n.children ? { ...n, children: sortTree(n.children) } : n)
+}
+
+/** Build a sorted tree from a flat file map — standalone version of VirtualFS.toTree() */
+export function buildTreeFromMap(files: Record<string, string>): TreeNode[] {
+  const fs = new VirtualFS(files)
+  return fs.toTree()
 }
