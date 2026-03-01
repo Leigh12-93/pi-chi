@@ -7,7 +7,7 @@ export async function GET(req: Request) {
   const code = url.searchParams.get('code')
   const state = url.searchParams.get('state')
   const error = url.searchParams.get('error')
-  const baseUrl = (process.env.AUTH_URL || 'https://forge-six-chi.vercel.app').trim()
+  const baseUrl = (process.env.NEXT_PUBLIC_APP_URL || (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : 'http://localhost:3333')).trim()
 
   if (error || !code) {
     return NextResponse.redirect(baseUrl + '/?error=' + (error || 'no_code'))

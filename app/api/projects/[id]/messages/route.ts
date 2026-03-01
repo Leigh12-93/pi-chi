@@ -62,7 +62,12 @@ export async function GET(
       ? messages[messages.length - 1].created_at
       : null
 
-    return Response.json({ messages: messages || [], nextCursor })
+    return new Response(JSON.stringify({ messages: messages || [], nextCursor }), {
+      headers: {
+        'Content-Type': 'application/json',
+        'Cache-Control': 'private, max-age=0, must-revalidate',
+      },
+    })
   } catch (error) {
     console.error('API error:', error)
     return Response.json({ error: 'Internal server error' }, { status: 500 })

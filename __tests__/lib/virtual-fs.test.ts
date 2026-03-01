@@ -70,6 +70,21 @@ describe('VirtualFS', () => {
     expect(tree[0].type).toBe('directory')
   })
 
+  it('rejects files exceeding max size', () => {
+    const vfs = new VirtualFS()
+    const huge = 'x'.repeat(VirtualFS.MAX_FILE_SIZE + 1)
+    const result = vfs.write('big.txt', huge)
+    expect(result).toBe(false)
+    expect(vfs.read('big.txt')).toBeUndefined()
+  })
+
+  it('accepts files within max size', () => {
+    const vfs = new VirtualFS()
+    const result = vfs.write('ok.txt', 'hello')
+    expect(result).toBe(true)
+    expect(vfs.read('ok.txt')).toBe('hello')
+  })
+
   it('deduplicates files in tree', () => {
     const vfs = new VirtualFS({ 'src/a.ts': 'a' })
     const tree = vfs.toTree()

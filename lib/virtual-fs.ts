@@ -24,10 +24,15 @@ export class VirtualFS {
     this.files = new Map(Object.entries(initial || {}))
   }
 
-  write(path: string, content: string) {
+  /** Max file size: 2 MB */
+  static MAX_FILE_SIZE = 2 * 1024 * 1024
+
+  write(path: string, content: string): boolean {
     const safe = VirtualFS.sanitizePath(path)
-    if (!safe) return
+    if (!safe) return false
+    if (content.length > VirtualFS.MAX_FILE_SIZE) return false
     this.files.set(safe, content)
+    return true
   }
 
   read(path: string): string | undefined {
