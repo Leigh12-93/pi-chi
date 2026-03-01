@@ -826,7 +826,7 @@ export function ChatPanel({ projectName, projectId, files, onFileChange, onFileD
     data,
   } = useChat({
     api: '/api/chat',
-    body: { projectName, projectId, files, githubToken, model: selectedModel, envVars },
+    body: { projectName, projectId, files, model: selectedModel, envVars },
     onError: (err) => console.error('Chat error:', err),
   })
 

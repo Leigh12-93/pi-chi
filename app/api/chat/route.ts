@@ -7,6 +7,7 @@ import { mcpClient } from '@/lib/mcp-client'
 import { createV0Sandbox, getV0SandboxStatus, destroyV0Sandbox } from '@/lib/v0-sandbox'
 import { chatLimiter } from '@/lib/rate-limit'
 import { TaskStore } from '@/lib/background-tasks'
+import { getSession } from '@/lib/auth'
 
 // ═══════════════════════════════════════════════════════════════════
 // Virtual Filesystem — lives in closure per request
@@ -819,16 +820,22 @@ export async function POST(req: Request) {
     })
   }
 
+  // Auth check — prevent unauthenticated access to the AI endpoint
+  const session = await getSession()
+  if (!session?.user) {
+    return new Response(JSON.stringify({ error: 'Authentication required. Please sign in with GitHub.' }), {
+      status: 401,
+      headers: { 'Content-Type': 'application/json' },
+    })
+  }
+
   const body = await req.json()
   const projectName = body.projectName || 'untitled'
   const projectId = body.projectId || null
   const selectedModel = body.model || 'claude-sonnet-4-20250514'
 
-  // Use user's GitHub token from OAuth if available, fall back to server PAT
-  const userGithubToken = (body.githubToken && body.githubToken !== 'null' && body.githubToken !== 'undefined')
-    ? String(body.githubToken).trim()
-    : ''
-  const effectiveGithubToken = userGithubToken || GITHUB_TOKEN
+  // Use GitHub token from session (not request body) — prevents token leaking via logs
+  const effectiveGithubToken = session.accessToken || GITHUB_TOKEN
 
   // Env vars from client (user-provided via request_env_vars card)
   const clientEnvVars: Record<string, string> = body.envVars && typeof body.envVars === 'object' ? body.envVars : {}
@@ -998,7 +1005,7 @@ export async function POST(req: Request) {
             }
             const updated = content.replace(old_string, new_string)
             vfs.write(safePath, updated)
-            return { ok: true, path: safePath, lines: updated.split('\n').length, content: updated }
+            return { ok: true, path: safePath, lines: updated.split('\n').length }
           }
 
           // ── Helper: strip each line's indent and collapse runs ───
@@ -1052,7 +1059,7 @@ export async function POST(req: Request) {
             const after = fileRawLines.slice(bestMatch.end).join('\n')
             const updated = [before, new_string, after].filter(s => s !== '').join('\n')
             vfs.write(safePath, updated)
-            return { ok: true, path: safePath, lines: updated.split('\n').length, content: updated, note: 'Matched with indent-insensitive fuzzy matching' }
+            return { ok: true, path: safePath, lines: updated.split('\n').length, note: 'Matched with indent-insensitive fuzzy matching' }
           }
 
           // ── Pass 3: Single-line whitespace-normalized match ──────
@@ -1070,7 +1077,7 @@ export async function POST(req: Request) {
                 updated[i] = new_string
                 const joined = updated.join('\n')
                 vfs.write(safePath, joined)
-                return { ok: true, path: safePath, lines: updated.length, content: joined, note: 'Matched single line with whitespace normalization' }
+                return { ok: true, path: safePath, lines: updated.length, note: 'Matched single line with whitespace normalization' }
               }
             }
           }
@@ -1102,7 +1109,7 @@ export async function POST(req: Request) {
                   const after = fileRawLines.slice(endIdx + 1).join('\n')
                   const updated = [before, new_string, after].filter(s => s !== '').join('\n')
                   vfs.write(safePath, updated)
-                  return { ok: true, path: safePath, lines: updated.split('\n').length, content: updated, note: 'Matched via subsequence (anchor lines found in order)' }
+                  return { ok: true, path: safePath, lines: updated.split('\n').length, note: 'Matched via subsequence (anchor lines found in order)' }
                 }
                 break // only try first matching end
               }
@@ -1456,7 +1463,7 @@ export async function POST(req: Request) {
       // ─── Database Operations ────────────────────────────────────
 
       db_query: tool({
-        description: 'Query the Supabase database. Read data from any table. Use PostgREST query syntax for filters. Tables you own: forge_projects, forge_project_files, forge_chat_messages, forge_deployments. Other tables in the DB: credit_packages, profiles, users, messages, etc.',
+        description: 'Query the Supabase database. Read data from forge_ tables. Use PostgREST query syntax for filters. Tables: forge_projects, forge_project_files, forge_chat_messages, forge_deployments, forge_tasks.',
         parameters: z.object({
           table: z.string().describe('Table name, e.g. "forge_projects"'),
           select: z.string().optional().describe('Columns to select, e.g. "id, name, created_at" (default: *)'),
@@ -1465,6 +1472,11 @@ export async function POST(req: Request) {
           limit: z.number().optional().describe('Max rows to return (default: 50)'),
         }),
         execute: async ({ table, select, filters, order, limit }) => {
+          // Security: restrict to forge_* tables only
+          if (!table.startsWith('forge_')) {
+            return { error: `Access denied: can only query forge_* tables, got "${table}"` }
+          }
+
           const params = new URLSearchParams()
           if (select) params.set('select', select)
           if (order) params.set('order', order)
@@ -1479,15 +1491,20 @@ export async function POST(req: Request) {
       }),
 
       db_mutate: tool({
-        description: 'Insert, update, or delete data in the Supabase database. Use for forge_ tables or any table you have access to.',
+        description: 'Insert, update, or delete data in forge_ tables in the Supabase database.',
         parameters: z.object({
           operation: z.enum(['insert', 'update', 'upsert', 'delete']).describe('Operation type'),
-          table: z.string().describe('Table name'),
+          table: z.string().describe('Table name (must start with forge_)'),
           data: z.any().optional().describe('Data to insert/update (object or array of objects)'),
           filters: z.string().optional().describe('PostgREST filter for update/delete, e.g. "id=eq.abc123"'),
           onConflict: z.string().optional().describe('For upsert: conflict column(s), e.g. "project_id,path"'),
         }),
         execute: async ({ operation, table, data, filters, onConflict }) => {
+          // Security: restrict to forge_* tables only
+          if (!table.startsWith('forge_')) {
+            return { error: `Access denied: can only mutate forge_* tables, got "${table}"` }
+          }
+
           let path = `/${table}`
           const filterStr = filters ? `?${filters}` : ''
 
@@ -1612,6 +1629,11 @@ export async function POST(req: Request) {
           const owner = 'Leigh12-93'
           const repo = 'forge'
           const branchName = branch || 'master'
+
+          // Security: block direct pushes to master — must use a branch
+          if (branchName === 'master' || branchName === 'main') {
+            return { error: 'Direct pushes to master/main are blocked. Create a branch first with forge_create_branch, push to it, then create a PR with forge_create_pr.' }
+          }
 
           // Get current file SHA (needed for update)
           const existing = await githubFetch(`/repos/${owner}/${repo}/contents/${path}?ref=${branchName}`, token)
