@@ -117,7 +117,7 @@ export function CollapsibleToolGroup({ tools }: { tools: ToolGroupData['tools'] 
       initial={{ opacity: 0, y: 4 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.2 }}
-      className="rounded-xl overflow-hidden border border-forge-border"
+      className="rounded-xl overflow-hidden border border-forge-border border-l-2 border-l-emerald-400 dark:border-l-emerald-500"
     >
       <button
         onClick={() => setExpanded(!expanded)}
@@ -134,7 +134,7 @@ export function CollapsibleToolGroup({ tools }: { tools: ToolGroupData['tools'] 
             initial={{ height: 0, opacity: 0 }}
             animate={{ height: 'auto', opacity: 1 }}
             exit={{ height: 0, opacity: 0 }}
-            transition={{ type: 'spring', stiffness: 400, damping: 30 }}
+            transition={{ type: 'spring', stiffness: 500, damping: 32 }}
             className="overflow-hidden"
           >
             <div className="border-t border-forge-border space-y-0.5 p-1.5">
@@ -147,7 +147,10 @@ export function CollapsibleToolGroup({ tools }: { tools: ToolGroupData['tools'] 
                     initial={{ opacity: 0, y: 4 }}
                     animate={{ opacity: 1, y: 0 }}
                     transition={{ duration: 0.15, delay: i * 0.03 }}
-                    className="flex items-center gap-2 px-2.5 py-1 rounded-lg text-[11px] hover:bg-forge-surface/80 transition-colors"
+                    className={cn(
+                      'flex items-center gap-2 px-2.5 py-1 rounded-lg text-[11px] hover:bg-forge-surface/80 transition-colors',
+                      i % 2 === 0 && 'bg-forge-surface/30'
+                    )}
                   >
                     <div className={cn('w-4 h-4 rounded flex items-center justify-center shrink-0', colorClasses[info.color] || colorClasses.gray)}>
                       <info.Icon className="w-2.5 h-2.5" />

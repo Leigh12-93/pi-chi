@@ -126,16 +126,16 @@ html.dark .code-block-wrapper:hover > div:first-child {
 /* ─── v0-Style Streaming Cursor ────────────────────────────── */
 @keyframes v0Blink {
   0%, 100% { opacity: 1; }
-  50% { opacity: 0; }
+  50% { opacity: 0.3; }
 }
 .streaming-cursor::after {
   content: '';
   display: inline-block;
-  width: 2px;
-  height: 1.1em;
+  width: 2.5px;
+  height: 1.15em;
   background: var(--color-forge-accent);
   vertical-align: text-bottom;
-  animation: v0Blink 1s step-end infinite;
+  animation: v0Blink 1.1s ease-in-out infinite;
   margin-left: 2px;
   border-radius: 1px;
 }
@@ -149,10 +149,10 @@ html.dark .code-block-wrapper:hover > div:first-child {
 
 /* ─── v0-Style Message Slide In ──────────────────────────── */
 @keyframes v0SlideIn {
-  from { opacity: 0; transform: translateY(6px); }
+  from { opacity: 0; transform: translateY(4px); }
   to { opacity: 1; transform: translateY(0); }
 }
-.v0-message-in { animation: v0SlideIn 0.25s cubic-bezier(0.16, 1, 0.3, 1) forwards; }
+.v0-message-in { animation: v0SlideIn 0.2s cubic-bezier(0.16, 1, 0.3, 1) forwards; }
 
 /* Animations */
 @keyframes fadeIn {
@@ -206,9 +206,9 @@ html.dark .code-block-wrapper:hover > div:first-child {
   100% { background-position: 200% 0; }
 }
 .animate-skeleton {
-  background: linear-gradient(90deg, var(--color-forge-panel) 25%, var(--color-forge-surface) 50%, var(--color-forge-panel) 75%);
+  background: linear-gradient(90deg, var(--color-forge-panel) 25%, var(--color-forge-surface-hover) 50%, var(--color-forge-panel) 75%);
   background-size: 200% 100%;
-  animation: skeleton 1.5s ease-in-out infinite;
+  animation: skeleton 2s ease-in-out infinite;
 }
 
 @keyframes progress {
@@ -218,21 +218,21 @@ html.dark .code-block-wrapper:hover > div:first-child {
 }
 .animate-progress { animation: progress 2s ease-in-out; }
 
-/* ─── 3-dot typing indicator ──────────────────────────────── */
+/* ─── 3-dot typing indicator ─────────────────���────────────── */
 @keyframes dotBounceChat {
-  0%, 80%, 100% { transform: translateY(0); opacity: 0.4; }
-  40% { transform: translateY(-4px); opacity: 1; }
+  0%, 80%, 100% { transform: translateY(0); opacity: 0.35; }
+  40% { transform: translateY(-3px); opacity: 1; }
 }
 .typing-dot {
   display: inline-block;
-  width: 4px;
-  height: 4px;
+  width: 5px;
+  height: 5px;
   border-radius: 50%;
   background: var(--color-forge-accent);
-  animation: dotBounceChat 1.2s ease-in-out infinite;
+  animation: dotBounceChat 1.4s cubic-bezier(0.45, 0, 0.55, 1) infinite;
 }
-.typing-dot:nth-child(2) { animation-delay: 0.15s; }
-.typing-dot:nth-child(3) { animation-delay: 0.3s; }
+.typing-dot:nth-child(2) { animation-delay: 0.16s; }
+.typing-dot:nth-child(3) { animation-delay: 0.32s; }
 
 /* ─── Tool chip completion pulse ──────────────────────────── */
 @keyframes chipComplete {
@@ -242,12 +242,51 @@ html.dark .code-block-wrapper:hover > div:first-child {
 }
 .animate-chip-complete { animation: chipComplete 0.3s var(--ease-spring); }
 
-/* ─── Check mark fade in ─────────────────────────────────── */
-@keyframes checkFadeIn {
-  from { opacity: 0; transform: scale(0.8); }
-  to { opacity: 0.7; transform: scale(1); }
+/* ─── Check mark bounce in ────────────────────────────────── */
+@keyframes checkBounceIn {
+  0% { opacity: 0; transform: scale(0.5); }
+  60% { opacity: 0.9; transform: scale(1.15); }
+  100% { opacity: 0.8; transform: scale(1); }
 }
-.animate-check-in { animation: checkFadeIn 0.3s var(--ease-spring) forwards; }
+.animate-check-in { animation: checkBounceIn 0.35s var(--ease-spring) forwards; }
+
+/* ─── Success glow pulse ─────────────────────────────────── */
+@keyframes successGlow {
+  0% { box-shadow: 0 0 0 0 rgba(5, 150, 105, 0.15); }
+  50% { box-shadow: 0 0 12px 2px rgba(5, 150, 105, 0.08); }
+  100% { box-shadow: 0 0 0 0 rgba(5, 150, 105, 0); }
+}
+.animate-success-glow { animation: successGlow 1.5s ease-out forwards; }
+
+/* ─── Indeterminate progress bar ─────────────────────────── */
+@keyframes indeterminate {
+  0% { left: -30%; width: 30%; }
+  50% { left: 50%; width: 30%; }
+  100% { left: 100%; width: 30%; }
+}
+.indeterminate-bar {
+  position: absolute;
+  bottom: 0;
+  left: -30%;
+  height: 2px;
+  width: 30%;
+  border-radius: 1px;
+  background: linear-gradient(90deg, transparent, var(--color-forge-accent), transparent);
+  animation: indeterminate 1.6s ease-in-out infinite;
+}
+
+/* ─── Input focus glow ────────────────────────────────────── */
+.input-focus-glow:focus-within {
+  box-shadow: 0 0 0 3px var(--color-forge-ring), 0 1px 3px 0 rgba(0,0,0,0.04);
+  border-color: var(--color-forge-accent) !important;
+}
+
+/* ─── Stop button pulse ring ─────────────────────────────── */
+@keyframes stopPulse {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.3); }
+  50% { box-shadow: 0 0 0 4px rgba(239, 68, 68, 0); }
+}
+.animate-stop-pulse { animation: stopPulse 2s ease-in-out infinite; }
 
 /* ─── Error banner shake ─────────────────────────────────── */
 @keyframes shake {

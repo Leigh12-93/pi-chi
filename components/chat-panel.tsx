@@ -20,6 +20,7 @@ export type ChatPanelProps = UseForgeChatProps
 export function ChatPanel(props: ChatPanelProps) {
   const chat = useForgeChat(props)
   const [isDraggingChat, setIsDraggingChat] = useState(false)
+  const [dismissedError, setDismissedError] = useState<string | null>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   return (
@@ -94,25 +95,27 @@ export function ChatPanel(props: ChatPanelProps) {
 
             {/* Streaming indicator */}
             {chat.isLoading && (
-              <div className="flex items-center gap-2.5 text-[12px] py-2 px-1 animate-fade-in">
-                <span className="flex items-center gap-0.5">
-                  <span className="typing-dot" />
-                  <span className="typing-dot" />
-                  <span className="typing-dot" />
-                </span>
-                <span className="text-forge-text-dim">
-                  {chat.stepCount > 0 ? `Step ${chat.stepCount}` : 'Thinking'}
-                </span>
-                {chat.elapsed > 0 && (
-                  <span className="text-[10px] text-forge-text-dim/50 bg-forge-surface px-1.5 py-0.5 rounded-md font-mono">
-                    {chat.formatElapsed(chat.elapsed)}
+              <div className="flex items-center gap-2 py-2 px-1 animate-fade-in">
+                <div className="inline-flex items-center gap-2 px-3 py-1.5 bg-forge-surface/80 border border-forge-border rounded-full">
+                  <span className="flex items-center gap-0.5">
+                    <span className="typing-dot" />
+                    <span className="typing-dot" />
+                    <span className="typing-dot" />
                   </span>
-                )}
+                  <span className="text-[12px] text-forge-text-dim">
+                    {chat.stepCount > 0 ? `Step ${chat.stepCount}` : 'Thinking'}
+                  </span>
+                  {chat.elapsed > 0 && (
+                    <span className="text-[10px] text-forge-text-dim/50 font-mono">
+                      {chat.formatElapsed(chat.elapsed)}
+                    </span>
+                  )}
+                </div>
               </div>
             )}
 
             {/* Error banner */}
-            {chat.error && (
+            {chat.error && dismissedError !== chat.errorMessage && (
               <motion.div
                 initial={{ opacity: 0, y: 4 }}
                 animate={{ opacity: 1, y: 0 }}
@@ -125,12 +128,22 @@ export function ChatPanel(props: ChatPanelProps) {
                   <p className="font-medium text-red-700 dark:text-red-400 mb-0.5">Something went wrong</p>
                   <p className="text-red-500 dark:text-red-400/80 leading-relaxed">{chat.errorMessage}</p>
                 </div>
-                <button
-                  onClick={() => chat.regenerate()}
-                  className="shrink-0 px-3 py-1.5 bg-red-100 dark:bg-red-900/50 hover:bg-red-200 dark:hover:bg-red-800/60 text-red-700 dark:text-red-400 rounded-lg text-[11px] font-medium transition-colors"
-                >
-                  Retry
-                </button>
+                <div className="flex items-center gap-1.5 shrink-0">
+                  <button
+                    onClick={() => chat.regenerate()}
+                    className="px-3 py-1.5 bg-red-100 dark:bg-red-900/50 hover:bg-red-200 dark:hover:bg-red-800/60 text-red-700 dark:text-red-400 rounded-lg text-[11px] font-medium transition-colors"
+                  >
+                    Retry
+                  </button>
+                  <button
+                    onClick={() => setDismissedError(chat.errorMessage)}
+                    className="p-1 text-red-400 hover:text-red-600 dark:hover:text-red-300 transition-colors rounded-md hover:bg-red-100 dark:hover:bg-red-900/40"
+                    aria-label="Dismiss error"
+                    title="Dismiss"
+                  >
+                    <X className="w-3.5 h-3.5" />
+                  </button>
+                </div>
               </motion.div>
             )}
 
@@ -192,7 +205,7 @@ export function ChatPanel(props: ChatPanelProps) {
             }}
             placeholder={chat.isEmpty ? 'Describe what you want to build...' : 'Ask for changes, new features, fixes...'}
             rows={1}
-            className="w-full bg-forge-surface border border-forge-border rounded-2xl pl-10 pr-12 py-3 text-[13.5px] text-forge-text placeholder:text-forge-text-dim/40 outline-none focus:border-forge-accent/40 focus:shadow-md shadow-sm resize-none transition-all"
+            className="w-full bg-forge-surface border border-forge-border rounded-2xl pl-10 pr-12 py-3 text-[13.5px] text-forge-text placeholder:text-forge-text-dim/40 outline-none focus:border-forge-accent/40 shadow-[inset_0_1px_2px_rgba(0,0,0,0.04),0_1px_2px_rgba(0,0,0,0.02)] focus:shadow-[inset_0_1px_2px_rgba(0,0,0,0.04),0_0_0_3px_var(--color-forge-ring)] resize-none transition-all"
           />
 
           {/* Paperclip file picker button */}
@@ -217,7 +230,7 @@ export function ChatPanel(props: ChatPanelProps) {
 
           <div className="absolute right-2 bottom-1.5">
             {chat.isLoading ? (
-              <button onClick={chat.stop} className="p-2 rounded-xl bg-red-100 dark:bg-red-900/40 text-forge-danger hover:bg-red-200 dark:hover:bg-red-800/60 transition-colors" title="Stop generating (Esc)" aria-label="Stop generating">
+              <button onClick={chat.stop} className="p-2 rounded-xl bg-red-100 dark:bg-red-900/40 text-forge-danger hover:bg-red-200 dark:hover:bg-red-800/60 transition-colors animate-stop-pulse" title="Stop generating (Esc)" aria-label="Stop generating">
                 <StopCircle className="w-4 h-4" />
               </button>
             ) : (
@@ -230,7 +243,7 @@ export function ChatPanel(props: ChatPanelProps) {
                   opacity: (chat.input.trim() || chat.attachments.length > 0) ? 1 : 0.5,
                 }}
                 transition={{ type: 'spring', stiffness: 400, damping: 20 }}
-                className="p-2 rounded-xl bg-forge-text text-forge-bg hover:opacity-90 disabled:cursor-not-allowed transition-colors"
+                className="p-2 rounded-xl bg-gradient-to-b from-forge-accent to-indigo-600 dark:from-forge-accent dark:to-indigo-500 text-white shadow-sm hover:shadow-md disabled:opacity-40 disabled:cursor-not-allowed transition-all"
                 title="Send message"
                 aria-label="Send message"
               >
@@ -254,7 +267,7 @@ export function ChatPanel(props: ChatPanelProps) {
               {chat.showModelPicker && (
                 <>
                   <div className="fixed inset-0 z-40" onClick={() => chat.setShowModelPicker(false)} />
-                  <div className="absolute left-0 bottom-full mb-1 z-50 w-44 bg-forge-bg border border-forge-border rounded-xl shadow-lg overflow-hidden animate-slide-down">
+                  <div className="absolute left-0 bottom-full mb-1 z-50 w-44 bg-forge-bg/95 backdrop-blur-lg border border-forge-border rounded-xl shadow-lg overflow-hidden animate-slide-down">
                     {MODEL_OPTIONS.map(model => (
                       <button
                         key={model.id}
@@ -277,23 +290,27 @@ export function ChatPanel(props: ChatPanelProps) {
               Enter to send{chat.isLoading ? ' · Esc to stop' : ''}
             </span>
           </div>
-          <div className="flex items-center gap-2">
-            {chat.autoRoutedModel && (
-              <span className="text-[10px] text-forge-text-dim/50 flex items-center gap-0.5" title={chat.autoRoutedModel.reason}>
-                <Sparkles className="w-2.5 h-2.5" />
-                {chat.autoRoutedModel.model.includes('haiku') ? 'Haiku' : chat.autoRoutedModel.model.includes('opus') ? 'Opus' : 'Sonnet'}
-              </span>
-            )}
-            {(chat.realTokens || chat.estimatedTokens) > 0 && (
-              <span className="text-[10px] text-forge-text-dim/40" title={chat.realTokens ? 'Actual API token usage' : 'Estimated token usage'}>
-                {chat.realTokens ? '' : '~'}{(chat.realTokens || chat.estimatedTokens) > 1000 ? `${((chat.realTokens || chat.estimatedTokens) / 1000).toFixed(1)}k` : (chat.realTokens || chat.estimatedTokens)} tokens
-              </span>
-            )}
-            {chat.isLoading && chat.elapsed > 0 && (
-              <span className="text-[10px] text-forge-text-dim/40 flex items-center gap-0.5">
-                <Clock className="w-2.5 h-2.5" />
-                {chat.formatElapsed(chat.elapsed)}
-              </span>
+          <div className="flex items-center gap-1.5">
+            {(chat.autoRoutedModel || (chat.realTokens || chat.estimatedTokens) > 0 || (chat.isLoading && chat.elapsed > 0)) && (
+              <div className="flex items-center gap-1.5 px-2 py-0.5 bg-forge-surface/50 rounded-lg">
+                {chat.autoRoutedModel && (
+                  <span className="text-[10px] text-forge-text-dim/60 flex items-center gap-0.5" title={chat.autoRoutedModel.reason}>
+                    <Sparkles className="w-2.5 h-2.5" />
+                    {chat.autoRoutedModel.model.includes('haiku') ? 'Haiku' : chat.autoRoutedModel.model.includes('opus') ? 'Opus' : 'Sonnet'}
+                  </span>
+                )}
+                {(chat.realTokens || chat.estimatedTokens) > 0 && (
+                  <span className="text-[10px] text-forge-text-dim/50" title={chat.realTokens ? 'Actual API token usage' : 'Estimated token usage'}>
+                    {chat.realTokens ? '' : '~'}{(chat.realTokens || chat.estimatedTokens) > 1000 ? `${((chat.realTokens || chat.estimatedTokens) / 1000).toFixed(1)}k` : (chat.realTokens || chat.estimatedTokens)} tokens
+                  </span>
+                )}
+                {chat.isLoading && chat.elapsed > 0 && (
+                  <span className="text-[10px] text-forge-text-dim/50 flex items-center gap-0.5">
+                    <Clock className="w-2.5 h-2.5" />
+                    {chat.formatElapsed(chat.elapsed)}
+                  </span>
+                )}
+              </div>
             )}
             {chat.messages.length > 0 && (
               <button

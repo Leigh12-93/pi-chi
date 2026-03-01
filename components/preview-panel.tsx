@@ -759,11 +759,14 @@ export function PreviewPanel({ files, projectId, onFixErrors, onCapturePreview }
               showCachedPreview && 'border-forge-border bg-forge-surface/50',
             )}>
               {/* Status indicator */}
-              {isSandboxActive && !isSyncing && (
-                <div className="shrink-0 flex items-center gap-1 text-green-600 dark:text-green-400 animate-fade-in">
-                  <Zap className="w-3 h-3" />
-                </div>
-              )}
+  {isSandboxActive && !isSyncing && (
+  <div className="shrink-0 flex items-center gap-1 text-emerald-600 dark:text-emerald-400 animate-fade-in">
+  <div className="relative">
+  <Zap className="w-3 h-3" />
+  <span className="absolute -top-0.5 -right-0.5 w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse-dot" />
+  </div>
+  </div>
+  )}
               {isSandboxActive && isSyncing && (
                 <ArrowUpFromLine className="w-3 h-3 shrink-0 animate-pulse text-blue-500" />
               )}
@@ -795,9 +798,10 @@ export function PreviewPanel({ files, projectId, onFixErrors, onCapturePreview }
               </span>
 
               {/* Sync badge */}
-              {isSyncing && isSandboxActive && (
-                <span className="shrink-0 px-1.5 py-0.5 text-[9px] font-medium bg-blue-500/15 text-blue-600 dark:text-blue-400 rounded animate-pulse">
-                  SYNCING
+  {isSyncing && isSandboxActive && (
+  <span className="shrink-0 inline-flex items-center gap-1 px-2 py-0.5 text-[9px] font-medium bg-blue-500/10 border border-blue-200 dark:border-blue-800 text-blue-600 dark:text-blue-400 rounded-full">
+  <span className="w-1 h-1 rounded-full bg-blue-500 animate-pulse-dot" />
+  SYNCING
                 </span>
               )}
 
@@ -1169,22 +1173,23 @@ export function PreviewPanel({ files, projectId, onFixErrors, onCapturePreview }
               <>
                 {consoleLogs.map((entry, i) => (
                   <div key={i} className={cn(
-                    'py-0.5 px-1 rounded',
+                    'flex items-start py-0.5 px-1 rounded',
                     entry.level === 'error' ? 'text-red-500 dark:text-red-400 bg-red-500/5'
-                      : entry.level === 'warn' ? 'text-amber-600 dark:text-yellow-400'
+                      : entry.level === 'warn' ? 'text-amber-600 dark:text-yellow-400 bg-amber-500/5'
                       : entry.level === 'info' ? 'text-blue-600 dark:text-blue-400'
                       : entry.source === 'sandbox' ? 'text-emerald-600 dark:text-green-400'
                       : 'text-forge-text',
                   )}>
+                    <span className="w-7 shrink-0 text-right pr-2 text-forge-text-dim/30 select-none tabular-nums">{i + 1}</span>
                     <span className="text-forge-text-dim/50 select-none">[{entry.timestamp}]</span>
                     {entry.level !== 'system' && (
-                      <span className={cn('ml-1 text-[9px] uppercase font-medium',
+                      <span className={cn('ml-1 text-[9px] uppercase font-medium shrink-0',
                         entry.level === 'error' ? 'text-red-500'
                         : entry.level === 'warn' ? 'text-amber-500'
-                        : 'text-forge-text-dim/70'
+                        : 'text-forge-text-dim/50'
                       )}>{entry.level}</span>
                     )}
-                    <span className="ml-1">{entry.message}</span>
+                    <span className="ml-1 break-all">{entry.message}</span>
                   </div>
                 ))}
                 <div ref={consoleEndRef} />

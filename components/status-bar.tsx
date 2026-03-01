@@ -56,19 +56,19 @@ export function StatusBar({ activeFile, fileCount, framework, saveStatus = 'idle
   const info = SAVE_TEXT[displayed]
 
   return (
-    <div className="h-6 flex items-center justify-between px-3 border-t border-forge-border bg-forge-panel text-[10px] text-forge-text-dim shrink-0 hidden md:flex select-none">
+    <div className="h-6 flex items-center justify-between px-3 border-t border-forge-border bg-forge-panel text-[10px] text-forge-text-dim shrink-0 select-none">
       <div className="flex items-center gap-3">
         {langDisplay && (
           <span className="font-medium">{langDisplay}</span>
         )}
         {activeFile && (
-          <>
+          <span className="items-center gap-3 hidden md:flex">
             <span className="w-px h-3 bg-forge-border" />
             <span>UTF-8</span>
-          </>
+          </span>
         )}
-        <span className="w-px h-3 bg-forge-border" />
-        <span>{fileCount} file{fileCount !== 1 ? 's' : ''}</span>
+        <span className="w-px h-3 bg-forge-border hidden md:block" />
+        <span className="hidden md:inline">{fileCount} file{fileCount !== 1 ? 's' : ''}</span>
       </div>
       <div className="flex items-center gap-3">
         {info && (
