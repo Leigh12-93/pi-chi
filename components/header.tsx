@@ -19,10 +19,12 @@ interface HeaderProps {
   notificationSlot?: React.ReactNode
 }
 
-const actions = [
+const actions: Array<{ id: string; icon: typeof Save; label: string; tip: string } | 'separator'> = [
   { id: 'save', icon: Save, label: 'Save', tip: 'Save project to database' },
+  'separator',
   { id: 'deploy', icon: Rocket, label: 'Deploy', tip: 'Deploy to Vercel' },
   { id: 'push', icon: Upload, label: 'Push', tip: 'Push to GitHub' },
+  'separator',
   { id: 'create-repo', icon: GitBranch, label: 'New Repo', tip: 'Create GitHub repo' },
   { id: 'import', icon: FolderInput, label: 'Import', tip: 'Import from GitHub repo' },
   { id: 'download', icon: Download, label: 'Download', tip: 'Download project as ZIP' },
@@ -70,7 +72,10 @@ export function Header({ projectName, onSwitchProject, fileCount, onAction, save
 
       {/* Center: Action Buttons */}
       <div className="flex items-center gap-0.5 sm:gap-0 bg-forge-surface/50 rounded-lg px-0.5 py-0.5 border border-forge-border/50">
-        {actions.map(action => {
+        {actions.map((action, idx) => {
+          if (action === 'separator') {
+            return <div key={`sep-${idx}`} className="w-px h-4 bg-forge-border/60 mx-0.5 hidden sm:block" />
+          }
           const saveIcon = action.id === 'save' ? getSaveIcon() : null
           return (
             <button
@@ -102,7 +107,7 @@ export function Header({ projectName, onSwitchProject, fileCount, onAction, save
           >
             <Search className="w-3 h-3" />
             <span>Commands</span>
-            <kbd className="px-1 py-0.5 text-[9px] font-mono bg-forge-bg border border-forge-border rounded">Ctrl+K</kbd>
+            <kbd className="px-1.5 py-0.5 text-[9px] font-mono bg-forge-bg border border-forge-border rounded shadow-[0_1px_0_0_var(--color-forge-border)]">Ctrl+K</kbd>
           </button>
         )}
         {notificationSlot}

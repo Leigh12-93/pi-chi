@@ -5,7 +5,7 @@ import {
   Hammer, Sparkles, FolderOpen, Trash2,
   Github, Clock, Globe, ExternalLink, Loader2,
   Lock, Star, GitBranch, Download, GitFork, Archive, Search, X,
-  AlertTriangle,
+  AlertTriangle, BarChart3, User, ShoppingBag,
 } from 'lucide-react'
 import { toast } from 'sonner'
 import { formatRelative } from '@/lib/utils'
@@ -67,11 +67,17 @@ const LANG_COLORS: Record<string, string> = {
   Go: 'bg-cyan-500/15 text-cyan-600 dark:text-cyan-400',
 }
 
+const LANG_DOT_COLORS: Record<string, string> = {
+  TypeScript: 'bg-blue-500', JavaScript: 'bg-yellow-500', Python: 'bg-green-500',
+  Kotlin: 'bg-purple-500', Java: 'bg-orange-500', HTML: 'bg-red-500',
+  CSS: 'bg-pink-500', Rust: 'bg-amber-500', Go: 'bg-cyan-500',
+}
+
 const QUICK_STARTS = [
-  { label: 'Landing Page', query: 'Build a modern landing page with hero section, features grid, testimonials with avatars, pricing table, and footer. Use a cohesive color palette with gradients and animations. Make it look like a real SaaS product.' },
-  { label: 'Dashboard', query: 'Build an admin dashboard with sidebar navigation, stats cards with sparklines, a chart area, recent activity feed, and a data table with sorting. Dark theme, professional look.' },
-  { label: 'Portfolio', query: 'Create a portfolio site with animated hero, project showcase with hover effects, about section with skills, timeline, and a contact form. Minimal, elegant design.' },
-  { label: 'E-commerce', query: 'Build an e-commerce product page with image gallery, size/color selector, add to cart, reviews section, and related products. Clean, modern design like Apple Store.' },
+  { label: 'Landing Page', icon: Globe, query: 'Build a modern landing page with hero section, features grid, testimonials with avatars, pricing table, and footer. Use a cohesive color palette with gradients and animations. Make it look like a real SaaS product.' },
+  { label: 'Dashboard', icon: BarChart3, query: 'Build an admin dashboard with sidebar navigation, stats cards with sparklines, a chart area, recent activity feed, and a data table with sorting. Dark theme, professional look.' },
+  { label: 'Portfolio', icon: User, query: 'Create a portfolio site with animated hero, project showcase with hover effects, about section with skills, timeline, and a contact form. Minimal, elegant design.' },
+  { label: 'E-commerce', icon: ShoppingBag, query: 'Build an e-commerce product page with image gallery, size/color selector, add to cart, reviews section, and related products. Clean, modern design like Apple Store.' },
 ]
 
 export function ProjectPicker({ onSelect, savedProjects, loadingProjects, onDeleteProject, deletingProjectId, loadingProjectId, isLoggedIn, loadError, onRetryLoad }: ProjectPickerProps) {
@@ -221,8 +227,9 @@ export function ProjectPicker({ onSelect, savedProjects, loadingProjects, onDele
                   const pName = qs.label.toLowerCase().replace(/\s+/g, '-')
                   onSelect(pName, undefined, undefined, qs.query)
                 }}
-                className={`px-4 py-2.5 sm:px-3 sm:py-1.5 text-xs sm:text-[11px] rounded-lg border border-forge-border text-forge-text-dim hover:text-forge-text hover:border-forge-accent/50 hover:bg-forge-accent/5 hover:shadow-sm transition-all animate-fade-in-up stagger-${i + 1}`}
+                className={`flex items-center gap-1.5 px-4 py-2.5 sm:px-3 sm:py-1.5 text-xs sm:text-[11px] rounded-lg border border-forge-border text-forge-text-dim hover:text-forge-text hover:border-forge-accent/50 hover:bg-forge-accent/5 hover:shadow-sm transition-all animate-fade-in-up stagger-${i + 1}`}
               >
+                <qs.icon className="w-3 h-3" />
                 {qs.label}
               </button>
             ))}
@@ -300,13 +307,13 @@ export function ProjectPicker({ onSelect, savedProjects, loadingProjects, onDele
                 {loadingProjects ? (
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                     {[1, 2, 3, 4].map(i => (
-                      <div key={i} className={`rounded-xl border border-forge-border p-4 space-y-3 animate-fade-in stagger-${i}`}>
+                      <div key={i} className={`rounded-xl border border-forge-border bg-forge-panel p-4 space-y-3 animate-fade-in stagger-${i}`}>
                         <div className="flex items-center justify-between">
-                          <div className="h-4 w-32 rounded animate-skeleton" />
-                          <div className="h-4 w-14 rounded animate-skeleton" />
+                          <div className="h-4 w-32 rounded-lg animate-skeleton" />
+                          <div className="h-4 w-14 rounded-lg animate-skeleton" />
                         </div>
-                        <div className="h-3 w-48 rounded animate-skeleton" />
-                        <div className="h-3 w-24 rounded animate-skeleton" />
+                        <div className="h-3 w-48 rounded-lg animate-skeleton" />
+                        <div className="h-3 w-24 rounded-lg animate-skeleton" />
                       </div>
                     ))}
                   </div>
@@ -338,7 +345,7 @@ export function ProjectPicker({ onSelect, savedProjects, loadingProjects, onDele
                         key={project.id}
                         onClick={() => onSelect(project.name, project.id)}
                         disabled={loadingProjectId === project.id}
-                        className="group relative bg-forge-panel border border-forge-border border-l-2 border-l-transparent rounded-xl p-4 text-left hover:border-forge-accent/50 hover:border-l-forge-accent hover:bg-forge-accent/5 hover:shadow-sm transition-all disabled:opacity-70 disabled:cursor-wait"
+                        className="group relative bg-forge-panel border border-forge-border border-l-2 border-l-transparent rounded-xl p-4 text-left hover:border-forge-accent/50 hover:border-l-forge-accent hover:bg-forge-accent/5 hover:shadow-sm hover:scale-[1.01] transition-all disabled:opacity-70 disabled:cursor-wait"
                       >
                         <div className="flex items-start justify-between mb-2">
                           <h3 className="text-sm font-medium text-forge-text group-hover:text-forge-accent transition-colors truncate pr-2">
@@ -411,7 +418,7 @@ export function ProjectPicker({ onSelect, savedProjects, loadingProjects, onDele
                         key={repo.id}
                         onClick={() => handleImportRepo(repo)}
                         disabled={importingRepo === repo.full_name}
-                        className="group relative bg-forge-panel border border-forge-border rounded-xl p-4 text-left hover:border-forge-accent/50 hover:bg-forge-accent/5 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                        className="group relative bg-forge-panel border border-forge-border rounded-xl p-4 text-left hover:border-forge-accent/50 hover:bg-forge-accent/5 hover:shadow-sm hover:scale-[1.01] transition-all disabled:opacity-50 disabled:cursor-not-allowed"
                       >
                         <div className="flex items-start justify-between mb-1.5">
                           <h3 className="text-sm font-medium text-forge-text group-hover:text-forge-accent transition-colors truncate pr-2 flex items-center gap-1.5">
@@ -425,7 +432,8 @@ export function ProjectPicker({ onSelect, savedProjects, loadingProjects, onDele
                               <span className="text-[9px] font-medium px-1.5 py-0.5 rounded bg-amber-500/15 text-amber-600 dark:text-amber-400">archived</span>
                             )}
                             {repo.language && (
-                              <span className={`text-[9px] font-medium px-1.5 py-0.5 rounded ${LANG_COLORS[repo.language] || 'bg-forge-surface text-forge-text-dim'}`}>
+                              <span className={`flex items-center gap-1 text-[9px] font-medium px-1.5 py-0.5 rounded ${LANG_COLORS[repo.language] || 'bg-forge-surface text-forge-text-dim'}`}>
+                                <span className={`w-1.5 h-1.5 rounded-full ${LANG_DOT_COLORS[repo.language] || 'bg-forge-text-dim'}`} />
                                 {repo.language}
                               </span>
                             )}

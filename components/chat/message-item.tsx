@@ -134,7 +134,7 @@ export const MessageItem = memo(function MessageItem({
                 <Pencil className="w-3 h-3" />
               </button>
             </div>
-            <div className="px-4 py-2.5 rounded-2xl rounded-br-md bg-forge-surface border border-forge-border text-[13.5px] text-forge-text leading-relaxed shadow-sm transition-shadow hover:shadow-md">
+            <div className="px-4 py-2.5 rounded-2xl rounded-br-md bg-gradient-to-b from-forge-surface to-forge-surface/80 border border-forge-border text-[13.5px] text-forge-text leading-relaxed shadow-sm transition-shadow hover:shadow-md">
               {textContent}
               {parts?.filter(p => p.type === 'file').map((filePart, fi) => {
                 const mType = filePart.mediaType as string | undefined
@@ -201,7 +201,7 @@ export const MessageItem = memo(function MessageItem({
                 <div key={partIdx} className="relative group">
                   <div
                     className={cn(
-                      'text-[13.5px] leading-[1.7] text-forge-text [&_pre]:my-3 [&_code]:text-[12.5px]',
+                      'text-[13.5px] leading-[1.7] text-forge-text [&_pre]:my-3 [&_code]:text-[12.5px] selection:bg-forge-accent/20',
                       showStreamingCursor && isLastText && 'streaming-cursor'
                     )}
                     dangerouslySetInnerHTML={{ __html: cachedRenderMarkdown(part.text) }}
@@ -288,7 +288,7 @@ export const MessageItem = memo(function MessageItem({
                     key={partIdx}
                     initial={{ opacity: 0, scale: 0.98 }}
                     animate={{ opacity: 1, scale: 1 }}
-                    className="border border-emerald-200 dark:border-emerald-800 bg-emerald-50/50 dark:bg-emerald-950/20 rounded-xl p-3.5 text-[12px]"
+                    className="border border-emerald-200 dark:border-emerald-800 bg-emerald-50/50 dark:bg-emerald-950/20 rounded-xl p-3.5 text-[12px] animate-success-glow"
                   >
                     <div className="flex items-center gap-2 mb-2">
                       <CheckCircle className="w-4 h-4 text-emerald-500" />
@@ -388,16 +388,17 @@ export const MessageItem = memo(function MessageItem({
               return (
                 <motion.div
                   key={partIdx}
-                  initial={{ opacity: 0, x: -8 }}
-                  animate={{ opacity: isRunning ? 1 : 0.75, x: 0 }}
+                  initial={{ opacity: 0, y: 4, scale: 0.98 }}
+                  animate={{ opacity: isRunning ? 1 : 0.8, y: 0, scale: 1 }}
                   transition={{ duration: 0.2, ease: [0.16, 1, 0.3, 1] }}
                   className={cn(
-                    'flex items-center gap-2 px-3 py-1.5 rounded-xl text-[12px] border-l-2 border transition-all',
-                    isRunning ? 'border-forge-border border-l-forge-accent animate-gradient-sweep'
+                    'relative flex items-center gap-2 px-3 py-1.5 rounded-xl text-[12px] border-l-2 border transition-all overflow-hidden',
+                    isRunning ? 'border-forge-border border-l-forge-accent'
                       : hasError ? 'border-red-200 dark:border-red-800 border-l-red-400 bg-red-50/50 dark:bg-red-950/20'
                       : 'border-forge-border border-l-emerald-400 dark:border-l-emerald-500 bg-forge-surface/30 animate-chip-complete',
                   )}
                 >
+                  {isRunning && <div className="indeterminate-bar" />}
                   <div className={cn('w-5 h-5 rounded-lg flex items-center justify-center shrink-0', colorClasses[info.color] || colorClasses.gray)}>
                     {isRunning ? <Loader2 className="w-3 h-3 animate-spin" />
                       : hasError ? <XCircle className="w-3 h-3 text-red-600 dark:text-red-400" />
@@ -417,7 +418,7 @@ export const MessageItem = memo(function MessageItem({
           {!isLoading && (
             <button
               onClick={() => onRegenerate(message.id)}
-              className="flex items-center gap-1 mt-0.5 px-2 py-1 text-[11px] text-forge-text-dim hover:text-forge-accent opacity-0 group-hover/assistant:opacity-100 transition-all rounded-lg hover:bg-forge-surface"
+              className="flex items-center gap-1 mt-0.5 px-2 py-1 text-[11px] text-forge-text-dim hover:text-forge-accent opacity-40 group-hover/assistant:opacity-100 transition-all rounded-lg hover:bg-forge-surface"
               title="Regenerate response"
             >
               <RefreshCw className="w-3 h-3" />
@@ -431,7 +432,7 @@ export const MessageItem = memo(function MessageItem({
             <div className="relative group">
               <div
                 className={cn(
-                  'text-[13.5px] leading-[1.7] text-forge-text [&_pre]:my-3 [&_code]:text-[12.5px]',
+                  'text-[13.5px] leading-[1.7] text-forge-text [&_pre]:my-3 [&_code]:text-[12.5px] selection:bg-forge-accent/20',
                   showStreamingCursor && 'streaming-cursor'
                 )}
                 dangerouslySetInnerHTML={{ __html: cachedRenderMarkdown(textContent) }}
@@ -449,7 +450,7 @@ export const MessageItem = memo(function MessageItem({
           {!isLoading && (
             <button
               onClick={() => onRegenerate(message.id)}
-              className="flex items-center gap-1 mt-0.5 px-2 py-1 text-[11px] text-forge-text-dim hover:text-forge-accent opacity-0 group-hover/assistant:opacity-100 transition-all rounded-lg hover:bg-forge-surface"
+              className="flex items-center gap-1 mt-0.5 px-2 py-1 text-[11px] text-forge-text-dim hover:text-forge-accent opacity-40 group-hover/assistant:opacity-100 transition-all rounded-lg hover:bg-forge-surface"
               title="Regenerate response"
             >
               <RefreshCw className="w-3 h-3" />
