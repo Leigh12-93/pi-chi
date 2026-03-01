@@ -39,6 +39,10 @@ export function createProjectTools(ctx: ToolContext) {
           if (!res.ok) return { error: `npm registry error: ${res.status}` }
           const data = await res.json()
           const latest = data['dist-tags']?.latest
+          // Validate version format if provided
+          if (version && !/^[\^~>=<*]?\d/.test(version) && version !== 'latest' && version !== '*') {
+            return { error: `Invalid version format: "${version}". Use semver (e.g., "^1.0.0", "~2.3.0", ">=1.0.0")` }
+          }
           const ver = version || `^${latest}`
 
           const pkgPath = 'package.json'

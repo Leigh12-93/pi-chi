@@ -86,6 +86,7 @@ export class MCPClient {
       method: 'POST',
       headers,
       body: JSON.stringify(body),
+      signal: AbortSignal.timeout(30000),
     })
 
     if (!res.ok) {

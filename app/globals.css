@@ -120,7 +120,7 @@ html.dark [data-sonner-toast] [data-description] {
 
 /* Dark code block hover */
 html.dark .code-block-wrapper:hover > div:first-child {
-  background-color: #1a1d27;
+  background-color: var(--color-forge-surface);
 }
 
 /* ─── v0-Style Streaming Cursor ────────────────────────────── */
@@ -129,12 +129,15 @@ html.dark .code-block-wrapper:hover > div:first-child {
   50% { opacity: 0; }
 }
 .streaming-cursor::after {
-  content: '|';
-  display: inline;
-  color: var(--color-forge-accent);
-  font-weight: 600;
+  content: '';
+  display: inline-block;
+  width: 2px;
+  height: 1.1em;
+  background: var(--color-forge-accent);
+  vertical-align: text-bottom;
   animation: v0Blink 1s step-end infinite;
-  margin-left: 1px;
+  margin-left: 2px;
+  border-radius: 1px;
 }
 
 /* ─── v0-Style Thinking Collapse ──────────────────────────── */
@@ -203,7 +206,7 @@ html.dark .code-block-wrapper:hover > div:first-child {
   100% { background-position: 200% 0; }
 }
 .animate-skeleton {
-  background: linear-gradient(90deg, #f1f3f4 25%, #e5e7eb 50%, #f1f3f4 75%);
+  background: linear-gradient(90deg, var(--color-forge-panel) 25%, var(--color-forge-surface) 50%, var(--color-forge-panel) 75%);
   background-size: 200% 100%;
   animation: skeleton 1.5s ease-in-out infinite;
 }
@@ -290,7 +293,7 @@ html.dark .code-block-wrapper:hover > div:first-child {
 
 /* Code block wrapper hover effect — always dark like v0 */
 .code-block-wrapper:hover > div:first-child {
-  background-color: #1e2030;
+  background-color: var(--color-forge-surface);
 }
 
 /* ─── Forge Building Animation ─────────────────────────────────── */

@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server'
 
 export async function GET() {
   const clientId = (process.env.GITHUB_CLIENT_ID || '').trim()
-  const baseUrl = (process.env.AUTH_URL || 'https://forge-six-chi.vercel.app').trim()
+  const baseUrl = (process.env.NEXT_PUBLIC_APP_URL || (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : 'http://localhost:3333')).trim()
   const redirectUri = encodeURIComponent(baseUrl + '/api/auth/callback')
   const scope = encodeURIComponent('repo read:user user:email')
   const state = crypto.randomUUID()

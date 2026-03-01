@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server'
+import { cookies } from 'next/headers'
 import { createSession, COOKIE_NAME } from '@/lib/auth'
 
 export async function GET(req: Request) {
@@ -13,9 +14,8 @@ export async function GET(req: Request) {
   }
 
   // CSRF: validate state parameter against cookie
-  const cookieHeader = req.headers.get('cookie') || ''
-  const stateMatch = cookieHeader.match(/oauth_state=([^;]+)/)
-  const storedState = stateMatch?.[1]
+  const cookieStore = await cookies()
+  const storedState = cookieStore.get('oauth_state')?.value
   if (!state || !storedState || state !== storedState) {
     return NextResponse.redirect(baseUrl + '/?error=csrf_validation_failed')
   }

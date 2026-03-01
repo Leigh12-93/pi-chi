@@ -261,7 +261,7 @@ export default function ForgePage() {
           setProjectId(data.id)
           setProjectName(data.name)
           setFiles(data.files || {})
-          lastSavedHash.current = JSON.stringify(data.files || {})
+          lastSavedHash.current = hashFileMapDeep(data.files || {})
           setActiveFile(null)
           return
         }

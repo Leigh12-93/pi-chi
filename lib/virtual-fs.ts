@@ -102,7 +102,10 @@ export class VirtualFS {
         const isFile = i === parts.length - 1
         const existingDir = current.find(n => n.name === name && n.type === 'directory')
         if (isFile) {
-          current.push({ name, path, type: 'file' })
+          // Deduplicate: skip if this path already exists
+          if (!current.some(n => n.name === name && n.type === 'file')) {
+            current.push({ name, path, type: 'file' })
+          }
         } else if (existingDir) {
           current = existingDir.children!
         } else {

@@ -261,6 +261,24 @@ export function createSelfModTools(ctx: ToolContext) {
         const token = GITHUB_TOKEN
         if (!token) return { error: 'No GitHub token configured' }
 
+        // Check CI/deploy status before merging
+        const pr = await ctx.githubFetch(`/repos/Leigh12-93/forge/pulls/${prNumber}`, token)
+        if (pr.error) return { error: `Failed to read PR: ${pr.error}` }
+        const headSha = pr.head?.sha
+        if (headSha) {
+          const checks = await ctx.githubFetch(`/repos/Leigh12-93/forge/commits/${headSha}/check-runs`, token)
+          if (Array.isArray(checks.check_runs)) {
+            const failing = checks.check_runs.filter((c: any) => c.conclusion === 'failure')
+            const pending = checks.check_runs.filter((c: any) => c.status !== 'completed')
+            if (failing.length > 0) {
+              return { error: `Cannot merge: ${failing.length} check(s) failing: ${failing.map((c: any) => c.name).join(', ')}. Fix before merging.` }
+            }
+            if (pending.length > 0) {
+              return { error: `Cannot merge: ${pending.length} check(s) still pending: ${pending.map((c: any) => c.name).join(', ')}. Wait for completion.` }
+            }
+          }
+        }
+
         const result = await ctx.githubFetch(`/repos/Leigh12-93/forge/pulls/${prNumber}/merge`, token, {
           method: 'PUT',
           body: JSON.stringify({ merge_method: method }),

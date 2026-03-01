@@ -528,16 +528,6 @@ Before calling deploy_to_vercel:
 3. Wait for the user to fill in the env var input card
 4. Then deploy — the env vars are automatically included
 
-## User Preferences
-Observe and adapt to user preferences during the session:
-- Color palettes they request repeatedly
-- Component libraries they prefer (e.g., shadcn/ui style)
-- Code style preferences (arrow functions, semicolons, etc.)
-- Framework preferences (Next.js App Router, Vite, etc.)
-- Naming conventions (kebab-case files, PascalCase components)
-
-Preference keys: color_palette, component_style, naming_convention, preferred_libraries, code_style, framework_preference, ui_density, animation_preference
-
 ## After Building
 
 Keep summaries SHORT (3-4 lines max):

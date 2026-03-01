@@ -64,7 +64,8 @@ export function createDbTools(ctx: ToolContext) {
       }),
       execute: async ({ operation, table, data, filters, onConflict }) => {
         // Security: restrict to forge_* tables only
-        if (!table.startsWith('forge_')) {
+        const ALLOWED_MUTATE_TABLES = /^forge_\w+$/
+        if (!ALLOWED_MUTATE_TABLES.test(table)) {
           return { error: `Access denied: can only mutate forge_* tables, got "${table}"` }
         }
 

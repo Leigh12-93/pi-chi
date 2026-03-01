@@ -98,6 +98,11 @@ export async function compactMessages(
   }).join('\n\n')
 
   try {
+    if (!process.env.ANTHROPIC_API_KEY) {
+      console.warn('compaction: ANTHROPIC_API_KEY not set, using metadata-only fallback')
+      throw new Error('ANTHROPIC_API_KEY not set')
+    }
+
     const summary = await generateCompactionSummary(middleText)
 
     // Create synthetic assistant message with the summary

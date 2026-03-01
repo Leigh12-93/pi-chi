@@ -250,6 +250,11 @@ export function createGithubTools(ctx: ToolContext) {
         const token = ctx.effectiveGithubToken
         if (!token) return { error: 'Not authenticated. Sign in with GitHub.' }
 
+        // Size validation
+        if (content.length > 500_000) {
+          return { error: `File too large (${Math.round(content.length / 1024)}KB). Maximum is 500KB.` }
+        }
+
         const branchName = branch || 'main'
 
         // Get current file SHA

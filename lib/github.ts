@@ -29,11 +29,11 @@ export async function githubFetch(path: string, token: string, options: RequestI
       return { error: `GitHub API rate limited. Try again${resetMin > 0 ? ` in ~${resetMin} minute${resetMin > 1 ? 's' : ''}` : ' later'}.`, status: res.status, rateLimited: true }
     }
   }
+  const text = await res.text()
   let data: any
   try {
-    data = await res.json()
+    data = JSON.parse(text)
   } catch {
-    const text = await res.text().catch(() => '')
     return { error: text || `GitHub API ${res.status} (non-JSON response)`, status: res.status }
   }
   if (!res.ok) return { error: data.message || `GitHub API ${res.status}`, status: res.status }

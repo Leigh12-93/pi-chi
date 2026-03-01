@@ -114,7 +114,14 @@ export function createServerFromTemplate(
   template: MCPServerTemplate,
   url: string,
   token?: string,
-): MCPServerConfig {
+): MCPServerConfig | { error: string } {
+  // Validate URL format
+  try {
+    new URL(url)
+  } catch {
+    return { error: `Invalid URL: "${url}". Must be a fully-qualified URL (e.g., https://example.com/mcp)` }
+  }
+
   const config: MCPServerConfig = {
     id: `${template.id}-${Date.now()}`,
     name: template.name,

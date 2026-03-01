@@ -40,6 +40,7 @@ export async function supabaseFetch(
         const text = await res.text()
         data = text ? JSON.parse(text) : null
       } catch {
+        console.warn('supabase-fetch: JSON parse failed for', path, 'status:', res.status)
         data = null
       }
 

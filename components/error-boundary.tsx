@@ -35,7 +35,7 @@ export class ErrorBoundary extends React.Component<
             </div>
             <h2 className="text-lg font-semibold text-forge-text mb-2">Something went wrong</h2>
             <p className="text-sm text-forge-text-dim mb-1">
-              An unexpected error occurred. Your work is safe in the browser.
+              An unexpected error occurred. Your recent changes may not have been saved. Click 'Try Again' to recover your work.
             </p>
             {this.state.error && (
               <pre className="text-[11px] text-red-500 bg-red-50 border border-red-200 rounded-xl p-3 mt-3 mb-4 text-left overflow-auto max-h-32 font-mono">

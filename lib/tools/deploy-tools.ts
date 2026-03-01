@@ -303,6 +303,12 @@ export function createDeployTools(ctx: ToolContext) {
         projectName: z.string().optional().describe('Vercel project name (defaults to current project)'),
       }),
       execute: async ({ domain, projectName: pName }) => {
+        // Validate domain format
+        const domainRegex = /^[a-zA-Z0-9][a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/
+        if (!domainRegex.test(domain)) {
+          return { error: `Invalid domain format: "${domain}". Expected format: example.com or sub.example.com` }
+        }
+
         const token = VERCEL_TOKEN
         if (!token) return { error: 'No Vercel deploy token configured' }
         const name = (pName || ctx.projectName).replace(/\s+/g, '-').toLowerCase().replace(/[^a-z0-9-]/g, '').slice(0, 52)

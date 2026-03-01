@@ -23,6 +23,12 @@ export async function vercelDeploy(name: string, files: Record<string, string>, 
   const fw = framework || detectFramework(files)
   const deployName = name.replace(/\s+/g, '-').toLowerCase().replace(/[^a-z0-9-]/g, '').slice(0, 52)
 
+  // Payload size check — Vercel API rejects bodies > 4.5MB
+  const totalSize = Object.values(files).reduce((sum, content) => sum + content.length, 0)
+  if (totalSize > 4_500_000) {
+    return { error: `Project too large (${(totalSize / 1_000_000).toFixed(1)}MB). Vercel API limit is 4.5MB. Remove large files or assets.` }
+  }
+
   await progress('Uploading files...')
   const teamParam = VERCEL_TEAM ? `?teamId=${VERCEL_TEAM}` : ''
   const uploadCtrl = new AbortController()
@@ -95,8 +101,9 @@ export async function vercelDeploy(name: string, files: Record<string, string>, 
           return { error: errorLog, url: deployUrl, id: deployId, readyState: state }
         }
       }
-    } catch {
-      // network error — keep polling
+    } catch (err) {
+      console.warn('Vercel deploy poll error:', err instanceof Error ? err.message : 'unknown')
+      // keep polling — transient network errors are expected
     }
   }
 

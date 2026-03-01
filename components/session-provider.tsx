@@ -27,22 +27,25 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
   const [session, setSession] = useState<Session | null>(null)
   const [status, setStatus] = useState<'loading' | 'authenticated' | 'unauthenticated'>('loading')
 
-  const fetchSession = useCallback(() => {
-    fetch('/api/auth/session')
-      .then(res => res.json())
-      .then(data => {
-        if (data?.user) {
-          setSession(data)
-          setStatus('authenticated')
-        } else {
-          setSession(null)
-          setStatus('unauthenticated')
-        }
-      })
-      .catch(() => {
+  const fetchSession = useCallback(async (isRetry = false) => {
+    try {
+      const res = await fetch('/api/auth/session')
+      const data = await res.json()
+      if (data?.user) {
+        setSession(data)
+        setStatus('authenticated')
+      } else {
         setSession(null)
         setStatus('unauthenticated')
-      })
+      }
+    } catch {
+      if (!isRetry) {
+        setTimeout(() => fetchSession(true), 2000)
+        return
+      }
+      setSession(null)
+      setStatus('unauthenticated')
+    }
   }, [])
 
   useEffect(() => {

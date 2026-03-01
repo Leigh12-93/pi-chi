@@ -232,10 +232,12 @@ function hashFiles(files: Record<string, string>): string {
   for (const k of keys) {
     // Hash key
     for (let i = 0; i < k.length; i++) h = ((h << 5) + h + k.charCodeAt(i)) | 0
-    // Hash content (sample for performance: first 200 + middle 200 + last 200 chars + length)
+    // Hash content (sample for performance: 5 zones of 250 chars each + length)
     const c = files[k]
-    const mid = Math.max(0, Math.floor(c.length / 2) - 100)
-    const sample = c.length <= 600 ? c : c.substring(0, 200) + c.substring(mid, mid + 200) + c.substring(c.length - 200)
+    const mid = Math.max(0, Math.floor(c.length / 2) - 250)
+    const q1 = Math.max(0, Math.floor(c.length / 4) - 125)
+    const q3 = Math.max(0, Math.floor(c.length * 3 / 4) - 125)
+    const sample = c.length <= 1500 ? c : c.substring(0, 250) + c.substring(q1, q1 + 250) + c.substring(mid, mid + 250) + c.substring(q3, q3 + 250) + c.substring(c.length - 250)
     for (let i = 0; i < sample.length; i++) h = ((h << 5) + h + sample.charCodeAt(i)) | 0
     h = ((h << 5) + h + c.length) | 0
   }
