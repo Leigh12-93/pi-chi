@@ -28,6 +28,47 @@ export default function ForgePage() {
   const [loadingProjects, setLoadingProjects] = useState(false)
   const autoSaveTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const lastSavedHash = useRef<string>('')
+  const restoredRef = useRef(false)
+
+  // Restore project from sessionStorage on mount (survives refresh)
+  useEffect(() => {
+    if (restoredRef.current) return
+    restoredRef.current = true
+    try {
+      const stored = sessionStorage.getItem('forge_active_project')
+      if (!stored) return
+      const { id, name } = JSON.parse(stored)
+      if (id && name) {
+        // Load the saved project from API
+        fetch(`/api/projects/${id}`)
+          .then(res => res.ok ? res.json() : null)
+          .then(data => {
+            if (data) {
+              setProjectId(data.id)
+              setProjectName(data.name)
+              setFiles(data.files || {})
+              lastSavedHash.current = JSON.stringify(data.files || {})
+            } else {
+              // Project was deleted — clear storage
+              sessionStorage.removeItem('forge_active_project')
+            }
+          })
+          .catch(() => sessionStorage.removeItem('forge_active_project'))
+      } else if (name) {
+        // Unsaved project — just restore the name (files are lost on refresh)
+        setProjectName(name)
+      }
+    } catch { /* ignore corrupt storage */ }
+  }, [])
+
+  // Persist active project to sessionStorage
+  useEffect(() => {
+    if (projectName) {
+      sessionStorage.setItem('forge_active_project', JSON.stringify({ id: projectId, name: projectName }))
+    } else {
+      sessionStorage.removeItem('forge_active_project')
+    }
+  }, [projectId, projectName])
 
   // Load saved projects when session is available
   useEffect(() => {
