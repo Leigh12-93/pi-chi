@@ -9,11 +9,13 @@ import {
   AlertTriangle, CheckCircle, XCircle,
   StopCircle, Sparkles, ArrowUp, Lightbulb,
   Brain, Database, Wrench, RefreshCw,
-  BookOpen, Save, Plug, ImageIcon,
+  BookOpen, Save, Plug, ImageIcon, Package,
   ChevronDown, ExternalLink, Clock, Key,
   type LucideIcon,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { ErrorBoundary } from '@/components/error-boundary'
+import DOMPurify from 'dompurify'
 
 // ═══════════════════════════════════════════════════════════════════
 // Tool display config
@@ -68,6 +70,8 @@ const TOOL_LABELS: Record<string, { label: string; Icon: LucideIcon; color: stri
   sandbox_status: { label: 'Checking sandbox', Icon: Rocket, color: 'blue' },
   add_image: { label: 'Finding image', Icon: ImageIcon, color: 'cyan' },
   check_task_status: { label: 'Checking task', Icon: RefreshCw, color: 'blue' },
+  grep_files: { label: 'Grepping files', Icon: BookOpen, color: 'purple' },
+  add_dependency: { label: 'Adding package', Icon: Package, color: 'green' },
 }
 
 const MODEL_OPTIONS = [
@@ -92,11 +96,13 @@ const colorClasses: Record<string, string> = {
   indigo: 'text-indigo-600 bg-indigo-50 dark:text-indigo-400 dark:bg-indigo-950/40',
   orange: 'text-orange-600 bg-orange-50 dark:text-orange-400 dark:bg-orange-950/40',
   gray: 'text-gray-600 bg-gray-100 dark:text-gray-400 dark:bg-gray-800/50',
+  cyan: 'text-cyan-600 bg-cyan-50 dark:text-cyan-400 dark:bg-cyan-950/40',
+  amber: 'text-amber-600 bg-amber-50 dark:text-amber-400 dark:bg-amber-950/40',
 }
 
 // ═══════════════════════════════════════════════════════════════════
 // Markdown renderer (light theme)
-// ═══════════════════════════════════════════════════════════════════
+// ══════════════════════════════════════�����═════════════════════���══════
 
 // Language label map for code blocks
 const LANG_LABELS: Record<string, string> = {
@@ -108,65 +114,168 @@ const LANG_LABELS: Record<string, string> = {
 }
 
 // Lightweight syntax highlighting (no external deps)
+/**
+ * Single-pass tokenizer-based code highlighter.
+ * Processes code character-by-character so earlier tokens (comments, strings)
+ * are never re-matched by later passes (keywords, numbers). Prevents the
+ * broken-HTML double-highlighting bug.
+ */
 function highlightCode(code: string, lang: string): string {
+  const esc = (s: string) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
   const l = lang.toLowerCase()
-  let html = code
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
+  const isJS = ['ts','tsx','js','jsx','typescript','javascript'].includes(l)
+  const isCSS = ['css','scss'].includes(l)
+  const isJSON = ['json'].includes(l)
+  const isBash = ['bash','sh'].includes(l)
+  const isHTML = ['html'].includes(l)
 
-  // Comments (single-line)
-  html = html.replace(/(\/\/.*?)$/gm, '<span class="text-gray-400 italic">$1</span>')
-  // Multi-line comments
-  html = html.replace(/(\/\*[\s\S]*?\*\/)/g, '<span class="text-gray-400 italic">$1</span>')
-  // Strings (double/single/template)
-  html = html.replace(/("(?:[^"\\]|\\.)*")/g, '<span class="text-emerald-600">$1</span>')
-  html = html.replace(/('(?:[^'\\]|\\.)*')/g, '<span class="text-emerald-600">$1</span>')
-  html = html.replace(/(`(?:[^`\\]|\\.)*`)/g, '<span class="text-emerald-600">$1</span>')
+  const JS_KEYWORDS = new Set('import,export,from,default,const,let,var,function,return,if,else,for,while,class,extends,new,this,typeof,instanceof,async,await,try,catch,throw,switch,case,break,continue,interface,type,enum,implements,abstract,declare,readonly,as,is,in,of,yield'.split(','))
+  const JS_BUILTINS = new Set('true,false,null,undefined,console,document,window,Promise,Array,Object,Map,Set,Error,React,useState,useEffect,useRef,useCallback,useMemo'.split(','))
+  const BASH_CMDS = new Set('npm,npx,yarn,pnpm,git,cd,ls,rm,mkdir,cp,mv,echo,export,sudo,curl,wget'.split(','))
 
-  if (['ts', 'tsx', 'js', 'jsx', 'typescript', 'javascript'].includes(l)) {
-    // Keywords
-    html = html.replace(/\b(import|export|from|default|const|let|var|function|return|if|else|for|while|class|extends|new|this|typeof|instanceof|async|await|try|catch|throw|switch|case|break|continue|interface|type|enum|implements|abstract|declare|readonly|as|is|in|of|yield)\b/g, '<span class="text-purple-600 font-medium">$1</span>')
-    // Built-ins
-    html = html.replace(/\b(true|false|null|undefined|console|document|window|Promise|Array|Object|Map|Set|Error|React|useState|useEffect|useRef|useCallback|useMemo)\b/g, '<span class="text-blue-600">$1</span>')
-    // Numbers
-    html = html.replace(/\b(\d+\.?\d*)\b/g, '<span class="text-amber-600">$1</span>')
-    // JSX tags
-    html = html.replace(/(&lt;\/?)([\w.]+)/g, '$1<span class="text-rose-600">$2</span>')
-  } else if (['css', 'scss'].includes(l)) {
-    html = html.replace(/([\w-]+)(?=\s*:)/g, '<span class="text-blue-600">$1</span>')
-    html = html.replace(/(@[\w-]+)/g, '<span class="text-purple-600 font-medium">$1</span>')
-    html = html.replace(/(#[\da-fA-F]{3,8})\b/g, '<span class="text-amber-600">$1</span>')
-  } else if (['json'].includes(l)) {
-    html = html.replace(/("[\w-]+")\s*:/g, '<span class="text-blue-600">$1</span>:')
-    html = html.replace(/:\s*(\d+\.?\d*)/g, ': <span class="text-amber-600">$1</span>')
-    html = html.replace(/:\s*(true|false|null)\b/g, ': <span class="text-purple-600">$1</span>')
-  } else if (['bash', 'sh'].includes(l)) {
-    html = html.replace(/(#.*?)$/gm, '<span class="text-gray-400 italic">$1</span>')
-    html = html.replace(/\b(npm|npx|yarn|pnpm|git|cd|ls|rm|mkdir|cp|mv|echo|export|sudo|curl|wget)\b/g, '<span class="text-purple-600 font-medium">$1</span>')
-  } else if (['html'].includes(l)) {
-    html = html.replace(/(&lt;\/?)([\w-]+)/g, '$1<span class="text-rose-600">$2</span>')
-    html = html.replace(/\b(class|id|src|href|style|type|name|value|placeholder)=/g, '<span class="text-amber-600">$1</span>=')
+  type Token = { type: 'comment'|'string'|'keyword'|'builtin'|'number'|'tag'|'property'|'plain'; text: string }
+  const tokens: Token[] = []
+  let i = 0
+
+  const addPlain = (text: string) => {
+    if (!text) return
+    const last = tokens[tokens.length - 1]
+    if (last?.type === 'plain') last.text += text
+    else tokens.push({ type: 'plain', text })
   }
 
-  return html
+  while (i < code.length) {
+    // Single-line comment
+    if ((isJS || isBash || isCSS) && (isJS || isCSS ? code[i] === '/' && code[i+1] === '/' : code[i] === '#')) {
+      const start = i
+      while (i < code.length && code[i] !== '\n') i++
+      tokens.push({ type: 'comment', text: code.slice(start, i) })
+      continue
+    }
+    // Multi-line comment
+    if ((isJS || isCSS) && code[i] === '/' && code[i+1] === '*') {
+      const start = i
+      i += 2
+      while (i < code.length && !(code[i-1] === '*' && code[i] === '/')) i++
+      i++
+      tokens.push({ type: 'comment', text: code.slice(start, i) })
+      continue
+    }
+    // Strings
+    if (code[i] === '"' || code[i] === "'" || code[i] === '`') {
+      const quote = code[i]
+      const start = i
+      i++
+      while (i < code.length && code[i] !== quote) { if (code[i] === '\\') i++; i++ }
+      i++ // closing quote
+      tokens.push({ type: 'string', text: code.slice(start, i) })
+      continue
+    }
+    // Words (identifiers, keywords, numbers)
+    if (/[\w$]/.test(code[i])) {
+      const start = i
+      while (i < code.length && /[\w$.]/.test(code[i])) i++
+      const word = code.slice(start, i)
+      if (isJS && JS_KEYWORDS.has(word)) tokens.push({ type: 'keyword', text: word })
+      else if (isJS && JS_BUILTINS.has(word)) tokens.push({ type: 'builtin', text: word })
+      else if (isBash && BASH_CMDS.has(word)) tokens.push({ type: 'keyword', text: word })
+      else if (isJSON && /^(true|false|null)$/.test(word)) tokens.push({ type: 'builtin', text: word })
+      else if (/^\d+\.?\d*$/.test(word)) tokens.push({ type: 'number', text: word })
+      else addPlain(word)
+      continue
+    }
+    // HTML/JSX tags
+    if ((isJS || isHTML) && code[i] === '<' && /[a-zA-Z\/]/.test(code[i+1] || '')) {
+      const prefix = code[i] + (code[i+1] === '/' ? '/' : '')
+      i += prefix.length
+      const start = i
+      while (i < code.length && /[\w.-]/.test(code[i])) i++
+      const tagName = code.slice(start, i)
+      if (tagName) {
+        addPlain(esc(prefix.replace('/', '&#47;')))
+        tokens.push({ type: 'tag', text: tagName })
+      } else {
+        addPlain(esc(prefix))
+      }
+      continue
+    }
+    // CSS properties
+    if (isCSS && /[a-zA-Z-]/.test(code[i])) {
+      const start = i
+      while (i < code.length && /[\w-]/.test(code[i])) i++
+      const word = code.slice(start, i)
+      // Look ahead for ":"
+      const rest = code.slice(i)
+      if (/^\s*:/.test(rest) && !rest.startsWith('://')) {
+        tokens.push({ type: 'property', text: word })
+      } else if (word.startsWith('@')) {
+        tokens.push({ type: 'keyword', text: word })
+      } else {
+        addPlain(word)
+      }
+      continue
+    }
+    addPlain(code[i])
+    i++
+  }
+
+  // Render tokens to HTML
+  const colorMap: Record<Token['type'], string> = {
+    comment: 'text-gray-400 italic',
+    string: 'text-emerald-600',
+    keyword: 'text-purple-600 font-medium',
+    builtin: 'text-blue-600',
+    number: 'text-amber-600',
+    tag: 'text-rose-600',
+    property: 'text-blue-600',
+    plain: '',
+  }
+  return tokens.map(t => {
+    const escaped = t.type === 'plain' ? esc(t.text) : esc(t.text)
+    return t.type === 'plain' ? escaped : `<span class="${colorMap[t.type]}">${escaped}</span>`
+  }).join('')
 }
 
 let _codeBlockId = 0
 function renderMarkdown(text: string): string {
-  return text
-    .replace(/```(\w*)\n([\s\S]*?)```/g, (_match, lang: string, code: string) => {
-      const id = `code-block-${++_codeBlockId}`
-      const label = LANG_LABELS[lang] || lang || 'Code'
-      const highlighted = lang ? highlightCode(code.trimEnd(), lang) : code.trimEnd().replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
-      return `<div class="code-block-wrapper relative group/code my-2 rounded-lg border border-gray-200 dark:border-gray-700 overflow-hidden">
-        <div class="flex items-center justify-between px-3 py-1 bg-gray-50 dark:bg-gray-800/60 border-b border-gray-200 dark:border-gray-700">
-          <span class="text-[10px] font-medium text-gray-400 uppercase tracking-wider">${label}</span>
-          <button onclick="navigator.clipboard.writeText(document.getElementById('${id}').textContent).then(()=>{this.textContent='Copied!';setTimeout(()=>this.textContent='Copy',1500)})" class="text-[10px] text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition-colors px-1.5 py-0.5 rounded hover:bg-gray-100 dark:hover:bg-gray-700">Copy</button>
-        </div>
-        <pre class="bg-gray-50/50 dark:bg-gray-900/50 text-gray-800 dark:text-gray-200 p-3 overflow-x-auto text-[12px] font-mono leading-relaxed"><code id="${id}">${highlighted}</code></pre>
-      </div>`
+  // Phase 1: Extract code blocks (prevent them from being processed by other rules)
+  const codeBlocks: string[] = []
+  let processed = text.replace(/```(\w*)\n([\s\S]*?)```/g, (_match, lang: string, code: string) => {
+    const id = `code-block-${++_codeBlockId}`
+    const label = LANG_LABELS[lang] || lang || 'Code'
+    const highlighted = lang ? highlightCode(code.trimEnd(), lang) : code.trimEnd().replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+    const html = `<div class="code-block-wrapper relative group/code my-2 rounded-lg border border-gray-200 dark:border-gray-700 overflow-hidden">
+      <div class="flex items-center justify-between px-3 py-1 bg-gray-50 dark:bg-gray-800/60 border-b border-gray-200 dark:border-gray-700">
+        <span class="text-[10px] font-medium text-gray-400 uppercase tracking-wider">${label}</span>
+        <button onclick="navigator.clipboard.writeText(document.getElementById('${id}').textContent).then(()=>{this.textContent='Copied!';setTimeout(()=>this.textContent='Copy',1500)})" class="text-[10px] text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition-colors px-1.5 py-0.5 rounded hover:bg-gray-100 dark:hover:bg-gray-700">Copy</button>
+      </div>
+      <pre class="bg-gray-50/50 dark:bg-gray-900/50 text-gray-800 dark:text-gray-200 p-3 overflow-x-auto text-[12px] font-mono leading-relaxed"><code id="${id}">${highlighted}</code></pre>
+    </div>`
+    codeBlocks.push(html)
+    return `%%CODEBLOCK_${codeBlocks.length - 1}%%`
+  })
+
+  // Phase 2: Tables — convert markdown tables to HTML
+  processed = processed.replace(/^(\|.+\|)\n(\|[\s:|-]+\|)\n((?:\|.+\|\n?)+)/gm,
+    (_match, headerRow: string, _separator: string, bodyRows: string) => {
+      const headers = headerRow.split('|').slice(1, -1).map((h: string) => h.trim())
+      const rows = bodyRows.trim().split('\n').map((row: string) => row.split('|').slice(1, -1).map((c: string) => c.trim()))
+      return `<table class="w-full text-[12px] my-2 border-collapse border border-gray-200 dark:border-gray-700">
+        <thead><tr>${headers.map((h: string) => `<th class="px-2 py-1 text-left bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 font-semibold">${h}</th>`).join('')}</tr></thead>
+        <tbody>${rows.map((cells: string[]) => `<tr>${cells.map((c: string) => `<td class="px-2 py-1 border border-gray-200 dark:border-gray-700">${c}</td>`).join('')}</tr>`).join('')}</tbody>
+      </table>`
     })
+
+  // Phase 3: Blockquotes
+  processed = processed.replace(/^(?:&gt;|>) (.+)$/gm, '<blockquote class="border-l-2 border-gray-300 dark:border-gray-600 pl-3 my-1 text-gray-500 dark:text-gray-400 italic text-[13px]">$1</blockquote>')
+  // Merge adjacent blockquotes
+  processed = processed.replace(/<\/blockquote>\n<blockquote[^>]*>/g, '<br/>')
+
+  // Phase 4: Horizontal rules
+  processed = processed.replace(/^(?:---|\*\*\*|___)\s*$/gm, '<hr class="my-3 border-gray-200 dark:border-gray-700" />')
+
+  // Phase 5: Inline and block formatting
+  processed = processed
     .replace(/`([^`]+)`/g, '<code class="bg-indigo-50/80 dark:bg-indigo-950/40 px-1.5 py-0.5 rounded text-[12px] font-mono text-indigo-600 dark:text-indigo-400 border border-indigo-100 dark:border-indigo-800">$1</code>')
     .replace(/^### (.+)$/gm, '<h3 class="text-[13px] font-bold mt-3 mb-1 text-gray-800 dark:text-gray-200">$1</h3>')
     .replace(/^## (.+)$/gm, '<h2 class="text-sm font-bold mt-3 mb-1.5 text-gray-900 dark:text-gray-100">$1</h2>')
@@ -176,17 +285,52 @@ function renderMarkdown(text: string): string {
     .replace(/^- (.+)$/gm, '<li class="ml-4 pl-1 list-disc text-[13px] leading-relaxed">$1</li>')
     .replace(/\n\n/g, '</p><p class="mt-1.5">')
     .replace(/\n/g, '<br/>')
+
+  // Phase 6: Restore code blocks
+  processed = processed.replace(/%%CODEBLOCK_(\d+)%%/g, (_m, idx) => codeBlocks[parseInt(idx)] || '')
+
+  return processed
 }
 
-// Strip dangerous HTML tags that could execute code (XSS prevention)
+// DOM-based sanitizer using DOMPurify — far more robust than regex against XSS
+
+const PURIFY_CONFIG = {
+  ALLOWED_TAGS: [
+    'div', 'span', 'p', 'br', 'hr', 'pre', 'code', 'button',
+    'h1', 'h2', 'h3', 'h4', 'h5', 'h6',
+    'strong', 'em', 'b', 'i', 'u', 's',
+    'ul', 'ol', 'li',
+    'table', 'thead', 'tbody', 'tr', 'th', 'td',
+    'blockquote', 'a', 'img',
+  ],
+  ALLOWED_ATTR: [
+    'class', 'id', 'style', 'href', 'src', 'alt', 'title', 'target', 'rel',
+    'onclick', // only for our copy buttons; DOMPurify hooks below further restrict this
+  ],
+  ALLOW_DATA_ATTR: false,
+}
+
 function sanitizeHtml(html: string): string {
-  return html
-    .replace(/<script\b[^>]*>[\s\S]*?<\/script>/gi, '')
-    .replace(/<iframe\b[^>]*>[\s\S]*?<\/iframe>/gi, '')
-    .replace(/<object\b[^>]*>[\s\S]*?<\/object>/gi, '')
-    .replace(/<embed\b[^>]*\/?>/gi, '')
-    .replace(/\bon\w+\s*=\s*["'][^"']*["']/gi, '')
-    .replace(/javascript\s*:/gi, '')
+  if (typeof window === 'undefined') {
+    // SSR fallback: basic regex strip (DOMPurify needs a DOM)
+    return html
+      .replace(/<script\b[^>]*>[\s\S]*?<\/script>/gi, '')
+      .replace(/<iframe\b[^>]*>[\s\S]*?<\/iframe>/gi, '')
+      .replace(/\bon\w+\s*=\s*["'][^"']*["']/gi, '')
+      .replace(/javascript\s*:/gi, '')
+  }
+  // Only allow onclick on buttons with our specific clipboard pattern
+  DOMPurify.addHook('uponSanitizeAttribute', (node: Element, data) => {
+    if (data.attrName === 'onclick') {
+      const val = String(data.attrValue || '')
+      if (node.tagName !== 'BUTTON' || !val.startsWith('navigator.clipboard')) {
+        data.keepAttr = false
+      }
+    }
+  })
+  const clean = DOMPurify.sanitize(html, PURIFY_CONFIG)
+  DOMPurify.removeHook('uponSanitizeAttribute')
+  return clean
 }
 
 // Markdown HTML cache — avoids re-parsing identical text on every render
@@ -217,6 +361,8 @@ function getToolSummary(toolName: string, args: Record<string, unknown>, result:
     case 'deploy_to_vercel': return data?.url ? `${data.url}` : 'Deploying...'
     case 'list_files': return data ? `${data.count || 0} files` : 'Listing...'
     case 'search_files': return data ? `${data.count || 0} matches` : 'Searching...'
+    case 'grep_files': return data ? `${data.count || 0} matches for /${args.pattern}/` : `Grepping /${args.pattern}/...`
+    case 'add_dependency': return data?.ok ? (data.skipped ? `${args.name} already installed` : `Added ${args.name}@${data.version}`) : `Adding ${args.name}...`
     case 'rename_file': return args.newPath ? `→ ${args.newPath}` : 'Renaming...'
     case 'get_all_files': return data ? `${(data as any).totalFiles || 0} files` : 'Reading manifest...'
     case 'db_query': return args.table ? `${args.table}${args.filters ? ` (${String(args.filters).slice(0, 40)})` : ''}` : 'Querying...'
@@ -290,16 +436,35 @@ function extractFileUpdates(
     case 'edit_file':
       if (inv.state === 'result' && inv.result && !('error' in inv.result)) {
         const path = args.path as string
-        // Prefer authoritative content from server (solves chained edit race condition)
-        if (typeof inv.result.content === 'string') {
-          return { updates: { [path]: inv.result.content } }
-        }
-        // Fallback: re-apply locally (old behavior, for backwards compat)
+        // Server no longer returns content (token optimization) — apply edit client-side
         const oldStr = args.old_string as string
         const newStr = args.new_string as string
         const current = currentFiles[path]
-        if (current && current.includes(oldStr)) {
-          return { updates: { [path]: current.replace(oldStr, newStr) } }
+        if (current && typeof oldStr === 'string' && typeof newStr === 'string') {
+          if (current.includes(oldStr)) {
+            return { updates: { [path]: current.replace(oldStr, newStr) } }
+          }
+          // Indent-insensitive fallback: match server behavior for pass 2
+          const normLine = (l: string) => l.trim()
+          const currentLines = current.split('\n')
+          const oldLines = oldStr.split('\n').map(normLine).filter(l => l.length > 0)
+          if (oldLines.length > 0) {
+            for (let i = 0; i < currentLines.length; i++) {
+              if (normLine(currentLines[i]) !== oldLines[0]) continue
+              let fi = i, oi = 0, matched = true
+              while (oi < oldLines.length && fi < currentLines.length) {
+                if (normLine(currentLines[fi]) === '') { fi++; continue }
+                if (normLine(currentLines[fi]) === oldLines[oi]) { oi++; fi++ }
+                else { matched = false; break }
+              }
+              if (matched && oi === oldLines.length) {
+                const before = currentLines.slice(0, i).join('\n')
+                const after = currentLines.slice(fi).join('\n')
+                const updated = [before, newStr, after].filter(s => s !== '').join('\n')
+                return { updates: { [path]: updated } }
+              }
+            }
+          }
         }
       }
       return null
@@ -1058,6 +1223,7 @@ export function ChatPanel({ projectName, projectId, files, onFileChange, onFileD
   const isEmpty = messages.length === 0
 
   return (
+    <ErrorBoundary>
     <div className="h-full flex flex-col bg-forge-panel border-r border-forge-border">
       {/* Header */}
       <div className="flex items-center justify-between px-3 py-2 border-b border-forge-border shrink-0">
@@ -1251,5 +1417,6 @@ export function ChatPanel({ projectName, projectId, files, onFileChange, onFileD
         </div>
       </div>
     </div>
+    </ErrorBoundary>
   )
 }

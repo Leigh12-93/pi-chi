@@ -201,4 +201,53 @@ export class TaskStore {
   static getSignal(taskId: string): AbortSignal | undefined {
     return persistentControllers.get(taskId)?.signal
   }
+
+  /**
+   * Clean up stale persistent tasks — marks any "running" tasks older than
+   * maxAge as failed. Call periodically (e.g. on app boot or before listing tasks).
+   */
+  static async cleanupStale(
+    sbFetch: SupabaseFetch,
+    maxAgeMinutes: number = 10,
+  ): Promise<{ cleaned: number }> {
+    const cutoff = new Date(Date.now() - maxAgeMinutes * 60 * 1000).toISOString()
+
+    // Step 1: Find stale task IDs before patching, so we know which controllers to abort
+    const listResult = await sbFetch(
+      `/forge_tasks?status=eq.running&created_at=lt.${cutoff}&select=id`,
+      { method: 'GET' },
+    )
+    let staleIds: Set<string> = new Set()
+    if (listResult.ok && Array.isArray(listResult.data)) {
+      const rows = listResult.data as Array<{ id: string }>
+      staleIds = new Set(rows.map(r => r.id))
+    }
+
+    // Step 2: Patch stale DB rows to "failed"
+    let patched = 0
+    if (staleIds.size > 0) {
+      const patchResult = await sbFetch(
+        `/forge_tasks?status=eq.running&created_at=lt.${cutoff}`,
+        {
+          method: 'PATCH',
+          body: JSON.stringify({
+            status: 'failed',
+            error: `Stale task: no completion after ${maxAgeMinutes} minutes`,
+          }),
+        },
+      )
+      patched = patchResult.ok ? staleIds.size : 0
+    }
+
+    // Step 3: Only abort controllers for tasks we just marked as stale
+    for (const staleId of staleIds) {
+      const controller = persistentControllers.get(staleId)
+      if (controller) {
+        if (!controller.signal.aborted) controller.abort('Stale cleanup')
+        persistentControllers.delete(staleId)
+      }
+    }
+
+    return { cleaned: patched }
+  }
 }

@@ -62,6 +62,7 @@ interface FileTreeProps {
   onFileRename?: (oldPath: string, newPath: string) => void
   onFileCreate?: (path: string) => void
   fileContents?: Record<string, string>
+  modifiedFiles?: Set<string>
 }
 
 /** Recursively filter nodes matching search query */
@@ -83,7 +84,7 @@ function filterNodes(nodes: FileNode[], query: string): FileNode[] {
 
 // ─── FileTree ──────────────────────────────────────────────────
 export function FileTree({
-  files, activeFile, onFileSelect, onFileDelete, onFileRename, onFileCreate, fileContents,
+  files, activeFile, onFileSelect, onFileDelete, onFileRename, onFileCreate, fileContents, modifiedFiles,
 }: FileTreeProps) {
   const [searchQuery, setSearchQuery] = useState('')
   const [showSearch, setShowSearch] = useState(false)
@@ -251,6 +252,7 @@ export function FileTree({
             onFileDelete={onFileDelete}
             onFileRename={onFileRename}
             fileContents={fileContents}
+            modifiedFiles={modifiedFiles}
             depth={0}
             forceExpand={!!searchQuery}
           />
@@ -262,7 +264,7 @@ export function FileTree({
 
 // ─── Tree node list ────────────────────────────────────────────
 function TreeNodes({
-  nodes, activeFile, onFileSelect, onFileDelete, onFileRename, fileContents, depth, forceExpand,
+  nodes, activeFile, onFileSelect, onFileDelete, onFileRename, fileContents, modifiedFiles, depth, forceExpand,
 }: {
   nodes: FileNode[]
   activeFile: string | null
@@ -270,6 +272,7 @@ function TreeNodes({
   onFileDelete?: (path: string) => void
   onFileRename?: (oldPath: string, newPath: string) => void
   fileContents?: Record<string, string>
+  modifiedFiles?: Set<string>
   depth: number
   forceExpand?: boolean
 }) {
@@ -284,6 +287,7 @@ function TreeNodes({
           onFileDelete={onFileDelete}
           onFileRename={onFileRename}
           fileContents={fileContents}
+          modifiedFiles={modifiedFiles}
           depth={depth}
           forceExpand={forceExpand}
         />
@@ -294,7 +298,7 @@ function TreeNodes({
 
 // ─── Single tree item ──────────────────────────────────────────
 function TreeItem({
-  node, activeFile, onFileSelect, onFileDelete, onFileRename, fileContents, depth, forceExpand,
+  node, activeFile, onFileSelect, onFileDelete, onFileRename, fileContents, modifiedFiles, depth, forceExpand,
 }: {
   node: FileNode
   activeFile: string | null
@@ -302,6 +306,7 @@ function TreeItem({
   onFileDelete?: (path: string) => void
   onFileRename?: (oldPath: string, newPath: string) => void
   fileContents?: Record<string, string>
+  modifiedFiles?: Set<string>
   depth: number
   forceExpand?: boolean
 }) {
@@ -316,6 +321,7 @@ function TreeItem({
 
   const isDir = node.type === 'directory'
   const isActive = activeFile === node.path
+  const isModified = !isDir && modifiedFiles?.has(node.path)
 
   // Close context menu when clicking outside
   useEffect(() => {
@@ -405,7 +411,14 @@ function TreeItem({
               className="ml-1 bg-forge-surface border border-forge-accent rounded px-1 py-0 text-[12px] text-forge-text outline-none focus:ring-2 focus:ring-forge-accent/30 flex-1 min-w-0"
             />
           ) : (
-            <span className="truncate ml-1" title={node.path}>{node.name}</span>
+            <>
+              <span className={cn('truncate ml-1', isModified && 'text-amber-500 dark:text-amber-400')} title={node.path}>
+                {node.name}
+              </span>
+              {isModified && (
+                <span className="w-1.5 h-1.5 rounded-full bg-amber-500 shrink-0 ml-auto mr-1" title="Modified" />
+              )}
+            </>
           )}
         </button>
 
@@ -489,6 +502,7 @@ function TreeItem({
           onFileDelete={onFileDelete}
           onFileRename={onFileRename}
           fileContents={fileContents}
+          modifiedFiles={modifiedFiles}
           depth={depth + 1}
           forceExpand={forceExpand}
         />

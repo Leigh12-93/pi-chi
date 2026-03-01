@@ -31,6 +31,7 @@ export default function ForgePage() {
   const restoredRef = useRef(false)
   const savingRef = useRef(false)
   const [autoSaveError, setAutoSaveError] = useState(false)
+  const [projectsLoadError, setProjectsLoadError] = useState(false)
 
   // Restore project from sessionStorage on mount (survives refresh)
   useEffect(() => {
@@ -103,14 +104,18 @@ export default function ForgePage() {
 
   const loadProjects = async () => {
     setLoadingProjects(true)
+    setProjectsLoadError(false)
     try {
       const res = await fetch('/api/projects')
       if (res.ok) {
         const data = await res.json()
         setSavedProjects(data)
+      } else {
+        setProjectsLoadError(true)
       }
     } catch (err) {
       console.error('Failed to load projects:', err)
+      setProjectsLoadError(true)
     } finally {
       setLoadingProjects(false)
     }
@@ -228,6 +233,8 @@ export default function ForgePage() {
           loadingProjects={loadingProjects}
           onDeleteProject={handleDeleteProject}
           isLoggedIn={!!session?.user}
+          loadError={projectsLoadError}
+          onRetryLoad={loadProjects}
         />
       </ErrorBoundary>
     )
@@ -253,6 +260,9 @@ export default function ForgePage() {
         }}
         githubToken={githubToken}
         autoSaveError={autoSaveError}
+        onUpdateSettings={(settings) => {
+          if (settings.name) setProjectName(settings.name)
+        }}
       />
     </ErrorBoundary>
   )

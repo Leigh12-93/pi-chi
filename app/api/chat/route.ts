@@ -8,6 +8,7 @@ import { createV0Sandbox, getV0SandboxStatus, destroyV0Sandbox } from '@/lib/v0-
 import { chatLimiter } from '@/lib/rate-limit'
 import { TaskStore } from '@/lib/background-tasks'
 import { getSession } from '@/lib/auth'
+import { TEMPLATES, type TemplateName } from '@/lib/templates'
 
 // ═══════════════════════════════════════════════════════════════════
 // Virtual Filesystem — lives in closure per request
@@ -42,15 +43,18 @@ class VirtualFS {
   }
 
   read(path: string): string | undefined {
-    return this.files.get(path)
+    const safe = VirtualFS.sanitizePath(path)
+    return safe ? this.files.get(safe) : undefined
   }
 
   exists(path: string): boolean {
-    return this.files.has(path)
+    const safe = VirtualFS.sanitizePath(path)
+    return safe ? this.files.has(safe) : false
   }
 
   delete(path: string): boolean {
-    return this.files.delete(path)
+    const safe = VirtualFS.sanitizePath(path)
+    return safe ? this.files.delete(safe) : false
   }
 
   list(prefix = ''): string[] {
@@ -59,9 +63,14 @@ class VirtualFS {
       .sort()
   }
 
-  search(pattern: string, maxResults = 30): Array<{ file: string; line: number; text: string }> {
+  search(pattern: string, maxResults = 30): Array<{ file: string; line: number; text: string }> | { error: string } {
     const results: Array<{ file: string; line: number; text: string }> = []
-    const regex = new RegExp(pattern, 'i')
+    let regex: RegExp
+    try {
+      regex = new RegExp(pattern, 'i')
+    } catch (_e) {
+      return { error: `Invalid regex pattern: ${pattern}` }
+    }
     for (const [path, content] of this.files) {
       if (results.length >= maxResults) break
       const lines = content.split('\n')
@@ -124,493 +133,6 @@ function sortTree(nodes: TreeNode[]): TreeNode[] {
     if (a.type !== b.type) return a.type === 'directory' ? -1 : 1
     return a.name.localeCompare(b.name)
   }).map(n => n.children ? { ...n, children: sortTree(n.children) } : n)
-}
-
-// ═══════════════════════════════════════════════════════════════════
-// Next.js/Vite project templates
-// ═══════════════════════════════════════════════════════════════════
-
-function scaffoldNextJS(name: string, description?: string): Record<string, string> {
-  return {
-    'package.json': JSON.stringify({
-      name, version: '0.1.0', private: true,
-      scripts: { dev: 'next dev', build: 'next build', start: 'next start' },
-      dependencies: {
-        next: '^15.3.3', react: '^19.1.0', 'react-dom': '^19.1.0',
-        'lucide-react': '^0.511.0', clsx: '^2.1.1', 'tailwind-merge': '^3.3.0',
-      },
-      devDependencies: {
-        '@tailwindcss/postcss': '^4.1.8', tailwindcss: '^4.1.8',
-        '@types/node': '^22.15.21', '@types/react': '^19.1.4', typescript: '^5.8.3',
-      },
-    }, null, 2),
-    'next.config.ts': `import type { NextConfig } from 'next'\nconst nextConfig: NextConfig = {}\nexport default nextConfig\n`,
-    'tsconfig.json': JSON.stringify({
-      compilerOptions: {
-        target: 'ES2017', lib: ['dom', 'dom.iterable', 'esnext'], allowJs: true, skipLibCheck: true,
-        strict: true, noEmit: true, esModuleInterop: true, module: 'esnext', moduleResolution: 'bundler',
-        resolveJsonModule: true, isolatedModules: true, jsx: 'preserve', incremental: true,
-        plugins: [{ name: 'next' }], paths: { '@/*': ['./*'] },
-      },
-      include: ['next-env.d.ts', '**/*.ts', '**/*.tsx', '.next/types/**/*.ts'],
-      exclude: ['node_modules'],
-    }, null, 2),
-    'postcss.config.mjs': `const config = { plugins: { "@tailwindcss/postcss": {} } }\nexport default config\n`,
-    'app/globals.css': '@import "tailwindcss";\n',
-    'app/layout.tsx': `import type { Metadata } from 'next'\nimport './globals.css'\n\nexport const metadata: Metadata = {\n  title: '${name}',\n  description: '${description || 'Built with Forge'}',\n}\n\nexport default function RootLayout({ children }: { children: React.ReactNode }) {\n  return (\n    <html lang="en">\n      <body className="antialiased">{children}</body>\n    </html>\n  )\n}\n`,
-    'app/page.tsx': `export default function Home() {\n  return (\n    <main className="min-h-screen flex items-center justify-center bg-white">\n      <h1 className="text-4xl font-bold text-gray-900">Welcome to ${name}</h1>\n    </main>\n  )\n}\n`,
-    'lib/utils.ts': `import { clsx, type ClassValue } from 'clsx'\nimport { twMerge } from 'tailwind-merge'\nexport function cn(...inputs: ClassValue[]) { return twMerge(clsx(inputs)) }\n`,
-    '.gitignore': '.next/\nnode_modules/\n.env.local\n*.tsbuildinfo\nnext-env.d.ts\n',
-  }
-}
-
-function scaffoldViteReact(name: string): Record<string, string> {
-  return {
-    'package.json': JSON.stringify({
-      name, version: '0.1.0', private: true, type: 'module',
-      scripts: { dev: 'vite', build: 'tsc -b && vite build', preview: 'vite preview' },
-      dependencies: { react: '^19.1.0', 'react-dom': '^19.1.0' },
-      devDependencies: {
-        '@types/react': '^19.1.4', '@types/react-dom': '^19.1.5',
-        '@vitejs/plugin-react': '^4.4.1', tailwindcss: '^4.1.8',
-        '@tailwindcss/vite': '^4.1.8', typescript: '^5.8.3', vite: '^6.3.5',
-      },
-    }, null, 2),
-    'vite.config.ts': `import { defineConfig } from 'vite'\nimport react from '@vitejs/plugin-react'\nimport tailwindcss from '@tailwindcss/vite'\nexport default defineConfig({ plugins: [react(), tailwindcss()] })\n`,
-    'tsconfig.json': JSON.stringify({
-      compilerOptions: {
-        target: 'ES2020', useDefineForClassFields: true, lib: ['ES2020', 'DOM', 'DOM.Iterable'],
-        module: 'ESNext', skipLibCheck: true, moduleResolution: 'bundler',
-        allowImportingTsExtensions: true, isolatedModules: true, noEmit: true,
-        jsx: 'react-jsx', strict: true, paths: { '@/*': ['./src/*'] },
-      },
-      include: ['src'],
-    }, null, 2),
-    'index.html': `<!DOCTYPE html>\n<html lang="en">\n<head><meta charset="UTF-8" /><meta name="viewport" content="width=device-width, initial-scale=1.0" /><title>${name}</title></head>\n<body><div id="root"></div><script type="module" src="/src/main.tsx"></script></body>\n</html>\n`,
-    'src/main.tsx': `import { StrictMode } from 'react'\nimport { createRoot } from 'react-dom/client'\nimport App from './App'\nimport './index.css'\ncreateRoot(document.getElementById('root')!).render(<StrictMode><App /></StrictMode>)\n`,
-    'src/App.tsx': `export default function App() {\n  return (\n    <main className="min-h-screen flex items-center justify-center">\n      <h1 className="text-4xl font-bold">Welcome to ${name}</h1>\n    </main>\n  )\n}\n`,
-    'src/index.css': '@import "tailwindcss";\n',
-    '.gitignore': 'node_modules/\ndist/\n.env.local\n',
-  }
-}
-
-function scaffoldStatic(name: string): Record<string, string> {
-  return {
-    'index.html': `<!DOCTYPE html>\n<html lang="en">\n<head>\n  <meta charset="UTF-8">\n  <meta name="viewport" content="width=device-width, initial-scale=1.0">\n  <title>${name}</title>\n  <script src="https://cdn.tailwindcss.com"></script>\n</head>\n<body class="min-h-screen bg-white">\n  <main class="flex items-center justify-center min-h-screen">\n    <h1 class="text-4xl font-bold">${name}</h1>\n  </main>\n</body>\n</html>\n`,
-  }
-}
-
-// ─── Extended Templates ──────────────────────────────────────────
-// Each extends the Next.js base with real, production-ready content
-
-function scaffoldSaaS(name: string): Record<string, string> {
-  const base = scaffoldNextJS(name, 'SaaS landing page')
-  return {
-    ...base,
-    'app/page.tsx': `import { ArrowRight, Zap, Shield, BarChart3, Check } from 'lucide-react'
-
-const FEATURES = [
-  { icon: Zap, title: 'Lightning Fast', desc: 'Built for speed with edge computing and smart caching.' },
-  { icon: Shield, title: 'Secure by Default', desc: 'Enterprise-grade security with SOC 2 compliance.' },
-  { icon: BarChart3, title: 'Analytics Built In', desc: 'Real-time dashboards and actionable insights.' },
-]
-
-const PLANS = [
-  { name: 'Starter', price: '$9', features: ['5 projects', '10GB storage', 'Email support'] },
-  { name: 'Pro', price: '$29', features: ['Unlimited projects', '100GB storage', 'Priority support', 'API access'], popular: true },
-  { name: 'Enterprise', price: '$99', features: ['Everything in Pro', 'Custom integrations', 'Dedicated support', 'SLA guarantee'] },
-]
-
-export default function Home() {
-  return (
-    <div className="min-h-screen bg-white">
-      {/* Nav */}
-      <nav className="flex items-center justify-between px-6 py-4 max-w-6xl mx-auto">
-        <span className="text-xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">${name}</span>
-        <div className="flex items-center gap-6">
-          <a href="#features" className="text-sm text-gray-600 hover:text-gray-900">Features</a>
-          <a href="#pricing" className="text-sm text-gray-600 hover:text-gray-900">Pricing</a>
-          <button className="px-4 py-2 bg-gray-900 text-white text-sm rounded-lg hover:bg-gray-800 transition-colors">Get Started</button>
-        </div>
-      </nav>
-
-      {/* Hero */}
-      <section className="px-6 pt-20 pb-32 text-center max-w-4xl mx-auto">
-        <div className="inline-block px-3 py-1 bg-blue-50 text-blue-700 text-xs font-medium rounded-full mb-6">Now in public beta</div>
-        <h1 className="text-5xl sm:text-6xl font-bold text-gray-900 tracking-tight mb-6">Build better products,<br /><span className="bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">ship faster</span></h1>
-        <p className="text-lg text-gray-600 mb-8 max-w-2xl mx-auto">The all-in-one platform that helps teams build, deploy, and scale modern applications without the complexity.</p>
-        <div className="flex gap-3 justify-center">
-          <button className="px-6 py-3 bg-gray-900 text-white rounded-lg hover:bg-gray-800 flex items-center gap-2 transition-colors">Start free trial <ArrowRight className="w-4 h-4" /></button>
-          <button className="px-6 py-3 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors">Watch demo</button>
-        </div>
-      </section>
-
-      {/* Features */}
-      <section id="features" className="px-6 py-20 bg-gray-50">
-        <div className="max-w-6xl mx-auto">
-          <h2 className="text-3xl font-bold text-center text-gray-900 mb-12">Everything you need</h2>
-          <div className="grid md:grid-cols-3 gap-8">
-            {FEATURES.map(({ icon: Icon, title, desc }) => (
-              <div key={title} className="bg-white p-6 rounded-xl border border-gray-200">
-                <div className="w-10 h-10 bg-blue-50 rounded-lg flex items-center justify-center mb-4"><Icon className="w-5 h-5 text-blue-600" /></div>
-                <h3 className="text-lg font-semibold text-gray-900 mb-2">{title}</h3>
-                <p className="text-sm text-gray-600">{desc}</p>
-              </div>
-            ))}
-          </div>
-        </div>
-      </section>
-
-      {/* Pricing */}
-      <section id="pricing" className="px-6 py-20">
-        <div className="max-w-5xl mx-auto">
-          <h2 className="text-3xl font-bold text-center text-gray-900 mb-12">Simple pricing</h2>
-          <div className="grid md:grid-cols-3 gap-6">
-            {PLANS.map((plan) => (
-              <div key={plan.name} className={\`p-6 rounded-xl border \${plan.popular ? 'border-blue-600 ring-1 ring-blue-600' : 'border-gray-200'}\`}>
-                {plan.popular && <span className="text-xs font-medium text-blue-600 mb-2 block">Most popular</span>}
-                <h3 className="text-lg font-semibold text-gray-900">{plan.name}</h3>
-                <div className="mt-2 mb-4"><span className="text-4xl font-bold text-gray-900">{plan.price}</span><span className="text-gray-500 text-sm">/month</span></div>
-                <ul className="space-y-2 mb-6">
-                  {plan.features.map(f => (
-                    <li key={f} className="flex items-center gap-2 text-sm text-gray-600"><Check className="w-4 h-4 text-green-500 shrink-0" />{f}</li>
-                  ))}
-                </ul>
-                <button className={\`w-full py-2 rounded-lg text-sm font-medium transition-colors \${plan.popular ? 'bg-blue-600 text-white hover:bg-blue-700' : 'bg-gray-100 text-gray-900 hover:bg-gray-200'}\`}>Get started</button>
-              </div>
-            ))}
-          </div>
-        </div>
-      </section>
-
-      {/* Footer */}
-      <footer className="px-6 py-8 border-t border-gray-200">
-        <div className="max-w-6xl mx-auto flex items-center justify-between text-sm text-gray-500">
-          <span>&copy; ${new Date().getFullYear()} ${name}</span>
-          <div className="flex gap-4"><a href="#" className="hover:text-gray-700">Privacy</a><a href="#" className="hover:text-gray-700">Terms</a></div>
-        </div>
-      </footer>
-    </div>
-  )
-}
-`,
-  }
-}
-
-function scaffoldBlog(name: string): Record<string, string> {
-  const base = scaffoldNextJS(name, 'Blog')
-  return {
-    ...base,
-    'app/page.tsx': `const POSTS = [
-  { slug: 'getting-started', title: 'Getting Started with ${name}', excerpt: 'Learn how to set up your development environment and build your first feature.', date: '2026-02-28', readTime: '5 min', tag: 'Tutorial' },
-  { slug: 'best-practices', title: 'Best Practices for Modern Web Development', excerpt: 'A comprehensive guide to writing clean, maintainable, and performant code.', date: '2026-02-25', readTime: '8 min', tag: 'Guide' },
-  { slug: 'whats-new', title: "What's New in 2026", excerpt: 'Exploring the latest trends and technologies shaping the web development landscape.', date: '2026-02-20', readTime: '4 min', tag: 'News' },
-]
-
-export default function Home() {
-  return (
-    <div className="min-h-screen bg-white">
-      <header className="border-b border-gray-200">
-        <div className="max-w-3xl mx-auto px-6 py-4 flex items-center justify-between">
-          <span className="text-lg font-bold text-gray-900">${name}</span>
-          <nav className="flex gap-4 text-sm text-gray-600">
-            <a href="#" className="hover:text-gray-900">Archive</a>
-            <a href="#" className="hover:text-gray-900">About</a>
-          </nav>
-        </div>
-      </header>
-      <main className="max-w-3xl mx-auto px-6 py-12">
-        <h1 className="text-3xl font-bold text-gray-900 mb-8">Latest Posts</h1>
-        <div className="space-y-8">
-          {POSTS.map(post => (
-            <article key={post.slug} className="group cursor-pointer">
-              <div className="flex items-center gap-3 text-sm text-gray-500 mb-2">
-                <span className="px-2 py-0.5 bg-blue-50 text-blue-700 rounded text-xs font-medium">{post.tag}</span>
-                <time>{post.date}</time>
-                <span>&middot;</span>
-                <span>{post.readTime} read</span>
-              </div>
-              <h2 className="text-xl font-semibold text-gray-900 group-hover:text-blue-600 transition-colors mb-2">{post.title}</h2>
-              <p className="text-gray-600">{post.excerpt}</p>
-            </article>
-          ))}
-        </div>
-      </main>
-    </div>
-  )
-}
-`,
-  }
-}
-
-function scaffoldDashboard(name: string): Record<string, string> {
-  const base = scaffoldNextJS(name, 'Dashboard')
-  return {
-    ...base,
-    'app/page.tsx': `import { BarChart3, Users, DollarSign, Activity, ArrowUpRight, ArrowDownRight } from 'lucide-react'
-
-const STATS = [
-  { label: 'Revenue', value: '$45,231', change: '+20.1%', up: true, icon: DollarSign },
-  { label: 'Users', value: '2,350', change: '+12.5%', up: true, icon: Users },
-  { label: 'Active Now', value: '573', change: '-3.2%', up: false, icon: Activity },
-  { label: 'Conversion', value: '3.2%', change: '+0.8%', up: true, icon: BarChart3 },
-]
-
-const RECENT = [
-  { name: 'Sarah Chen', action: 'Upgraded to Pro', time: '2 min ago', amount: '+$29.00' },
-  { name: 'Marcus Johnson', action: 'New signup', time: '5 min ago', amount: '$0.00' },
-  { name: 'Emily Davis', action: 'Payment received', time: '12 min ago', amount: '+$99.00' },
-  { name: 'Alex Kim', action: 'Subscription cancelled', time: '1 hr ago', amount: '-$9.00' },
-  { name: 'Jordan Lee', action: 'Upgraded to Enterprise', time: '2 hr ago', amount: '+$99.00' },
-]
-
-export default function Home() {
-  return (
-    <div className="min-h-screen bg-gray-50 flex">
-      {/* Sidebar */}
-      <aside className="w-56 bg-gray-900 text-white p-4 hidden md:block">
-        <div className="text-lg font-bold mb-8 px-2">${name}</div>
-        <nav className="space-y-1">
-          {['Dashboard', 'Analytics', 'Customers', 'Products', 'Settings'].map((item, i) => (
-            <a key={item} href="#" className={\`block px-3 py-2 rounded-lg text-sm \${i === 0 ? 'bg-gray-800 text-white' : 'text-gray-400 hover:text-white hover:bg-gray-800'} transition-colors\`}>{item}</a>
-          ))}
-        </nav>
-      </aside>
-
-      {/* Main */}
-      <main className="flex-1 p-6">
-        <h1 className="text-2xl font-bold text-gray-900 mb-6">Dashboard</h1>
-
-        {/* Stats */}
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
-          {STATS.map(({ label, value, change, up, icon: Icon }) => (
-            <div key={label} className="bg-white p-4 rounded-xl border border-gray-200">
-              <div className="flex items-center justify-between mb-2">
-                <span className="text-sm text-gray-500">{label}</span>
-                <Icon className="w-4 h-4 text-gray-400" />
-              </div>
-              <div className="text-2xl font-bold text-gray-900">{value}</div>
-              <div className={\`flex items-center gap-1 text-xs mt-1 \${up ? 'text-green-600' : 'text-red-600'}\`}>
-                {up ? <ArrowUpRight className="w-3 h-3" /> : <ArrowDownRight className="w-3 h-3" />}
-                {change}
-              </div>
-            </div>
-          ))}
-        </div>
-
-        {/* Recent Activity */}
-        <div className="bg-white rounded-xl border border-gray-200">
-          <div className="px-4 py-3 border-b border-gray-200"><h2 className="font-semibold text-gray-900">Recent Activity</h2></div>
-          <div className="divide-y divide-gray-100">
-            {RECENT.map((item, i) => (
-              <div key={i} className="px-4 py-3 flex items-center justify-between">
-                <div>
-                  <div className="text-sm font-medium text-gray-900">{item.name}</div>
-                  <div className="text-xs text-gray-500">{item.action} &middot; {item.time}</div>
-                </div>
-                <span className={\`text-sm font-medium \${item.amount.startsWith('+') ? 'text-green-600' : item.amount.startsWith('-') ? 'text-red-600' : 'text-gray-500'}\`}>{item.amount}</span>
-              </div>
-            ))}
-          </div>
-        </div>
-      </main>
-    </div>
-  )
-}
-`,
-  }
-}
-
-function scaffoldEcommerce(name: string): Record<string, string> {
-  const base = scaffoldNextJS(name, 'E-commerce store')
-  return {
-    ...base,
-    'app/page.tsx': `import { ShoppingCart, Star, Heart } from 'lucide-react'
-
-const PRODUCTS = [
-  { id: 1, name: 'Minimal Desk Lamp', price: 89, rating: 4.8, reviews: 124, image: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=400&h=400&fit=crop' },
-  { id: 2, name: 'Ceramic Planter', price: 45, rating: 4.6, reviews: 89, image: 'https://images.unsplash.com/photo-1485955900006-10f4d324d411?w=400&h=400&fit=crop' },
-  { id: 3, name: 'Linen Throw Pillow', price: 35, rating: 4.9, reviews: 203, image: 'https://images.unsplash.com/photo-1584100936595-c0654b55a2e2?w=400&h=400&fit=crop' },
-  { id: 4, name: 'Oak Side Table', price: 199, rating: 4.7, reviews: 67, image: 'https://images.unsplash.com/photo-1532372576444-dda954194ad0?w=400&h=400&fit=crop' },
-  { id: 5, name: 'Woven Basket Set', price: 65, rating: 4.5, reviews: 45, image: 'https://images.unsplash.com/photo-1519710164239-da123dc03ef4?w=400&h=400&fit=crop' },
-  { id: 6, name: 'Brass Candle Holder', price: 42, rating: 4.8, reviews: 156, image: 'https://images.unsplash.com/photo-1602028915047-37269d1a73f7?w=400&h=400&fit=crop' },
-]
-
-export default function Home() {
-  return (
-    <div className="min-h-screen bg-white">
-      <header className="border-b border-gray-200">
-        <div className="max-w-6xl mx-auto px-6 py-4 flex items-center justify-between">
-          <span className="text-xl font-bold text-gray-900">${name}</span>
-          <div className="flex items-center gap-6">
-            <a href="#" className="text-sm text-gray-600 hover:text-gray-900">Shop</a>
-            <a href="#" className="text-sm text-gray-600 hover:text-gray-900">About</a>
-            <button className="relative"><ShoppingCart className="w-5 h-5 text-gray-700" /><span className="absolute -top-1.5 -right-1.5 w-4 h-4 bg-gray-900 text-white text-[10px] rounded-full flex items-center justify-center">3</span></button>
-          </div>
-        </div>
-      </header>
-
-      <section className="px-6 py-16 bg-gray-50 text-center">
-        <h1 className="text-4xl font-bold text-gray-900 mb-3">Curated for your home</h1>
-        <p className="text-gray-600 max-w-lg mx-auto">Thoughtfully designed pieces that bring warmth and character to every space.</p>
-      </section>
-
-      <main className="max-w-6xl mx-auto px-6 py-12">
-        <div className="grid grid-cols-2 lg:grid-cols-3 gap-6">
-          {PRODUCTS.map(product => (
-            <div key={product.id} className="group">
-              <div className="relative aspect-square bg-gray-100 rounded-xl overflow-hidden mb-3">
-                <img src={product.image} alt={product.name} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" />
-                <button className="absolute top-3 right-3 w-8 h-8 bg-white rounded-full flex items-center justify-center shadow-sm opacity-0 group-hover:opacity-100 transition-opacity"><Heart className="w-4 h-4 text-gray-600" /></button>
-              </div>
-              <h3 className="font-medium text-gray-900">{product.name}</h3>
-              <div className="flex items-center gap-2 mt-1">
-                <div className="flex items-center gap-0.5"><Star className="w-3.5 h-3.5 fill-yellow-400 text-yellow-400" /><span className="text-sm text-gray-600">{product.rating}</span></div>
-                <span className="text-sm text-gray-400">({product.reviews})</span>
-              </div>
-              <div className="flex items-center justify-between mt-2">
-                <span className="font-semibold text-gray-900">\${product.price}</span>
-                <button className="px-3 py-1.5 bg-gray-900 text-white text-xs rounded-lg hover:bg-gray-800 transition-colors">Add to cart</button>
-              </div>
-            </div>
-          ))}
-        </div>
-      </main>
-    </div>
-  )
-}
-`,
-  }
-}
-
-function scaffoldPortfolio(name: string): Record<string, string> {
-  const base = scaffoldNextJS(name, 'Portfolio')
-  return {
-    ...base,
-    'app/page.tsx': `import { Github, Linkedin, Mail, ExternalLink } from 'lucide-react'
-
-const PROJECTS = [
-  { title: 'E-Commerce Platform', desc: 'Full-stack marketplace with payments, inventory, and admin dashboard.', tags: ['Next.js', 'Stripe', 'PostgreSQL'], link: '#' },
-  { title: 'AI Chat Application', desc: 'Real-time chat with AI assistant, supporting multiple conversation threads.', tags: ['React', 'OpenAI', 'WebSocket'], link: '#' },
-  { title: 'Analytics Dashboard', desc: 'Interactive data visualization platform with real-time metrics and reporting.', tags: ['TypeScript', 'D3.js', 'Redis'], link: '#' },
-  { title: 'Mobile Fitness App', desc: 'Cross-platform fitness tracker with workout plans and progress charts.', tags: ['React Native', 'Firebase', 'Charts'], link: '#' },
-]
-
-export default function Home() {
-  return (
-    <div className="min-h-screen bg-white">
-      <main className="max-w-3xl mx-auto px-6 py-20">
-        {/* Intro */}
-        <section className="mb-16">
-          <h1 className="text-4xl font-bold text-gray-900 mb-4">Hi, I'm Alex <span className="inline-block animate-[wave_1.5s_ease-in-out_infinite]">&#x1F44B;</span></h1>
-          <p className="text-lg text-gray-600 mb-6">Full-stack developer passionate about building clean, performant web applications. Currently open to new opportunities.</p>
-          <div className="flex gap-3">
-            <a href="#" className="w-9 h-9 bg-gray-100 rounded-lg flex items-center justify-center text-gray-600 hover:bg-gray-200 transition-colors"><Github className="w-4 h-4" /></a>
-            <a href="#" className="w-9 h-9 bg-gray-100 rounded-lg flex items-center justify-center text-gray-600 hover:bg-gray-200 transition-colors"><Linkedin className="w-4 h-4" /></a>
-            <a href="#" className="w-9 h-9 bg-gray-100 rounded-lg flex items-center justify-center text-gray-600 hover:bg-gray-200 transition-colors"><Mail className="w-4 h-4" /></a>
-          </div>
-        </section>
-
-        {/* Projects */}
-        <section className="mb-16">
-          <h2 className="text-2xl font-bold text-gray-900 mb-6">Projects</h2>
-          <div className="grid gap-4">
-            {PROJECTS.map(project => (
-              <a key={project.title} href={project.link} className="block p-5 border border-gray-200 rounded-xl hover:border-gray-400 transition-colors group">
-                <div className="flex items-start justify-between mb-2">
-                  <h3 className="font-semibold text-gray-900 group-hover:text-blue-600 transition-colors">{project.title}</h3>
-                  <ExternalLink className="w-4 h-4 text-gray-400 shrink-0 mt-0.5" />
-                </div>
-                <p className="text-sm text-gray-600 mb-3">{project.desc}</p>
-                <div className="flex gap-2 flex-wrap">
-                  {project.tags.map(tag => (
-                    <span key={tag} className="px-2 py-0.5 bg-gray-100 text-gray-600 text-xs rounded-md">{tag}</span>
-                  ))}
-                </div>
-              </a>
-            ))}
-          </div>
-        </section>
-
-        {/* Contact */}
-        <section>
-          <h2 className="text-2xl font-bold text-gray-900 mb-4">Get in touch</h2>
-          <p className="text-gray-600 mb-4">Have a project in mind? Let's chat.</p>
-          <a href="mailto:hello@example.com" className="inline-flex items-center gap-2 px-5 py-2.5 bg-gray-900 text-white rounded-lg hover:bg-gray-800 transition-colors text-sm"><Mail className="w-4 h-4" />hello@example.com</a>
-        </section>
-      </main>
-    </div>
-  )
-}
-`,
-  }
-}
-
-function scaffoldDocs(name: string): Record<string, string> {
-  const base = scaffoldNextJS(name, 'Documentation site')
-  return {
-    ...base,
-    'app/page.tsx': `import { Book, Code2, Rocket, Terminal, ArrowRight, Search } from 'lucide-react'
-
-const SECTIONS = [
-  { icon: Rocket, title: 'Quick Start', desc: 'Get up and running in under 5 minutes with our step-by-step guide.', href: '#' },
-  { icon: Code2, title: 'API Reference', desc: 'Complete API documentation with examples for every endpoint.', href: '#' },
-  { icon: Terminal, title: 'CLI Guide', desc: 'Command-line tools and scripts for automation and deployment.', href: '#' },
-  { icon: Book, title: 'Tutorials', desc: 'In-depth tutorials covering common patterns and best practices.', href: '#' },
-]
-
-const SIDEBAR = ['Introduction', 'Installation', 'Quick Start', 'Configuration', 'Authentication', 'API Reference', 'Deployment', 'FAQ']
-
-export default function Home() {
-  return (
-    <div className="min-h-screen bg-white">
-      <header className="border-b border-gray-200 sticky top-0 bg-white z-10">
-        <div className="max-w-7xl mx-auto px-6 py-3 flex items-center justify-between">
-          <div className="flex items-center gap-6">
-            <span className="text-lg font-bold text-gray-900">${name} Docs</span>
-            <span className="text-xs text-gray-500 bg-gray-100 px-2 py-0.5 rounded-md">v1.0</span>
-          </div>
-          <div className="flex items-center gap-4">
-            <div className="relative hidden sm:block">
-              <Search className="w-4 h-4 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2" />
-              <input type="text" placeholder="Search docs..." className="pl-9 pr-4 py-1.5 border border-gray-200 rounded-lg text-sm w-64 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent" />
-            </div>
-            <a href="#" className="text-sm text-gray-600 hover:text-gray-900">GitHub</a>
-          </div>
-        </div>
-      </header>
-
-      <div className="max-w-7xl mx-auto flex">
-        {/* Sidebar */}
-        <aside className="w-56 shrink-0 border-r border-gray-200 p-4 hidden md:block sticky top-14 h-[calc(100vh-3.5rem)] overflow-auto">
-          <nav className="space-y-0.5">
-            {SIDEBAR.map((item, i) => (
-              <a key={item} href="#" className={\`block px-3 py-1.5 rounded-md text-sm \${i === 0 ? 'bg-blue-50 text-blue-700 font-medium' : 'text-gray-600 hover:bg-gray-50'}\`}>{item}</a>
-            ))}
-          </nav>
-        </aside>
-
-        {/* Content */}
-        <main className="flex-1 px-8 py-10 max-w-3xl">
-          <h1 className="text-3xl font-bold text-gray-900 mb-4">${name} Documentation</h1>
-          <p className="text-lg text-gray-600 mb-10">Everything you need to build with ${name}. Guides, references, and examples.</p>
-
-          <div className="grid sm:grid-cols-2 gap-4">
-            {SECTIONS.map(({ icon: Icon, title, desc, href }) => (
-              <a key={title} href={href} className="p-5 border border-gray-200 rounded-xl hover:border-blue-300 hover:shadow-sm transition-all group">
-                <Icon className="w-5 h-5 text-blue-600 mb-3" />
-                <h3 className="font-semibold text-gray-900 mb-1 flex items-center gap-1">{title} <ArrowRight className="w-3.5 h-3.5 opacity-0 group-hover:opacity-100 transition-opacity" /></h3>
-                <p className="text-sm text-gray-600">{desc}</p>
-              </a>
-            ))}
-          </div>
-        </main>
-      </div>
-    </div>
-  )
-}
-`,
-  }
 }
 
 // ═══════════════════════════════════════════════════════════════════
@@ -829,6 +351,15 @@ export async function POST(req: Request) {
     })
   }
 
+  // Request body size guard: reject payloads over 8MB to prevent abuse
+  const contentLength = parseInt(req.headers.get('content-length') || '0', 10)
+  if (contentLength > 8 * 1024 * 1024) {
+    return new Response(JSON.stringify({ error: 'Request too large. Maximum body size is 8MB.' }), {
+      status: 413,
+      headers: { 'Content-Type': 'application/json' },
+    })
+  }
+
   const body = await req.json()
   const projectName = body.projectName || 'untitled'
   const projectId = body.projectId || null
@@ -846,6 +377,9 @@ export async function POST(req: Request) {
   // In-request task store for background operations
   const taskStore = new TaskStore()
 
+  // Track edit_file failures per path — after 3 failures, suggest write_file
+  const editFailCounts = new Map<string, number>()
+
   // Build file manifest for system context (lean — no content)
   const manifest = vfs.manifest()
   const manifestStr = manifest.length > 0
@@ -854,9 +388,13 @@ export async function POST(req: Request) {
 
   // ── Cost optimization: trim conversation history ──────────────
   // Tool invocations in old messages contain full file contents (write_file args)
-  // that get re-sent every request. Strip them from old messages, keep recent ones intact.
-  const MAX_HISTORY = 40       // max messages to keep total
-  const FULL_DETAIL_WINDOW = 8 // last N messages keep full tool invocation data
+  // that get re-sent every request. Use 3-tier trimming:
+  //   Last 4 messages: full detail (complete tool data)
+  //   Messages 5-8: medium detail (tool names + paths only, stripped results)
+  //   Older: summary only (tool list appended as text)
+  const MAX_HISTORY = 40
+  const FULL_DETAIL_WINDOW = 4
+  const MEDIUM_DETAIL_WINDOW = 8
 
   const rawMessages = body.messages || []
   let trimmedMessages = rawMessages.length > MAX_HISTORY
@@ -864,9 +402,24 @@ export async function POST(req: Request) {
     : rawMessages
 
   trimmedMessages = trimmedMessages.map((m: any, i: number) => {
-    // Keep recent messages fully intact (they need tool data for context)
-    if (i >= trimmedMessages.length - FULL_DETAIL_WINDOW) return m
-    // Strip tool invocations from old assistant messages (saves massive tokens)
+    const fromEnd = trimmedMessages.length - i
+
+    // Tier 1: Last 4 messages — full detail
+    if (fromEnd <= FULL_DETAIL_WINDOW) return m
+
+    // Tier 2: Messages 5-8 — keep tool names + paths, strip content/results
+    if (fromEnd <= MEDIUM_DETAIL_WINDOW && m.role === 'assistant' && m.toolInvocations?.length > 0) {
+      return {
+        ...m,
+        toolInvocations: m.toolInvocations.map((inv: any) => ({
+          ...inv,
+          args: { path: inv.args?.path, template: inv.args?.template },
+          result: inv.result?.ok !== undefined ? { ok: inv.result.ok } : undefined,
+        })),
+      }
+    }
+
+    // Tier 3: Older messages — summarize tool invocations as text
     if (m.role === 'assistant' && m.toolInvocations?.length > 0) {
       const summary = m.toolInvocations.map((inv: any) => {
         const name = inv.toolName
@@ -913,6 +466,11 @@ export async function POST(req: Request) {
 
   const streamData = new StreamData()
 
+  // Global timeout: abort the entire streamText operation after 5 minutes
+  // Prevents indefinitely hanging requests if the model or tool execution stalls.
+  const streamAbort = new AbortController()
+  const streamTimeout = setTimeout(() => streamAbort.abort('Stream timeout: 5 minutes exceeded'), 5 * 60 * 1000)
+
   const result = streamText({
     // Prompt caching: system prompt + tool definitions cached by Anthropic.
     // 90% input token discount on cached prefix for subsequent requests in same session.
@@ -920,6 +478,7 @@ export async function POST(req: Request) {
     system: SYSTEM_PROMPT + `\n\n---\nProject: "${projectName}"${projectId ? ` (id: ${projectId})` : ''}\nFile manifest:\n${manifestStr}`,
     messages,
     maxSteps: 50,
+    abortSignal: streamAbort.signal,
     tools: {
 
       // ─── Agentic Planning ──────────────────────────────────────
@@ -968,19 +527,38 @@ export async function POST(req: Request) {
           const safePath = VirtualFS.sanitizePath(path)
           if (!safePath) return { error: `Invalid file path: ${path}` }
           vfs.write(safePath, content)
-          return { ok: true, path: safePath, lines: content.split('\n').length }
+          const result: Record<string, unknown> = { ok: true, path: safePath, lines: content.split('\n').length }
+          if (safePath.endsWith('.json')) {
+            try { JSON.parse(content) } catch (e: any) {
+              result.warning = `Invalid JSON: ${e.message}. The file was written but may cause build errors.`
+            }
+          }
+          return result
         },
       }),
 
       read_file: tool({
-        description: 'Read a file\'s content. Only use when you need existing content before editing.',
+        description: 'Read a file\'s content. Only use when you need existing content before editing. Supports pagination for large files via offset/limit.',
         parameters: z.object({
           path: z.string().describe('File path relative to project root'),
+          offset: z.number().optional().describe('Line number to start from (1-based, default: 1)'),
+          limit: z.number().optional().describe('Max lines to return (default/max: 2000)'),
         }),
-        execute: async ({ path }) => {
+        execute: async ({ path, offset, limit }) => {
           const content = vfs.read(path)
           if (content === undefined) return { error: `File not found: ${path}` }
-          return { content, path, lines: content.split('\n').length }
+          const allLines = content.split('\n')
+          const totalLines = allLines.length
+          const startLine = Math.max(1, offset || 1)
+          const maxLines = Math.min(limit || 2000, 2000)
+          const sliced = allLines.slice(startLine - 1, startLine - 1 + maxLines)
+          const isTruncated = totalLines > startLine - 1 + maxLines
+          return {
+            content: sliced.join('\n'),
+            path,
+            lines: totalLines,
+            ...(isTruncated ? { truncated: true, showing: `${startLine}-${startLine + sliced.length - 1} of ${totalLines}`, hint: 'Use offset/limit to read remaining lines.' } : {}),
+          }
         },
       }),
 
@@ -997,7 +575,7 @@ export async function POST(req: Request) {
           const content = vfs.read(safePath)
           if (content === undefined) return { error: `File not found: ${path}` }
 
-          // ── Pass 1: Exact match (fast path) ──────────────────────
+          // ── Pass 1: Exact match (fast path) ─────────────���────────
           if (content.includes(old_string)) {
             const occurrences = content.split(old_string).length - 1
             if (occurrences > 1) {
@@ -1055,6 +633,22 @@ export async function POST(req: Request) {
           }
 
           if (bestMatch) {
+            // Uniqueness check: scan for a second fuzzy match after the first
+            let secondMatch = false
+            for (let i = bestMatch.end; i < fileRawLines.length; i++) {
+              if (fileTrimmedLines[i] !== oldTrimmedLines[0]) continue
+              let fi2 = i, oi2 = 0, matched2 = true
+              while (oi2 < oldTrimmedLines.length && fi2 < fileRawLines.length) {
+                if (fileTrimmedLines[fi2] === '') { fi2++; continue }
+                if (fileTrimmedLines[fi2] === oldTrimmedLines[oi2]) { oi2++; fi2++ }
+                else { matched2 = false; break }
+              }
+              if (matched2 && oi2 === oldTrimmedLines.length) { secondMatch = true; break }
+            }
+            if (secondMatch) {
+              return { error: 'Found multiple fuzzy matches for this code block. Provide more surrounding context to make old_string unique, or use exact whitespace.' }
+            }
+
             const before = fileRawLines.slice(0, bestMatch.start).join('\n')
             const after = fileRawLines.slice(bestMatch.end).join('\n')
             const updated = [before, new_string, after].filter(s => s !== '').join('\n')
@@ -1062,59 +656,9 @@ export async function POST(req: Request) {
             return { ok: true, path: safePath, lines: updated.split('\n').length, note: 'Matched with indent-insensitive fuzzy matching' }
           }
 
-          // ── Pass 3: Single-line whitespace-normalized match ──────
-          // For single-line edits where indent is wrong
-          if (oldTrimmedLines.length === 1) {
-            const target = oldTrimmedLines[0]
-            for (let i = 0; i < fileRawLines.length; i++) {
-              if (normLine(fileRawLines[i]) === target) {
-                // Check uniqueness
-                const matches = fileTrimmedLines.filter(l => normLine(l) === target).length
-                if (matches > 1) {
-                  return { error: `Found ${matches} fuzzy matches for this single line. Provide more context lines to make it unique.` }
-                }
-                const updated = [...fileRawLines]
-                updated[i] = new_string
-                const joined = updated.join('\n')
-                vfs.write(safePath, joined)
-                return { ok: true, path: safePath, lines: updated.length, note: 'Matched single line with whitespace normalization' }
-              }
-            }
-          }
-
-          // ── Pass 4: Subsequence match — find old lines as a subsequence ──
-          // Handles cases where AI omits some lines in old_string but the
-          // key anchor lines are present in order
-          if (oldTrimmedLines.length >= 3) {
-            const firstTarget = oldTrimmedLines[0]
-            const lastTarget = oldTrimmedLines[oldTrimmedLines.length - 1]
-
-            for (let startIdx = 0; startIdx < fileRawLines.length; startIdx++) {
-              if (fileTrimmedLines[startIdx] !== firstTarget) continue
-
-              // Find the last old line after this point
-              for (let endIdx = startIdx + 1; endIdx < fileRawLines.length; endIdx++) {
-                if (fileTrimmedLines[endIdx] !== lastTarget) continue
-
-                // Check if all old lines appear in order between start..end
-                const fileSlice = fileTrimmedLines.slice(startIdx, endIdx + 1).filter(l => l.length > 0)
-                let oi = 0
-                for (const fl of fileSlice) {
-                  if (oi < oldTrimmedLines.length && fl === oldTrimmedLines[oi]) oi++
-                }
-
-                if (oi === oldTrimmedLines.length) {
-                  // All old lines matched as a subsequence — replace the block
-                  const before = fileRawLines.slice(0, startIdx).join('\n')
-                  const after = fileRawLines.slice(endIdx + 1).join('\n')
-                  const updated = [before, new_string, after].filter(s => s !== '').join('\n')
-                  vfs.write(safePath, updated)
-                  return { ok: true, path: safePath, lines: updated.split('\n').length, note: 'Matched via subsequence (anchor lines found in order)' }
-                }
-                break // only try first matching end
-              }
-            }
-          }
+          // Passes 3 (single-line fuzzy) and 4 (subsequence) removed —
+          // they were too risky (could silently match wrong code blocks).
+          // Only exact match (pass 1) and indent-insensitive (pass 2) remain.
 
           // ── No match — return helpful context ────────────────────
           const firstOldLine = old_string.split('\n')[0].trim()
@@ -1129,9 +673,13 @@ export async function POST(req: Request) {
             }
           }
 
+          const fails = (editFailCounts.get(safePath) || 0) + 1
+          editFailCounts.set(safePath, fails)
           return {
             error: 'old_string not found in file. You MUST call read_file on this file before retrying. Do NOT guess at the content.',
-            hint: 'STOP. Call read_file to see the actual file content, then use the exact text from read_file as old_string.',
+            hint: fails >= 3
+              ? `You have failed to edit this file ${fails} times. Use write_file to rewrite it instead of continuing to retry edit_file.`
+              : 'STOP. Call read_file to see the actual file content, then use the exact text from read_file as old_string.',
             nearMatch: nearLines.length > 0 ? nearLines[0] : undefined,
             fileLength: `${fileRawLines.length} lines`,
           }
@@ -1170,6 +718,42 @@ export async function POST(req: Request) {
         }),
         execute: async ({ pattern }) => {
           const results = vfs.search(pattern)
+          if (!Array.isArray(results)) return results
+          return { results, count: results.length }
+        },
+      }),
+
+      grep_files: tool({
+        description: 'Search file contents with regex and return matches with surrounding context lines. Better than search_files when you need to see code around matches before editing.',
+        parameters: z.object({
+          pattern: z.string().describe('Regex pattern to search for'),
+          context: z.number().optional().describe('Lines of context before and after each match (default: 3)'),
+          maxResults: z.number().optional().describe('Max results to return (default: 10)'),
+        }),
+        execute: async ({ pattern, context: ctx, maxResults }) => {
+          const contextLines = ctx ?? 3
+          const max = maxResults ?? 10
+          const results: Array<{ file: string; line: number; match: string; context: string }> = []
+          let regex: RegExp
+          try {
+            regex = new RegExp(pattern, 'i')
+          } catch {
+            return { error: `Invalid regex pattern: ${pattern}` }
+          }
+          for (const [path, content] of vfs.files) {
+            if (results.length >= max) break
+            const lines = content.split('\n')
+            for (let i = 0; i < lines.length && results.length < max; i++) {
+              if (regex.test(lines[i])) {
+                const start = Math.max(0, i - contextLines)
+                const end = Math.min(lines.length, i + contextLines + 1)
+                const contextBlock = lines.slice(start, end)
+                  .map((l, idx) => `${start + idx + 1}${start + idx === i ? '>' : ' '} ${l}`)
+                  .join('\n')
+                results.push({ file: path, line: i + 1, match: lines[i].trim().slice(0, 200), context: contextBlock })
+              }
+            }
+          }
           return { results, count: results.length }
         },
       }),
@@ -1183,18 +767,7 @@ export async function POST(req: Request) {
           description: z.string().optional().describe('Project description'),
         }),
         execute: async ({ template, description }) => {
-          let scaffold: Record<string, string>
-          switch (template) {
-            case 'nextjs': scaffold = scaffoldNextJS(projectName, description); break
-            case 'vite-react': scaffold = scaffoldViteReact(projectName); break
-            case 'static': scaffold = scaffoldStatic(projectName); break
-            case 'saas': scaffold = scaffoldSaaS(projectName); break
-            case 'blog': scaffold = scaffoldBlog(projectName); break
-            case 'dashboard': scaffold = scaffoldDashboard(projectName); break
-            case 'ecommerce': scaffold = scaffoldEcommerce(projectName); break
-            case 'portfolio': scaffold = scaffoldPortfolio(projectName); break
-            case 'docs': scaffold = scaffoldDocs(projectName); break
-          }
+          const scaffold = TEMPLATES[template as TemplateName](projectName, description)
           for (const [path, content] of Object.entries(scaffold)) {
             vfs.write(path, content)
           }
@@ -1202,7 +775,6 @@ export async function POST(req: Request) {
             ok: true,
             template,
             files: Object.keys(scaffold),
-            allFiles: vfs.toRecord(),
           }
         },
       }),
@@ -1381,6 +953,17 @@ export async function POST(req: Request) {
           const files = vfs.toRecord()
           if (Object.keys(files).length === 0) return { error: 'No files to deploy.' }
 
+          // Pre-deploy validation: catch obvious issues before wasting a Vercel build
+          const pkgJson = files['package.json']
+          if (pkgJson) {
+            try {
+              const pkg = JSON.parse(pkgJson)
+              if (!pkg.scripts?.build) return { error: 'package.json exists but has no "scripts.build". Add a build script before deploying.' }
+            } catch { return { error: 'package.json is invalid JSON. Fix it before deploying.' } }
+          } else if (!files['index.html']) {
+            return { error: 'No package.json or index.html found. Create a project with create_project first.' }
+          }
+
           const fw = framework === 'static' ? undefined : (framework || detectFramework(files))
 
           const { taskId, error } = await TaskStore.createPersistent(
@@ -1427,7 +1010,7 @@ export async function POST(req: Request) {
         },
       }),
 
-      // ─── Utility ────────────────────────────────────────────────
+      // ─── Utility ���───────────────────────────────────────────────
 
       get_all_files: tool({
         description: 'Get the file manifest (path, lines, size). No content.',
@@ -1456,6 +1039,41 @@ export async function POST(req: Request) {
         },
       }),
 
+      add_dependency: tool({
+        description: 'Add an npm package to package.json. Validates the package exists on npm first. ALWAYS use this when importing a package not already in package.json.',
+        parameters: z.object({
+          name: z.string().describe('npm package name, e.g. "framer-motion"'),
+          version: z.string().optional().describe('Version range (default: ^latest)'),
+          dev: z.boolean().optional().describe('Add to devDependencies instead of dependencies'),
+        }),
+        execute: async ({ name, version, dev }) => {
+          try {
+            const res = await fetch(`https://registry.npmjs.org/${encodeURIComponent(name)}`, {
+              headers: { Accept: 'application/json' },
+            })
+            if (res.status === 404) return { error: `Package "${name}" does not exist on npm. Do NOT import it.` }
+            if (!res.ok) return { error: `npm registry error: ${res.status}` }
+            const data = await res.json()
+            const latest = data['dist-tags']?.latest
+            const ver = version || `^${latest}`
+
+            const pkgPath = 'package.json'
+            const pkgContent = vfs.read(pkgPath)
+            if (!pkgContent) return { error: 'No package.json found. Create one first with create_project.' }
+
+            const pkg = JSON.parse(pkgContent)
+            const field = dev ? 'devDependencies' : 'dependencies'
+            if (!pkg[field]) pkg[field] = {}
+            if (pkg[field][name]) return { ok: true, path: pkgPath, note: `${name} already in ${field} (${pkg[field][name]})`, skipped: true }
+            pkg[field][name] = ver
+            vfs.write(pkgPath, JSON.stringify(pkg, null, 2))
+            return { ok: true, path: pkgPath, added: name, version: ver, field }
+          } catch (err) {
+            return { error: err instanceof Error ? err.message : 'Failed to check npm' }
+          }
+        },
+      }),
+
       // ═══════════════════════════════════════════════════════════════
       // SUPERPOWER TOOLS
       // ═══════════════════════════════════════════════════════════════
@@ -1463,7 +1081,7 @@ export async function POST(req: Request) {
       // ─── Database Operations ────────────────────────────────────
 
       db_query: tool({
-        description: 'Query the Supabase database. Read data from forge_ tables. Use PostgREST query syntax for filters. Tables: forge_projects, forge_project_files, forge_chat_messages, forge_deployments, forge_tasks.',
+        description: 'Query the Supabase database. Restricted to forge_* tables and credit_packages (read-only). Tables: forge_projects, forge_project_files, forge_chat_messages, forge_deployments, forge_tasks, credit_packages.',
         parameters: z.object({
           table: z.string().describe('Table name, e.g. "forge_projects"'),
           select: z.string().optional().describe('Columns to select, e.g. "id, name, created_at" (default: *)'),
@@ -1472,9 +1090,10 @@ export async function POST(req: Request) {
           limit: z.number().optional().describe('Max rows to return (default: 50)'),
         }),
         execute: async ({ table, select, filters, order, limit }) => {
-          // Security: restrict to forge_* tables only
-          if (!table.startsWith('forge_')) {
-            return { error: `Access denied: can only query forge_* tables, got "${table}"` }
+          // Security: restrict to forge_* tables + credit_packages read-only
+          const ALLOWED_TABLES = /^(forge_|credit_packages$)/
+          if (!ALLOWED_TABLES.test(table)) {
+            return { error: `Access denied: db_query restricted to forge_* tables. "${table}" is not allowed.` }
           }
 
           const params = new URLSearchParams()
@@ -1491,7 +1110,7 @@ export async function POST(req: Request) {
       }),
 
       db_mutate: tool({
-        description: 'Insert, update, or delete data in forge_ tables in the Supabase database.',
+        description: 'Insert, update, or delete data in forge_* tables in the Supabase database.',
         parameters: z.object({
           operation: z.enum(['insert', 'update', 'upsert', 'delete']).describe('Operation type'),
           table: z.string().describe('Table name (must start with forge_)'),
@@ -1615,12 +1234,12 @@ export async function POST(req: Request) {
       }),
 
       forge_modify_own_source: tool({
-        description: 'Modify a file in Forge\'s own source code. This pushes a commit to the Forge repo on GitHub. Use with care — you are editing your own brain.',
+        description: 'Modify a file in Forge\'s own source code. This pushes a commit to the Forge repo on GitHub. Use with care — you are editing your own brain. ALWAYS use a feature branch, never master.',
         parameters: z.object({
           path: z.string().describe('File path to modify in Forge repo'),
           content: z.string().describe('New file content (complete file)'),
           message: z.string().describe('Commit message describing the change'),
-          branch: z.string().optional().describe('Branch (default: master)'),
+          branch: z.string().describe('Branch name (must NOT be "master" or "main" — use a feature branch)'),
         }),
         execute: async ({ path, content, message, branch }) => {
           const token = GITHUB_TOKEN
@@ -1628,7 +1247,13 @@ export async function POST(req: Request) {
 
           const owner = 'Leigh12-93'
           const repo = 'forge'
-          const branchName = branch || 'master'
+          const branchName = branch || 'self-modify-' + Date.now()
+
+          // Security: hard-reject pushes to protected branches
+          const PROTECTED_BRANCHES = ['master', 'main', 'production']
+          if (PROTECTED_BRANCHES.includes(branchName.toLowerCase())) {
+            return { error: `Direct pushes to "${branchName}" are blocked. Use a feature branch (e.g. "feat/my-change"), then forge_create_pr to merge.` }
+          }
 
           // Security: block direct pushes to master — must use a branch
           if (branchName === 'master' || branchName === 'main') {
@@ -1899,7 +1524,7 @@ export async function POST(req: Request) {
               batch.map(async (item: any) => {
                 const res = await fetch(
                   `https://api.github.com/repos/${owner}/${repo}/git/blobs/${item.sha}`,
-                  { headers: { Authorization: `Bearer ${token}`, Accept: 'application/vnd.github.v3+json' } }
+                  { headers: { Authorization: `Bearer ${token}`, Accept: 'application/vnd.github.v3+json' }, signal: AbortSignal.timeout(15000) }
                 )
                 if (!res.ok) return null
                 const data = await res.json()
@@ -2316,7 +1941,7 @@ export async function POST(req: Request) {
       }),
 
       db_introspect: tool({
-        description: 'Discover the schema of a Supabase table — columns, types, constraints. Use this instead of guessing column names.',
+        description: 'Discover the schema of a Supabase table — columns, types, constraints. Restricted to forge_* and credit_packages tables.',
         parameters: z.object({
           table: z.string().describe('Table name to inspect, e.g. "forge_projects"'),
         }),
@@ -2324,6 +1949,11 @@ export async function POST(req: Request) {
           // Validate table name (alphanumeric + underscores only)
           if (!/^[a-zA-Z_][a-zA-Z0-9_]*$/.test(table)) {
             return { error: 'Invalid table name. Use only letters, numbers, and underscores.' }
+          }
+          // Security: restrict to forge_* tables + credit_packages
+          const ALLOWED_TABLES = /^(forge_|credit_packages$)/
+          if (!ALLOWED_TABLES.test(table)) {
+            return { error: `Access denied: db_introspect restricted to forge_* tables. "${table}" is not allowed.` }
           }
 
           // Step 1: Check table exists and get row count
@@ -2671,7 +2301,7 @@ export function ${name}({ variant = 'default', size = 'default', className, chil
         },
       }),
 
-      // ─── Sandbox Preview ────────────────────────────────────────
+      // ─── Sandbox Preview ───────────────���───────────────��────────
 
       start_sandbox: tool({
         description: 'Start a live preview sandbox for the current project. Uploads files to v0 Platform API and returns a live preview URL. Free — no tokens consumed. Use when the user wants to see their app running live.',
@@ -2706,38 +2336,52 @@ export function ${name}({ variant = 'default', size = 'default', className, chil
       }),
 
       add_image: tool({
-        description: 'Search Unsplash for a free image and return the URL. Use this when the user needs images for their project (hero backgrounds, product photos, avatars, etc.). Returns the image URL which you can use in img tags or CSS backgrounds.',
+        description: 'Find a free image from Unsplash for the project. Returns a working image URL you can use in img tags or CSS backgrounds. If UNSPLASH_ACCESS_KEY is not set, returns placeholder guidance instead.',
         parameters: z.object({
           query: z.string().describe('Search query (e.g. "mountain landscape", "coffee shop", "team meeting")'),
           orientation: z.enum(['landscape', 'portrait', 'squarish']).default('landscape').describe('Image orientation'),
           size: z.enum(['raw', 'full', 'regular', 'small', 'thumb']).default('regular').describe('Image size variant'),
         }),
         execute: async ({ query, orientation, size }) => {
-          // Use Unsplash source URL (no API key needed, redirects to random matching image)
-          const params = new URLSearchParams({ query, orientation })
-          const sourceUrl = `https://source.unsplash.com/featured/?${params}`
-
-          // Also provide a direct search results approach with proper attribution
-          const searchUrl = `https://unsplash.com/s/photos/${encodeURIComponent(query)}`
-
-          // Build predictable Unsplash URLs for common sizes
-          const sizeMap: Record<string, string> = {
-            raw: '&w=4000',
-            full: '&w=2400',
-            regular: '&w=1080',
-            small: '&w=640',
-            thumb: '&w=200',
+          const accessKey = clientEnvVars.UNSPLASH_ACCESS_KEY || process.env.UNSPLASH_ACCESS_KEY
+          if (!accessKey) {
+            // Fallback: use placeholder.co which always works without API keys
+            const sizeMap: Record<string, string> = {
+              raw: '1600x900', full: '1200x800', regular: '800x600', small: '400x300', thumb: '150x150',
+            }
+            const dims = sizeMap[size] || '800x600'
+            const placeholderUrl = `https://placehold.co/${dims}/1a1a2e/eaeaea?text=${encodeURIComponent(query.slice(0, 20))}`
+            return {
+              ok: true,
+              url: placeholderUrl,
+              suggestion: `Use: <img src="${placeholderUrl}" alt="${query}" />`,
+              tip: 'This is a placeholder. Set UNSPLASH_ACCESS_KEY env var (free at unsplash.com/developers) for real photos.',
+            }
           }
 
-          const imageUrl = `https://images.unsplash.com/photo-random?${params}${sizeMap[size] || '&w=1080'}`
+          try {
+            const params = new URLSearchParams({ query, orientation, per_page: '1' })
+            const res = await fetch(`https://api.unsplash.com/search/photos?${params}`, {
+              headers: { Authorization: `Client-ID ${accessKey}` },
+              signal: AbortSignal.timeout(10000),
+            })
+            if (!res.ok) return { error: `Unsplash API error: ${res.status}` }
+            const data = await res.json()
+            if (!data.results?.length) return { error: `No images found for "${query}". Try a broader search term.` }
 
-          return {
-            ok: true,
-            url: sourceUrl,
-            directSearchUrl: searchUrl,
-            suggestion: `Use this in your code: <img src="${sourceUrl}" alt="${query}" />`,
-            attribution: 'Photos from Unsplash (free to use, attribution appreciated)',
-            tip: 'For production, consider downloading the image and hosting it. Unsplash source URLs redirect to random matching photos.',
+            const photo = data.results[0]
+            const imageUrl = photo.urls?.[size] || photo.urls?.regular
+            return {
+              ok: true,
+              url: imageUrl,
+              downloadUrl: photo.links?.download_location,
+              author: photo.user?.name,
+              authorUrl: photo.user?.links?.html,
+              suggestion: `Use: <img src="${imageUrl}" alt="${query}" />`,
+              attribution: `Photo by ${photo.user?.name} on Unsplash`,
+            }
+          } catch (err) {
+            return { error: err instanceof Error ? err.message : 'Failed to search Unsplash' }
           }
         },
       }),
@@ -2850,6 +2494,7 @@ export function ${name}({ variant = 'default', size = 'default', className, chil
     },
 
     onFinish: async (event) => {
+      clearTimeout(streamTimeout)
       console.log(`[forge] ${event.usage?.totalTokens || 0} tokens, ${event.steps?.length || 0} steps`)
 
       // Stream real token usage to client

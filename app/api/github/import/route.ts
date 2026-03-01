@@ -190,14 +190,23 @@ export async function POST(req: Request) {
   try {
     // Auto-detect branch if not specified
     const targetBranch = branch || await getDefaultBranch(owner, repo, session.accessToken)
-    const result = await fetchTree(owner, repo, targetBranch, session.accessToken)
+
+    // Global timeout: abort entire import after 2 minutes to prevent hanging
+    const importResult = await Promise.race([
+      fetchTree(owner, repo, targetBranch, session.accessToken),
+      new Promise<never>((_, reject) =>
+        setTimeout(() => reject(new Error('Import timed out after 2 minutes. The repository may be too large — try importing a specific branch or fork with fewer files.')), 2 * 60 * 1000)
+      ),
+    ])
+
     return NextResponse.json({
-      files: result.files,
-      fileCount: Object.keys(result.files).length,
+      files: importResult.files,
+      fileCount: Object.keys(importResult.files).length,
       branch: targetBranch,
-      skipped: result.skipped,
+      skipped: importResult.skipped,
     })
   } catch (err: any) {
-    return NextResponse.json({ error: err.message }, { status: 500 })
+    const status = err.message?.includes('timed out') ? 504 : 500
+    return NextResponse.json({ error: err.message }, { status })
   }
 }
