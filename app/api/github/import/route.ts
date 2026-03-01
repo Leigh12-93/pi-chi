@@ -108,7 +108,7 @@ async function fetchTree(owner: string, repo: string, branch: string, token: str
 
   const blobs = (data.tree || []).filter((item: any) => {
     if (item.type !== 'blob') return false
-    if (item.size > 100000) return false // Skip files > 100KB
+    if (item.size > 500000) return false // Skip files > 500KB
 
     const parts = item.path.split('/')
     const basename = parts[parts.length - 1] || ''
@@ -127,8 +127,8 @@ async function fetchTree(owner: string, repo: string, branch: string, token: str
     return TEXT_EXTENSIONS.has(ext)
   })
 
-  // Fetch up to 150 files in batches of 10
-  const filesToFetch = blobs.slice(0, 150).map((b: any) => ({ path: b.path, sha: b.sha }))
+  // Fetch up to 300 files in batches of 10
+  const filesToFetch = blobs.slice(0, 300).map((b: any) => ({ path: b.path, sha: b.sha }))
   return fetchInBatches(filesToFetch, owner, repo, branch, token, 10)
 }
 

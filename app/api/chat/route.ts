@@ -1783,29 +1783,36 @@ export async function POST(req: Request) {
           const skipDirs = new Set(['node_modules','.git','.next','dist','build','.vercel','.turbo','coverage','__pycache__','.cache'])
 
           const blobs = (treeData.tree || []).filter((item: any) => {
-            if (item.type !== 'blob' || item.size > 100000) return false
+            if (item.type !== 'blob' || item.size > 500000) return false
             const parts = item.path.split('/')
             if (parts.some((p: string) => skipDirs.has(p))) return false
             const ext = item.path.split('.').pop()?.toLowerCase() || ''
             const basename = item.path.split('/').pop() || ''
             if (['Dockerfile','Makefile','.gitignore','.env.example'].includes(basename)) return true
             return textExts.has(ext)
-          }).slice(0, 100)
+          }).slice(0, 300)
 
-          const results = await Promise.allSettled(
-            blobs.map(async (item: any) => {
-              const res = await fetch(
-                `https://api.github.com/repos/${owner}/${repo}/contents/${item.path}?ref=${branch}`,
-                { headers: { Authorization: `Bearer ${token}`, Accept: 'application/vnd.github.v3+json' } }
-              )
-              if (!res.ok) return null
-              const data = await res.json()
-              if (data.encoding === 'base64' && data.content) {
-                return { path: item.path, content: Buffer.from(data.content, 'base64').toString('utf-8') }
-              }
-              return null
-            })
-          )
+          // Fetch in batches of 10 to avoid GitHub rate limits
+          const results: PromiseSettledResult<{ path: string; content: string } | null>[] = []
+          for (let i = 0; i < blobs.length; i += 10) {
+            const batch = blobs.slice(i, i + 10)
+            const batchResults = await Promise.allSettled(
+              batch.map(async (item: any) => {
+                const res = await fetch(
+                  `https://api.github.com/repos/${owner}/${repo}/git/blobs/${item.sha}`,
+                  { headers: { Authorization: `Bearer ${token}`, Accept: 'application/vnd.github.v3+json' } }
+                )
+                if (!res.ok) return null
+                const data = await res.json()
+                if (data.encoding === 'base64' && data.content) {
+                  return { path: item.path, content: Buffer.from(data.content, 'base64').toString('utf-8') }
+                }
+                return null
+              })
+            )
+            results.push(...batchResults)
+            if (i + 10 < blobs.length) await new Promise(r => setTimeout(r, 100))
+          }
 
           const pulledFiles: Record<string, string> = {}
           for (const r of results) {
