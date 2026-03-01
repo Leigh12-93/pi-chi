@@ -218,11 +218,9 @@ export class TaskStore {
       { method: 'GET' },
     )
     let staleIds: Set<string> = new Set()
-    if (listResult.ok) {
-      try {
-        const rows: Array<{ id: string }> = await listResult.json()
-        staleIds = new Set(rows.map(r => r.id))
-      } catch { /* ignore parse errors */ }
+    if (listResult.ok && Array.isArray(listResult.data)) {
+      const rows = listResult.data as Array<{ id: string }>
+      staleIds = new Set(rows.map(r => r.id))
     }
 
     // Step 2: Patch stale DB rows to "failed"
