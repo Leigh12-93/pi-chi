@@ -10,7 +10,7 @@ import {
   StopCircle, Sparkles, ArrowUp, Lightbulb,
   Brain, Database, Wrench, RefreshCw,
   BookOpen, Save, Plug, ImageIcon,
-  ChevronDown, ExternalLink,
+  ChevronDown, ExternalLink, Clock,
   type LucideIcon,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
@@ -313,6 +313,7 @@ export function ChatPanel({ projectName, projectId, files, onFileChange, onFileD
     isLoading,
     error,
     append,
+    data,
   } = useChat({
     api: '/api/chat',
     body: { projectName, projectId, files, githubToken, model: selectedModel },
@@ -500,6 +501,37 @@ export function ChatPanel({ projectName, projectId, files, onFileChange, onFileD
     return { stepCount: steps, estimatedTokens: tokens }
   }, [messages])
 
+  // Extract real token usage from stream data annotations
+  const realTokens = useMemo(() => {
+    if (!data || !Array.isArray(data)) return 0
+    const usageEntries = data.filter((d: unknown) => d && typeof d === 'object' && (d as Record<string, unknown>).type === 'usage')
+    if (usageEntries.length === 0) return 0
+    const last = usageEntries[usageEntries.length - 1] as Record<string, unknown>
+    return (last?.totalTokens as number) || 0
+  }, [data])
+
+  // Elapsed time tracking during AI operations
+  const streamStartRef = useRef<number>(0)
+  const [elapsed, setElapsed] = useState(0)
+
+  useEffect(() => {
+    if (isLoading) {
+      streamStartRef.current = Date.now()
+      setElapsed(0)
+      const interval = setInterval(() => {
+        setElapsed(Math.floor((Date.now() - streamStartRef.current) / 1000))
+      }, 1000)
+      return () => clearInterval(interval)
+    } else {
+      setElapsed(0)
+    }
+  }, [isLoading])
+
+  const formatElapsed = (s: number) => {
+    if (s < 60) return `${s}s`
+    return `${Math.floor(s / 60)}m ${s % 60}s`
+  }
+
   const isEmpty = messages.length === 0
 
   return (
@@ -509,8 +541,11 @@ export function ChatPanel({ projectName, projectId, files, onFileChange, onFileD
         <div className="flex items-center gap-2">
           <Bot className="w-4 h-4 text-forge-accent" />
           <span className="text-xs font-medium text-forge-text">Forge AI</span>
-          {isLoading && stepCount > 0 && (
-            <span className="text-[10px] text-forge-accent animate-pulse" title="Tool invocations processed">Step {stepCount}</span>
+          {isLoading && (
+            <span className="text-[10px] text-forge-accent animate-pulse flex items-center gap-1" title="Tool invocations processed">
+              {stepCount > 0 && <>Step {stepCount}</>}
+              {elapsed > 0 && <><Clock className="w-2.5 h-2.5 inline" />{formatElapsed(elapsed)}</>}
+            </span>
           )}
         </div>
         <div className="flex items-center gap-1">
@@ -757,6 +792,9 @@ export function ChatPanel({ projectName, projectId, files, onFileChange, onFileD
 
                           // ── check_task_status: running → blue progress indicator ──
                           if (inv.toolName === 'check_task_status' && (isRunning || isTaskRunning)) {
+                            const taskProgress = resultData?.progress as string | undefined
+                            const taskCreatedAt = resultData?.created_at ? new Date(resultData.created_at as string).getTime() : 0
+                            const taskElapsed = taskCreatedAt ? Math.floor((Date.now() - taskCreatedAt) / 1000) : 0
                             return (
                               <div
                                 key={partIdx}
@@ -766,7 +804,8 @@ export function ChatPanel({ projectName, projectId, files, onFileChange, onFileD
                                   <Loader2 className="w-3 h-3 animate-spin" />
                                 </div>
                                 <span className="truncate flex-1 text-blue-600 dark:text-blue-400">
-                                  {`${resultData?.type || 'Task'}: in progress...`}
+                                  {taskProgress || `${resultData?.type || 'Task'}: in progress...`}
+                                  {taskElapsed > 0 && ` · ${taskElapsed}s`}
                                 </span>
                               </div>
                             )
@@ -887,7 +926,9 @@ export function ChatPanel({ projectName, projectId, files, onFileChange, onFileD
                   <div className="w-1.5 h-1.5 rounded-full bg-forge-accent animate-pulse-dot" style={{ animationDelay: '0.4s' }} />
                 </div>
                 <span className="text-forge-text-dim">
-                  {stepCount > 0 ? `Building (step ${stepCount})...` : 'Thinking...'}
+                  {stepCount > 0 ? `Building (step ${stepCount})` : 'Thinking'}
+                  {elapsed > 0 && ` · ${formatElapsed(elapsed)}`}
+                  ...
                 </span>
               </div>
             )}
@@ -918,13 +959,13 @@ export function ChatPanel({ projectName, projectId, files, onFileChange, onFileD
             onChange={e => {
               setInput(e.target.value)
               e.target.style.height = 'auto'
-              e.target.style.height = Math.min(e.target.scrollHeight, 150) + 'px'
+              e.target.style.height = Math.min(e.target.scrollHeight, 200) + 'px'
             }}
             onKeyDown={e => {
               if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSend() }
             }}
             placeholder={isEmpty ? 'Describe what you want to build...' : 'Ask for changes, new features, fixes...'}
-            rows={1}
+            rows={3}
             className="w-full bg-forge-surface border border-forge-border rounded-xl pl-3.5 pr-14 py-3 sm:py-2.5 text-sm text-forge-text placeholder:text-forge-text-dim/50 outline-none focus:border-forge-accent/50 focus:ring-2 focus:ring-forge-accent/10 resize-none transition-all"
           />
           <div className="absolute right-2 bottom-2 sm:bottom-1.5">
@@ -943,9 +984,9 @@ export function ChatPanel({ projectName, projectId, files, onFileChange, onFileD
           <span className="text-[10px] text-forge-text-dim/60">
             Enter to send &middot; Shift+Enter for new line
           </span>
-          {estimatedTokens > 0 && (
-            <span className="text-[10px] text-forge-text-dim/60" title="Estimated token usage">
-              ~{estimatedTokens > 1000 ? `${(estimatedTokens / 1000).toFixed(1)}k` : estimatedTokens} tokens
+          {(realTokens || estimatedTokens) > 0 && (
+            <span className="text-[10px] text-forge-text-dim/60" title={realTokens ? 'Actual API token usage' : 'Estimated token usage'}>
+              {realTokens ? '' : '~'}{(realTokens || estimatedTokens) > 1000 ? `${((realTokens || estimatedTokens) / 1000).toFixed(1)}k` : (realTokens || estimatedTokens)} tokens
             </span>
           )}
         </div>

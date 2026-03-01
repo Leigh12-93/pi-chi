@@ -547,41 +547,43 @@ export function Workspace({
 
       {/* Desktop layout */}
       <div className="flex-1 hidden md:flex flex-col overflow-hidden">
-        <div className="flex-1 flex overflow-hidden">
-          <PanelGroup direction="horizontal">
-            <Panel defaultSize={30} minSize={20} maxSize={50}>
-              {chatPanel}
-            </Panel>
-            <PanelResizeHandle />
-            <Panel defaultSize={70} minSize={40}>
-              <PanelGroup direction="horizontal">
-                {showSidebar && (
-                  <>
-                    <Panel defaultSize={20} minSize={12} maxSize={35}>
-                      {fileTreePanel}
-                    </Panel>
-                    <PanelResizeHandle />
-                  </>
-                )}
-                <Panel defaultSize={showSidebar ? 80 : 100} minSize={40}>
-                  {editorPanel}
-                </Panel>
-              </PanelGroup>
-            </Panel>
-          </PanelGroup>
-        </div>
-        <ConsolePanel
-          entries={consoleEntries}
-          onClear={() => setConsoleEntries([])}
-          open={consoleOpen}
-          onToggle={() => setConsoleOpen(prev => !prev)}
-        />
-        <StatusBar
-          activeFile={activeFile}
-          fileCount={Object.keys(files).length}
-          framework={files['package.json'] ? 'Next.js' : files['index.html'] ? 'Static' : undefined}
-          saveStatus={saveStatus}
-        />
+        <PanelGroup direction="horizontal">
+          <Panel defaultSize={30} minSize={20} maxSize={50}>
+            {chatPanel}
+          </Panel>
+          <PanelResizeHandle />
+          <Panel defaultSize={70} minSize={40}>
+            <div className="h-full flex flex-col overflow-hidden">
+              <div className="flex-1 overflow-hidden">
+                <PanelGroup direction="horizontal">
+                  {showSidebar && (
+                    <>
+                      <Panel defaultSize={20} minSize={12} maxSize={35}>
+                        {fileTreePanel}
+                      </Panel>
+                      <PanelResizeHandle />
+                    </>
+                  )}
+                  <Panel defaultSize={showSidebar ? 80 : 100} minSize={40}>
+                    {editorPanel}
+                  </Panel>
+                </PanelGroup>
+              </div>
+              <ConsolePanel
+                entries={consoleEntries}
+                onClear={() => setConsoleEntries([])}
+                open={consoleOpen}
+                onToggle={() => setConsoleOpen(prev => !prev)}
+              />
+              <StatusBar
+                activeFile={activeFile}
+                fileCount={Object.keys(files).length}
+                framework={files['package.json'] ? 'Next.js' : files['index.html'] ? 'Static' : undefined}
+                saveStatus={saveStatus}
+              />
+            </div>
+          </Panel>
+        </PanelGroup>
       </div>
 
       {/* Mobile layout */}

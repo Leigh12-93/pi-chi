@@ -80,7 +80,7 @@ export class TaskStore {
     sbFetch: SupabaseFetch,
     projectId: string | null,
     type: string,
-    operation: () => Promise<unknown>,
+    operation: (onProgress: (msg: string) => Promise<void>) => Promise<unknown>,
   ): Promise<{ taskId: string; error?: string }> {
     // Insert the task row
     const insertResult = await sbFetch('/forge_tasks', {
@@ -98,8 +98,16 @@ export class TaskStore {
 
     const taskId = (insertResult.data[0] as { id: string }).id
 
+    // Progress callback — patches the task row's progress field
+    const onProgress = async (msg: string) => {
+      await sbFetch(`/forge_tasks?id=eq.${taskId}`, {
+        method: 'PATCH',
+        body: JSON.stringify({ progress: msg }),
+      })
+    }
+
     // Fire-and-forget: run operation and update the row when done
-    operation()
+    operation(onProgress)
       .then(async (result) => {
         await sbFetch(`/forge_tasks?id=eq.${taskId}`, {
           method: 'PATCH',

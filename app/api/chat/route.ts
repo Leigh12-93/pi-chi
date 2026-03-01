@@ -1,4 +1,4 @@
-import { streamText, tool, convertToCoreMessages } from 'ai'
+import { streamText, tool, convertToCoreMessages, StreamData } from 'ai'
 import { anthropic } from '@ai-sdk/anthropic'
 import { z } from 'zod'
 import { supabase } from '@/lib/supabase'
@@ -645,13 +645,15 @@ function detectFramework(files: Record<string, string>): string | undefined {
   return undefined // let Vercel auto-detect for static sites
 }
 
-async function vercelDeploy(name: string, files: Record<string, string>, framework?: string) {
+async function vercelDeploy(name: string, files: Record<string, string>, framework?: string, onProgress?: (msg: string) => Promise<void>) {
   if (!VERCEL_TOKEN) return { error: 'VERCEL_TOKEN not configured' }
 
+  const progress = onProgress || (async () => {})
   const fileEntries = Object.entries(files).map(([file, data]) => ({ file, data }))
   const fw = framework || detectFramework(files)
   const deployName = name.replace(/\s+/g, '-').toLowerCase().replace(/[^a-z0-9-]/g, '').slice(0, 52)
 
+  await progress('Uploading files...')
   const teamParam = VERCEL_TEAM ? `?teamId=${VERCEL_TEAM}` : ''
   const res = await fetch(`https://api.vercel.com/v13/deployments${teamParam}`, {
     method: 'POST',
@@ -673,6 +675,7 @@ async function vercelDeploy(name: string, files: Record<string, string>, framewo
   const deployUrl = `https://${data.url}`
   let state = data.readyState || 'QUEUED'
 
+  await progress('Build queued...')
   // Poll for build completion (up to 120s)
   let attempts = 0
   while (['QUEUED', 'BUILDING', 'INITIALIZING'].includes(state) && attempts < 24) {
@@ -684,8 +687,15 @@ async function vercelDeploy(name: string, files: Record<string, string>, framewo
       })
       if (check.ok) {
         const checkData = await check.json()
+        const prevState = state
         state = checkData.readyState || state
+        if (state === 'BUILDING' && (prevState !== 'BUILDING' || attempts % 2 === 0)) {
+          await progress(`Building... (${attempts * 5}s)`)
+        } else if (state === 'QUEUED') {
+          await progress(`Build queued... (${attempts * 5}s)`)
+        }
         if (state === 'ERROR' || state === 'CANCELED') {
+          await progress('Build failed — fetching error logs...')
           // Fetch build errors
           let errorLog = 'Build failed on Vercel'
           try {
@@ -715,6 +725,7 @@ async function vercelDeploy(name: string, files: Record<string, string>, framewo
     return { url: deployUrl, id: deployId, readyState: state, note: 'Build still in progress. Use check_task_status or forge_deployment_status to check later.' }
   }
 
+  await progress('Finalizing...')
   return { url: deployUrl, id: deployId, readyState: state, framework: fw, fileCount: Object.keys(files).length }
 }
 
@@ -842,6 +853,8 @@ export async function POST(req: Request) {
       }
     }
   }
+
+  const streamData = new StreamData()
 
   const result = streamText({
     // Prompt caching: system prompt + tool definitions cached by Anthropic.
@@ -1151,7 +1164,7 @@ export async function POST(req: Request) {
             supabaseFetch,
             projectId,
             'github_create',
-            async () => {
+            async (_onProgress) => {
               const repo = await githubFetch('/user/repos', token, {
                 method: 'POST',
                 body: JSON.stringify({
@@ -1242,7 +1255,7 @@ export async function POST(req: Request) {
             supabaseFetch,
             projectId,
             'github_push',
-            async () => {
+            async (_onProgress) => {
               // Try specified branch, fall back to main/master
               let ref = await githubFetch(`/repos/${owner}/${repo}/git/refs/heads/${branchName}`, token)
               if (ref.error && branchName === 'main') {
@@ -1311,7 +1324,7 @@ export async function POST(req: Request) {
             supabaseFetch,
             projectId,
             'deploy',
-            () => vercelDeploy(projectName, files, fw),
+            (onProgress) => vercelDeploy(projectName, files, fw, onProgress),
           )
           if (error) return { error }
           return { taskId, status: 'running', message: `Deploying ${Object.keys(files).length} files${fw ? ` (${fw})` : ''}. Use check_task_status to monitor progress.` }
@@ -2613,7 +2626,7 @@ export function ${name}({ variant = 'default', size = 'default', className, chil
             supabaseFetch,
             projectId,
             'check_build',
-            async () => {
+            async (_onProgress) => {
               const teamParam = VERCEL_TEAM ? `?teamId=${VERCEL_TEAM}` : ''
               const res = await fetch(`https://api.vercel.com/v13/deployments${teamParam}`, {
                 method: 'POST',
@@ -2709,7 +2722,18 @@ export function ${name}({ variant = 'default', size = 'default', className, chil
 
     onFinish: async (event) => {
       console.log(`[forge] ${event.usage?.totalTokens || 0} tokens, ${event.steps?.length || 0} steps`)
-      
+
+      // Stream real token usage to client
+      if (event.usage) {
+        streamData.append({
+          type: 'usage',
+          promptTokens: event.usage.promptTokens,
+          completionTokens: event.usage.completionTokens,
+          totalTokens: event.usage.totalTokens,
+        })
+      }
+      await streamData.close()
+
       // Save assistant message to database if projectId exists
       if (projectId && event.text) {
         try {
@@ -2729,5 +2753,5 @@ export function ${name}({ variant = 'default', size = 'default', className, chil
     },
   })
 
-  return result.toDataStreamResponse()
+  return result.toDataStreamResponse({ data: streamData })
 }
