@@ -8,16 +8,6 @@ interface RateLimitEntry {
 
 const stores = new Map<string, Map<string, RateLimitEntry>>()
 
-// Clean up expired entries every 60s
-setInterval(() => {
-  const now = Date.now()
-  for (const store of stores.values()) {
-    for (const [key, entry] of store) {
-      if (now > entry.resetAt) store.delete(key)
-    }
-  }
-}, 60_000)
-
 export function rateLimit(
   name: string,
   maxRequests: number,
@@ -28,6 +18,14 @@ export function rateLimit(
 
   return (ip: string) => {
     const now = Date.now()
+
+    // Lazy cleanup: evict expired entries on each call (O(n) but n is small — IPs with active sessions)
+    if (store.size > 100) {
+      for (const [key, entry] of store) {
+        if (now > entry.resetAt) store.delete(key)
+      }
+    }
+
     const entry = store.get(ip)
 
     if (!entry || now > entry.resetAt) {

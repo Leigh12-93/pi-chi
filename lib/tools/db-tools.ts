@@ -19,7 +19,7 @@ export function createDbTools(ctx: ToolContext) {
       }),
       execute: async ({ table, select, filters, order, limit }) => {
         // Security: restrict to forge_* tables + credit_packages read-only
-        const ALLOWED_TABLES = /^(forge_|credit_packages$)/
+        const ALLOWED_TABLES = /^(forge_\w+|credit_packages)$/
         if (!ALLOWED_TABLES.test(table)) {
           return { error: `Access denied: db_query restricted to forge_* tables. "${table}" is not allowed.` }
         }
@@ -105,7 +105,7 @@ export function createDbTools(ctx: ToolContext) {
           return { error: 'Invalid table name. Use only letters, numbers, and underscores.' }
         }
         // Security: restrict to forge_* tables + credit_packages
-        const ALLOWED_TABLES = /^(forge_|credit_packages$)/
+        const ALLOWED_TABLES = /^(forge_\w+|credit_packages)$/
         if (!ALLOWED_TABLES.test(table)) {
           return { error: `Access denied: db_introspect restricted to forge_* tables. "${table}" is not allowed.` }
         }

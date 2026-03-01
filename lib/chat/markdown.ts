@@ -46,14 +46,15 @@ function renderMarkdown(text: string): string {
   const codeBlocks: string[] = []
   let processed = text.replace(/```(\w*)\n([\s\S]*?)```/g, (_match, lang: string, code: string) => {
     const id = `code-block-${++_codeBlockId}`
+    const safeId = id.replace(/[^a-zA-Z0-9_-]/g, '')
     const label = LANG_LABELS[lang] || lang || 'Code'
     const highlighted = lang ? highlightCode(code.trimEnd(), lang) : code.trimEnd().replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
     const html = `<div class="code-block-wrapper relative group/code my-3 rounded-xl overflow-hidden border border-forge-border dark:border-gray-800">
       <div class="flex items-center justify-between px-3.5 py-2 bg-gray-50 dark:bg-gray-900 border-b border-forge-border dark:border-gray-800">
         <span class="text-[11px] font-medium text-forge-text-dim tracking-wide">${label}</span>
-        <button onclick="navigator.clipboard.writeText(document.getElementById('${id}').textContent).then(()=>{this.textContent='Copied!';setTimeout(()=>this.textContent='Copy',1500)})" class="text-[11px] text-forge-text-dim hover:text-forge-text transition-colors px-2 py-0.5 rounded hover:bg-forge-surface">Copy</button>
+        <button onclick="navigator.clipboard.writeText(document.getElementById('${safeId}').textContent).then(()=>{this.textContent='Copied!';setTimeout(()=>this.textContent='Copy',1500)})" class="text-[11px] text-forge-text-dim hover:text-forge-text transition-colors px-2 py-0.5 rounded hover:bg-forge-surface">Copy</button>
       </div>
-      <pre class="bg-gray-50 dark:bg-gray-950 text-gray-800 dark:text-gray-200 p-4 overflow-x-auto text-[12.5px] font-mono leading-relaxed"><code id="${id}">${highlighted}</code></pre>
+      <pre class="bg-gray-50 dark:bg-gray-950 text-gray-800 dark:text-gray-200 p-4 overflow-x-auto text-[12.5px] font-mono leading-relaxed"><code id="${safeId}">${highlighted}</code></pre>
     </div>`
     codeBlocks.push(html)
     return `%%CODEBLOCK_${codeBlocks.length - 1}%%`

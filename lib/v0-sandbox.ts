@@ -109,14 +109,14 @@ const inflightOps = new Set<string>()
 let _client: ReturnType<typeof createClient> | null = null
 let _clientKey: string = ''
 
-// Periodic cleanup (runs once per module load in serverless)
-let _cleanupInterval: ReturnType<typeof setInterval> | null = null
-function ensureCleanupInterval() {
-  if (_cleanupInterval) return
-  _cleanupInterval = setInterval(() => evictStaleSessions(), CLEANUP_INTERVAL_MS)
-  // Don't block process exit
-  if (typeof _cleanupInterval === 'object' && 'unref' in _cleanupInterval) {
-    _cleanupInterval.unref()
+// Lazy cleanup: check on each public entry point instead of setInterval
+let _lastSandboxCleanup = 0
+
+function maybeCleanupSandboxSessions() {
+  const now = Date.now()
+  if (now - _lastSandboxCleanup > CLEANUP_INTERVAL_MS) {
+    _lastSandboxCleanup = now
+    evictStaleSessions()
   }
 }
 
@@ -363,7 +363,7 @@ export async function createV0Sandbox(
     return { ok: false, status: 'error', error: 'Sandbox creation already in progress', retryable: true }
   }
   inflightOps.add(projectId)
-  ensureCleanupInterval()
+  maybeCleanupSandboxSessions()
 
   try {
     return await withTimeout(
@@ -501,6 +501,7 @@ export async function syncV0Files(
   projectId: string,
   files: Record<string, string>,
 ): Promise<SyncResult> {
+  maybeCleanupSandboxSessions()
   const session = activeSessions.get(projectId)
   if (!session) {
     return { ok: false, synced: 0, error: 'No active sandbox for this project' }

@@ -119,10 +119,41 @@ export async function compactMessages(
     console.log(`[forge:compaction] Compacted ${middleMessages.length} messages, saved ~${savedTokens} tokens`)
     return { messages: compacted, compacted: true, tokensSaved: savedTokens }
   } catch (error) {
-    console.error('[forge:compaction] Haiku summarization failed, falling back to aggressive trim:', error)
+    console.error('[forge:compaction] Haiku summarization failed, falling back to metadata-only summary:', error)
 
-    // Fallback: drop middle messages entirely
-    const fallback = [...firstMessages, ...recentMessages]
+    // Fallback: extract metadata from dropped messages instead of losing them entirely
+    const toolsUsed = new Set<string>()
+    const filesReferenced = new Set<string>()
+    for (const m of middleMessages) {
+      const text = getMessageText(m)
+      const toolMatch = text.match(/\[Tools used: ([^\]]+)\]/g)
+      if (toolMatch) {
+        for (const match of toolMatch) {
+          const tools = match.replace(/\[Tools used: |\]/g, '').split(', ')
+          tools.forEach(t => toolsUsed.add(t.split('(')[0].trim()))
+        }
+      }
+      const pathMatches = text.match(/[\w\-./]+\.\w{1,10}/g)
+      if (pathMatches) {
+        pathMatches.slice(0, 50).forEach(p => filesReferenced.add(p))
+      }
+    }
+
+    const fallbackSummary = [
+      `[Conversation Summary — ${middleMessages.length} messages compacted (summarization unavailable, metadata only)]`,
+      toolsUsed.size > 0 ? `Tools used: ${[...toolsUsed].join(', ')}` : '',
+      filesReferenced.size > 0 ? `Files referenced: ${[...filesReferenced].slice(0, 30).join(', ')}` : '',
+      `${middleMessages.filter(m => m.role === 'user').length} user messages and ${middleMessages.filter(m => m.role === 'assistant').length} assistant messages were compacted.`,
+    ].filter(Boolean).join('\n')
+
+    const summaryMessage: UIMessage = {
+      id: `compaction-fallback-${Date.now()}`,
+      role: 'assistant' as const,
+      parts: [{ type: 'text' as const, text: fallbackSummary }],
+      content: '',
+    } as any
+
+    const fallback = [...firstMessages, summaryMessage, ...recentMessages]
     const savedTokens = Math.round(
       (JSON.stringify(messages).length - JSON.stringify(fallback).length) / 4
     )

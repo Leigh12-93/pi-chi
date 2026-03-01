@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { getSession } from '@/lib/auth'
+import { VirtualFS } from '@/lib/virtual-fs'
 
 const GITHUB_HEADERS = (token: string) => ({
   Authorization: `Bearer ${token}`,
@@ -237,9 +238,18 @@ export async function POST(req: Request) {
       ),
     ])
 
+    // Sanitize all paths before returning to client
+    const sanitizedFiles: Record<string, string> = {}
+    for (const [path, content] of Object.entries(importResult.files)) {
+      const safePath = VirtualFS.sanitizePath(path)
+      if (safePath) {
+        sanitizedFiles[safePath] = content
+      }
+    }
+
     const response: any = {
-      files: importResult.files,
-      fileCount: Object.keys(importResult.files).length,
+      files: sanitizedFiles,
+      fileCount: Object.keys(sanitizedFiles).length,
       branch: targetBranch,
       skipped: importResult.skipped,
     }

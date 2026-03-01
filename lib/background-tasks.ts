@@ -12,6 +12,14 @@ type SupabaseFetch = (path: string, options?: RequestInit) => Promise<{ data: un
 // Module-level map: taskId → AbortController for persistent tasks
 const persistentControllers = new Map<string, AbortController>()
 
+const MAX_RETRIES = 2
+
+function backoffDelay(attempt: number): number {
+  const base = Math.min(1000 * Math.pow(2, attempt), 30000)
+  const jitter = Math.random() * base * 0.3
+  return base + jitter
+}
+
 export interface TaskStatus {
   id: string
   type: string
@@ -119,7 +127,7 @@ export class TaskStore {
         const result = await operation(onProgress)
         if (controller.signal.aborted) return // cancelled while running
         // Retry loop for DB completion write
-        let retries = 2
+        let retries = MAX_RETRIES
         while (retries >= 0) {
           try {
             const res = await sbFetch(`/forge_tasks?id=eq.${taskId}`, {
@@ -131,16 +139,16 @@ export class TaskStore {
             })
             if (res.ok) break
             retries--
-            if (retries >= 0) await new Promise(r => setTimeout(r, 1000))
+            if (retries >= 0) await new Promise(r => setTimeout(r, backoffDelay(MAX_RETRIES - retries)))
           } catch {
             retries--
-            if (retries >= 0) await new Promise(r => setTimeout(r, 1000))
+            if (retries >= 0) await new Promise(r => setTimeout(r, backoffDelay(MAX_RETRIES - retries)))
           }
         }
       } catch (err) {
         if (controller.signal.aborted) return // cancelled — row already patched
         // Retry loop for DB failure write
-        let retries = 2
+        let retries = MAX_RETRIES
         while (retries >= 0) {
           try {
             const res = await sbFetch(`/forge_tasks?id=eq.${taskId}`, {
@@ -152,10 +160,10 @@ export class TaskStore {
             })
             if (res.ok) break
             retries--
-            if (retries >= 0) await new Promise(r => setTimeout(r, 1000))
+            if (retries >= 0) await new Promise(r => setTimeout(r, backoffDelay(MAX_RETRIES - retries)))
           } catch {
             retries--
-            if (retries >= 0) await new Promise(r => setTimeout(r, 1000))
+            if (retries >= 0) await new Promise(r => setTimeout(r, backoffDelay(MAX_RETRIES - retries)))
           }
         }
       } finally {
