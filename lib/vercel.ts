@@ -25,8 +25,8 @@ export async function vercelDeploy(name: string, files: Record<string, string>, 
 
   await progress('Uploading files...')
   const teamParam = VERCEL_TEAM ? `?teamId=${VERCEL_TEAM}` : ''
-  const uploadCtrl = AbortController ? new AbortController() : undefined
-  const uploadTimeout = uploadCtrl ? setTimeout(() => uploadCtrl.abort(), 30000) : undefined
+  const uploadCtrl = new AbortController()
+  const uploadTimeout = setTimeout(() => uploadCtrl.abort(), 30000)
   const res = await fetch(`https://api.vercel.com/v13/deployments${teamParam}`, {
     method: 'POST',
     headers: {
@@ -39,9 +39,9 @@ export async function vercelDeploy(name: string, files: Record<string, string>, 
       projectSettings: { framework: fw },
       ...(envVars && Object.keys(envVars).length > 0 ? { env: envVars } : {}),
     }),
-    signal: uploadCtrl?.signal,
+    signal: uploadCtrl.signal,
   })
-  if (uploadTimeout) clearTimeout(uploadTimeout)
+  clearTimeout(uploadTimeout)
 
   const data = await res.json()
   if (!res.ok) return { error: data.error?.message || `Vercel API error (HTTP ${res.status})` }

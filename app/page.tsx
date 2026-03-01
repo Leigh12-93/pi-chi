@@ -83,7 +83,7 @@ export default function ForgePage() {
               setProjectId(data.id)
               setProjectName(data.name)
               setFiles(data.files || {})
-              lastSavedHash.current = JSON.stringify(data.files || {})
+              lastSavedHash.current = hashFileMapDeep(data.files || {})
               // Restore active file if it still exists
               if (stored.activeFile && data.files?.[stored.activeFile]) {
                 setActiveFile(stored.activeFile)

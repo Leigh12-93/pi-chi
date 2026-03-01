@@ -187,8 +187,8 @@ export function createDeployTools(ctx: ToolContext) {
         const token = VERCEL_TOKEN
         if (!token) return { error: 'No Vercel deploy token configured' }
 
-        const teamParam = VERCEL_TEAM ? `?teamId=${VERCEL_TEAM}` : ''
-        const res = await fetch(`https://api.vercel.com/v6/deployments${teamParam}&limit=3&projectId=forge`, {
+        const teamParam = VERCEL_TEAM ? `?teamId=${VERCEL_TEAM}&` : '?'
+        const res = await fetch(`https://api.vercel.com/v6/deployments${teamParam}limit=3&projectId=forge`, {
           headers: { Authorization: `Bearer ${token}` },
           signal: AbortSignal.timeout(ctx.defaultTimeout),
         })

@@ -69,7 +69,23 @@ export function createDbTools(ctx: ToolContext) {
         }
 
         const path = `/${table}`
-        const filterStr = filters ? `?${filters}` : ''
+
+        // Sanitize filters: same rules as db_query
+        let filterStr = ''
+        if (filters && filters.trim()) {
+          const UNSAFE_FILTER = /[;'"\\{}()[\]<>]|--|\bOR\b|\bAND\b|\bUNION\b|\bSELECT\b|\bDROP\b|\bDELETE\b|\bINSERT\b|\bUPDATE\b/i
+          if (UNSAFE_FILTER.test(filters)) {
+            return { error: 'Invalid filter: contains disallowed characters or keywords' }
+          }
+          const params = new URLSearchParams()
+          for (const part of filters.split('&')) {
+            const eqIdx = part.indexOf('=')
+            if (eqIdx > 0) {
+              params.set(part.slice(0, eqIdx), part.slice(eqIdx + 1))
+            }
+          }
+          filterStr = `?${params.toString()}`
+        }
 
         switch (operation) {
           case 'insert': {
