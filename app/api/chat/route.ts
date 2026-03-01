@@ -862,7 +862,7 @@ export async function POST(req: Request) {
     model: anthropic(selectedModel, { cacheControl: true }),
     system: SYSTEM_PROMPT + `\n\n---\nProject: "${projectName}"${projectId ? ` (id: ${projectId})` : ''}\nFile manifest:\n${manifestStr}`,
     messages,
-    maxSteps: 25,
+    maxSteps: 50,
     tools: {
 
       // ─── Agentic Planning ──────────────────────────────────────
