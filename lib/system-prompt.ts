@@ -116,6 +116,19 @@ When scoring, auditing, or reviewing code, follow these strict rules to avoid ha
 - Components must be responsive (mobile-first).
 - Use semantic HTML. Proper TypeScript types. No \`any\`.
 
+## Component Dependency Rule (CRITICAL — prevents preview crashes)
+When generating code that imports custom components, you MUST create ALL imported components BEFORE or IN THE SAME STEP as the file that imports them. Never reference a component that doesn't exist yet.
+
+**Example:** If \`app/page.tsx\` imports \`<RelatedProducts />\` from \`@/components/related-products\`, you MUST write \`components/related-products.tsx\` first (or simultaneously). The sandbox will crash with a cascading React error if any import resolves to a missing file.
+
+**Workflow for multi-component pages:**
+1. Write leaf components first (no dependencies on other custom components)
+2. Write composite components that import the leaf components
+3. Write the page that composes everything
+4. If you realize mid-build that a component is missing, write it IMMEDIATELY before continuing
+
+**Never leave dangling imports.** If you reference \`@/components/foo\`, that file must exist. The preview sandbox has no stub/mock system — missing exports cause hard crashes.
+
 ## Rules
 1. **ACT FIRST.** Create files immediately. Never narrate.
 2. **BE COMPLETE.** No placeholders, no TODOs, no lorem ipsum.

@@ -170,6 +170,32 @@ function BuildPhaseIndicator({ phase }: { phase: BuildPhase }) {
   )
 }
 
+/** Known sandbox/browser noise patterns that are NOT fixable by editing user code */
+const SANDBOX_NOISE_PATTERNS = [
+  /tracking prevention/i,                        // Edge Tracking Prevention
+  /access to storage.*has been blocked/i,         // Edge/Safari storage blocking
+  /blocked.*cross-site/i,                         // Cross-site cookie blocking
+  /third-party cookie/i,                          // Third-party cookie warnings
+  /Failed to read.*localStorage/i,                // iframe storage restrictions
+  /Failed to read.*sessionStorage/i,
+  /SecurityError.*blocked a frame/i,              // iframe cross-origin blocks
+  /ResizeObserver loop/i,                         // Benign ResizeObserver warning
+  /Loading chunk \d+ failed/i,                    // Transient chunk loading (sandbox rebuilding)
+  /ChunkLoadError/i,
+  /Loading CSS chunk/i,
+  /vusercontent\.net/i,                           // v0 sandbox internal errors
+  /Minified React error/i,                        // React minified errors (from sandbox build, not user code)
+  /The above error occurred in/i,                 // React error boundary info message
+  /Consider adding an error boundary/i,
+  /NEXT_REDIRECT/i,                               // Next.js internal redirect (not a real error)
+  /Hydration failed because/i,                    // Sandbox hydration (transient during rebuild)
+  /Text content does not match/i,                 // Sandbox hydration mismatch
+]
+
+/** Check if an error message is known sandbox/browser noise */
+function isSandboxNoise(msg: string): boolean {
+  return SANDBOX_NOISE_PATTERNS.some(pattern => pattern.test(msg))
+}
 /** Normalize error messages for dedup — strip line numbers, stack frames, collapse whitespace */
 function normalizeError(msg: string): string {
   return msg
@@ -616,6 +642,14 @@ export function PreviewPanel({ files, projectId, onFixErrors, onCapturePreview }
       const level = (['log', 'warn', 'error', 'info'].includes(d.level) ? d.level : 'log') as ConsoleEntry['level']
       const message = typeof d.message === 'string' ? d.message.slice(0, 1000) : String(d.message)
       if (!message) return
+      // Filter known sandbox/browser noise — log dimmed but don't auto-feed to AI
+      const isNoise = isSandboxNoise(message)
+      if (isNoise) {
+        // Still log it (as info, not error) so devs can see it, but don't alarm users
+        addLog(`[sandbox] ${message}`, 'info', 'sandbox')
+        return
+      }
+
       addLog(message, level, 'preview')
       // Auto-open console on errors
       if (level === 'error') {
