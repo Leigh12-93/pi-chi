@@ -92,7 +92,8 @@ export function ProjectPicker({ onSelect, savedProjects, loadingProjects, onDele
       fetch('/api/github/repos')
         .then(res => res.json())
         .then(data => {
-          if (Array.isArray(data)) setGithubRepos(data)
+          const repos = Array.isArray(data) ? data : data?.repos
+          if (Array.isArray(repos)) setGithubRepos(repos)
         })
         .catch(() => {})
         .finally(() => setLoadingRepos(false))
