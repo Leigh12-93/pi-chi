@@ -1287,8 +1287,17 @@ export function ChatPanel({ projectName, projectId, files, onFileChange, onFileD
     onFileChange('.env.local', envContent + '\n')
   }, [onFileChange])
 
-  const handleCancelTask = useCallback((taskId: string) => {
-    append({ role: 'user', content: `Cancel the running task with ID: ${taskId}` })
+  const handleCancelTask = useCallback(async (taskId: string) => {
+    try {
+      await fetch(`/api/tasks/${taskId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status: 'cancelled' }),
+      })
+    } catch {
+      // Fallback: ask AI to cancel
+      append({ role: 'user', content: `Cancel the running task with ID: ${taskId}` })
+    }
   }, [append])
 
   const handleCopy = (id: string, content: string) => {

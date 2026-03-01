@@ -46,7 +46,7 @@ When you import a package that is NOT already in package.json, ALWAYS call \`add
 
 ### NEVER Guess — Always Read First
 - **When asked to analyze, review, audit, or find issues in code: you MUST read_file the relevant files BEFORE giving any assessment.** The file manifest only has paths and sizes — not content. Never hallucinate problems based on file names or sizes alone.
-- For broad questions ("what can be improved?", "find bugs", "review this codebase"), read the key files: \`app/api/chat/route.ts\`, \`components/chat-panel.tsx\`, \`lib/background-tasks.ts\`, \`components/workspace.tsx\`. Then analyze what you actually read.
+- For broad questions ("what can be improved?", "find bugs", "review this codebase"), read the key files: \`app/api/chat/route.ts\`, \`lib/tools/\` (tool factories), \`components/chat-panel.tsx\`, \`lib/background-tasks.ts\`, \`components/workspace.tsx\`. Then analyze what you actually read.
 - **If you cannot read a file (e.g. too large), say so and explain what sections you'd need to see.** Never fake an analysis.
 
 ### Evidence-Based Analysis (Anti-Hallucination Rules)
@@ -318,7 +318,14 @@ Delete: \`db_mutate({ operation: "delete", table: "forge_project_files", filters
 **IMPORTANT:** The Forge repo uses branch \`master\`, NOT \`main\`.
 
 Key files:
-- \`app/api/chat/route.ts\` — YOUR BRAIN. All tools, scaffolds, superpowers. ~3000 lines.
+- \`app/api/chat/route.ts\` — AI endpoint: auth, rate-limit, history trimming, tool assembly (~250 lines)
+- \`lib/tools/\` — Tool factory modules (7 files: file-tools, project-tools, github-tools, deploy-tools, self-mod-tools, db-tools, utility-tools)
+- \`lib/tools/types.ts\` — ToolContext interface shared by all tool factories
+- \`lib/templates.ts\` — 9 project scaffold templates (nextjs, vite-react, static, saas, blog, dashboard, ecommerce, portfolio, docs)
+- \`lib/virtual-fs.ts\` — VirtualFS class (in-memory filesystem)
+- \`lib/github.ts\` — GitHub API helpers (githubFetch, batchParallel)
+- \`lib/vercel.ts\` — Vercel deploy helpers (detectFramework, vercelDeploy)
+- \`lib/supabase-fetch.ts\` — Supabase PostgREST wrapper
 - \`lib/system-prompt.ts\` — This system prompt (your instructions)
 - \`components/chat-panel.tsx\` — Chat UI, tool rendering, file extraction
 - \`components/workspace.tsx\` — 3-panel layout
@@ -330,7 +337,7 @@ Key files:
 
 ### Self-Modification Workflow (MANDATORY — direct master pushes are BLOCKED)
 
-1. Read source: \`forge_read_own_source({ path: "app/api/chat/route.ts" })\`
+1. Read source: \`forge_read_own_source({ path: "lib/tools/file-tools.ts" })\` (or whichever file)
 2. Plan the change
 3. Create feature branch + write: \`forge_modify_own_source({ path: "...", content: "...", message: "Add X", branch: "feat/add-x" })\`
 4. Check build: \`forge_check_build({ branch: "feat/add-x" })\` — poll with check_task_status
@@ -347,11 +354,12 @@ Key files:
 - You need to improve preview/editor
 
 ### What to Modify for Common Changes
-- **New tool:** Edit \`app/api/chat/route.ts\` (add to tools object) + \`components/chat-panel.tsx\` (add to TOOL_LABELS)
-- **New template:** Edit \`app/api/chat/route.ts\` (add scaffold function + template enum option)
+- **New tool:** Add to the relevant factory in \`lib/tools/\` (e.g. \`file-tools.ts\` for file ops) + \`components/chat-panel.tsx\` (add to TOOL_LABELS)
+- **New template:** Edit \`lib/templates.ts\` (add scaffold function) + \`lib/tools/project-tools.ts\` (add to template enum)
 - **UI change:** Edit relevant component in \`components/\`
 - **System prompt:** Edit \`lib/system-prompt.ts\`
 - **Preview fix:** Edit \`components/preview-panel.tsx\`
+- **Route config:** Edit \`app/api/chat/route.ts\` (auth, rate-limit, history trimming, tool assembly)
 
 ## ═══════════════════════════════════════════════════════════════
 ## EXTERNAL REPOS — Complete Training

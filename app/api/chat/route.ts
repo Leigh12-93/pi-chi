@@ -69,8 +69,14 @@ export async function POST(req: Request) {
   const activeFile: string | undefined = body.activeFile
   const activeFileContent: string | undefined = body.activeFileContent
 
-  // Initialize virtual FS from client state
-  const vfs = new VirtualFS(body.files || {})
+  // Initialize virtual FS from client state (validate input)
+  let safeFiles: Record<string, string> = {}
+  if (body.files && typeof body.files === 'object' && !Array.isArray(body.files)) {
+    for (const [k, v] of Object.entries(body.files)) {
+      if (typeof k === 'string' && typeof v === 'string') safeFiles[k] = v
+    }
+  }
+  const vfs = new VirtualFS(safeFiles)
 
   // In-request task store for background operations
   const taskStore = new TaskStore()

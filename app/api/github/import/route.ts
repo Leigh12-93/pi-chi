@@ -43,6 +43,12 @@ async function getDefaultBranch(owner: string, repo: string, token: string): Pro
   const res = await fetch(`https://api.github.com/repos/${owner}/${repo}`, {
     headers: GITHUB_HEADERS(token),
   })
+  if (res.status === 401 || res.status === 403) {
+    throw new Error(`GitHub authentication failed (${res.status}). Check your access token has repo permissions.`)
+  }
+  if (res.status === 404) {
+    throw new Error(`Repository "${owner}/${repo}" not found. Check the name and your access permissions.`)
+  }
   if (!res.ok) return 'main'
   const data = await res.json()
   return data.default_branch || 'main'

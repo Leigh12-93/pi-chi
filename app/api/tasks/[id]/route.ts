@@ -28,3 +28,33 @@ export async function GET(
 
   return NextResponse.json(data[0])
 }
+
+export async function PATCH(
+  req: Request,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  const { id } = await params
+  const body = await req.json()
+
+  if (body.status !== 'cancelled') {
+    return NextResponse.json({ error: 'Only status: "cancelled" is supported' }, { status: 400 })
+  }
+
+  const res = await fetch(`${SUPABASE_URL}/rest/v1/forge_tasks?id=eq.${id}`, {
+    method: 'PATCH',
+    headers: {
+      'apikey': SUPABASE_KEY,
+      'Authorization': `Bearer ${SUPABASE_KEY}`,
+      'Content-Type': 'application/json',
+      'Prefer': 'return=representation',
+    },
+    body: JSON.stringify({ status: 'cancelled', error: 'Cancelled by user' }),
+  })
+
+  if (!res.ok) {
+    return NextResponse.json({ error: `Failed to cancel task: ${res.status}` }, { status: 500 })
+  }
+
+  const data = await res.json()
+  return NextResponse.json(Array.isArray(data) && data.length > 0 ? data[0] : { ok: true })
+}

@@ -19,7 +19,7 @@ export function createProjectTools(ctx: ToolContext) {
         for (const [path, content] of Object.entries(scaffold)) {
           vfs.write(path, content)
         }
-        return { ok: true, template, files: Object.keys(scaffold) }
+        return { ok: true, template, files: Object.keys(scaffold), allFiles: scaffold }
       },
     }),
 
