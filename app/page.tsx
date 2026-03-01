@@ -61,14 +61,34 @@ export default function ForgePage() {
     } catch { /* ignore corrupt storage */ }
   }, [])
 
-  // Persist active project to sessionStorage
+  // Persist active project to sessionStorage + push history state
   useEffect(() => {
     if (projectName) {
       sessionStorage.setItem('forge_active_project', JSON.stringify({ id: projectId, name: projectName }))
+      // Push a history entry so browser back goes to project picker, not off-site
+      if (!window.history.state?.forgeProject) {
+        window.history.pushState({ forgeProject: true }, '', window.location.href)
+      }
     } else {
       sessionStorage.removeItem('forge_active_project')
     }
   }, [projectId, projectName])
+
+  // Handle browser back button — go to project picker instead of leaving the site
+  useEffect(() => {
+    const handlePopState = (e: PopStateEvent) => {
+      if (projectName) {
+        e.preventDefault()
+        setProjectName(null)
+        setProjectId(null)
+        setFiles({})
+        setActiveFile(null)
+        loadProjects()
+      }
+    }
+    window.addEventListener('popstate', handlePopState)
+    return () => window.removeEventListener('popstate', handlePopState)
+  }, [projectName]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Load saved projects when session is available
   useEffect(() => {

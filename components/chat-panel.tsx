@@ -426,13 +426,22 @@ const MessageItem = memo(function MessageItem({
           </div>
         ) : (
           <div className="group/user flex items-start gap-1 max-w-[85%]">
-            <button
-              onClick={() => onEditMessage(message.id, textContent)}
-              className="p-1 mt-1.5 rounded opacity-0 group-hover/user:opacity-100 text-forge-text-dim hover:text-forge-text hover:bg-forge-surface transition-all"
-              title="Edit message"
-            >
-              <Pencil className="w-3 h-3" />
-            </button>
+            <div className="flex flex-col gap-0.5 opacity-0 group-hover/user:opacity-100 transition-all mt-1.5">
+              <button
+                onClick={() => onCopy(message.id, textContent)}
+                className="p-1 rounded text-forge-text-dim hover:text-forge-text hover:bg-forge-surface"
+                title="Copy"
+              >
+                {copiedId === message.id ? <Check className="w-3 h-3 text-emerald-500" /> : <Copy className="w-3 h-3" />}
+              </button>
+              <button
+                onClick={() => onEditMessage(message.id, textContent)}
+                className="p-1 rounded text-forge-text-dim hover:text-forge-text hover:bg-forge-surface"
+                title="Edit message"
+              >
+                <Pencil className="w-3 h-3" />
+              </button>
+            </div>
             <div className="px-3.5 py-2.5 rounded-2xl rounded-br-sm bg-forge-accent text-sm text-white shadow-sm">
               {textContent}
             </div>
