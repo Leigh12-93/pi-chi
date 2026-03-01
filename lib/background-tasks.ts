@@ -107,33 +107,17 @@ export class TaskStore {
     }
 
     // Fire-and-forget: run operation and update the row when done
-    operation(onProgress)
-      .then(async (result) => {
-        try {
-          await sbFetch(`/forge_tasks?id=eq.${taskId}`, {
-            method: 'PATCH',
-            body: JSON.stringify({
-              status: 'completed',
-              result: typeof result === 'object' ? result : { value: result },
-            }),
-          })
-        } catch {
-          // sbFetch failed — retry once after 2s
-          await new Promise(r => setTimeout(r, 2000))
-          try {
-            await sbFetch(`/forge_tasks?id=eq.${taskId}`, {
-              method: 'PATCH',
-              body: JSON.stringify({
-                status: 'completed',
-                result: typeof result === 'object' ? result : { value: result },
-              }),
-            })
-          } catch {
-            // Give up — task will stay "running" but at least we tried
-          }
-        }
-      })
-      .catch(async (err) => {
+    ;(async () => {
+      try {
+        const result = await operation(onProgress)
+        await sbFetch(`/forge_tasks?id=eq.${taskId}`, {
+          method: 'PATCH',
+          body: JSON.stringify({
+            status: 'completed',
+            result: typeof result === 'object' ? result : { value: result },
+          }),
+        })
+      } catch (err) {
         try {
           await sbFetch(`/forge_tasks?id=eq.${taskId}`, {
             method: 'PATCH',
@@ -143,20 +127,11 @@ export class TaskStore {
             }),
           })
         } catch {
-          await new Promise(r => setTimeout(r, 2000))
-          try {
-            await sbFetch(`/forge_tasks?id=eq.${taskId}`, {
-              method: 'PATCH',
-              body: JSON.stringify({
-                status: 'failed',
-                error: err instanceof Error ? err.message : String(err),
-              }),
-            })
-          } catch {
-            // Give up
-          }
+          // Status update failed — task will stay "running" in DB
+          console.error(`Failed to update task ${taskId} status:`, err)
         }
-      })
+      }
+    })()
 
     return { taskId }
   }
