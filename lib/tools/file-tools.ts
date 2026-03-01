@@ -3,6 +3,45 @@ import { z } from 'zod'
 import { VirtualFS } from '@/lib/virtual-fs'
 import type { ToolContext } from './types'
 
+function applySmartDefaults(path: string, content: string): { content: string; warnings: string[] } {
+  const warnings: string[] = []
+  const ext = path.split('.').pop() || ''
+  const isTsx = ext === 'tsx' || ext === 'jsx'
+  let result = content
+
+  // Auto-add 'use client' if file uses React hooks but lacks directive
+  if (isTsx && /\buse(State|Effect|Ref|Callback|Memo|Context|Reducer)\s*\(/.test(result)) {
+    if (!result.startsWith("'use client'") && !result.startsWith('"use client"')) {
+      result = "'use client'\n\n" + result
+      warnings.push("Auto-added 'use client' directive (hooks detected)")
+    }
+  }
+
+  // Warn on img without alt (don't auto-fix — AI should write proper alt text)
+  if (isTsx) {
+    const imgNoAlt = (result.match(/<img\s+(?![^>]*\balt\b)[^>]*\/?>/g) || []).length
+    if (imgNoAlt > 0) {
+      warnings.push(`${imgNoAlt} <img> tag(s) missing alt attribute — add descriptive alt text`)
+    }
+  }
+
+  // Warn on form without onSubmit
+  if (isTsx && result.includes('<form') && !result.includes('onSubmit')) {
+    warnings.push('Form element missing onSubmit handler')
+  }
+
+  // JSON validation for .json files
+  if (ext === 'json') {
+    try {
+      JSON.parse(result)
+    } catch (e) {
+      warnings.push(`Invalid JSON: ${e instanceof Error ? e.message : 'parse error'}`)
+    }
+  }
+
+  return { content: result, warnings }
+}
+
 export function createFileTools(ctx: ToolContext) {
   const { vfs, editFailCounts } = ctx
 
@@ -16,14 +55,14 @@ export function createFileTools(ctx: ToolContext) {
       execute: async ({ path, content }) => {
         const safePath = VirtualFS.sanitizePath(path)
         if (!safePath) return { error: `Invalid file path: ${path}` }
-        vfs.write(safePath, content)
-        const result: Record<string, unknown> = { ok: true, path: safePath, lines: content.split('\n').length }
-        if (safePath.endsWith('.json')) {
-          try { JSON.parse(content) } catch (e: any) {
-            result.warning = `Invalid JSON: ${e.message}. The file was written but may cause build errors.`
-          }
+        const { content: finalContent, warnings: smartWarnings } = applySmartDefaults(safePath, content)
+        vfs.write(safePath, finalContent)
+        return {
+          ok: true,
+          path: safePath,
+          lines: finalContent.split('\n').length,
+          ...(smartWarnings.length > 0 ? { warnings: smartWarnings } : {}),
         }
-        return result
       },
     }),
 

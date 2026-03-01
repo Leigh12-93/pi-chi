@@ -4,6 +4,7 @@ import { chatLimiter } from '@/lib/rate-limit'
 import { TaskStore } from '@/lib/background-tasks'
 import { getSession } from '@/lib/auth'
 import { SYSTEM_PROMPT } from '@/lib/system-prompt'
+import { getPromptExample } from '@/lib/prompt-examples'
 import { VirtualFS } from '@/lib/virtual-fs'
 import { GITHUB_TOKEN, githubFetch } from '@/lib/github'
 import { supabaseFetch } from '@/lib/supabase-fetch'
@@ -293,12 +294,17 @@ export async function POST(req: Request) {
     githubFetch,
   }
 
+  // Extract structural template based on user's latest message
+  const lastUserMsg = messages.findLast((m: any) => m.role === 'user')
+  const promptExample = lastUserMsg ? getPromptExample(typeof lastUserMsg.content === 'string' ? lastUserMsg.content : '') : null
+
   try {
     const result = streamText({
       // Prompt caching: system prompt + tool definitions cached by Anthropic.
       // 90% input token discount on cached prefix for subsequent requests in same session.
       model: anthropic(selectedModel, { cacheControl: true }),
       system: SYSTEM_PROMPT
+        + (promptExample ? `\n\n## Structural Guide for This Request\n${promptExample}` : '')
         + `\n\n---\nProject: "${projectName}"${projectId ? ` (id: ${projectId})` : ''}\nFile manifest:\n${manifestStr}`
         + (activeFile && activeFileContent
           ? `\n\nUser is currently viewing: ${activeFile}\n\`\`\`\n${activeFileContent}\n\`\`\``

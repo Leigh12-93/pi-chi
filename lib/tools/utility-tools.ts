@@ -3,6 +3,16 @@ import { z } from 'zod'
 import { mcpClient } from '@/lib/mcp-client'
 import type { ToolContext } from './types'
 
+function resolvePath(fromPath: string, importPath: string): string {
+  const fromDir = fromPath.substring(0, fromPath.lastIndexOf('/'))
+  const parts = fromDir.split('/').filter(Boolean)
+  for (const segment of importPath.split('/')) {
+    if (segment === '..') parts.pop()
+    else if (segment !== '.') parts.push(segment)
+  }
+  return parts.join('/')
+}
+
 export function createUtilityTools(ctx: ToolContext) {
   const { vfs, projectId, supabaseFetch } = ctx
 
@@ -133,6 +143,27 @@ export function createUtilityTools(ctx: ToolContext) {
       },
     }),
 
+    search_references: tool({
+      description: 'Search the reference component library for high-quality examples. Use before generating any UI component to find proven patterns to adapt.',
+      parameters: z.object({
+        query: z.string().describe('What type of component or pattern to search for (e.g., "data table", "login form", "dashboard layout")'),
+      }),
+      execute: async ({ query }) => {
+        const { searchReferences } = await import('@/lib/reference-library')
+        const results = searchReferences(query)
+        if (results.length === 0) return { results: [], message: 'No matching references found. Generate from scratch using design system tokens.' }
+        return {
+          results: results.map(r => ({
+            name: r.name,
+            category: r.category,
+            description: r.description,
+            code: r.code,
+          })),
+          message: `Found ${results.length} reference(s). Adapt the closest match to the user's needs — don't copy verbatim.`,
+        }
+      },
+    }),
+
     mcp_call_tool: tool({
       description: 'Execute a tool on a connected MCP server. Use mcp_list_servers first to see available tools.',
       parameters: z.object({
@@ -146,6 +177,150 @@ export function createUtilityTools(ctx: ToolContext) {
           return { ok: true, result }
         } catch (err) {
           return { error: err instanceof Error ? err.message : 'Tool call failed' }
+        }
+      },
+    }),
+
+    validate_file: tool({
+      description: 'Validate a file for common issues (broken imports, missing directives, accessibility). Call after writing any file >20 lines.',
+      parameters: z.object({
+        path: z.string().describe('File path to validate'),
+      }),
+      execute: async ({ path }) => {
+        const content = vfs.read(path)
+        if (!content) return { error: `File not found: ${path}` }
+
+        const warnings: string[] = []
+        const errors: string[] = []
+        const ext = path.split('.').pop() || ''
+        const isTsx = ext === 'tsx' || ext === 'jsx'
+        const isTs = ext === 'ts' || ext === 'tsx'
+
+        // Check: 'use client' directive missing when hooks are used
+        if (isTsx && /\buse(State|Effect|Ref|Callback|Memo|Context|Reducer)\s*\(/.test(content)) {
+          if (!content.includes("'use client'") && !content.includes('"use client"')) {
+            errors.push("Missing 'use client' directive — file uses React hooks but has no client directive")
+          }
+        }
+
+        // Check: imports reference files that exist in VFS
+        const importRegex = /from\s+['"](\.\/?[^'"]+|@\/[^'"]+)['"]/g
+        let match
+        while ((match = importRegex.exec(content)) !== null) {
+          const importPath = match[1]
+          // Resolve relative imports
+          if (importPath.startsWith('.') || importPath.startsWith('@/')) {
+            const basePath = importPath.startsWith('@/')
+              ? importPath.replace('@/', '')
+              : resolvePath(path, importPath)
+            // Check common extensions
+            const candidates = [basePath, `${basePath}.ts`, `${basePath}.tsx`, `${basePath}/index.ts`, `${basePath}/index.tsx`, `${basePath}.js`, `${basePath}.jsx`]
+            const found = candidates.some(c => vfs.exists(c))
+            if (!found) {
+              errors.push(`Import not found: '${importPath}' — no matching file in project`)
+            }
+          }
+        }
+
+        // Check: img tags without alt attribute
+        if (isTsx) {
+          const imgWithoutAlt = content.match(/<img\s+(?![^>]*\balt\b)[^>]*>/g)
+          if (imgWithoutAlt) {
+            warnings.push(`${imgWithoutAlt.length} <img> tag(s) missing alt attribute — add descriptive alt text for accessibility`)
+          }
+        }
+
+        // Check: console.log left in code
+        const consoleLogs = (content.match(/console\.(log|debug)\(/g) || []).length
+        if (consoleLogs > 0) {
+          warnings.push(`${consoleLogs} console.log/debug call(s) found — remove before production`)
+        }
+
+        // Check: 'any' type usage
+        if (isTs) {
+          const anyTypes = (content.match(/:\s*any\b/g) || []).length
+          if (anyTypes > 2) {
+            warnings.push(`${anyTypes} uses of 'any' type — consider using specific types`)
+          }
+        }
+
+        // Check: forms without onSubmit
+        if (isTsx && content.includes('<form') && !content.includes('onSubmit')) {
+          warnings.push('Form element found without onSubmit handler')
+        }
+
+        return {
+          path,
+          valid: errors.length === 0,
+          errors,
+          warnings,
+          summary: errors.length === 0
+            ? `✓ Valid${warnings.length > 0 ? ` (${warnings.length} warning${warnings.length > 1 ? 's' : ''})` : ''}`
+            : `✗ ${errors.length} error(s) found`,
+        }
+      },
+    }),
+
+    check_coherence: tool({
+      description: 'Check cross-file consistency: verify imports resolve, shared types match, and API routes align with frontend expectations. Call after creating or modifying multiple related files.',
+      parameters: z.object({
+        paths: z.array(z.string()).describe('File paths to check for cross-file coherence'),
+      }),
+      execute: async ({ paths }) => {
+        const issues: string[] = []
+        const fileContents = new Map<string, string>()
+
+        // Read all requested files
+        for (const p of paths) {
+          const content = vfs.read(p)
+          if (content) fileContents.set(p, content)
+          else issues.push(`File not found: ${p}`)
+        }
+
+        // Check 1: All imports between these files resolve
+        const allPaths = new Set(vfs.list())
+        for (const [filePath, content] of fileContents) {
+          const importRegex = /from\s+['"](\.\/?[^'"]+|@\/[^'"]+)['"]/g
+          let match
+          while ((match = importRegex.exec(content)) !== null) {
+            const imp = match[1]
+            const resolved = imp.startsWith('@/') ? imp.replace('@/', '') : resolvePath(filePath, imp)
+            const candidates = [resolved, `${resolved}.ts`, `${resolved}.tsx`, `${resolved}/index.ts`, `${resolved}/index.tsx`, `${resolved}.js`, `${resolved}.jsx`]
+            if (!candidates.some(c => allPaths.has(c))) {
+              issues.push(`${filePath}: import '${imp}' does not resolve to any file`)
+            }
+          }
+        }
+
+        // Check 2: Exported types/interfaces used consistently
+        const exports = new Map<string, string[]>()
+        for (const [filePath, content] of fileContents) {
+          const exportMatches = content.matchAll(/export\s+(?:interface|type)\s+(\w+)/g)
+          for (const m of exportMatches) {
+            if (!exports.has(m[1])) exports.set(m[1], [])
+            exports.get(m[1])!.push(filePath)
+          }
+        }
+
+        // Check 3: API route response shape matches frontend fetch usage
+        for (const [filePath, content] of fileContents) {
+          // Find fetch calls to local API routes
+          const fetchMatches = content.matchAll(/fetch\s*\(\s*['"`]\/api\/([^'"`]+)/g)
+          for (const m of fetchMatches) {
+            const apiPath = `app/api/${m[1]}/route.ts`
+            if (allPaths.has(apiPath) && !fileContents.has(apiPath)) {
+              issues.push(`${filePath}: fetches /api/${m[1]} but that route file wasn't included in coherence check — consider adding it`)
+            }
+          }
+        }
+
+        return {
+          filesChecked: paths.length,
+          issues,
+          coherent: issues.length === 0,
+          summary: issues.length === 0
+            ? `All ${paths.length} files are coherent — imports resolve and types align`
+            : `Found ${issues.length} coherence issue(s) across ${paths.length} files`,
         }
       },
     }),

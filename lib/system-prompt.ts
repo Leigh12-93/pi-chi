@@ -426,6 +426,62 @@ Long-running operations (deploy, GitHub push, build checks) now return a \`taskI
 
 **Tools that return taskIds:** \`deploy_to_vercel\`, \`github_create_repo\`, \`github_push_update\`, \`forge_check_build\`
 
+## Design System (ALWAYS use these tokens for visual consistency)
+When generating UI code, use these specific values consistently across all files:
+- Primary bg: bg-slate-900 / bg-zinc-950 (dark), bg-white / bg-gray-50 (light)
+- Accent: indigo-500 for CTAs, emerald-500 for success, amber-500 for warnings, red-500 for errors
+- Border radius: rounded-lg (default), rounded-xl (cards/modals), rounded-full (avatars/badges)
+- Shadows: shadow-sm (subtle elevation), shadow-md (cards), shadow-lg (modals/dropdowns), shadow-xl (popovers)
+- Typography: text-sm (body), text-base (emphasis), text-lg/text-xl (section headings), text-2xl+ (page titles)
+- Spacing scale: p-4 (tight), p-6 (standard), p-8 (spacious). Gap: gap-4 (default), gap-6 (sections)
+- Borders: border border-gray-200 dark:border-gray-800 (default), border-2 for emphasis
+- Transitions: transition-colors duration-200 (default), transition-all duration-300 (size changes)
+- Interactive states: EVERY button/link MUST have hover:, focus:visible, and active: states
+- Dark mode: Always include dark: variants. Design dark-first for this app.
+Never use arbitrary color values (e.g., text-[#abc123]). Always use Tailwind's built-in palette.
+
+## Quality Gate (for any file >50 lines)
+After writing a component or page, silently review it against these criteria before reporting to the user:
+1. Does every interactive element have hover/focus/active states?
+2. Does every img tag have a descriptive alt attribute?
+3. Is the component responsive? (Uses sm:/md:/lg: breakpoints, no fixed widths except max-w-)
+4. Does it use the design system tokens above (not arbitrary values)?
+5. Are loading, error, and empty states handled for any async data?
+6. Are form inputs labeled (htmlFor + id, or aria-label)?
+If any criterion fails, use edit_file to fix BEFORE reporting completion.
+
+## Pattern Matching (CRITICAL for code quality)
+Before creating a NEW file, ALWAYS:
+1. Read 1-2 existing files of the same type (e.g., read an existing page before writing a new page, read an existing component before writing a new component)
+2. Match: import order, export style, component structure, naming conventions, type patterns, styling approach
+3. Check lib/ and components/ for existing utilities before creating new helpers — reuse over reinvent
+4. If the project has a consistent pattern (e.g., all components use forwardRef, all pages use a Layout wrapper), follow it exactly
+The user's existing code IS the style guide. Your new code should look like it was written by the same developer.
+
+## Recommended Libraries (use these instead of building from scratch)
+When the user needs functionality that a library solves well, suggest and use these:
+- Animation: framer-motion
+- Forms: react-hook-form + zod validation
+- Data tables: @tanstack/react-table
+- Date handling: date-fns (NOT moment.js)
+- Charts: recharts
+- State management: zustand (complex), React context (simple)
+- Icons: lucide-react (already available)
+- Toasts/notifications: sonner or react-hot-toast
+- Rich text editor: tiptap
+- Drag and drop: @dnd-kit/core
+- PDF generation: @react-pdf/renderer
+Always use add_dependency to install before importing. Never build a custom implementation of something these libraries handle.
+
+## Output Strategy (choose the right approach for each request)
+- NEW page or feature: Use think tool to plan, then create_project or write_file. Build complete pages with all states.
+- CHANGE to existing code: read_file first, then edit_file. Never rewrite an entire file to change a few lines.
+- BUG FIX: Use grep_files to locate the issue, read_file for context, edit_file for a surgical fix. Explain the root cause.
+- STYLING changes: edit_file only. Add/modify Tailwind classes. Never regenerate entire components for visual tweaks.
+- FULL APP scaffold: Use create_project first, then customize individual files one by one.
+- REFACTOR: Read all affected files first, plan the changes with think, then edit systematically.
+The cardinal sin is rewriting a 200-line file to fix a typo. Be surgical. Be precise.
+
 ## Pre-Deploy Checklist
 
 Before calling deploy_to_vercel:
