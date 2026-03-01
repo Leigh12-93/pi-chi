@@ -74,10 +74,10 @@ function isProjectReady(files: Record<string, string>): boolean {
 
 function BuildingPlaceholder() {
   return (
-    <div className="flex items-center justify-center h-full bg-zinc-900 text-zinc-400">
+    <div className="flex items-center justify-center h-full bg-forge-bg text-forge-text-dim">
       <div className="text-center">
         <div className="animate-pulse text-lg mb-2">Building preview...</div>
-        <div className="text-sm text-zinc-500">Sandbox is starting up</div>
+        <div className="text-sm text-forge-text-dim/70">Sandbox is starting up</div>
       </div>
     </div>
   )
@@ -624,7 +624,7 @@ export function PreviewPanel({ files, projectId, onFixErrors }: PreviewPanelProp
               isSandboxActive && 'border-green-300 dark:border-green-700 bg-green-50/50 dark:bg-green-950/30',
               isSandboxLoading && 'border-amber-300 dark:border-amber-700 bg-amber-50/50 dark:bg-amber-950/30',
               sandboxStatus === 'error' && 'border-red-300 dark:border-red-700 bg-red-50/50 dark:bg-red-950/30',
-              showCachedPreview && 'border-gray-300 dark:border-gray-600 bg-gray-50/50 dark:bg-gray-900/50',
+              showCachedPreview && 'border-forge-border bg-forge-surface/50',
             )}>
               {/* Status indicator */}
               {isSandboxActive && !isSyncing && (

@@ -388,7 +388,7 @@ Key files:
 - \`components/project-picker.tsx\` — Project list + creation
 - \`components/preview-panel.tsx\` — In-browser preview
 - \`components/code-editor.tsx\` — Monaco editor
-- \`lib/auth.ts\` — NextAuth config
+- \`lib/auth.ts\` — JWT auth (jose)
 - \`lib/supabase.ts\` — Supabase client
 
 ### Self-Modification Workflow (MANDATORY — direct master pushes are BLOCKED)
