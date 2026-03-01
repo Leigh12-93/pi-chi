@@ -9,6 +9,9 @@
 // Type for the supabaseFetch helper used in chat/route.ts
 type SupabaseFetch = (path: string, options?: RequestInit) => Promise<{ data: unknown; status: number; ok: boolean }>
 
+// Module-level map: taskId → AbortController for persistent tasks
+const persistentControllers = new Map<string, AbortController>()
+
 export interface TaskStatus {
   id: string
   type: string
@@ -98,6 +101,10 @@ export class TaskStore {
 
     const taskId = (insertResult.data[0] as { id: string }).id
 
+    // Create an AbortController for this task
+    const controller = new AbortController()
+    persistentControllers.set(taskId, controller)
+
     // Progress callback — patches the task row's progress field
     const onProgress = async (msg: string) => {
       await sbFetch(`/forge_tasks?id=eq.${taskId}`, {
@@ -110,6 +117,7 @@ export class TaskStore {
     ;(async () => {
       try {
         const result = await operation(onProgress)
+        if (controller.signal.aborted) return // cancelled while running
         await sbFetch(`/forge_tasks?id=eq.${taskId}`, {
           method: 'PATCH',
           body: JSON.stringify({
@@ -118,6 +126,7 @@ export class TaskStore {
           }),
         })
       } catch (err) {
+        if (controller.signal.aborted) return // cancelled — row already patched
         try {
           await sbFetch(`/forge_tasks?id=eq.${taskId}`, {
             method: 'PATCH',
@@ -130,6 +139,8 @@ export class TaskStore {
           // Status update failed — task will stay "running" in DB
           console.error(`Failed to update task ${taskId} status:`, err)
         }
+      } finally {
+        persistentControllers.delete(taskId)
       }
     })()
 
@@ -154,5 +165,40 @@ export class TaskStore {
       created_at: row.created_at as string,
       updated_at: row.updated_at as string,
     }
+  }
+
+  /**
+   * Cancel a running persistent task. Aborts the controller and patches the DB row.
+   */
+  static async cancelPersistent(
+    sbFetch: SupabaseFetch,
+    taskId: string,
+  ): Promise<{ ok: boolean; error?: string }> {
+    const controller = persistentControllers.get(taskId)
+    if (controller) {
+      controller.abort()
+      persistentControllers.delete(taskId)
+    }
+
+    // Patch the row regardless — covers cases where the controller already finished
+    const result = await sbFetch(`/forge_tasks?id=eq.${taskId}`, {
+      method: 'PATCH',
+      body: JSON.stringify({
+        status: 'failed',
+        error: 'Cancelled by user',
+      }),
+    })
+
+    if (!result.ok) {
+      return { ok: false, error: 'Failed to update task record' }
+    }
+    return { ok: true }
+  }
+
+  /**
+   * Get the AbortSignal for a persistent task (pass to fetch calls, etc.)
+   */
+  static getSignal(taskId: string): AbortSignal | undefined {
+    return persistentControllers.get(taskId)?.signal
   }
 }

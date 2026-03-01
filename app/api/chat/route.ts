@@ -15,12 +15,29 @@ import { TaskStore } from '@/lib/background-tasks'
 class VirtualFS {
   files: Map<string, string>
 
+  /** Sanitize a file path — block traversal, normalize separators */
+  static sanitizePath(path: string): string | null {
+    // Normalize separators
+    let p = path.replace(/\\/g, '/').trim()
+    // Remove leading slash
+    if (p.startsWith('/')) p = p.slice(1)
+    // Block traversal
+    if (p.includes('..') || p.includes('\0')) return null
+    // Block absolute paths (C:, /etc)
+    if (/^[a-zA-Z]:/.test(p)) return null
+    // Block empty
+    if (!p) return null
+    return p
+  }
+
   constructor(initial?: Record<string, string>) {
     this.files = new Map(Object.entries(initial || {}))
   }
 
   write(path: string, content: string) {
-    this.files.set(path, content)
+    const safe = VirtualFS.sanitizePath(path)
+    if (!safe) return
+    this.files.set(safe, content)
   }
 
   read(path: string): string | undefined {
@@ -603,8 +620,11 @@ const GITHUB_TOKEN = (process.env.GITHUB_TOKEN || '').trim()
 const GITHUB_API = 'https://api.github.com'
 
 async function githubFetch(path: string, token: string, options: RequestInit = {}) {
+  const ctrl = new AbortController()
+  const timeout = setTimeout(() => ctrl.abort(), 30000)
   const res = await fetch(`${GITHUB_API}${path}`, {
     ...options,
+    signal: ctrl.signal,
     headers: {
       Authorization: `Bearer ${token}`,
       Accept: 'application/vnd.github+json',
@@ -613,6 +633,16 @@ async function githubFetch(path: string, token: string, options: RequestInit = {
       ...options.headers,
     },
   })
+  clearTimeout(timeout)
+  // Detect rate limiting
+  if (res.status === 403 || res.status === 429) {
+    const remaining = res.headers.get('x-ratelimit-remaining')
+    const resetAt = res.headers.get('x-ratelimit-reset')
+    if (remaining === '0' || res.status === 429) {
+      const resetMin = resetAt ? Math.ceil((parseInt(resetAt) * 1000 - Date.now()) / 60000) : 0
+      return { error: `GitHub API rate limited. Try again${resetMin > 0 ? ` in ~${resetMin} minute${resetMin > 1 ? 's' : ''}` : ' later'}.`, status: res.status, rateLimited: true }
+    }
+  }
   const data = await res.json()
   if (!res.ok) return { error: data.message || `GitHub API ${res.status}`, status: res.status }
   return data
@@ -928,8 +958,10 @@ export async function POST(req: Request) {
           content: z.string().describe('Complete file content'),
         }),
         execute: async ({ path, content }) => {
-          vfs.write(path, content)
-          return { ok: true, path, lines: content.split('\n').length }
+          const safePath = VirtualFS.sanitizePath(path)
+          if (!safePath) return { error: `Invalid file path: ${path}` }
+          vfs.write(safePath, content)
+          return { ok: true, path: safePath, lines: content.split('\n').length }
         },
       }),
 
@@ -953,7 +985,9 @@ export async function POST(req: Request) {
           new_string: z.string().describe('Replacement string'),
         }),
         execute: async ({ path, old_string, new_string }) => {
-          const content = vfs.read(path)
+          const safePath = VirtualFS.sanitizePath(path)
+          if (!safePath) return { error: `Invalid file path: ${path}` }
+          const content = vfs.read(safePath)
           if (content === undefined) return { error: `File not found: ${path}` }
 
           // ── Pass 1: Exact match (fast path) ──────────────────────
@@ -963,8 +997,8 @@ export async function POST(req: Request) {
               return { error: `Found ${occurrences} occurrences. Provide more context to make it unique.` }
             }
             const updated = content.replace(old_string, new_string)
-            vfs.write(path, updated)
-            return { ok: true, path, lines: updated.split('\n').length, content: updated }
+            vfs.write(safePath, updated)
+            return { ok: true, path: safePath, lines: updated.split('\n').length, content: updated }
           }
 
           // ── Helper: strip each line's indent and collapse runs ───
@@ -1017,8 +1051,8 @@ export async function POST(req: Request) {
             const before = fileRawLines.slice(0, bestMatch.start).join('\n')
             const after = fileRawLines.slice(bestMatch.end).join('\n')
             const updated = [before, new_string, after].filter(s => s !== '').join('\n')
-            vfs.write(path, updated)
-            return { ok: true, path, lines: updated.split('\n').length, content: updated, note: 'Matched with indent-insensitive fuzzy matching' }
+            vfs.write(safePath, updated)
+            return { ok: true, path: safePath, lines: updated.split('\n').length, content: updated, note: 'Matched with indent-insensitive fuzzy matching' }
           }
 
           // ── Pass 3: Single-line whitespace-normalized match ──────
@@ -1035,8 +1069,8 @@ export async function POST(req: Request) {
                 const updated = [...fileRawLines]
                 updated[i] = new_string
                 const joined = updated.join('\n')
-                vfs.write(path, joined)
-                return { ok: true, path, lines: updated.length, content: joined, note: 'Matched single line with whitespace normalization' }
+                vfs.write(safePath, joined)
+                return { ok: true, path: safePath, lines: updated.length, content: joined, note: 'Matched single line with whitespace normalization' }
               }
             }
           }
@@ -1067,8 +1101,8 @@ export async function POST(req: Request) {
                   const before = fileRawLines.slice(0, startIdx).join('\n')
                   const after = fileRawLines.slice(endIdx + 1).join('\n')
                   const updated = [before, new_string, after].filter(s => s !== '').join('\n')
-                  vfs.write(path, updated)
-                  return { ok: true, path, lines: updated.split('\n').length, content: updated, note: 'Matched via subsequence (anchor lines found in order)' }
+                  vfs.write(safePath, updated)
+                  return { ok: true, path: safePath, lines: updated.split('\n').length, content: updated, note: 'Matched via subsequence (anchor lines found in order)' }
                 }
                 break // only try first matching end
               }
@@ -1103,9 +1137,11 @@ export async function POST(req: Request) {
           path: z.string().describe('File path to delete'),
         }),
         execute: async ({ path }) => {
-          if (!vfs.exists(path)) return { error: `File not found: ${path}` }
-          vfs.delete(path)
-          return { ok: true, path, deleted: true }
+          const safePath = VirtualFS.sanitizePath(path)
+          if (!safePath) return { error: `Invalid file path: ${path}` }
+          if (!vfs.exists(safePath)) return { error: `File not found: ${safePath}` }
+          vfs.delete(safePath)
+          return { ok: true, path: safePath, deleted: true }
         },
       }),
 
@@ -1372,6 +1408,18 @@ export async function POST(req: Request) {
         },
       }),
 
+      cancel_task: tool({
+        description: 'Cancel a running background task. Aborts the operation and marks it as failed with "Cancelled by user".',
+        parameters: z.object({
+          taskId: z.string().describe('Task ID to cancel'),
+        }),
+        execute: async ({ taskId }) => {
+          const result = await TaskStore.cancelPersistent(supabaseFetch, taskId)
+          if (!result.ok) return { error: result.error }
+          return { ok: true, taskId }
+        },
+      }),
+
       // ─── Utility ────────────────────────────────────────────────
 
       get_all_files: tool({
@@ -1389,11 +1437,15 @@ export async function POST(req: Request) {
           newPath: z.string().describe('New file path'),
         }),
         execute: async ({ oldPath, newPath }) => {
-          const content = vfs.read(oldPath)
-          if (content === undefined) return { error: `File not found: ${oldPath}` }
-          vfs.delete(oldPath)
-          vfs.write(newPath, content)
-          return { ok: true, oldPath, newPath }
+          const safeOld = VirtualFS.sanitizePath(oldPath)
+          const safeNew = VirtualFS.sanitizePath(newPath)
+          if (!safeOld) return { error: `Invalid old path: ${oldPath}` }
+          if (!safeNew) return { error: `Invalid new path: ${newPath}` }
+          const content = vfs.read(safeOld)
+          if (content === undefined) return { error: `File not found: ${safeOld}` }
+          vfs.delete(safeOld)
+          vfs.write(safeNew, content)
+          return { ok: true, oldPath: safeOld, newPath: safeNew }
         },
       }),
 
@@ -1775,9 +1827,13 @@ export async function POST(req: Request) {
           let targetBranch = branch
           if (!targetBranch) {
             try {
+              const branchCtrl = new AbortController()
+              const branchTimeout = setTimeout(() => branchCtrl.abort(), 30000)
               const repoRes = await fetch(`https://api.github.com/repos/${owner}/${repo}`, {
                 headers: { Authorization: `Bearer ${token}`, Accept: 'application/vnd.github.v3+json' },
+                signal: branchCtrl.signal,
               })
+              clearTimeout(branchTimeout)
               if (repoRes.ok) {
                 const repoData = await repoRes.json()
                 targetBranch = repoData.default_branch || 'main'
@@ -1790,10 +1846,13 @@ export async function POST(req: Request) {
           }
 
           // Get the tree recursively
+          const treeCtrl = new AbortController()
+          const treeTimeout = setTimeout(() => treeCtrl.abort(), 30000)
           const treeRes = await fetch(
             `https://api.github.com/repos/${owner}/${repo}/git/trees/${targetBranch}?recursive=1`,
-            { headers: { Authorization: `Bearer ${token}`, Accept: 'application/vnd.github.v3+json' } }
+            { headers: { Authorization: `Bearer ${token}`, Accept: 'application/vnd.github.v3+json' }, signal: treeCtrl.signal }
           )
+          clearTimeout(treeTimeout)
           if (!treeRes.ok) return { error: `Failed to fetch tree: ${treeRes.status}` }
           const treeData = await treeRes.json()
 
