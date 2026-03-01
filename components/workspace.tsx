@@ -71,6 +71,7 @@ interface WorkspaceProps {
   onBulkFileUpdate: (files: Record<string, string>) => void
   onSwitchProject: () => void
   githubToken?: string
+  autoSaveError?: boolean
 }
 
 type MobileTab = 'chat' | 'files' | 'code' | 'preview'
@@ -79,7 +80,7 @@ type DialogType = 'deploy' | 'push' | 'create-repo' | 'import' | null
 export function Workspace({
   projectName, projectId, files, activeFile,
   onFileSelect, onFileChange, onFileDelete, onBulkFileUpdate, onSwitchProject,
-  githubToken,
+  githubToken, autoSaveError,
 }: WorkspaceProps) {
   const [rightTab, setRightTab] = useState<'code' | 'preview' | 'split'>('code')
   const [mobileTab, setMobileTab] = useState<MobileTab>('chat')
@@ -277,6 +278,14 @@ export function Workspace({
       toast.error('Download failed')
     }
   }, [files, projectName])
+
+  // Show toast when auto-save fails
+  useEffect(() => {
+    if (autoSaveError) {
+      setSaveStatus('error')
+      toast.error('Auto-save failed', { description: 'Changes may not be saved. Try saving manually with Ctrl+S.' })
+    }
+  }, [autoSaveError])
 
   const handleSave = useCallback(async () => {
     if (!projectId || Object.keys(files).length === 0) return

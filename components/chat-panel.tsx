@@ -288,7 +288,13 @@ function extractFileUpdates(
 
     case 'create_project':
       if (inv.state === 'result' && inv.result?.allFiles && typeof inv.result.allFiles === 'object') {
-        return { updates: inv.result.allFiles as Record<string, string> }
+        // Filter to only string values to prevent non-string data in VirtualFS
+        const raw = inv.result.allFiles as Record<string, unknown>
+        const safe: Record<string, string> = {}
+        for (const [k, v] of Object.entries(raw)) {
+          if (typeof v === 'string') safe[k] = v
+        }
+        return Object.keys(safe).length > 0 ? { updates: safe } : null
       }
       return null
 

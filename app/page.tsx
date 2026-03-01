@@ -29,6 +29,8 @@ export default function ForgePage() {
   const autoSaveTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const lastSavedHash = useRef<string>('')
   const restoredRef = useRef(false)
+  const savingRef = useRef(false)
+  const [autoSaveError, setAutoSaveError] = useState(false)
 
   // Restore project from sessionStorage on mount (survives refresh)
   useEffect(() => {
@@ -63,15 +65,17 @@ export default function ForgePage() {
 
   // Persist active project to sessionStorage + push history state
   useEffect(() => {
-    if (projectName) {
-      sessionStorage.setItem('forge_active_project', JSON.stringify({ id: projectId, name: projectName }))
-      // Push a history entry so browser back goes to project picker, not off-site
-      if (!window.history.state?.forgeProject) {
-        window.history.pushState({ forgeProject: true }, '', window.location.href)
+    try {
+      if (projectName) {
+        sessionStorage.setItem('forge_active_project', JSON.stringify({ id: projectId, name: projectName }))
+        // Push a history entry so browser back goes to project picker, not off-site
+        if (!window.history.state?.forgeProject) {
+          window.history.pushState({ forgeProject: true }, '', window.location.href)
+        }
+      } else {
+        sessionStorage.removeItem('forge_active_project')
       }
-    } else {
-      sessionStorage.removeItem('forge_active_project')
-    }
+    } catch { /* sessionStorage unavailable (private browsing) — non-fatal */ }
   }, [projectId, projectName])
 
   // Handle browser back button — go to project picker instead of leaving the site
@@ -112,7 +116,7 @@ export default function ForgePage() {
     }
   }
 
-  // Auto-save when files change (debounced 5 seconds)
+  // Auto-save when files change (debounced 5 seconds, with save lock)
   useEffect(() => {
     if (!projectId || Object.keys(files).length === 0) return
 
@@ -121,15 +125,24 @@ export default function ForgePage() {
 
     if (autoSaveTimer.current) clearTimeout(autoSaveTimer.current)
     autoSaveTimer.current = setTimeout(async () => {
+      if (savingRef.current) return // skip if another save is in-flight
+      savingRef.current = true
       try {
-        await fetch(`/api/projects/${projectId}`, {
+        const res = await fetch(`/api/projects/${projectId}`, {
           method: 'PUT',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ files }),
         })
-        lastSavedHash.current = hash
-      } catch (err) {
-        console.error('Auto-save failed:', err)
+        if (res.ok) {
+          lastSavedHash.current = hash
+          setAutoSaveError(false)
+        } else {
+          setAutoSaveError(true)
+        }
+      } catch {
+        setAutoSaveError(true)
+      } finally {
+        savingRef.current = false
       }
     }, 5000)
 
@@ -239,6 +252,7 @@ export default function ForgePage() {
           loadProjects()
         }}
         githubToken={githubToken}
+        autoSaveError={autoSaveError}
       />
     </ErrorBoundary>
   )
