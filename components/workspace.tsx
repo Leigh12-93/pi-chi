@@ -595,11 +595,11 @@ export function Workspace({
             </Panel>
             <PanelResizeHandle />
             <Panel defaultSize={50} minSize={30}>
-              <PreviewPanel files={files} projectId={projectId} onFixErrors={(msg) => setPendingChatMessage(msg)} />
+              <PreviewPanel files={files} projectId={projectId} onFixErrors={(msg) => setPendingChatMessage(msg)} onCapturePreview={(msg) => setPendingChatMessage(msg)} />
             </Panel>
           </PanelGroup>
         ) : (
-          <PreviewPanel files={files} projectId={projectId} onFixErrors={(msg) => setPendingChatMessage(msg)} />
+          <PreviewPanel files={files} projectId={projectId} onFixErrors={(msg) => setPendingChatMessage(msg)} onCapturePreview={(msg) => setPendingChatMessage(msg)} />
         )}
       </div>
     </div>
@@ -709,7 +709,7 @@ export function Workspace({
               </div>
             </div>
           )}
-          {mobileTab === 'preview' && <PreviewPanel files={files} projectId={projectId} onFixErrors={(msg) => { setPendingChatMessage(msg); setMobileTab('chat') }} />}
+          {mobileTab === 'preview' && <PreviewPanel files={files} projectId={projectId} onFixErrors={(msg) => { setPendingChatMessage(msg); setMobileTab('chat') }} onCapturePreview={(msg) => { setPendingChatMessage(msg); setMobileTab('chat') }} />}
         </div>
 
         <div className="flex items-center justify-around border-t border-forge-border bg-forge-panel py-1.5 shrink-0 safe-bottom">

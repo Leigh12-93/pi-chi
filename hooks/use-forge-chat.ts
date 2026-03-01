@@ -172,6 +172,37 @@ export function useForgeChat(props: UseForgeChatProps) {
     }
   }, [projectId, historyLoaded, setMessages])
 
+  // ─── Context warning detection from stream data parts ─────────
+  const contextWarningShownRef = useRef<string | null>(null)
+  useEffect(() => {
+    for (const msg of messages) {
+      if (msg.role !== 'assistant') continue
+      const parts = (msg as any).parts as Array<{ type: string; data?: string }> | undefined
+      if (!parts) continue
+      for (const p of parts) {
+        if (p.type === 'data' && typeof p.data === 'string') {
+          try {
+            const parsed = JSON.parse(p.data)
+            if (parsed.type === 'context_warning' && contextWarningShownRef.current !== msg.id) {
+              contextWarningShownRef.current = msg.id
+              if (parsed.level === 'critical') {
+                toast.error('Context limit nearly reached', {
+                  description: `~${parsed.estimatedUsage}% of context used. Start a new chat to avoid failures.`,
+                  duration: 8000,
+                })
+              } else {
+                toast.warning('Context getting long', {
+                  description: `~${parsed.estimatedUsage}% of context used. Consider starting a new chat soon.`,
+                  duration: 6000,
+                })
+              }
+            }
+          } catch { /* not JSON data part — ignore */ }
+        }
+      }
+    }
+  }, [messages])
+
   // ─── Live file extraction from tool invocations ───────────────
   useEffect(() => {
     for (const msg of messages) {
@@ -231,6 +262,15 @@ export function useForgeChat(props: UseForgeChatProps) {
           continue
         }
 
+        // capture_preview — signal client to extract preview DOM content
+        if (inv.toolName === 'capture_preview' && isResult) {
+          processedInvs.current.add(key)
+          window.dispatchEvent(new CustomEvent('forge:capture-preview', {
+            detail: { messageId: msg.id, invocationIndex: i }
+          }))
+          continue
+        }
+
         const changes = extractFileUpdates(inv, localFiles.current)
         if (!changes) continue
 
@@ -251,6 +291,26 @@ export function useForgeChat(props: UseForgeChatProps) {
       }
     }
   }, [messages, onBulkFileUpdate, onFileDelete]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // ─── Listen for capture_preview responses ───────────────────────
+  useEffect(() => {
+    const handler = (e: Event) => {
+      const detail = (e as CustomEvent).detail
+      if (!detail) return
+      const parts: string[] = ['[Preview Capture Result]']
+      if (detail.error) {
+        parts.push(`Error: ${detail.error}`)
+      } else {
+        if (detail.title) parts.push(`Title: ${detail.title}`)
+        if (detail.elementCount) parts.push(`Elements: ${detail.elementCount}`)
+        if (detail.viewport) parts.push(`Viewport: ${detail.viewport.width}x${detail.viewport.height}`)
+        if (detail.bodyText) parts.push(`\nVisible content:\n${detail.bodyText}`)
+      }
+      sendMessage({ text: parts.join('\n') })
+    }
+    window.addEventListener('forge:preview-captured', handler)
+    return () => window.removeEventListener('forge:preview-captured', handler)
+  }, [sendMessage])
 
   // ─── Send / register / pending ────────────────────────────────
   const handleSend = useCallback((text?: string) => {
@@ -412,8 +472,14 @@ export function useForgeChat(props: UseForgeChatProps) {
   const isEmpty = messages.length === 0
 
   const errorMessage = error
-    ? error.message?.includes('429') ? 'Rate limited. Please wait a moment and retry.'
-    : error.message?.includes('401') ? 'Session expired. Please sign in again.'
+    ? error.message?.includes('429') || error.message?.includes('rate limit') || error.message?.includes('overloaded')
+      ? 'Claude is rate limited or overloaded. Wait a moment and retry.'
+    : error.message?.includes('401')
+      ? 'Session expired. Please sign in again.'
+    : error.message?.includes('413') || error.message?.includes('context') || error.message?.includes('too long')
+      ? 'Conversation is too long. Clear chat history or start a new project.'
+    : error.message?.includes('408') || error.message?.includes('timeout')
+      ? 'Request timed out. Try a simpler prompt.'
     : error.message?.includes('fetch') || error.message?.includes('network')
       ? 'Connection lost. Check your internet and retry.'
     : error.message || 'Something went wrong. Please try again.'

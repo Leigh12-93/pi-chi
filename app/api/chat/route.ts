@@ -318,6 +318,22 @@ export async function POST(req: Request) {
     return m
   })
 
+  // Estimate context size and flag if approaching model limit
+  const estimatedTokens = JSON.stringify(trimmedMessages).length / 4 // rough 4 chars/token
+  const MODEL_CONTEXT_LIMITS: Record<string, number> = {
+    'claude-sonnet-4-20250514': 200000,
+    'claude-opus-4-20250514': 200000,
+    'claude-opus-4-6': 200000,
+    'claude-haiku-35-20241022': 200000,
+  }
+  const contextLimit = MODEL_CONTEXT_LIMITS[selectedModel] || 200000
+  const contextUsage = estimatedTokens / contextLimit
+  const contextWarning: 'critical' | 'warning' | null = contextUsage > 0.9
+    ? 'critical'
+    : contextUsage > 0.7
+      ? 'warning'
+      : null
+
   // Convert UIMessages to ModelMessages (v6 — async)
   let messages
   try {
@@ -405,6 +421,18 @@ export async function POST(req: Request) {
           writer.write({
             type: 'data' as any,
             data: JSON.stringify({ type: 'model_suggestion', model: selectedModel, reason: classification.reason }),
+          } as any)
+        }
+
+        // Send context usage warning if approaching limit
+        if (contextWarning) {
+          writer.write({
+            type: 'data' as any,
+            data: JSON.stringify({
+              type: 'context_warning',
+              level: contextWarning,
+              estimatedUsage: Math.round(contextUsage * 100),
+            }),
           } as any)
         }
 
@@ -496,9 +524,33 @@ export async function POST(req: Request) {
     if (count <= 1) activeStreams.delete(ip)
     else activeStreams.set(ip, count - 1)
 
-    console.error(`[forge] rid=${requestId} Stream error:`, error)
-    return new Response(JSON.stringify({ error: 'Stream failed unexpectedly. Please try again.' }), {
-      status: 500,
+    const err = error instanceof Error ? error : new Error(String(error))
+    const msg = err.message || ''
+    console.error(`[forge] rid=${requestId} Stream error:`, err)
+
+    // Classify the error for the client
+    let status = 500
+    let clientMessage = 'Stream failed unexpectedly. Please try again.'
+
+    if (msg.includes('rate') || msg.includes('429') || msg.includes('overloaded')) {
+      status = 429
+      clientMessage = 'Claude API is rate limited or overloaded. Wait a moment and retry.'
+    } else if (msg.includes('401') || msg.includes('auth') || msg.includes('key')) {
+      status = 401
+      clientMessage = 'API authentication failed. Check your Anthropic API key.'
+    } else if (msg.includes('context') || msg.includes('too long') || msg.includes('token')) {
+      status = 413
+      clientMessage = 'Conversation too long for the model context window. Start a new chat or clear history.'
+    } else if (msg.includes('abort') || msg.includes('timeout') || msg.includes('cancel')) {
+      status = 408
+      clientMessage = 'Request timed out. Try a shorter prompt or fewer files.'
+    } else if (msg.includes('content') && msg.includes('filter')) {
+      status = 422
+      clientMessage = 'Content was filtered by safety systems. Rephrase your request.'
+    }
+
+    return new Response(JSON.stringify({ error: clientMessage }), {
+      status,
       headers: { 'Content-Type': 'application/json' },
     })
   }

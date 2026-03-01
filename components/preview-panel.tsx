@@ -4,7 +4,7 @@ import { useMemo, useState, useCallback, useRef, useEffect } from 'react'
 import {
   RefreshCw, Monitor, Smartphone, Tablet, AlertTriangle,
   Square, Loader2, Zap, ExternalLink, Maximize2, Minimize2,
-  Globe, Terminal, X, ArrowUpFromLine,
+  Globe, Terminal, X, ArrowUpFromLine, Camera,
 } from 'lucide-react'
 import { cn, hashFileMap } from '@/lib/utils'
 
@@ -19,6 +19,7 @@ interface PreviewPanelProps {
   files: Record<string, string>
   projectId?: string | null
   onFixErrors?: (errorSummary: string) => void
+  onCapturePreview?: (summary: string) => void
 }
 
 type ViewMode = 'desktop' | 'tablet' | 'mobile'
@@ -127,7 +128,7 @@ function normalizeError(msg: string): string {
     .slice(0, 200)                // cap length
 }
 
-export function PreviewPanel({ files, projectId, onFixErrors }: PreviewPanelProps) {
+export function PreviewPanel({ files, projectId, onFixErrors, onCapturePreview }: PreviewPanelProps) {
   const [viewMode, setViewMode] = useState<ViewMode>('desktop')
   const [refreshKey, setRefreshKey] = useState(0)
   const [previewError, setPreviewError] = useState<string | null>(null)
@@ -570,6 +571,87 @@ export function PreviewPanel({ files, projectId, onFixErrors }: PreviewPanelProp
     return () => window.removeEventListener('message', handler)
   }, [addLog, onFixErrors]) // consoleLogs accessed via consoleLogsRef to avoid re-registering listener
 
+  // ─── Capture preview content (for AI tool + UI button) ────────
+  const capturePreviewContent = useCallback(() => {
+    try {
+      // Try static preview iframe first (same-origin srcdoc)
+      const staticIframe = document.querySelector('iframe[title="Static Preview"]') as HTMLIFrameElement | null
+      const sandboxIframe = document.getElementById('forge-preview-iframe') as HTMLIFrameElement | null
+      const sandboxActive = sandboxStatus === 'running' && !!sandboxUrl
+      const iframe = (sandboxActive && sandboxIframe) ? sandboxIframe : staticIframe
+
+      if (!iframe) {
+        return { error: 'No preview iframe available' }
+      }
+
+      try {
+        const doc = iframe.contentDocument
+        if (!doc) {
+          return { error: 'Could not access preview content (cross-origin restriction)' }
+        }
+        const bodyText = doc.body?.innerText?.slice(0, 3000) || ''
+        const title = doc.title || ''
+        const elementCount = doc.querySelectorAll('*').length
+
+        // Extract structural info
+        const headings = Array.from(doc.querySelectorAll('h1,h2,h3')).map(h => h.textContent?.trim()).filter(Boolean).slice(0, 10)
+        const buttons = Array.from(doc.querySelectorAll('button,a[role="button"]')).map(b => b.textContent?.trim()).filter(Boolean).slice(0, 10)
+        const inputs = Array.from(doc.querySelectorAll('input,textarea,select')).map(i => (i as HTMLInputElement).placeholder || (i as HTMLInputElement).name || i.tagName).slice(0, 10)
+        const images = doc.querySelectorAll('img').length
+
+        return {
+          title,
+          bodyText,
+          elementCount,
+          headings,
+          buttons,
+          inputs,
+          images,
+          viewport: { width: iframe.clientWidth, height: iframe.clientHeight },
+        }
+      } catch {
+        return { error: 'Could not access preview content (iframe restriction)' }
+      }
+    } catch {
+      return { error: 'Preview capture failed unexpectedly' }
+    }
+  }, [sandboxStatus, sandboxUrl])
+
+  // Listen for AI tool-triggered capture requests
+  useEffect(() => {
+    const handler = () => {
+      const result = capturePreviewContent()
+      window.dispatchEvent(new CustomEvent('forge:preview-captured', { detail: result }))
+    }
+    window.addEventListener('forge:capture-preview', handler)
+    return () => window.removeEventListener('forge:capture-preview', handler)
+  }, [capturePreviewContent])
+
+  // Manual capture button handler
+  const handleCaptureClick = useCallback(() => {
+    const result = capturePreviewContent()
+    if (onCapturePreview) {
+      const parts: string[] = ['[Preview Capture — Manual]']
+      if (result.error) {
+        parts.push(`Error: ${result.error}`)
+      } else {
+        if (result.title) parts.push(`Title: ${result.title}`)
+        if (result.elementCount) parts.push(`Elements: ${result.elementCount}`)
+        if (result.headings?.length) parts.push(`Headings: ${result.headings.join(', ')}`)
+        if (result.buttons?.length) parts.push(`Buttons: ${result.buttons.join(', ')}`)
+        if (result.inputs?.length) parts.push(`Inputs: ${result.inputs.join(', ')}`)
+        if (result.images) parts.push(`Images: ${result.images}`)
+        if (result.viewport) parts.push(`Viewport: ${result.viewport.width}x${result.viewport.height}`)
+        if (result.bodyText) parts.push(`\nVisible content:\n${result.bodyText}`)
+      }
+      onCapturePreview(parts.join('\n'))
+    } else {
+      // Fallback: dispatch event for use-forge-chat to pick up
+      window.dispatchEvent(new CustomEvent('forge:preview-captured', { detail: result }))
+    }
+    addLog('Preview captured for AI review', 'info', 'forge')
+  }, [capturePreviewContent, onCapturePreview, addLog])
+
   // Reset auto-feed attempts when files change (user or AI made fixes)
   const prevFileHashRef = useRef<string>('')
   useEffect(() => {
@@ -714,6 +796,16 @@ export function PreviewPanel({ files, projectId, onFixErrors }: PreviewPanelProp
 
           {/* Right: action buttons */}
           <div className="flex items-center gap-0.5 shrink-0">
+            {/* Capture preview for AI */}
+            <button
+              onClick={handleCaptureClick}
+              className="p-2.5 sm:p-1.5 rounded-md text-forge-text-dim hover:text-forge-text hover:bg-forge-surface transition-colors"
+              title="Capture preview for AI review"
+              aria-label="Capture preview for AI review"
+            >
+              <Camera className="w-4 h-4 sm:w-3.5 sm:h-3.5" />
+            </button>
+
             {/* Refresh */}
             <button
               onClick={() => {
