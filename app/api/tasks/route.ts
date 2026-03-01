@@ -2,7 +2,7 @@ import { NextResponse, after } from 'next/server'
 import { getSession } from '@/lib/auth'
 import { isValidUUID } from '@/lib/validate'
 import { supabaseFetch } from '@/lib/supabase-fetch'
-import { githubFetch, GITHUB_TOKEN as LIB_GITHUB_TOKEN } from '@/lib/github'
+import { githubFetch, batchParallel, GITHUB_TOKEN as LIB_GITHUB_TOKEN } from '@/lib/github'
 import { detectFramework, VERCEL_TOKEN as LIB_VERCEL_TOKEN, VERCEL_TEAM as LIB_VERCEL_TEAM } from '@/lib/vercel'
 
 const VERCEL_TOKEN = LIB_VERCEL_TOKEN
@@ -16,25 +16,6 @@ async function updateProgress(taskId: string, progress: string) {
     method: 'PATCH',
     body: JSON.stringify({ progress }),
   })
-}
-
-// ─── Helpers ──────────────────────────────────────────────────
-
-/** Run async operations in parallel batches */
-async function batchParallel<T, R>(
-  items: T[],
-  batchSize: number,
-  fn: (item: T, index: number) => Promise<R>,
-): Promise<R[]> {
-  const results: R[] = []
-  for (let i = 0; i < items.length; i += batchSize) {
-    const batch = items.slice(i, i + batchSize)
-    const batchResults = await Promise.all(
-      batch.map((item, j) => fn(item, i + j)),
-    )
-    results.push(...batchResults)
-  }
-  return results
 }
 
 // ─── Task executors ────────────────────────────────────────────

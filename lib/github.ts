@@ -40,12 +40,12 @@ export async function githubFetch(path: string, token: string, options: RequestI
   return data
 }
 
-/** Run async operations in parallel batches */
-export async function batchParallel<T, R>(items: T[], batchSize: number, fn: (item: T) => Promise<R>): Promise<R[]> {
+/** Run async operations in parallel batches (fn receives item + global index) */
+export async function batchParallel<T, R>(items: T[], batchSize: number, fn: (item: T, index: number) => Promise<R>): Promise<R[]> {
   const results: R[] = []
   for (let i = 0; i < items.length; i += batchSize) {
     const batch = items.slice(i, i + batchSize)
-    results.push(...await Promise.all(batch.map(fn)))
+    results.push(...await Promise.all(batch.map((item, j) => fn(item, i + j))))
   }
   return results
 }

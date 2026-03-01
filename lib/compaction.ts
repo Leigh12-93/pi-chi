@@ -110,7 +110,7 @@ export async function compactMessages(
     const summaryMessage = {
       id: `compaction-${Date.now()}`,
       role: 'assistant' as const,
-      content: summaryText,
+      content: '',
       parts: [{ type: 'text' as const, text: summaryText }],
     } as UIMessage
 
@@ -155,7 +155,7 @@ export async function compactMessages(
     const summaryMessage = {
       id: `compaction-fallback-${Date.now()}`,
       role: 'assistant' as const,
-      content: fallbackSummary,
+      content: '',
       parts: [{ type: 'text' as const, text: fallbackSummary }],
     } as UIMessage
 

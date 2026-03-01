@@ -7,7 +7,7 @@ import {
   Globe, Terminal, X, ArrowUpFromLine, Camera,
 } from 'lucide-react'
 import { motion } from 'framer-motion'
-import { cn, hashFileMap } from '@/lib/utils'
+import { cn, hashFileMapDeep } from '@/lib/utils'
 
 interface ConsoleEntry {
   timestamp: string
@@ -402,7 +402,7 @@ export function PreviewPanel({ files, projectId, onFixErrors, onCapturePreview }
       setSandboxUrl(data.demoUrl)
       sandboxUrlRef.current = data.demoUrl
       setSandboxStatus('running')
-      lastSyncedFilesRef.current = hashFileMap(files)
+      lastSyncedFilesRef.current = hashFileMapDeep(files)
 
       const meta = [
         data.fileCount && `${data.fileCount} files uploaded`,
@@ -484,7 +484,7 @@ export function PreviewPanel({ files, projectId, onFixErrors, onCapturePreview }
   useEffect(() => {
     if (sandboxStatus !== 'running' || !projectId) return
 
-    const currentHash = hashFileMap(files)
+    const currentHash = hashFileMapDeep(files)
     if (currentHash === lastSyncedFilesRef.current) return
 
     if (syncTimeoutRef.current) clearTimeout(syncTimeoutRef.current)
@@ -664,7 +664,7 @@ export function PreviewPanel({ files, projectId, onFixErrors, onCapturePreview }
   // Reset auto-feed attempts when files change (user or AI made fixes)
   const prevFileHashRef = useRef<string>('')
   useEffect(() => {
-    const h = hashFileMap(files)
+    const h = hashFileMapDeep(files)
     if (prevFileHashRef.current && h !== prevFileHashRef.current) {
       // Files changed — give the new code a chance, but don't fully reset
       // (the 3-attempt cap per error message still applies)
