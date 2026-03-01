@@ -4,11 +4,20 @@ import { createSession, COOKIE_NAME } from '@/lib/auth'
 export async function GET(req: Request) {
   const url = new URL(req.url)
   const code = url.searchParams.get('code')
+  const state = url.searchParams.get('state')
   const error = url.searchParams.get('error')
   const baseUrl = (process.env.AUTH_URL || 'https://forge-six-chi.vercel.app').trim()
 
   if (error || !code) {
     return NextResponse.redirect(baseUrl + '/?error=' + (error || 'no_code'))
+  }
+
+  // CSRF: validate state parameter against cookie
+  const cookieHeader = req.headers.get('cookie') || ''
+  const stateMatch = cookieHeader.match(/oauth_state=([^;]+)/)
+  const storedState = stateMatch?.[1]
+  if (!state || !storedState || state !== storedState) {
+    return NextResponse.redirect(baseUrl + '/?error=csrf_validation_failed')
   }
 
   try {
@@ -71,7 +80,7 @@ export async function GET(req: Request) {
       githubUsername: user.login,
     })
 
-    // Set cookie and redirect home
+    // Set session cookie, delete oauth_state cookie, and redirect home
     const response = NextResponse.redirect(baseUrl)
     response.cookies.set(COOKIE_NAME, jwt, {
       httpOnly: true,
@@ -80,6 +89,7 @@ export async function GET(req: Request) {
       maxAge: 60 * 60 * 24 * 30, // 30 days
       path: '/',
     })
+    response.cookies.delete('oauth_state')
 
     return response
   } catch (err: any) {

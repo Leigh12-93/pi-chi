@@ -69,6 +69,39 @@ export function useForgeChat(props: UseForgeChatProps) {
   const [showModelPicker, setShowModelPicker] = useState(false)
   const [envVars, setEnvVars] = useState<Record<string, string>>({})
 
+  // ─── Stable refs for transport callback ──────────────────────
+  const projectNameRef = useRef(projectName)
+  const projectIdRef = useRef(projectId)
+  const filesRef = useRef(files)
+  const selectedModelRef = useRef(selectedModel)
+  const envVarsRef = useRef(envVars)
+  const activeFileRef = useRef(activeFile)
+  useEffect(() => { projectNameRef.current = projectName }, [projectName])
+  useEffect(() => { projectIdRef.current = projectId }, [projectId])
+  useEffect(() => { filesRef.current = files }, [files])
+  useEffect(() => { selectedModelRef.current = selectedModel }, [selectedModel])
+  useEffect(() => { envVarsRef.current = envVars }, [envVars])
+  useEffect(() => { activeFileRef.current = activeFile }, [activeFile])
+
+  // ─── Memoized transport (stable across renders) ─────────────
+  const transport = useMemo(() => new DefaultChatTransport({
+    api: '/api/chat',
+    prepareSendMessagesRequest: ({ messages: msgs }) => ({
+      body: {
+        messages: msgs,
+        projectName: projectNameRef.current,
+        projectId: projectIdRef.current,
+        files: filesRef.current,
+        model: selectedModelRef.current,
+        envVars: envVarsRef.current,
+        activeFile: activeFileRef.current || undefined,
+        activeFileContent: activeFileRef.current && filesRef.current[activeFileRef.current]
+          ? filesRef.current[activeFileRef.current].split('\n').slice(0, 500).join('\n')
+          : undefined,
+      },
+    }),
+  }), []) // eslint-disable-line react-hooks/exhaustive-deps
+
   // ─── useChat (AI SDK v6) ──────────────────────────────────────
   // v6 uses transport instead of api, sendMessage instead of append,
   // status instead of isLoading, and parts-based messages
@@ -81,24 +114,7 @@ export function useForgeChat(props: UseForgeChatProps) {
     sendMessage,
     regenerate,
   } = useChat({
-    transport: new DefaultChatTransport({
-      api: '/api/chat',
-      // v6: prepareSendMessagesRequest for dynamic body data
-      prepareSendMessagesRequest: ({ messages: msgs }) => ({
-        body: {
-          messages: msgs,
-          projectName,
-          projectId,
-          files,
-          model: selectedModel,
-          envVars,
-          activeFile: activeFile || undefined,
-          activeFileContent: activeFile && files[activeFile]
-            ? files[activeFile].split('\n').slice(0, 500).join('\n')
-            : undefined,
-        },
-      }),
-    }),
+    transport,
     onError: (err) => console.error('Chat error:', err),
   })
 

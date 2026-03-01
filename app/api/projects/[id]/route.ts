@@ -67,13 +67,24 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
     const files = body.files as Record<string, string>
     const filePaths = Object.keys(files)
 
-    // Delete files that no longer exist
+    // Delete files that no longer exist — use safe parameterized filtering
     if (filePaths.length > 0) {
-      await supabase
+      const { data: existingFiles } = await supabase
         .from('forge_project_files')
-        .delete()
+        .select('path')
         .eq('project_id', id)
-        .not('path', 'in', `(${filePaths.map(p => `"${p}"`).join(',')})`)
+
+      const pathsToDelete = (existingFiles || [])
+        .map((f: any) => f.path)
+        .filter((p: string) => !filePaths.includes(p))
+
+      if (pathsToDelete.length > 0) {
+        await supabase
+          .from('forge_project_files')
+          .delete()
+          .eq('project_id', id)
+          .in('path', pathsToDelete)
+      }
     } else {
       await supabase.from('forge_project_files').delete().eq('project_id', id)
     }

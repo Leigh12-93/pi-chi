@@ -59,6 +59,13 @@ export class VirtualFS {
     } catch (_e) {
       return { error: `Invalid regex pattern: ${pattern}` }
     }
+    // ReDoS protection: test the compiled regex against a probe string
+    const probe = 'a'.repeat(1000)
+    const t0 = Date.now()
+    regex.test(probe)
+    if (Date.now() - t0 > 50) {
+      return { error: 'Pattern too complex — potential ReDoS detected' }
+    }
     for (const [path, content] of this.files) {
       if (results.length >= maxResults) break
       const lines = content.split('\n')

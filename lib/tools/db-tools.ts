@@ -82,7 +82,7 @@ export function createDbTools(ctx: ToolContext) {
             return result.ok ? { ok: true, data: result.data } : { error: JSON.stringify(result.data) }
           }
           case 'delete': {
-            if (!filters || Object.keys(filters).length === 0) {
+            if (!filters || !filters.trim()) {
               return { error: 'DELETE requires at least one filter. Refusing to delete entire table.' }
             }
             const result = await supabaseFetch(`${path}${filterStr}`, {
@@ -169,13 +169,24 @@ export function createDbTools(ctx: ToolContext) {
           await supabase.from('forge_projects').update(updates).eq('id', projectId)
         }
 
-        // Delete removed files
+        // Delete removed files — use safe parameterized filtering
         if (filePaths.length > 0) {
-          await supabase
+          const { data: existingFiles } = await supabase
             .from('forge_project_files')
-            .delete()
+            .select('path')
             .eq('project_id', projectId)
-            .not('path', 'in', `(${filePaths.map(p => `"${p}"`).join(',')})`)
+
+          const pathsToDelete = (existingFiles || [])
+            .map((f: any) => f.path)
+            .filter((p: string) => !filePaths.includes(p))
+
+          if (pathsToDelete.length > 0) {
+            await supabase
+              .from('forge_project_files')
+              .delete()
+              .eq('project_id', projectId)
+              .in('path', pathsToDelete)
+          }
         }
 
         // Upsert current files in batches of 50 to avoid payload limits

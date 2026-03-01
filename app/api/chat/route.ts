@@ -35,6 +35,7 @@ const activeStreams = new Map<string, number>()
 const MAX_CONCURRENT_STREAMS = 3
 
 const usageTracker = new Map<string, { tokens: number; requests: number; ts: number }>()
+const MAX_USAGE_ENTRIES = 500
 
 const editFailCache = new Map<string, { counts: Map<string, number>; ts: number }>()
 function getEditFailCounts(projectId: string | null): Map<string, number> {
@@ -358,6 +359,9 @@ export async function POST(req: Request) {
     }
   }
 
+  // Track whether this request's stream count has been decremented
+  let streamCounted = true
+
   const DESIRED_MAX_TOKENS = 64000
   const MIN_OUTPUT_TOKENS = 4000
   let availableForOutput = contextLimit - estimatedInputTokens
@@ -365,10 +369,13 @@ export async function POST(req: Request) {
 
   // If even MIN_OUTPUT_TOKENS won't fit, reject early with a clear error
   if (availableForOutput < MIN_OUTPUT_TOKENS) {
-    // Decrement concurrent stream count
-    const count = activeStreams.get(ip) || 1
-    if (count <= 1) activeStreams.delete(ip)
-    else activeStreams.set(ip, count - 1)
+    // Decrement concurrent stream count (only once)
+    if (streamCounted) {
+      streamCounted = false
+      const count = activeStreams.get(ip) || 1
+      if (count <= 1) activeStreams.delete(ip)
+      else activeStreams.set(ip, count - 1)
+    }
 
     console.warn(`[forge] rid=${requestId} Context overflow: est_input=${Math.round(estimatedInputTokens)} available=${availableForOutput} limit=${contextLimit}`)
     return new Response(JSON.stringify({
@@ -519,10 +526,13 @@ export async function POST(req: Request) {
           onFinish: async (event) => {
             clearTimeout(streamTimeout)
 
-            // Decrement concurrent stream count
-            const count = activeStreams.get(ip) || 1
-            if (count <= 1) activeStreams.delete(ip)
-            else activeStreams.set(ip, count - 1)
+            // Decrement concurrent stream count (only once)
+            if (streamCounted) {
+              streamCounted = false
+              const count = activeStreams.get(ip) || 1
+              if (count <= 1) activeStreams.delete(ip)
+              else activeStreams.set(ip, count - 1)
+            }
 
             console.log(`[forge] rid=${requestId} ${event.totalUsage?.totalTokens || 0} tokens, ${event.steps?.length || 0} steps`)
 
@@ -534,6 +544,13 @@ export async function POST(req: Request) {
               prev.requests += 1
               prev.ts = Date.now()
               usageTracker.set(userId, prev)
+              // Evict oldest entries if over cap
+              if (usageTracker.size > MAX_USAGE_ENTRIES) {
+                const sorted = [...usageTracker.entries()].sort((a, b) => a[1].ts - b[1].ts)
+                while (usageTracker.size > MAX_USAGE_ENTRIES) {
+                  usageTracker.delete(sorted.shift()![0])
+                }
+              }
               console.log(`[forge:usage] user=${userId} req_tokens=${event.totalUsage.totalTokens} cumulative=${prev.tokens} requests=${prev.requests}`)
             }
 
@@ -581,10 +598,13 @@ export async function POST(req: Request) {
   } catch (error) {
     clearTimeout(streamTimeout)
 
-    // Decrement concurrent stream count on error
-    const count = activeStreams.get(ip) || 1
-    if (count <= 1) activeStreams.delete(ip)
-    else activeStreams.set(ip, count - 1)
+    // Decrement concurrent stream count on error (only once)
+    if (streamCounted) {
+      streamCounted = false
+      const count = activeStreams.get(ip) || 1
+      if (count <= 1) activeStreams.delete(ip)
+      else activeStreams.set(ip, count - 1)
+    }
 
     const err = error instanceof Error ? error : new Error(String(error))
     const msg = err.message || ''

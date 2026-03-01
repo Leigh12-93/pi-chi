@@ -9,5 +9,14 @@ export async function GET() {
 
   const url = `https://github.com/login/oauth/authorize?client_id=${clientId}&redirect_uri=${redirectUri}&scope=${scope}&state=${state}`
 
-  return NextResponse.redirect(url)
+  const response = NextResponse.redirect(url)
+  response.cookies.set('oauth_state', state, {
+    httpOnly: true,
+    secure: true,
+    sameSite: 'lax',
+    maxAge: 600, // 10 minutes
+    path: '/',
+  })
+
+  return response
 }

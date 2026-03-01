@@ -232,9 +232,10 @@ function hashFiles(files: Record<string, string>): string {
   for (const k of keys) {
     // Hash key
     for (let i = 0; i < k.length; i++) h = ((h << 5) + h + k.charCodeAt(i)) | 0
-    // Hash content (sample for performance: first 256 + last 256 chars + length)
+    // Hash content (sample for performance: first 200 + middle 200 + last 200 chars + length)
     const c = files[k]
-    const sample = c.length <= 512 ? c : c.substring(0, 256) + c.substring(c.length - 256)
+    const mid = Math.max(0, Math.floor(c.length / 2) - 100)
+    const sample = c.length <= 600 ? c : c.substring(0, 200) + c.substring(mid, mid + 200) + c.substring(c.length - 200)
     for (let i = 0; i < sample.length; i++) h = ((h << 5) + h + sample.charCodeAt(i)) | 0
     h = ((h << 5) + h + c.length) | 0
   }

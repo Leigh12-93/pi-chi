@@ -11,6 +11,7 @@ export async function supabaseFetch(path: string, options: RequestInit = {}) {
   }
   const res = await fetch(`${SUPABASE_URL}/rest/v1${path}`, {
     ...options,
+    signal: options.signal ?? AbortSignal.timeout(10_000),
     headers: {
       'apikey': SUPABASE_KEY,
       'Authorization': `Bearer ${SUPABASE_KEY}`,
