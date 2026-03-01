@@ -3,9 +3,10 @@ import { getSession } from '@/lib/auth'
 import { isValidUUID } from '@/lib/validate'
 import { supabaseFetch } from '@/lib/supabase-fetch'
 import { githubFetch, GITHUB_TOKEN as LIB_GITHUB_TOKEN } from '@/lib/github'
+import { detectFramework, VERCEL_TOKEN as LIB_VERCEL_TOKEN, VERCEL_TEAM as LIB_VERCEL_TEAM } from '@/lib/vercel'
 
-const VERCEL_TOKEN = (process.env.FORGE_DEPLOY_TOKEN || process.env.VERCEL_TOKEN || '').trim()
-const VERCEL_TEAM = process.env.VERCEL_TEAM_ID || ''
+const VERCEL_TOKEN = LIB_VERCEL_TOKEN
+const VERCEL_TEAM = LIB_VERCEL_TEAM
 const GITHUB_TOKEN = LIB_GITHUB_TOKEN
 
 // ─── Progress helper ───────────────────────────────────────────
@@ -46,16 +47,7 @@ async function executeDeploy(taskId: string, params: { projectName: string; file
   await updateProgress(taskId, `Uploading ${fileCount} files to Vercel...`)
 
   const fileEntries = Object.entries(params.files).map(([file, data]) => ({ file, data }))
-  let fw = params.framework
-  if (!fw) {
-    if (params.files['next.config.ts'] || params.files['next.config.js'] || params.files['next.config.mjs']) fw = 'nextjs'
-    else if (params.files['vite.config.ts'] || params.files['vite.config.js'] || params.files['vite.config.mjs']) fw = 'vite'
-    else if (params.files['nuxt.config.ts'] || params.files['nuxt.config.js']) fw = 'nuxtjs'
-    else if (params.files['astro.config.mjs'] || params.files['astro.config.ts']) fw = 'astro'
-    else if (params.files['svelte.config.js'] || params.files['svelte.config.ts']) fw = 'sveltekit'
-    else if (params.files['remix.config.js'] || params.files['remix.config.ts']) fw = 'remix'
-    else fw = 'static'
-  }
+  const fw = params.framework || detectFramework(params.files) || 'static'
 
   const teamParam = VERCEL_TEAM ? `?teamId=${VERCEL_TEAM}` : ''
   await updateProgress(taskId, `Creating ${fw} deployment...`)

@@ -56,7 +56,10 @@ export function createDbTools(ctx: ToolContext) {
       inputSchema: z.object({
         operation: z.enum(['insert', 'update', 'upsert', 'delete']).describe('Operation type'),
         table: z.string().describe('Table name (must start with forge_)'),
-        data: z.any().optional().describe('Data to insert/update (object or array of objects)'),
+        data: z.union([
+          z.record(z.string(), z.unknown()),
+          z.array(z.record(z.string(), z.unknown())),
+        ]).optional().describe('Data to insert/update (object or array of objects)'),
         filters: z.string().optional().describe('PostgREST filter for update/delete, e.g. "id=eq.abc123"'),
         onConflict: z.string().optional().describe('For upsert: conflict column(s), e.g. "project_id,path"'),
       }),
