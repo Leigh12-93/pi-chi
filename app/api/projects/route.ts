@@ -40,6 +40,17 @@ export async function POST(req: Request) {
   if (name.length > 100) return NextResponse.json({ error: 'Project name too long (max 100 chars)' }, { status: 400 })
   if (!/^[\w\s\-\.()]+$/.test(name)) return NextResponse.json({ error: 'Project name contains invalid characters' }, { status: 400 })
 
+  // Check for duplicate project name for this user
+  const { data: existing } = await supabase
+    .from('forge_projects')
+    .select('id')
+    .eq('github_username', username)
+    .eq('name', name)
+    .limit(1)
+  if (existing && existing.length > 0) {
+    return NextResponse.json({ error: 'A project with this name already exists' }, { status: 409 })
+  }
+
   const { data, error } = await supabase
     .from('forge_projects')
     .insert({
