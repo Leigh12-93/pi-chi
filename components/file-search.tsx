@@ -66,7 +66,7 @@ export function FileSearch({ files, onResultClick, open, onClose }: FileSearchPr
 
   return (
     <div className="fixed inset-0 z-[100] flex items-start justify-center pt-[15vh]" onClick={onClose}>
-      <div className="absolute inset-0 bg-black/40 backdrop-blur-sm animate-fade-in" />
+      <div className="absolute inset-0 bg-forge-overlay backdrop-blur-md animate-fade-in" />
       <div
         className="relative w-full max-w-lg mx-4 bg-forge-bg rounded-xl shadow-2xl border border-forge-border overflow-hidden animate-scale-in"
         onClick={e => e.stopPropagation()}

@@ -524,27 +524,35 @@ export function Workspace({
       {openFilesList.map(f => {
         const name = f.split('/').pop() || f
         const isActive = activeFile === f
+        const isModified = modifiedFiles?.has(f)
         return (
           <div
             key={f}
             className={cn(
-              'group flex items-center gap-1 px-3 sm:px-2.5 py-2 sm:py-1.5 text-xs rounded-md cursor-pointer transition-all whitespace-nowrap border',
+              'group relative flex items-center gap-1 px-3 sm:px-2.5 py-2 sm:py-1.5 text-xs rounded-md cursor-pointer transition-all whitespace-nowrap border',
               isActive
                 ? 'bg-forge-surface text-forge-text border-forge-border shadow-sm'
                 : 'text-forge-text-dim hover:text-forge-text border-transparent hover:bg-forge-surface/50',
             )}
             onClick={() => onFileSelect(f)}
           >
+            {isModified && <span className="w-1.5 h-1.5 rounded-full bg-amber-500 shrink-0" />}
             <span>{name}</span>
             <button
               onClick={(e) => { e.stopPropagation(); handleCloseFile(f) }}
               className="ml-1 p-1 sm:ml-0.5 sm:p-0 opacity-60 sm:opacity-0 sm:group-hover:opacity-100 hover:text-forge-danger text-xs sm:text-[10px] transition-opacity"
               aria-label={`Close ${name}`}
             >
-              ×
+              &times;
             </button>
+            {isActive && (
+              <span className="absolute bottom-0 left-1 right-1 h-0.5 bg-forge-accent rounded-full" />
+            )}
           </div>
         )
+      })}
+    </div>
+  )
       })}
     </div>
   )
@@ -552,30 +560,20 @@ export function Workspace({
   const editorPanel = (
     <div className="h-full flex flex-col bg-forge-surface">
       <div className="flex items-center border-b border-forge-border bg-forge-panel">
-        <button
-          onClick={() => setRightTab('code')}
-          className={`px-4 py-2 text-xs font-medium transition-colors ${
-            rightTab === 'code' ? 'text-forge-accent border-b-2 border-forge-accent bg-forge-surface' : 'text-forge-text-dim hover:text-forge-text'
-          }`}
-        >
-          Code
-        </button>
-        <button
-          onClick={() => setRightTab('split')}
-          className={`px-4 py-2 text-xs font-medium transition-colors ${
-            rightTab === 'split' ? 'text-forge-accent border-b-2 border-forge-accent bg-forge-surface' : 'text-forge-text-dim hover:text-forge-text'
-          }`}
-        >
-          Split
-        </button>
-        <button
-          onClick={() => setRightTab('preview')}
-          className={`px-4 py-2 text-xs font-medium transition-colors ${
-            rightTab === 'preview' ? 'text-forge-accent border-b-2 border-forge-accent bg-forge-surface' : 'text-forge-text-dim hover:text-forge-text'
-          }`}
-        >
-          Preview
-        </button>
+        {(['code', 'split', 'preview'] as const).map(tab => (
+          <button
+            key={tab}
+            onClick={() => setRightTab(tab)}
+            className={`relative px-4 py-2 text-xs font-medium transition-colors ${
+              rightTab === tab ? 'text-forge-accent bg-forge-surface' : 'text-forge-text-dim hover:text-forge-text'
+            }`}
+          >
+            {tab.charAt(0).toUpperCase() + tab.slice(1)}
+            {rightTab === tab && (
+              <span className="absolute bottom-0 left-1 right-1 h-0.5 bg-forge-accent rounded-full transition-all" />
+            )}
+          </button>
+        ))}
         {(rightTab === 'code' || rightTab === 'split') && openFiles.length > 0 && (
           <div className="ml-2 border-l border-forge-border pl-2">
             {fileTabBar(openFiles)}

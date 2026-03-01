@@ -171,7 +171,7 @@ export const MessageItem = memo(function MessageItem({
                     </div>
                     <p className="text-amber-700 dark:text-amber-300 mb-1">{sArgs.issue || ''}</p>
                     {sArgs.suggestion && (
-                      <pre className="text-[11px] bg-forge-surface dark:bg-gray-950 text-forge-text dark:text-gray-200 rounded-lg p-2.5 mt-1.5 whitespace-pre-wrap font-mono">{sArgs.suggestion}</pre>
+                      <pre className="text-[11px] bg-forge-surface text-forge-text rounded-lg p-2.5 mt-1.5 whitespace-pre-wrap font-mono">{sArgs.suggestion}</pre>
                     )}
                     {sArgs.file && (
                       <span className="inline-block mt-1.5 px-1.5 py-0.5 bg-forge-surface text-forge-text-dim rounded text-[10px] font-mono">{sArgs.file}</span>

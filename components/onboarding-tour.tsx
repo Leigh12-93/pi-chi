@@ -60,7 +60,7 @@ export function OnboardingTour() {
 
   return (
     <div className="fixed inset-0 z-[110] flex items-center justify-center" onClick={handleDismiss}>
-      <div className="absolute inset-0 bg-black/50 backdrop-blur-sm animate-fade-in" />
+      <div className="absolute inset-0 bg-forge-overlay backdrop-blur-md animate-fade-in" />
       <div
         className="relative w-full max-w-sm mx-4 bg-forge-bg rounded-2xl shadow-2xl border border-forge-border overflow-hidden animate-scale-in"
         onClick={e => e.stopPropagation()}
@@ -73,7 +73,7 @@ export function OnboardingTour() {
         </button>
 
         <div className="p-6 text-center">
-          <div className="inline-flex items-center justify-center w-14 h-14 rounded-2xl bg-gradient-to-br from-forge-accent/20 to-purple-500/20 mb-4">
+          <div className="inline-flex items-center justify-center w-14 h-14 rounded-2xl bg-gradient-to-br from-forge-accent/20 to-purple-500/20 mb-4 animate-breathe">
             <StepIcon className="w-7 h-7 text-forge-accent" />
           </div>
           <h2 className="text-base font-semibold text-forge-text mb-2">{currentStep.title}</h2>
@@ -86,8 +86,8 @@ export function OnboardingTour() {
             {STEPS.map((_, i) => (
               <div
                 key={i}
-                className={`w-1.5 h-1.5 rounded-full transition-all ${
-                  i === step ? 'bg-forge-accent w-4' : i < step ? 'bg-forge-accent/50' : 'bg-forge-border'
+                className={`h-1.5 rounded-full transition-all duration-300 ${
+                  i === step ? 'bg-forge-accent w-4' : i < step ? 'bg-forge-accent/50 w-1.5' : 'bg-forge-border w-1.5'
                 }`}
               />
             ))}

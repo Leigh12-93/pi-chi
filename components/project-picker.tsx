@@ -72,10 +72,10 @@ const LANG_COLORS: Record<string, string> = {
   Python: 'bg-green-500/15 text-green-600 dark:text-green-400',
   Kotlin: 'bg-purple-500/15 text-purple-600 dark:text-purple-400',
   Java: 'bg-orange-500/15 text-orange-600 dark:text-orange-400',
-  HTML: 'bg-red-100 text-red-700',
-  CSS: 'bg-pink-100 text-pink-700',
-  Rust: 'bg-amber-100 text-amber-700',
-  Go: 'bg-cyan-100 text-cyan-700',
+  HTML: 'bg-red-500/15 text-red-600 dark:text-red-400',
+  CSS: 'bg-pink-500/15 text-pink-600 dark:text-pink-400',
+  Rust: 'bg-amber-500/15 text-amber-600 dark:text-amber-400',
+  Go: 'bg-cyan-500/15 text-cyan-600 dark:text-cyan-400',
 }
 
 const QUICK_STARTS = [

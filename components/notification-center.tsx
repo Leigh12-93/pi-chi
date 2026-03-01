@@ -53,14 +53,14 @@ export function NotificationCenter({ notifications, onMarkAllRead, onDismiss }: 
       >
         <Bell className="w-3.5 h-3.5" />
         {unreadCount > 0 && (
-          <span className="absolute -top-0.5 -right-0.5 w-3.5 h-3.5 text-[8px] font-bold text-white bg-forge-accent rounded-full flex items-center justify-center">
+          <span className="absolute -top-0.5 -right-0.5 w-3.5 h-3.5 text-[8px] font-bold text-white bg-forge-accent rounded-full flex items-center justify-center animate-pulse-dot">
             {unreadCount > 9 ? '9+' : unreadCount}
           </span>
         )}
       </button>
 
       {open && (
-        <div className="absolute right-0 top-full mt-1 w-72 bg-forge-bg border border-forge-border rounded-xl shadow-xl overflow-hidden animate-slide-down z-50">
+        <div className="absolute right-0 top-full mt-1 w-72 bg-forge-bg border border-forge-border rounded-xl shadow-xl overflow-hidden animate-fade-in-up z-50">
           <div className="flex items-center justify-between px-3 py-2 border-b border-forge-border">
             <span className="text-xs font-medium text-forge-text">Notifications</span>
             {notifications.length > 0 && (
@@ -82,7 +82,7 @@ export function NotificationCenter({ notifications, onMarkAllRead, onDismiss }: 
                   <div
                     key={notif.id}
                     className={cn(
-                      'flex items-start gap-2 px-3 py-2 border-b border-forge-border/50 last:border-0 hover:bg-forge-surface/50 transition-colors',
+                      'flex items-start gap-2 px-3 py-2 border-b border-forge-border/50 last:border-0 hover:bg-forge-surface/50 transition-all hover:-translate-y-px',
                       !notif.read && 'bg-forge-accent/5',
                     )}
                   >

@@ -96,8 +96,8 @@ export function ActionDialog({
       className="fixed inset-0 z-50 flex items-center justify-center"
       onClick={e => { if (e.target === overlayRef.current && state !== 'running') onClose() }}
     >
-      <div className="fixed inset-0 bg-black/50" />
-      <div className="relative z-50 w-full max-w-md rounded-xl border border-forge-border bg-forge-bg p-5 shadow-xl animate-fade-in mx-4">
+      <div className="fixed inset-0 bg-forge-overlay backdrop-blur-md" />
+      <div className="relative z-50 w-full max-w-md rounded-xl border border-forge-border bg-forge-bg p-5 shadow-xl animate-fade-in-up mx-4">
         {/* Header */}
         <div className="flex items-center justify-between mb-3">
           <h2 className="text-sm font-semibold text-forge-text">{title}</h2>
@@ -384,8 +384,8 @@ export function TaskPollingDialog({
       className="fixed inset-0 z-50 flex items-center justify-center"
       onClick={e => { if (e.target === overlayRef.current && state !== 'running') onClose() }}
     >
-      <div className="fixed inset-0 bg-black/50" />
-      <div className="relative z-50 w-full max-w-md rounded-xl border border-forge-border bg-forge-bg p-5 shadow-xl animate-fade-in mx-4">
+      <div className="fixed inset-0 bg-forge-overlay backdrop-blur-md" />
+      <div className="relative z-50 w-full max-w-md rounded-xl border border-forge-border bg-forge-bg p-5 shadow-xl animate-fade-in-up mx-4">
         {/* Header */}
         <div className="flex items-center justify-between mb-3">
           <h2 className="text-sm font-semibold text-forge-text">{title}</h2>

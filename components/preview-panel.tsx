@@ -749,7 +749,7 @@ export function PreviewPanel({ files, projectId, onFixErrors }: PreviewPanelProp
                 onClick={stopSandbox}
                 className={cn(
                   'p-2.5 sm:p-1.5 rounded-md transition-colors',
-                  'text-red-500 hover:text-red-700 hover:bg-red-50',
+                  'text-red-500 hover:text-red-700 dark:hover:text-red-400 hover:bg-red-50 dark:hover:bg-red-950/30',
                 )}
                 title="Stop sandbox"
                 aria-label="Stop sandbox"
