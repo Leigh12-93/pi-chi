@@ -129,9 +129,11 @@ export function Header({ projectName, onSwitchProject, fileCount, onAction, save
             {session.user.image && (
               <img src={session.user.image} alt="" className="w-6 h-6 rounded-full border border-forge-border" />
             )}
-            <a href="/api/auth/logout" className="p-2 sm:p-1 text-forge-text-dim hover:text-forge-danger transition-colors" title="Sign out" aria-label="Sign out">
-              <LogOut className="w-3.5 h-3.5" />
-            </a>
+            <form action="/api/auth/logout" method="POST" className="flex">
+              <button type="submit" className="p-2 sm:p-1 text-forge-text-dim hover:text-forge-danger transition-colors" title="Sign out" aria-label="Sign out">
+                <LogOut className="w-3.5 h-3.5" />
+              </button>
+            </form>
           </div>
         ) : (
           <a href="/api/auth/login" className="flex items-center gap-1.5 px-3 sm:px-2.5 py-2 sm:py-1 rounded bg-forge-surface hover:bg-forge-accent/20 text-xs text-forge-text-dim hover:text-forge-text transition-colors">
