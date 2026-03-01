@@ -26,6 +26,7 @@ export default function ForgePage() {
   const [activeFile, setActiveFile] = useState<string | null>(null)
   const [savedProjects, setSavedProjects] = useState<SavedProject[]>([])
   const [loadingProjects, setLoadingProjects] = useState(false)
+  const [loadingProjectId, setLoadingProjectId] = useState<string | null>(null)
   const autoSaveTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const lastSavedHash = useRef<string>('')
   const restoredRef = useRef(false)
@@ -255,6 +256,7 @@ export default function ForgePage() {
 
   const handleSelectProject = useCallback(async (name: string, id?: string, initialFiles?: Record<string, string>, query?: string) => {
     if (id) {
+      setLoadingProjectId(id)
       try {
         const res = await fetch(`/api/projects/${id}`)
         if (res.ok) {
@@ -275,6 +277,8 @@ export default function ForgePage() {
         setErrorMessage('Could not load project. Check your connection and try again.')
         // Don't fall through to project creation — return to picker
         return
+      } finally {
+        setLoadingProjectId(null)
       }
     }
 
@@ -377,6 +381,7 @@ export default function ForgePage() {
           loadingProjects={loadingProjects}
           onDeleteProject={handleDeleteProject}
           deletingProjectId={deletingProjectId}
+          loadingProjectId={loadingProjectId}
           isLoggedIn={!!session?.user}
           loadError={projectsLoadError}
           onRetryLoad={loadProjects}

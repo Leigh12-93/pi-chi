@@ -158,17 +158,28 @@ export async function POST(req: Request) {
     })
   }
 
-  let body: any
+  interface ChatRequestBody {
+    messages: UIMessage[]
+    files?: Record<string, string>
+    model?: string
+    projectName?: string
+    projectId?: string
+    envVars?: Record<string, string>
+    activeFile?: string
+    activeFileContent?: string
+  }
+
+  let body: ChatRequestBody
   try {
-    body = await req.json()
+    body = await req.json() as ChatRequestBody
   } catch {
     return new Response(JSON.stringify({ error: 'Invalid JSON in request body.' }), {
       status: 400,
       headers: { 'Content-Type': 'application/json' },
     })
   }
-  const projectName = body.projectName || 'untitled'
-  const projectId = body.projectId || null
+  const projectName = typeof body.projectName === 'string' ? body.projectName : 'untitled'
+  const projectId = typeof body.projectId === 'string' ? body.projectId : null
 
   // Verify the user owns the project before proceeding
   if (projectId) {

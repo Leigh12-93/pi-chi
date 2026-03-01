@@ -43,6 +43,7 @@ interface ProjectPickerProps {
   loadingProjects: boolean
   onDeleteProject: (id: string) => void
   deletingProjectId?: string | null
+  loadingProjectId?: string | null
   isLoggedIn: boolean
   loadError?: boolean
   onRetryLoad?: () => void
@@ -73,7 +74,7 @@ const QUICK_STARTS = [
   { label: 'E-commerce', query: 'Build an e-commerce product page with image gallery, size/color selector, add to cart, reviews section, and related products. Clean, modern design like Apple Store.' },
 ]
 
-export function ProjectPicker({ onSelect, savedProjects, loadingProjects, onDeleteProject, deletingProjectId, isLoggedIn, loadError, onRetryLoad }: ProjectPickerProps) {
+export function ProjectPicker({ onSelect, savedProjects, loadingProjects, onDeleteProject, deletingProjectId, loadingProjectId, isLoggedIn, loadError, onRetryLoad }: ProjectPickerProps) {
   const [name, setName] = useState('')
   const [creating, setCreating] = useState(false)
   const deletingId = deletingProjectId ?? null
@@ -335,7 +336,8 @@ export function ProjectPicker({ onSelect, savedProjects, loadingProjects, onDele
                       <button
                         key={project.id}
                         onClick={() => onSelect(project.name, project.id)}
-                        className="group relative bg-forge-panel border border-forge-border border-l-2 border-l-transparent rounded-xl p-4 text-left hover:border-forge-accent/50 hover:border-l-forge-accent hover:bg-forge-accent/5 hover:shadow-sm transition-all"
+                        disabled={loadingProjectId === project.id}
+                        className="group relative bg-forge-panel border border-forge-border border-l-2 border-l-transparent rounded-xl p-4 text-left hover:border-forge-accent/50 hover:border-l-forge-accent hover:bg-forge-accent/5 hover:shadow-sm transition-all disabled:opacity-70 disabled:cursor-wait"
                       >
                         <div className="flex items-start justify-between mb-2">
                           <h3 className="text-sm font-medium text-forge-text group-hover:text-forge-accent transition-colors truncate pr-2">
@@ -369,15 +371,24 @@ export function ProjectPicker({ onSelect, savedProjects, loadingProjects, onDele
                           )}
                         </div>
 
-                        <button
-                          onClick={e => handleDelete(e, project)}
-                          disabled={deletingId === project.id}
-                          className="absolute top-3 right-3 p-1.5 rounded-lg opacity-0 group-hover:opacity-100 text-forge-text-dim hover:text-forge-danger hover:bg-forge-danger/10 transition-all"
-                          title="Delete project"
-                          aria-label="Delete project"
-                        >
-                          {deletingId === project.id ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Trash2 className="w-3.5 h-3.5" />}
-                        </button>
+                        {loadingProjectId === project.id ? (
+                          <div className="absolute inset-0 flex items-center justify-center bg-forge-panel/90 rounded-xl">
+                            <div className="flex items-center gap-2 text-xs text-forge-accent">
+                              <Loader2 className="w-4 h-4 animate-spin" />
+                              Opening...
+                            </div>
+                          </div>
+                        ) : (
+                          <button
+                            onClick={e => handleDelete(e, project)}
+                            disabled={deletingId === project.id}
+                            className="absolute top-3 right-3 p-1.5 rounded-lg opacity-0 group-hover:opacity-100 text-forge-text-dim hover:text-forge-danger hover:bg-forge-danger/10 transition-all"
+                            title="Delete project"
+                            aria-label="Delete project"
+                          >
+                            {deletingId === project.id ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Trash2 className="w-3.5 h-3.5" />}
+                          </button>
+                        )}
                       </button>
                     ))}
                   </div>

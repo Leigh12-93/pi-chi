@@ -68,7 +68,13 @@ export function Workspace({
   const [consoleOpen, setConsoleOpen] = useState(false)
   const [consoleEntries, setConsoleEntries] = useState<ConsoleEntry[]>([])
   const [notifications, setNotifications] = useState<Notification[]>([])
-  const [snapshots, setSnapshots] = useState<Snapshot[]>([])
+  const [snapshots, setSnapshots] = useState<Snapshot[]>(() => {
+    if (!projectId) return []
+    try {
+      const stored = sessionStorage.getItem(`forge-snapshots-${projectId}`)
+      return stored ? JSON.parse(stored) : []
+    } catch { return [] }
+  })
   const [showVersionHistory, setShowVersionHistory] = useState(false)
   const [diffState, setDiffState] = useState<{ open: boolean; path: string; oldContent: string; newContent: string } | null>(null)
   const [modifiedFiles, setModifiedFiles] = useState<Set<string>>(new Set())
@@ -77,6 +83,12 @@ export function Workspace({
   const initialFilesRef = useRef<Record<string, string>>({})
   const filesRef = useRef(files)
   filesRef.current = files
+
+  // Persist snapshots to sessionStorage (survive page refresh)
+  useEffect(() => {
+    if (!projectId || snapshots.length === 0) return
+    try { sessionStorage.setItem(`forge-snapshots-${projectId}`, JSON.stringify(snapshots.slice(-50))) } catch {}
+  }, [snapshots, projectId])
 
   // Forward initial pending message from parent (e.g., Quick Start query)
   useEffect(() => {
