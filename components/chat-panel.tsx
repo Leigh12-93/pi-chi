@@ -16,6 +16,7 @@ import {
 import { cn } from '@/lib/utils'
 import { ErrorBoundary } from '@/components/error-boundary'
 import DOMPurify from 'dompurify'
+import { toast } from 'sonner'
 
 // ═══════════════════════════════════════════════════════════════════
 // Tool display config
@@ -102,7 +103,7 @@ const colorClasses: Record<string, string> = {
 
 // ═══════════════════════════════════════════════════════════════════
 // Markdown renderer (light theme)
-// ══════════════════════════════════════�����═════════════════════���══════
+// ══════════════════════════��═══════════�����═════════════════════���══════
 
 // Language label map for code blocks
 const LANG_LABELS: Record<string, string> = {
@@ -1195,8 +1196,9 @@ export function ChatPanel({ projectName, projectId, files, onFileChange, onFileD
           setMessages(loaded)
         }
       })
-      .catch(() => {
-        console.warn('Failed to load chat history')
+      .catch((err) => {
+        console.warn('Failed to load chat history:', err)
+        toast.error('Could not load chat history', { description: 'Previous messages may be missing.', duration: 4000 })
       })
       .finally(() => setLoadingHistory(false))
   }, [projectId, historyLoaded, setMessages])

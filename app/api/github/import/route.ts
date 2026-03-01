@@ -130,7 +130,7 @@ async function fetchInBatches(
 }
 
 // Recursively fetch all files from a GitHub repo tree
-async function fetchTree(owner: string, repo: string, branch: string, token: string): Promise<{ files: Record<string, string>; skipped: string[]; failedFiles: string[] }> {
+async function fetchTree(owner: string, repo: string, branch: string, token: string): Promise<{ files: Record<string, string>; skipped: string[]; failedFiles: string[]; truncated: boolean }> {
   const res = await fetch(
     `https://api.github.com/repos/${owner}/${repo}/git/trees/${branch}?recursive=1`,
     { headers: GITHUB_HEADERS(token) },
@@ -143,7 +143,8 @@ async function fetchTree(owner: string, repo: string, branch: string, token: str
 
   const data = await res.json()
 
-  if (data.truncated) {
+  const truncated = !!data.truncated
+  if (truncated) {
     console.warn(`[github-import] Tree truncated for ${owner}/${repo} — some files may be missing`)
   }
 
@@ -193,7 +194,7 @@ async function fetchTree(owner: string, repo: string, branch: string, token: str
     }
   }
 
-  return { files, skipped, failedFiles }
+  return { files, skipped, failedFiles, truncated }
 }
 
 export async function POST(req: Request) {
@@ -234,6 +235,10 @@ export async function POST(req: Request) {
     }
     if (importResult.failedFiles.length > 0) {
       response.failedFiles = importResult.failedFiles
+    }
+    if (importResult.truncated) {
+      response.truncated = true
+      response.warning = 'Repository file tree was truncated by GitHub. Some files may be missing.'
     }
     return NextResponse.json(response)
   } catch (err: any) {

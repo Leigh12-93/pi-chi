@@ -73,10 +73,11 @@ export default function ForgePage() {
     } catch { /* ignore corrupt storage */ }
   }, [])
 
-  // Auto-clear error message after 5 seconds
+  // Auto-clear error messages — longer timeout for persistent warnings (local-only mode)
   useEffect(() => {
     if (errorMessage) {
-      const t = setTimeout(() => setErrorMessage(null), 5000)
+      const isLocalOnlyWarning = errorMessage.includes('local-only')
+      const t = setTimeout(() => setErrorMessage(null), isLocalOnlyWarning ? 15000 : 5000)
       return () => clearTimeout(t)
     }
   }, [errorMessage])
@@ -205,10 +206,13 @@ export default function ForgePage() {
         if (res.ok) {
           const data = await res.json()
           setProjectId(data.id)
+        } else {
+          console.error('Failed to create project:', res.status)
+          setErrorMessage(`Cloud save unavailable (${res.status}). Working in local-only mode — changes won't persist across sessions.`)
         }
       } catch (err) {
         console.error('Failed to create project:', err)
-        setErrorMessage('Failed to save project to cloud. Working in local-only mode.')
+        setErrorMessage('Cloud save unavailable. Working in local-only mode — changes won\'t persist across sessions.')
       }
     }
 
@@ -230,8 +234,12 @@ export default function ForgePage() {
     setActiveFile(prev => prev === path ? null : prev)
   }, [])
 
-  const handleBulkFileUpdate = useCallback((newFiles: Record<string, string>) => {
-    setFiles(prev => ({ ...prev, ...newFiles }))
+  const handleBulkFileUpdate = useCallback((newFiles: Record<string, string>, opts?: { replace?: boolean }) => {
+    if (opts?.replace) {
+      setFiles(newFiles)
+    } else {
+      setFiles(prev => ({ ...prev, ...newFiles }))
+    }
   }, [])
 
   const handleDeleteProject = useCallback(async (id: string) => {

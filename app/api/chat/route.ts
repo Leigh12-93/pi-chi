@@ -97,7 +97,8 @@ export async function POST(req: Request) {
   }
 
   // Post-parse size check for chunked transfers (content-length may be absent)
-  const bodySize = JSON.stringify(body.files || {}).length
+  // Check entire body, not just files — a huge messages array could also blow the limit
+  const bodySize = JSON.stringify(body).length
   if (bodySize > 8 * 1024 * 1024) {
     return new Response(JSON.stringify({ error: 'Request too large. Maximum body size is 8MB.' }), {
       status: 413,
@@ -320,6 +321,11 @@ export async function POST(req: Request) {
           })
         } catch (error) {
           console.error('Failed to save assistant message:', error)
+          // Note: streamData may already be closed at this point, so wrap in try/catch.
+          // This is a non-fatal warning — the user's work is safe in-memory.
+          try {
+            streamData.append({ type: 'warning', message: 'Chat history could not be saved. Your work is safe but this conversation may not persist.' })
+          } catch { /* stream already closed — non-fatal */ }
         }
       }
     },
