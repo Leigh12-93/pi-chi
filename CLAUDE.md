@@ -25,10 +25,10 @@ app/
   page.tsx                 Main page — project persistence, auto-save, project picker → workspace
   layout.tsx               Root layout (dark theme, SessionProvider)
   globals.css              Tailwind v4 + custom forge theme tokens
-  api/chat/route.ts        AI endpoint — VirtualFS, 25 tools, GitHub/Vercel/Supabase APIs
+  api/chat/route.ts        AI endpoint — VirtualFS, 35+ tools, GitHub/Vercel/Supabase APIs
   api/projects/route.ts    Project CRUD (GET list, POST create)
   api/projects/[id]/       Project detail (GET with files, PUT save, DELETE)
-  api/auth/[...nextauth]/  GitHub OAuth handler
+  api/auth/login|callback|logout|session  Custom PKCE S256 GitHub OAuth + JWT
 components/
   workspace.tsx            3-panel resizable layout, auto-selects first file
   chat-panel.tsx           Chat — useChat, live tool processing, step counter
@@ -37,7 +37,7 @@ components/
   preview-panel.tsx        iframe preview (JSX→HTML + Tailwind CDN)
   project-picker.tsx       Saved projects grid + new project + quick starts
   header.tsx               Top bar with GitHub auth
-  session-provider.tsx     NextAuth SessionProvider wrapper
+  session-provider.tsx     Custom session context provider
 lib/
   auth.ts                  Custom JWT auth (AES-GCM encrypted PAT, PKCE S256 GitHub OAuth)
   supabase.ts              Supabase client + type definitions

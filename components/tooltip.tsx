@@ -52,7 +52,7 @@ export function Tooltip({ content, children, side = 'top', delay = 400 }: Toolti
       {visible && mounted && createPortal(
         <div
           className={cn(
-            'fixed z-[200] px-2 py-1 text-[11px] text-white bg-forge-surface border border-forge-border rounded-md shadow-lg pointer-events-none animate-scale-in whitespace-nowrap',
+            'fixed z-[200] px-2 py-1 text-[11px] text-zinc-100 bg-zinc-900 dark:text-zinc-900 dark:bg-zinc-100 border border-forge-border rounded-md shadow-lg pointer-events-none animate-scale-in whitespace-nowrap',
             side === 'top' ? '-translate-x-1/2 -translate-y-full' : '-translate-x-1/2',
           )}
           style={{ left: pos.x, top: pos.y }}
