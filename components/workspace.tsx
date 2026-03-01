@@ -78,6 +78,23 @@ interface WorkspaceProps {
 type MobileTab = 'chat' | 'files' | 'code' | 'preview'
 type DialogType = 'deploy' | 'push' | 'create-repo' | 'import' | null
 
+function detectFramework(files: Record<string, string>): string | undefined {
+  const pkg = files['package.json']
+  if (!pkg) return files['index.html'] ? 'Static' : undefined
+  try {
+    const parsed = JSON.parse(pkg)
+    const deps = { ...parsed.dependencies, ...parsed.devDependencies }
+    if (deps['next']) return 'Next.js'
+    if (deps['vite'] || deps['@vitejs/plugin-react']) return 'Vite'
+    if (deps['react']) return 'React'
+    if (deps['vue']) return 'Vue'
+    if (deps['svelte']) return 'Svelte'
+    return 'Node.js'
+  } catch {
+    return 'Node.js'
+  }
+}
+
 export function Workspace({
   projectName, projectId, files, activeFile,
   onFileSelect, onFileChange, onFileDelete, onBulkFileUpdate, onSwitchProject,
@@ -634,7 +651,7 @@ export function Workspace({
               <StatusBar
                 activeFile={activeFile}
                 fileCount={Object.keys(files).length}
-                framework={files['package.json'] ? 'Next.js' : files['index.html'] ? 'Static' : undefined}
+                framework={detectFramework(files)}
                 saveStatus={saveStatus}
               />
             </div>
@@ -822,7 +839,7 @@ export function Workspace({
         onClose={() => setShowSettings(false)}
         projectName={projectName}
         projectId={projectId}
-        framework={files['package.json'] ? 'Next.js' : files['index.html'] ? 'Static' : undefined}
+        framework={detectFramework(files)}
         onUpdateSettings={onUpdateSettings || (() => {})}
       />
 

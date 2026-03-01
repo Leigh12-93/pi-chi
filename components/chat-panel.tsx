@@ -1192,7 +1192,9 @@ export function ChatPanel({ projectName, projectId, files, onFileChange, onFileD
           setMessages(loaded)
         }
       })
-      .catch(() => {})
+      .catch(() => {
+        console.warn('Failed to load chat history')
+      })
       .finally(() => setLoadingHistory(false))
   }, [projectId, historyLoaded, setMessages])
 

@@ -169,8 +169,11 @@ export default function ForgePage() {
           setActiveFile(null)
           return
         }
+        console.error('Failed to load project:', res.status)
+        alert(`Failed to load project (${res.status}). Starting fresh.`)
       } catch (err) {
         console.error('Failed to load project:', err)
+        alert('Failed to load project. Starting fresh.')
       }
     }
 
@@ -219,6 +222,7 @@ export default function ForgePage() {
       setSavedProjects(prev => prev.filter(p => p.id !== id))
     } catch (err) {
       console.error('Failed to delete project:', err)
+      alert('Failed to delete project. Please try again.')
     }
   }, [])
 

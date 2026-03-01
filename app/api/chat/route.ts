@@ -19,6 +19,27 @@ import {
 import type { ToolContext } from '@/lib/tools'
 
 // ═══════════════════════════════════════════════════════════════════
+// Module-level edit fail tracking — persists across requests per project
+// Auto-expires entries after 10 minutes to prevent unbounded growth
+// ═══════════════════════════════════════════════════════════════════
+const editFailCache = new Map<string, { counts: Map<string, number>; ts: number }>()
+function getEditFailCounts(projectId: string | null): Map<string, number> {
+  const key = projectId || '_anon'
+  const now = Date.now()
+  // Cleanup stale entries
+  for (const [k, v] of editFailCache) {
+    if (now - v.ts > 10 * 60 * 1000) editFailCache.delete(k)
+  }
+  let entry = editFailCache.get(key)
+  if (!entry) {
+    entry = { counts: new Map(), ts: now }
+    editFailCache.set(key, entry)
+  }
+  entry.ts = now
+  return entry.counts
+}
+
+// ═══════════════════════════════════════════════════════════════════
 // POST handler
 // ═══════════════════════════════════════════════════════════════════
 
@@ -57,7 +78,8 @@ export async function POST(req: Request) {
   const body = await req.json()
   const projectName = body.projectName || 'untitled'
   const projectId = body.projectId || null
-  const selectedModel = body.model || 'claude-sonnet-4-20250514'
+  const ALLOWED_MODELS = ['claude-sonnet-4-20250514', 'claude-haiku-35-20241022', 'claude-opus-4-20250514']
+  const selectedModel = ALLOWED_MODELS.includes(body.model) ? body.model : 'claude-sonnet-4-20250514'
 
   // Use GitHub token from session (not request body) — prevents token leaking via logs
   const effectiveGithubToken = session.accessToken || GITHUB_TOKEN
@@ -82,7 +104,8 @@ export async function POST(req: Request) {
   const taskStore = new TaskStore()
 
   // Track edit_file failures per path — after 3 failures, suggest write_file
-  const editFailCounts = new Map<string, number>()
+  // Uses module-level cache so counts persist across user messages
+  const editFailCounts = getEditFailCounts(projectId)
 
   // Build file manifest for system context (lean — no content)
   // Smart grouping: directories with 4+ files get collapsed unless they contain the active file
