@@ -48,6 +48,46 @@ async function getDefaultBranch(owner: string, repo: string, token: string): Pro
   return data.default_branch || 'main'
 }
 
+/** Fetch a single blob with retry (up to 2 retries with backoff) */
+async function fetchBlobWithRetry(
+  owner: string,
+  repo: string,
+  item: { path: string; sha: string },
+  token: string,
+  maxRetries: number = 2,
+): Promise<{ path: string; content: string } | null> {
+  for (let attempt = 0; attempt <= maxRetries; attempt++) {
+    try {
+      const res = await fetch(
+        `https://api.github.com/repos/${owner}/${repo}/git/blobs/${item.sha}`,
+        { headers: GITHUB_HEADERS(token), signal: AbortSignal.timeout(15000) },
+      )
+      if (res.status === 403 || res.status === 429) {
+        // Rate limited — wait and retry
+        const retryAfter = parseInt(res.headers.get('retry-after') || '5', 10)
+        if (attempt < maxRetries) {
+          await new Promise(r => setTimeout(r, retryAfter * 1000))
+          continue
+        }
+        return null
+      }
+      if (!res.ok) return null
+      const data = await res.json()
+      if (data.encoding === 'base64' && data.content) {
+        return { path: item.path, content: Buffer.from(data.content, 'base64').toString('utf-8') }
+      }
+      return null
+    } catch {
+      if (attempt < maxRetries) {
+        await new Promise(r => setTimeout(r, 500 * (attempt + 1)))
+        continue
+      }
+      return null
+    }
+  }
+  return null
+}
+
 /** Fetch file contents in batches to avoid GitHub rate limits */
 async function fetchInBatches(
   items: { path: string; sha: string }[],
@@ -62,19 +102,7 @@ async function fetchInBatches(
   for (let i = 0; i < items.length; i += batchSize) {
     const batch = items.slice(i, i + batchSize)
     const results = await Promise.allSettled(
-      batch.map(async (item) => {
-        // Use the blob endpoint (faster than contents for known SHAs)
-        const res = await fetch(
-          `https://api.github.com/repos/${owner}/${repo}/git/blobs/${item.sha}`,
-          { headers: GITHUB_HEADERS(token) },
-        )
-        if (!res.ok) return null
-        const data = await res.json()
-        if (data.encoding === 'base64' && data.content) {
-          return { path: item.path, content: Buffer.from(data.content, 'base64').toString('utf-8') }
-        }
-        return null
-      }),
+      batch.map((item) => fetchBlobWithRetry(owner, repo, item, token)),
     )
 
     for (const result of results) {

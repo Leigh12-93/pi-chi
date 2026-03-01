@@ -396,11 +396,12 @@ interface MessageItemProps {
   onSetEditingContent: (content: string) => void
   onRegenerate: (id: string) => void
   onEnvVarsSave: (vars: Record<string, string>) => void
+  onCancelTask: (taskId: string) => void
 }
 
 const MessageItem = memo(function MessageItem({
   message, copiedId, isEditing, editingContent, isLoading, envVars,
-  onCopy, onEditMessage, onSaveEdit, onCancelEdit, onSetEditingContent, onRegenerate, onEnvVarsSave,
+  onCopy, onEditMessage, onSaveEdit, onCancelEdit, onSetEditingContent, onRegenerate, onEnvVarsSave, onCancelTask,
 }: MessageItemProps) {
   const isUser = message.role === 'user'
   const textContent = typeof message.content === 'string' ? message.content : ''
@@ -574,11 +575,12 @@ const MessageItem = memo(function MessageItem({
                 )
               }
 
-              // ── check_task_status: running → blue progress indicator ──
+              // ── check_task_status: running → blue progress indicator with cancel ──
               if (inv.toolName === 'check_task_status' && (isRunning || isTaskRunning)) {
                 const taskProgress = resultData?.progress as string | undefined
                 const taskCreatedAt = resultData?.created_at ? new Date(resultData.created_at as string).getTime() : 0
                 const taskElapsed = taskCreatedAt ? Math.floor((Date.now() - taskCreatedAt) / 1000) : 0
+                const runningTaskId = resultData?.id as string | undefined
                 return (
                   <div
                     key={partIdx}
@@ -591,12 +593,29 @@ const MessageItem = memo(function MessageItem({
                       {taskProgress || `${resultData?.type || 'Task'}: in progress...`}
                       {taskElapsed > 0 && ` · ${taskElapsed}s`}
                     </span>
+                    {runningTaskId && (
+                      <button
+                        onClick={() => onCancelTask(runningTaskId)}
+                        className="shrink-0 p-0.5 rounded hover:bg-red-100 dark:hover:bg-red-900/50 text-blue-400 hover:text-red-500 transition-colors"
+                        title="Cancel task"
+                      >
+                        <StopCircle className="w-3.5 h-3.5" />
+                      </button>
+                    )}
                   </div>
                 )
               }
 
-              // ── check_task_status: failed → red error ──
+              // ── check_task_status: failed → red error with actionable message ──
               if (isTaskFailed) {
+                const rawError = resultData?.error ? String(resultData.error) : ''
+                const friendlyError = rawError.includes('rate limit') ? 'GitHub rate limit hit — wait a few minutes and retry'
+                  : rawError.includes('timed out') || rawError.includes('timeout') ? 'Operation timed out — try again'
+                  : rawError.includes('401') || rawError.includes('auth') ? 'Authentication failed — check your credentials'
+                  : rawError.includes('404') || rawError.includes('not found') ? 'Resource not found — check the URL or repo name'
+                  : rawError.includes('ENOTFOUND') || rawError.includes('network') ? 'Network error — check your connection'
+                  : rawError.includes('Cancelled') ? 'Cancelled by user'
+                  : rawError.slice(0, 100)
                 return (
                   <div
                     key={partIdx}
@@ -605,8 +624,8 @@ const MessageItem = memo(function MessageItem({
                     <div className="w-5 h-5 rounded flex items-center justify-center shrink-0 text-red-600 dark:text-red-400 bg-red-100 dark:bg-red-900/50">
                       <XCircle className="w-3 h-3" />
                     </div>
-                    <span className="truncate flex-1 text-red-600 dark:text-red-400">
-                      {`${resultData?.type || 'Task'}: failed${resultData?.error ? ` — ${String(resultData.error).slice(0, 80)}` : ''}`}
+                    <span className="truncate flex-1 text-red-600 dark:text-red-400" title={rawError}>
+                      {`${resultData?.type || 'Task'}: ${friendlyError || 'failed'}`}
                     </span>
                   </div>
                 )
@@ -897,6 +916,10 @@ export function ChatPanel({ projectName, projectId, files, onFileChange, onFileD
     onFileChange('.env.local', envContent + '\n')
   }, [onFileChange])
 
+  const handleCancelTask = useCallback((taskId: string) => {
+    append({ role: 'user', content: `Cancel the running task with ID: ${taskId}` })
+  }, [append])
+
   const handleCopy = (id: string, content: string) => {
     navigator.clipboard.writeText(content)
     setCopiedId(id)
@@ -1102,6 +1125,7 @@ export function ChatPanel({ projectName, projectId, files, onFileChange, onFileD
                 onSetEditingContent={setEditingContent}
                 onRegenerate={handleRegenerate}
                 onEnvVarsSave={handleEnvVarsSave}
+                onCancelTask={handleCancelTask}
               />
             ))}
 
