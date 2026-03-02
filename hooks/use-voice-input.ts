@@ -20,12 +20,17 @@ interface UseVoiceInputOptions {
 export function useVoiceInput({ onTranscript, lang = 'en-AU' }: UseVoiceInputOptions) {
   const [isListening, setIsListening] = useState(false)
   const [interimText, setInterimText] = useState('')
+  const [isSupported, setIsSupported] = useState(false)
   const recognitionRef = useRef<any>(null)
   const onTranscriptRef = useRef(onTranscript)
   onTranscriptRef.current = onTranscript
 
-  const isSupported = typeof window !== 'undefined' &&
-    ('SpeechRecognition' in window || 'webkitSpeechRecognition' in window)
+  // Detect support client-side only (SSR-safe)
+  useEffect(() => {
+    setIsSupported(
+      'SpeechRecognition' in window || 'webkitSpeechRecognition' in window
+    )
+  }, [])
 
   const stop = useCallback(() => {
     if (recognitionRef.current) {
