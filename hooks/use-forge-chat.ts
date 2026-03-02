@@ -632,7 +632,7 @@ export function useForgeChat(props: UseForgeChatProps) {
   }, [])
 
   // ─── Computed values ──────────────────────────────────────────
-  const { stepCount, estimatedTokens, currentActivity } = useMemo(() => {
+  const { stepCount, estimatedTokens, currentActivity, lastCompletedToolName } = useMemo(() => {
     let steps = 0
     let tokens = 0
     let activity: { toolName: string; args: Record<string, unknown> } | null = null
