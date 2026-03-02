@@ -19,6 +19,7 @@ export const TOOL_LABELS: Record<string, { label: string; Icon: LucideIcon; colo
   create_project: { label: 'Scaffolding project', Icon: Sparkles, color: 'indigo' },
   github_create_repo: { label: 'Creating GitHub repo', Icon: GitBranch, color: 'green' },
   github_push_update: { label: 'Pushing to GitHub', Icon: ArrowUp, color: 'blue' },
+  github_push_files: { label: 'Pushing files', Icon: ArrowUp, color: 'blue' },
   deploy_to_vercel: { label: 'Deploying to Vercel', Icon: Rocket, color: 'blue' },
   get_all_files: { label: 'File manifest', Icon: Eye, color: 'blue' },
   rename_file: { label: 'Renaming file', Icon: Pencil, color: 'yellow' },

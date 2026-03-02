@@ -18,7 +18,8 @@ export function getToolSummary(toolName: string, args: Record<string, unknown>, 
     case 'delete_file': return args.path ? `${args.path}` : 'Deleting...'
     case 'create_project': return args.template ? `${args.template} template` : 'Scaffolding...'
     case 'github_create_repo': return args.repoName ? `${args.repoName}` : 'Creating...'
-    case 'github_push_update': return data?.ok ? `${data.filesCount} files pushed` : 'Pushing...'
+    case 'github_push_update': return data?.ok ? `${data.filesCount} files pushed (${(data as any).mode || 'full'})` : 'Pushing...'
+    case 'github_push_files': return data?.ok ? `${data.filesCount} file(s) pushed` : `Pushing ${(args.paths as string[])?.length || ''} file(s)...`
     case 'deploy_to_vercel': return data?.url ? `Live at ${data.url}` : 'Deploying...'
     case 'set_custom_domain': return data?.ok ? `${args.domain} configured` : (data?.error ? `Failed: ${String(data.error).slice(0, 60)}` : `Setting ${args.domain}...`)
     case 'list_files': return data ? `${data.count || 0} files` : 'Listing...'
@@ -38,7 +39,12 @@ export function getToolSummary(toolName: string, args: Record<string, unknown>, 
     case 'github_modify_external_file': return args.path ? `${args.owner}/${args.repo}/${args.path}` : 'Modifying...'
     case 'github_search_code': return args.query ? String(args.query).slice(0, 50) : 'Searching...'
     case 'load_chat_history': return data ? `${(data as any).count || 0} messages` : 'Loading...'
-    case 'github_pull_latest': return data?.ok ? `${(data as any).fileCount || 0} files pulled` : 'Pulling...'
+    case 'github_pull_latest': {
+      if (!data?.ok) return 'Pulling...'
+      const pulled = (data as any).fileCount || 0
+      const skipped = (data as any).skippedCount || 0
+      return skipped > 0 ? `${pulled} pulled, ${skipped} local edits preserved` : `${pulled} files pulled`
+    }
     case 'check_task_status': {
       if (data?.status === 'completed') return `${data.type || 'Task'}: completed`
       if (data?.status === 'failed') return `${data.type || 'Task'}: failed`
@@ -132,6 +138,7 @@ export function getPhaseLabel(lastToolName: string | null): string {
       return 'Finalizing deployment'
     case 'github_create_repo':
     case 'github_push_update':
+    case 'github_push_files':
     case 'github_pull_latest':
     case 'forge_create_branch':
     case 'forge_create_pr':

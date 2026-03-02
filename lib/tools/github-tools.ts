@@ -105,19 +105,29 @@ export function createGithubTools(ctx: ToolContext) {
     }),
 
     github_push_update: tool({
-      description: 'Push updated files to an existing GitHub repository. Returns a taskId — use check_task_status to poll for completion.',
+      description: 'Push changed files to an existing GitHub repository. Only pushes files that were modified locally (not all project files). Returns a taskId — use check_task_status to poll for completion.',
       inputSchema: z.object({
         owner: z.string().describe('GitHub username/org'),
         repo: z.string().describe('Repository name'),
         message: z.string().describe('Commit message'),
         branch: z.string().optional().describe('Branch name (default: main, falls back to master)'),
+        pushAll: z.boolean().optional().describe('Push ALL files instead of just changed ones. Only use for initial push or full sync. Default: false.'),
       }),
-      execute: async ({ owner, repo, message, branch }) => {
+      execute: async ({ owner, repo, message, branch, pushAll }) => {
         const token = ctx.effectiveGithubToken
         if (!token) return { error: 'Not authenticated. Sign in with GitHub.' }
         const branchName = branch || 'main'
-        const files = ctx.vfs.toRecord()
-        if (Object.keys(files).length === 0) return { error: 'No files to push.' }
+
+        // Determine which files to push
+        const changedFiles = ctx.vfs.getChangedFiles()
+        const deletedPaths = ctx.vfs.getDeletedPaths()
+        const hasChanges = Object.keys(changedFiles).length > 0 || deletedPaths.length > 0
+        const files = (pushAll || !hasChanges) ? ctx.vfs.toRecord() : changedFiles
+        const mode = (pushAll || !hasChanges) ? 'full' : 'incremental'
+
+        if (Object.keys(files).length === 0 && deletedPaths.length === 0) {
+          return { error: 'No files to push. No local changes detected.' }
+        }
 
         const pushResult = await TaskStore.createPersistent(
           ctx.supabaseFetch,
@@ -143,9 +153,17 @@ export function createGithubTools(ctx: ToolContext) {
               return { path, mode: '100644' as const, type: 'blob' as const, sha: blob.sha as string }
             })
 
+            // For incremental mode, include deletions as well
+            const treeEntries = [...blobs]
+            if (mode === 'incremental' && deletedPaths.length > 0) {
+              for (const dp of deletedPaths) {
+                treeEntries.push({ path: dp, mode: '100644' as const, type: 'blob' as const, sha: null as any }) // null SHA = delete
+              }
+            }
+
             const tree = await ctx.githubFetch(`/repos/${owner}/${repo}/git/trees`, token, {
               method: 'POST',
-              body: JSON.stringify({ base_tree: parentSha, tree: blobs }),
+              body: JSON.stringify({ base_tree: parentSha, tree: treeEntries }),
             })
             if (tree.error) throw new Error(`Failed to create tree: ${tree.error}`)
 
@@ -161,17 +179,102 @@ export function createGithubTools(ctx: ToolContext) {
             })
             if (update.error) throw new Error(`Failed to update ref: ${update.error}`)
 
+            // Clear dirty state after successful push
+            ctx.vfs.clearDirty()
+
             return {
               ok: true,
               commitSha: commit.sha,
+              mode,
               filesCount: Object.keys(files).length,
+              ...(deletedPaths.length > 0 ? { deletedCount: deletedPaths.length } : {}),
               repoUrl: `https://github.com/${owner}/${repo}`,
               commitUrl: `https://github.com/${owner}/${repo}/commit/${commit.sha}`,
             }
           },
         )
         if (!pushResult.ok) return { error: pushResult.error }
-        return { taskId: pushResult.taskId, status: 'running', message: `Pushing ${Object.keys(files).length} files to ${owner}/${repo}. Use check_task_status to monitor.` }
+        return { taskId: pushResult.taskId, status: 'running', message: `Pushing ${Object.keys(files).length} changed file(s) to ${owner}/${repo} (${mode} mode). Use check_task_status to monitor.` }
+      },
+    }),
+
+    github_push_files: tool({
+      description: 'Push specific named files to a GitHub repository. Faster than github_push_update for targeted changes (avoids rate limits).',
+      inputSchema: z.object({
+        owner: z.string().describe('GitHub username/org'),
+        repo: z.string().describe('Repository name'),
+        paths: z.array(z.string()).describe('List of file paths to push'),
+        message: z.string().describe('Commit message'),
+        branch: z.string().optional().describe('Branch name (default: main)'),
+      }),
+      execute: async ({ owner, repo, paths, message, branch }) => {
+        const token = ctx.effectiveGithubToken
+        if (!token) return { error: 'Not authenticated. Sign in with GitHub.' }
+        const branchName = branch || 'main'
+
+        // Collect file contents from VFS
+        const filesToPush: Record<string, string> = {}
+        const missing: string[] = []
+        for (const p of paths) {
+          const content = ctx.vfs.read(p)
+          if (content !== undefined) {
+            filesToPush[p] = content
+          } else {
+            missing.push(p)
+          }
+        }
+        if (Object.keys(filesToPush).length === 0) {
+          return { error: `None of the specified files exist in the project: ${missing.join(', ')}` }
+        }
+
+        // Direct push (no background task needed for small file counts)
+        try {
+          let ref = await ctx.githubFetch(`/repos/${owner}/${repo}/git/refs/heads/${branchName}`, token)
+          if (ref.error && branchName === 'main') {
+            ref = await ctx.githubFetch(`/repos/${owner}/${repo}/git/refs/heads/master`, token)
+          }
+          if (ref.error) return { error: `Failed to get branch "${branchName}": ${ref.error}` }
+          const parentSha = ref.object.sha
+
+          const fileEntries = Object.entries(filesToPush)
+          const blobs = await batchParallel(fileEntries, 5, async ([path, content]) => {
+            const blob = await ctx.githubFetch(`/repos/${owner}/${repo}/git/blobs`, token, {
+              method: 'POST',
+              body: JSON.stringify({ content, encoding: 'utf-8' }),
+            })
+            if (blob.error) throw new Error(`Failed to create blob for ${path}: ${blob.error}`)
+            return { path, mode: '100644' as const, type: 'blob' as const, sha: blob.sha as string }
+          })
+
+          const tree = await ctx.githubFetch(`/repos/${owner}/${repo}/git/trees`, token, {
+            method: 'POST',
+            body: JSON.stringify({ base_tree: parentSha, tree: blobs }),
+          })
+          if (tree.error) return { error: `Failed to create tree: ${tree.error}` }
+
+          const commit = await ctx.githubFetch(`/repos/${owner}/${repo}/git/commits`, token, {
+            method: 'POST',
+            body: JSON.stringify({ message, tree: tree.sha, parents: [parentSha] }),
+          })
+          if (commit.error) return { error: `Failed to commit: ${commit.error}` }
+
+          const update = await ctx.githubFetch(`/repos/${owner}/${repo}/git/refs/heads/${branchName}`, token, {
+            method: 'PATCH',
+            body: JSON.stringify({ sha: commit.sha }),
+          })
+          if (update.error) return { error: `Failed to update ref: ${update.error}` }
+
+          return {
+            ok: true,
+            commitSha: commit.sha,
+            filesCount: Object.keys(filesToPush).length,
+            files: Object.keys(filesToPush),
+            ...(missing.length > 0 ? { skipped: missing } : {}),
+            commitUrl: `https://github.com/${owner}/${repo}/commit/${commit.sha}`,
+          }
+        } catch (err: any) {
+          return { error: err.message || 'Push failed' }
+        }
       },
     }),
 
@@ -285,13 +388,14 @@ export function createGithubTools(ctx: ToolContext) {
     }),
 
     github_pull_latest: tool({
-      description: 'Pull the latest files from a GitHub repo into the current project. ALWAYS call this before github_push_update to avoid overwriting remote changes.',
+      description: 'Pull the latest files from a GitHub repo into the current project. By default, locally-edited files are preserved (not overwritten). Use force=true to overwrite everything.',
       inputSchema: z.object({
         owner: z.string().describe('Repository owner'),
         repo: z.string().describe('Repository name'),
         branch: z.string().optional().describe('Branch to pull from (auto-detects default if omitted)'),
+        force: z.boolean().optional().describe('If true, overwrite ALL files including locally-edited ones. Default: false (preserves local edits).'),
       }),
-      execute: async ({ owner, repo, branch }) => {
+      execute: async ({ owner, repo, branch, force }) => {
         const token = ctx.effectiveGithubToken
         if (!token) return { error: 'Not authenticated. Sign in with GitHub.' }
 
@@ -357,7 +461,8 @@ export function createGithubTools(ctx: ToolContext) {
           if (i + 10 < blobs.length) await new Promise(r => setTimeout(r, 100))
         }
 
-        const pulledFiles: Record<string, string> = {}
+        const pulledFiles: string[] = []
+        const skippedDirty: string[] = []
         let failedCount = 0
         for (const r of results) {
           if (r.status === 'rejected' || (r.status === 'fulfilled' && !r.value)) {
@@ -365,8 +470,15 @@ export function createGithubTools(ctx: ToolContext) {
             continue
           }
           if (r.status === 'fulfilled' && r.value) {
-            pulledFiles[r.value.path] = r.value.content
-            ctx.vfs.write(r.value.path, r.value.content)
+            const { path: filePath, content } = r.value
+            // Protect locally-edited files unless force=true
+            if (!force && ctx.vfs.isDirty(filePath)) {
+              skippedDirty.push(filePath)
+              continue
+            }
+            // Use writeClean so pulled files update the baseline without marking dirty
+            ctx.vfs.writeClean(filePath, content)
+            pulledFiles.push(filePath)
           }
         }
 
@@ -374,7 +486,13 @@ export function createGithubTools(ctx: ToolContext) {
           return { error: `Too many files failed to download (${failedCount}/${blobs.length}). Check repository access and try again.` }
         }
 
-        return { ok: true, fileCount: Object.keys(pulledFiles).length, files: Object.keys(pulledFiles), ...(failedCount > 0 ? { failedCount } : {}) }
+        return {
+          ok: true,
+          fileCount: pulledFiles.length,
+          files: pulledFiles,
+          ...(skippedDirty.length > 0 ? { skippedDirty, skippedCount: skippedDirty.length, note: `${skippedDirty.length} locally-edited file(s) were preserved. Use force=true to overwrite them.` } : {}),
+          ...(failedCount > 0 ? { failedCount } : {}),
+        }
       },
     }),
 
