@@ -1,8 +1,8 @@
 'use client'
 
-import { useState, useRef } from 'react'
+import { useState, useRef, useEffect, useMemo } from 'react'
 import {
-  Loader2, Check, Trash2,
+  Loader2, Check, Trash2, Brain,
   Sparkles, ArrowUp, StopCircle,
   AlertTriangle, ChevronDown, Clock,
   Globe, FileText, FolderPlus,
@@ -12,18 +12,190 @@ import { TOOL_LABELS, colorClasses } from '@/lib/chat/constants'
 import { getPhaseLabel } from '@/lib/chat/tool-utils'
 import { cn } from '@/lib/utils'
 import { ErrorBoundary } from '@/components/error-boundary'
-import { motion } from 'framer-motion'
+import { motion, AnimatePresence } from 'framer-motion'
 import { MODEL_OPTIONS, QUICK_ACTIONS } from '@/lib/chat/constants'
 import { MessageItem } from '@/components/chat/message-item'
 import { useForgeChat, type UseForgeChatProps } from '@/hooks/use-forge-chat'
 
+/** Rotating messages shown during extended thinking (Opus etc.) */
+const THINKING_MESSAGES = [
+  'Thinking deeply',
+  'Reasoning through the problem',
+  'Analyzing your codebase',
+  'Considering the best approach',
+  'Planning the implementation',
+  'Evaluating options',
+  'Working through the details',
+  'Almost ready',
+]
+
+const THINKING_MILESTONES = [
+  { at: 10, text: 'This model thinks before responding' },
+  { at: 30, text: 'Deep reasoning in progress' },
+  { at: 60, text: 'Still working - complex problems take time' },
+  { at: 120, text: 'Extended thinking - hang tight' },
+  { at: 180, text: 'Long reasoning session - almost there' },
+  { at: 240, text: 'This is a deep one - still going' },
+  { at: 300, text: 'Nearly done thinking' },
+]
+
+function ThinkingIndicator({ elapsed, formatElapsed, stepCount, lastCompletedToolName, status }: {
+  elapsed: number
+  formatElapsed: (s: number) => string
+  stepCount: number
+  lastCompletedToolName: string | null
+  status: string
+}) {
+  // Rotate through thinking messages every 8 seconds
+  const [messageIdx, setMessageIdx] = useState(0)
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setMessageIdx(prev => (prev + 1) % THINKING_MESSAGES.length)
+    }, 8000)
+    return () => clearInterval(interval)
+  }, [])
+
+  // Get the appropriate milestone message based on elapsed time
+  const milestone = useMemo(() => {
+    let msg = ''
+    for (const m of THINKING_MILESTONES) {
+      if (elapsed >= m.at) msg = m.text
+    }
+    return msg
+  }, [elapsed])
+
+  const isSubmitted = status === 'submitted'
+  const isExtendedThinking = isSubmitted && elapsed >= 2
+  const phaseLabel = getPhaseLabel(lastCompletedToolName)
+
+  // During submitted state (pre-stream, extended thinking), show rich thinking UI
+  if (isExtendedThinking) {
+    return (
+      <motion.div
+        initial={{ opacity: 0, scale: 0.97 }}
+        animate={{ opacity: 1, scale: 1 }}
+        transition={{ duration: 0.3, ease: [0.16, 1, 0.3, 1] }}
+        className="relative overflow-hidden rounded-xl border border-forge-border bg-forge-surface/80"
+      >
+        {/* Shimmer progress bar at top */}
+        <div className="absolute top-0 left-0 right-0 h-[2px] overflow-hidden">
+          <div className="thinking-progress-bar" />
+        </div>
+
+        <div className="px-3 py-2.5 space-y-1.5">
+          {/* Main thinking row */}
+          <div className="flex items-center gap-2.5">
+            <div className="w-5 h-5 rounded-md bg-forge-accent/10 border border-forge-accent/20 flex items-center justify-center shrink-0 icon-glow-pulse">
+              <Brain className="w-3 h-3 text-forge-accent thinking-brain" />
+            </div>
+            <div className="flex-1 min-w-0">
+              <div className="flex items-center gap-1.5">
+                <span className="text-[13px] text-forge-text font-medium thinking-text-rotate shimmer-task" key={messageIdx}>
+                  {THINKING_MESSAGES[messageIdx]}
+                </span>
+                <span className="flex items-center gap-0.5 ml-0.5">
+                  <span className="typing-dot" />
+                  <span className="typing-dot" />
+                  <span className="typing-dot" />
+                </span>
+              </div>
+            </div>
+            <span className="text-[11px] text-forge-text-dim/40 font-mono shrink-0 tabular-nums">
+              {formatElapsed(elapsed)}
+            </span>
+          </div>
+
+          {/* Milestone message - shows context about why it's taking long */}
+          {milestone && elapsed >= 10 && (
+            <p className="text-[11px] text-forge-text-dim/50 pl-[30px] thinking-text-rotate" key={milestone}>
+              {milestone}
+            </p>
+          )}
+        </div>
+      </motion.div>
+    )
+  }
+
+  // Standard between-tools indicator (streaming state or short submitted)
+  return (
+    <div className="flex items-center gap-2.5 px-3 py-2 bg-forge-surface/80 border border-forge-border rounded-xl">
+      {isSubmitted ? (
+        <div className="w-5 h-5 rounded-md bg-forge-accent/10 flex items-center justify-center shrink-0">
+          <Brain className="w-3 h-3 text-forge-accent thinking-brain" />
+        </div>
+      ) : (
+        <span className="flex items-center gap-0.5">
+          <span className="typing-dot" />
+          <span className="typing-dot" />
+          <span className="typing-dot" />
+        </span>
+      )}
+      <span className={cn('text-[13px] text-forge-text-dim', isSubmitted && 'shimmer-task')}>
+        {isSubmitted ? 'Thinking' : phaseLabel}
+        {stepCount >= 3 && (
+          <span className="text-forge-text-dim/50"> &middot; {stepCount} actions</span>
+        )}
+      </span>
+      {elapsed > 0 && (
+        <span className="text-[11px] text-forge-text-dim/40 font-mono shrink-0 tabular-nums">
+          {formatElapsed(elapsed)}
+        </span>
+      )}
+    </div>
+  )
+}
+
 export type ChatPanelProps = UseForgeChatProps
+
+/** Brief "response complete" banner shown after streaming ends */
+function CompletionSignal({ stepCount, elapsed, formatElapsed }: {
+  stepCount: number
+  elapsed: number
+  formatElapsed: (s: number) => string
+}) {
+  const parts: string[] = []
+  if (stepCount > 0) parts.push(`${stepCount} action${stepCount !== 1 ? 's' : ''}`)
+  if (elapsed > 0) parts.push(formatElapsed(elapsed))
+
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 4, scale: 0.96 }}
+      animate={{ opacity: 1, y: 0, scale: 1 }}
+      exit={{ opacity: 0, y: -4, scale: 0.96 }}
+      transition={{ duration: 0.3, ease: [0.16, 1, 0.3, 1] }}
+      className="flex items-center gap-2 px-3 py-1.5 rounded-xl text-[12px] bg-emerald-50/60 dark:bg-emerald-950/15 border border-emerald-200/50 dark:border-emerald-800/30 response-complete-signal"
+    >
+      <CheckCircle className="w-3.5 h-3.5 text-emerald-500 animate-check-in" />
+      <span className="text-emerald-600 dark:text-emerald-400 font-medium">Done</span>
+      {parts.length > 0 && (
+        <span className="text-emerald-500/60 dark:text-emerald-400/40">
+          {parts.join(' in ')}
+        </span>
+      )}
+    </motion.div>
+  )
+}
 
 export function ChatPanel(props: ChatPanelProps) {
   const chat = useForgeChat(props)
   const [isDraggingChat, setIsDraggingChat] = useState(false)
   const [dismissedError, setDismissedError] = useState<string | null>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
+
+  // Track completion signal: show briefly when streaming ends
+  const [showComplete, setShowComplete] = useState(false)
+  const [completionStats, setCompletionStats] = useState({ stepCount: 0, elapsed: 0 })
+  const wasLoadingRef = useRef(false)
+  useEffect(() => {
+    if (wasLoadingRef.current && !chat.isLoading && !chat.error) {
+      // Streaming just finished
+      setCompletionStats({ stepCount: chat.stepCount, elapsed: chat.elapsed })
+      setShowComplete(true)
+      const timer = setTimeout(() => setShowComplete(false), 3500)
+      return () => clearTimeout(timer)
+    }
+    wasLoadingRef.current = chat.isLoading
+  }, [chat.isLoading, chat.error, chat.stepCount, chat.elapsed])
 
   return (
     <ErrorBoundary>
@@ -95,72 +267,96 @@ export function ChatPanel(props: ChatPanelProps) {
               />
             ))}
 
-            {/* Streaming activity indicator */}
+            {/* Streaming activity indicator - v0-style timeline */}
             {chat.isLoading && (
-              <div className="py-2 px-1 animate-fade-in space-y-1.5">
-                {/* Current active tool */}
-                {chat.currentActivity?.toolName ? (() => {
-                  const info = TOOL_LABELS[chat.currentActivity.toolName] || { label: chat.currentActivity.toolName.replace(/_/g, ' '), Icon: Loader2, color: 'gray' }
-                  const args = chat.currentActivity.args as Record<string, string>
-                  const filePath = args.path || args.file || args.filePath || args.file_path || ''
-                  const fileName = filePath ? filePath.split('/').pop() : ''
-                  return (
-                    <div className="flex items-center gap-2 px-3 py-2 bg-forge-surface/80 border border-forge-accent/20 rounded-xl">
-                      <div className={cn('w-5 h-5 rounded-lg flex items-center justify-center shrink-0', colorClasses[info.color] || colorClasses.gray)}>
-                        <Loader2 className="w-3 h-3 animate-spin" />
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <span className="text-[12px] text-forge-text font-medium">{info.label}</span>
-                        {fileName && (
-                          <span className="ml-1.5 text-[11px] text-forge-accent font-mono">{fileName}</span>
-                        )}
-                      </div>
-                      {chat.elapsed > 0 && (
-                        <span className="text-[10px] text-forge-text-dim/50 font-mono shrink-0">
-                          {chat.formatElapsed(chat.elapsed)}
-                        </span>
-                      )}
-                    </div>
-                  )
-                })() : (
-                  <div className="flex items-center gap-2 px-3 py-2 bg-forge-surface/80 border border-forge-border rounded-xl">
-                    <span className="flex items-center gap-0.5">
-                      <span className="typing-dot" />
-                      <span className="typing-dot" />
-                      <span className="typing-dot" />
-                    </span>
-                    <span className="text-[12px] text-forge-text-dim">
-                      {getPhaseLabel(chat.lastCompletedToolName)}
-                      {chat.stepCount >= 3 && (
-                        <span className="text-forge-text-dim/50"> &middot; {chat.stepCount} actions</span>
-                      )}
-                    </span>
-                    {chat.elapsed > 0 && (
-                      <span className="text-[10px] text-forge-text-dim/50 font-mono">
-                        {chat.formatElapsed(chat.elapsed)}
-                      </span>
-                    )}
-                  </div>
-                )}
-                {/* Recent completed steps */}
+              <div className="py-2 animate-fade-in space-y-0">
+                {/* Recent completed steps as timeline items */}
                 {chat.currentActivity?.recentCompleted && chat.currentActivity.recentCompleted.length > 0 && (
-                  <div className="flex flex-wrap gap-1 px-1">
+                  <div className="space-y-0">
                     {chat.currentActivity.recentCompleted.map((step, i) => {
                       const info = TOOL_LABELS[step.toolName] || { label: step.toolName.replace(/_/g, ' '), Icon: CheckCircle, color: 'gray' }
                       const args = step.args as Record<string, string>
                       const filePath = args.path || args.file || args.filePath || args.file_path || ''
                       const fileName = filePath ? filePath.split('/').pop() : ''
+                      const parentPath = filePath && fileName ? filePath.slice(0, filePath.length - fileName.length).replace(/\/$/, '') : ''
+                      const displayPath = parentPath.length > 30 ? '...' + parentPath.slice(parentPath.length - 27) : parentPath
                       return (
-                        <span key={i} className="inline-flex items-center gap-1 px-2 py-0.5 text-[10px] text-forge-text-dim bg-forge-surface/50 rounded-md border border-forge-border/50">
-                          <CheckCircle className="w-2.5 h-2.5 text-emerald-500" />
-                          {fileName || info.label}
-                        </span>
+                        <div key={i} className="tool-timeline-item">
+                          <div className="flex items-center gap-2.5 py-1 relative">
+                            <div className={cn('w-5 h-5 rounded-md flex items-center justify-center shrink-0 z-[1]', colorClasses[info.color] || colorClasses.gray)}>
+                              <info.Icon className="w-3 h-3" />
+                            </div>
+                            <div className="flex-1 min-w-0 flex items-baseline gap-1.5">
+                              <span className="text-[13px] text-forge-text-dim/60 shrink-0">{info.label}</span>
+                              {fileName && (
+                                <span className="flex items-baseline gap-1.5 min-w-0 truncate">
+                                  <span className="font-mono text-[11.5px] text-forge-text-dim/40 shrink-0">{fileName}</span>
+                                  {displayPath && <span className="tool-timeline-path hidden sm:inline">{displayPath}</span>}
+                                </span>
+                              )}
+                            </div>
+                          </div>
+                        </div>
                       )
                     })}
                   </div>
                 )}
+
+                {/* Current active tool or thinking indicator */}
+                {chat.currentActivity?.toolName ? (() => {
+                  const info = TOOL_LABELS[chat.currentActivity.toolName] || { label: chat.currentActivity.toolName.replace(/_/g, ' '), Icon: Loader2, color: 'gray' }
+                  const args = chat.currentActivity.args as Record<string, string>
+                  const filePath = args.path || args.file || args.filePath || args.file_path || ''
+                  const fileName = filePath ? filePath.split('/').pop() : ''
+                  const parentPath = filePath && fileName ? filePath.slice(0, filePath.length - fileName.length).replace(/\/$/, '') : ''
+                  const displayPath = parentPath.length > 30 ? '...' + parentPath.slice(parentPath.length - 27) : parentPath
+                  return (
+                    <div className="tool-timeline-item">
+                      <div className="flex items-center gap-2.5 py-1 relative">
+                        <div className="w-5 h-5 rounded-md flex items-center justify-center shrink-0 z-[1] bg-forge-accent/10 border border-forge-accent/30 icon-glow-pulse">
+                          <Loader2 className="w-3 h-3 text-forge-accent animate-spin" />
+                        </div>
+                        <div className="flex-1 min-w-0 flex items-baseline gap-1.5">
+                          <span className="text-[13px] text-forge-text font-medium shrink-0 shimmer-text">
+                            {info.label}
+                          </span>
+                          {fileName && (
+                            <span className="flex items-baseline gap-1.5 min-w-0 truncate">
+                              <span className="font-mono text-[11.5px] text-forge-accent/70 shrink-0 shimmer-text-subtle">{fileName}</span>
+                              {displayPath && <span className="tool-timeline-path shimmer-text-subtle hidden sm:inline">{displayPath}</span>}
+                            </span>
+                          )}
+                        </div>
+                        {chat.elapsed > 0 && (
+                          <span className="text-[11px] text-forge-text-dim/40 font-mono shrink-0 tabular-nums">
+                            {chat.formatElapsed(chat.elapsed)}
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  )
+                })() : (
+                  <ThinkingIndicator
+                    elapsed={chat.elapsed}
+                    formatElapsed={chat.formatElapsed}
+                    stepCount={chat.stepCount}
+                    lastCompletedToolName={chat.lastCompletedToolName}
+                    status={chat.status}
+                  />
+                )}
               </div>
             )}
+
+            {/* Response complete signal */}
+            <AnimatePresence>
+              {showComplete && !chat.isLoading && (
+                <CompletionSignal
+                  stepCount={completionStats.stepCount}
+                  elapsed={completionStats.elapsed}
+                  formatElapsed={chat.formatElapsed}
+                />
+              )}
+            </AnimatePresence>
 
             {/* Error banner */}
             {chat.error && dismissedError !== chat.errorMessage && (
@@ -217,8 +413,8 @@ export function ChatPanel(props: ChatPanelProps) {
         >
           {/* Drag overlay */}
           {isDraggingChat && (
-            <div className="absolute inset-0 z-10 rounded-2xl border-2 border-dashed border-forge-accent bg-forge-accent/10 flex items-center justify-center pointer-events-none">
-              <span className="text-xs font-medium text-forge-accent">Drop files here</span>
+            <div className="absolute inset-0 z-10 rounded-xl border-2 border-dashed border-forge-accent bg-forge-accent/10 flex items-center justify-center pointer-events-none">
+              <span className="text-[12px] font-medium text-forge-accent">Drop files here</span>
             </div>
           )}
 
@@ -226,7 +422,7 @@ export function ChatPanel(props: ChatPanelProps) {
           {chat.attachments.length > 0 && (
             <div className="flex flex-wrap gap-1.5 px-3 pt-2 pb-1">
               {chat.attachments.map((att, i) => (
-                <div key={i} className="flex items-center gap-1 px-2 py-1 bg-forge-surface border border-forge-border rounded-lg text-[11px]">
+                <div key={i} className="flex items-center gap-1 px-2 py-1 bg-forge-surface border border-forge-border rounded-md text-[11px]">
                   {att.mediaType?.startsWith('image/') ? <ImageIcon className="w-3 h-3" /> : <Paperclip className="w-3 h-3" />}
                   <span className="max-w-[120px] truncate text-forge-text-dim">{att.filename || 'file'}</span>
                   <button onClick={() => chat.handleRemoveAttachment(i)} className="p-0.5 text-forge-text-dim hover:text-red-500 transition-colors" aria-label="Remove attachment">
@@ -253,7 +449,7 @@ export function ChatPanel(props: ChatPanelProps) {
             }}
             placeholder={chat.isEmpty ? 'Describe what you want to build...' : 'Ask for changes, new features, fixes...'}
             rows={1}
-            className="w-full bg-forge-surface border border-forge-border rounded-2xl pl-10 pr-12 py-3 text-[13.5px] text-forge-text placeholder:text-forge-text-dim/40 outline-none focus:border-forge-accent/40 shadow-[inset_0_1px_2px_rgba(0,0,0,0.04),0_1px_2px_rgba(0,0,0,0.02)] focus:shadow-[inset_0_1px_2px_rgba(0,0,0,0.04),0_0_0_3px_var(--color-forge-ring)] resize-none transition-all"
+            className="w-full bg-forge-surface border border-forge-border rounded-xl pl-10 pr-12 py-3 text-[13.5px] text-forge-text placeholder:text-forge-text-dim/40 outline-none focus:border-forge-accent/40 shadow-[inset_0_1px_2px_rgba(0,0,0,0.04),0_1px_2px_rgba(0,0,0,0.02)] focus:shadow-[inset_0_1px_2px_rgba(0,0,0,0.04),0_0_0_3px_var(--color-forge-ring)] resize-none transition-all"
           />
 
           {/* Paperclip file picker button */}
@@ -291,7 +487,7 @@ export function ChatPanel(props: ChatPanelProps) {
                   opacity: (chat.input.trim() || chat.attachments.length > 0) ? 1 : 0.5,
                 }}
                 transition={{ type: 'spring', stiffness: 400, damping: 20 }}
-                className="p-2 rounded-xl bg-gradient-to-b from-forge-accent to-indigo-600 dark:from-forge-accent dark:to-indigo-500 text-white shadow-sm hover:shadow-md disabled:opacity-40 disabled:cursor-not-allowed transition-all"
+                className="p-2 rounded-xl bg-forge-accent hover:bg-forge-accent-hover text-white shadow-sm hover:shadow-md disabled:opacity-40 disabled:cursor-not-allowed transition-all"
                 title="Send message"
                 aria-label="Send message"
               >
@@ -347,13 +543,18 @@ export function ChatPanel(props: ChatPanelProps) {
                     {chat.autoRoutedModel.model.includes('haiku') ? 'Haiku' : chat.autoRoutedModel.model.includes('opus') ? 'Opus' : 'Sonnet'}
                   </span>
                 )}
+                {chat.isLoading && chat.stepCount > 0 && (
+                  <span className="text-[10px] text-forge-accent/60 font-medium tabular-nums">
+                    {chat.stepCount} action{chat.stepCount !== 1 ? 's' : ''}
+                  </span>
+                )}
                 {(chat.realTokens || chat.estimatedTokens) > 0 && (
                   <span className="text-[10px] text-forge-text-dim/50" title={chat.realTokens ? 'Actual API token usage' : 'Estimated token usage'}>
                     {chat.realTokens ? '' : '~'}{(chat.realTokens || chat.estimatedTokens) > 1000 ? `${((chat.realTokens || chat.estimatedTokens) / 1000).toFixed(1)}k` : (chat.realTokens || chat.estimatedTokens)} tokens
                   </span>
                 )}
                 {chat.isLoading && chat.elapsed > 0 && (
-                  <span className="text-[10px] text-forge-text-dim/50 flex items-center gap-0.5">
+                  <span className="text-[10px] text-forge-text-dim/50 flex items-center gap-0.5 tabular-nums">
                     <Clock className="w-2.5 h-2.5" />
                     {chat.formatElapsed(chat.elapsed)}
                   </span>

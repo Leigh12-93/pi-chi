@@ -51,12 +51,12 @@ function renderMarkdown(text: string): string {
     const safeId = id.replace(/[^a-zA-Z0-9_-]/g, '')
     const label = LANG_LABELS[lang] || lang || 'Code'
     const highlighted = lang ? highlightCode(code.trimEnd(), lang) : code.trimEnd().replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
-    const html = `<div class="code-block-wrapper relative group/code my-3 rounded-xl overflow-hidden border border-forge-border dark:border-gray-800">
-      <div class="flex items-center justify-between px-3.5 py-2 bg-gray-50 dark:bg-gray-900 border-b border-forge-border dark:border-gray-800">
+    const html = `<div class="code-block-wrapper relative group/code my-3 rounded-xl overflow-hidden border border-forge-border">
+      <div class="flex items-center justify-between px-3.5 py-2 bg-forge-surface border-b border-forge-border">
         <span class="text-[11px] font-medium text-forge-text-dim tracking-wide">${label}</span>
-        <button onclick="navigator.clipboard.writeText(document.getElementById('${safeId}').textContent).then(()=>{this.textContent='Copied!';setTimeout(()=>this.textContent='Copy',1500)})" class="text-[11px] text-forge-text-dim hover:text-forge-text transition-colors px-2 py-0.5 rounded hover:bg-forge-surface">Copy</button>
+        <button onclick="navigator.clipboard.writeText(document.getElementById('${safeId}').textContent).then(()=>{this.textContent='Copied!';setTimeout(()=>this.textContent='Copy',1500)})" class="text-[11px] text-forge-text-dim hover:text-forge-text transition-colors px-2 py-0.5 rounded-md hover:bg-forge-surface-hover">Copy</button>
       </div>
-      <pre class="bg-gray-50 dark:bg-gray-950 text-gray-800 dark:text-gray-200 p-4 overflow-x-auto text-[12.5px] font-mono leading-relaxed"><code id="${safeId}">${highlighted}</code></pre>
+      <pre class="bg-forge-panel text-forge-text p-4 overflow-x-auto text-[12.5px] font-mono leading-relaxed"><code id="${safeId}">${highlighted}</code></pre>
     </div>`
     codeBlocks.push(html)
     return `%%CODEBLOCK_${codeBlocks.length - 1}%%`
@@ -67,7 +67,7 @@ function renderMarkdown(text: string): string {
     (_match, headerRow: string, _separator: string, bodyRows: string) => {
       const headers = headerRow.split('|').slice(1, -1).map((h: string) => h.trim())
       const rows = bodyRows.trim().split('\n').map((row: string) => row.split('|').slice(1, -1).map((c: string) => c.trim()))
-      return `<table class="w-full text-[12.5px] my-3 border-collapse border border-forge-border rounded-lg overflow-hidden">
+      return `<table class="w-full text-[12.5px] my-3 border-collapse border border-forge-border rounded-xl overflow-hidden">
         <thead><tr>${headers.map((h: string) => `<th class="px-3 py-1.5 text-left bg-forge-surface border border-forge-border font-semibold text-forge-text">${h}</th>`).join('')}</tr></thead>
         <tbody>${rows.map((cells: string[]) => `<tr>${cells.map((c: string) => `<td class="px-3 py-1.5 border border-forge-border text-forge-text-dim">${c}</td>`).join('')}</tr>`).join('')}</tbody>
       </table>`

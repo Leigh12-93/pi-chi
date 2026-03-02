@@ -741,7 +741,7 @@ export function useForgeChat(props: UseForgeChatProps) {
 
   return {
     // Chat state
-    messages, input, setInput, isLoading, error, errorMessage,
+    messages, input, setInput, isLoading, status, error, errorMessage,
     // UI state
     selectedModel, setSelectedModel, showModelPicker, setShowModelPicker,
     copiedId, loadingHistory, editingMessageId, editingContent,

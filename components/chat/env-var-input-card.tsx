@@ -39,7 +39,9 @@ export function EnvVarInputCard({
   return (
     <div className="border border-amber-200 dark:border-amber-800 bg-amber-50/50 dark:bg-amber-950/20 rounded-xl p-3.5 text-[12px]">
       <div className="flex items-center gap-2 mb-2.5">
-        <Key className="w-3.5 h-3.5 text-amber-600 dark:text-amber-400" />
+        <div className="w-5 h-5 rounded-md flex items-center justify-center shrink-0 text-amber-600 bg-amber-50 dark:text-amber-400 dark:bg-amber-950/40">
+          <Key className="w-3 h-3" />
+        </div>
         <span className="font-medium text-amber-700 dark:text-amber-400">Environment Variables Required</span>
       </div>
       <div className="space-y-2.5">
@@ -57,7 +59,7 @@ export function EnvVarInputCard({
               value={values[v.name] || ''}
               onChange={(e) => setValues(prev => ({ ...prev, [v.name]: e.target.value }))}
               placeholder={v.name}
-              className="w-full px-2.5 py-1.5 rounded-lg bg-forge-bg border border-amber-300/50 dark:border-amber-600/40 text-[12px] font-mono text-forge-text placeholder:text-forge-text-dim/50 focus:outline-none focus:ring-1 focus:ring-amber-400"
+              className="w-full px-2.5 py-1.5 rounded-md bg-forge-bg border border-amber-300/50 dark:border-amber-600/40 text-[11.5px] font-mono text-forge-text placeholder:text-forge-text-dim/40 focus:outline-none focus:border-forge-accent/40 focus:shadow-[0_0_0_3px_var(--color-forge-ring)] transition-all"
             />
           </div>
         ))}
@@ -66,7 +68,7 @@ export function EnvVarInputCard({
         onClick={handleSave}
         disabled={!allRequiredFilled}
         className={cn(
-          'mt-3 px-3.5 py-1.5 rounded-lg text-[12px] font-medium transition-colors',
+          'mt-3 px-3.5 py-1.5 rounded-md text-[12px] font-medium transition-colors',
           saved
             ? 'bg-emerald-500 text-white'
             : allRequiredFilled

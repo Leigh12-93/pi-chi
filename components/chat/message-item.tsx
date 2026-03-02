@@ -10,7 +10,7 @@ import {
 import { motion } from 'framer-motion'
 import { cn } from '@/lib/utils'
 import { TOOL_LABELS, colorClasses } from '@/lib/chat/constants'
-import { getToolSummary, type ToolInvocation } from '@/lib/chat/tool-utils'
+import { getToolSummary, getFriendlyError, type ToolInvocation } from '@/lib/chat/tool-utils'
 import { cachedRenderMarkdown } from '@/lib/chat/markdown'
 import { ThinkPanel } from './think-panel'
 import { EnvVarInputCard } from './env-var-input-card'
@@ -107,13 +107,13 @@ export const MessageItem = memo(function MessageItem({
             <textarea
               value={editingContent}
               onChange={e => onSetEditingContent(e.target.value)}
-              className="w-full bg-forge-bg border border-forge-border rounded-xl px-3.5 py-2.5 text-[13.5px] text-forge-text outline-none resize-none focus:ring-2 focus:ring-forge-accent/20 focus:border-forge-accent/40 transition-all"
+              className="w-full bg-forge-bg border border-forge-border rounded-xl px-3.5 py-2.5 text-[13.5px] text-forge-text outline-none resize-none focus:border-forge-accent/40 focus:shadow-[0_0_0_3px_var(--color-forge-ring)] transition-all"
               rows={3}
               autoFocus
             />
             <div className="flex justify-end gap-1.5 mt-1.5">
-              <button onClick={onCancelEdit} className="px-2.5 py-1 text-[11px] text-forge-text-dim hover:text-forge-text rounded-lg transition-colors">Cancel</button>
-              <button onClick={onSaveEdit} className="px-2.5 py-1 text-[11px] font-medium text-white bg-forge-accent rounded-lg hover:bg-forge-accent-hover transition-colors">Resend</button>
+              <button onClick={onCancelEdit} className="px-2.5 py-1 text-[11px] text-forge-text-dim hover:text-forge-text rounded-md transition-colors">Cancel</button>
+              <button onClick={onSaveEdit} className="px-2.5 py-1 text-[11px] font-medium text-white bg-forge-accent rounded-md hover:bg-forge-accent-hover transition-colors">Resend</button>
             </div>
           </div>
         ) : (
@@ -134,7 +134,7 @@ export const MessageItem = memo(function MessageItem({
                 <Pencil className="w-3 h-3" />
               </button>
             </div>
-            <div className="px-4 py-2.5 rounded-2xl rounded-br-md bg-gradient-to-b from-forge-surface to-forge-surface/80 border border-forge-border text-[13.5px] text-forge-text leading-relaxed shadow-sm transition-shadow hover:shadow-md">
+            <div className="px-4 py-2.5 rounded-xl rounded-br-md bg-forge-surface border border-forge-border text-[13.5px] text-forge-text leading-relaxed transition-colors">
               {textContent}
               {parts?.filter(p => p.type === 'file').map((filePart, fi) => {
                 const mType = filePart.mediaType as string | undefined
@@ -145,7 +145,7 @@ export const MessageItem = memo(function MessageItem({
                     {mType?.startsWith('image/') ? (
                       <img src={fUrl} alt={fName || 'image'} className="max-w-[200px] max-h-[150px] rounded-lg border border-forge-border" />
                     ) : (
-                      <div className="inline-flex items-center gap-1 px-2 py-1 bg-forge-bg/50 border border-forge-border rounded-md text-[10px] text-forge-text-dim">
+                      <div className="inline-flex items-center gap-1 px-2 py-1 bg-forge-bg/50 border border-forge-border rounded-md text-[11px] text-forge-text-dim font-mono">
                         <Paperclip className="w-3 h-3" />
                         {fName || 'Attached file'}
                       </div>
@@ -157,7 +157,7 @@ export const MessageItem = memo(function MessageItem({
           </div>
         )
       ) : parts && parts.length > 0 ? (
-        <div className="space-y-2 group/assistant">
+        <div className="space-y-0.5 group/assistant">
           {(() => {
           // Detect tool parts: both v4 (type==='tool-invocation') and v6 (type starts with 'tool-')
           const isToolPart = (p: Record<string, unknown>) => p.type === 'tool-invocation' || (typeof p.type === 'string' && p.type?.startsWith('tool-') && p.type !== 'text')
@@ -197,8 +197,12 @@ export const MessageItem = memo(function MessageItem({
             const { part, partIdx } = item
             if (part.type === 'text' && part.text) {
               const isLastText = itemIdx === lastTextItemIdx
+              const prevItem = itemIdx > 0 ? grouped[itemIdx - 1] : null
+              const nextItem = itemIdx < grouped.length - 1 ? grouped[itemIdx + 1] : null
+              const isAfterTool = prevItem && (prevItem.type === 'tool-group' || (prevItem.type === 'part' && prevItem.part.type !== 'text'))
+              const isBeforeTool = nextItem && (nextItem.type === 'tool-group' || (nextItem.type === 'part' && nextItem.part.type !== 'text'))
               return (
-                <div key={partIdx} className="relative group">
+                <div key={partIdx} className={cn('relative group', isAfterTool && 'mt-2.5', isBeforeTool && 'mb-1')}>
                   <div
                     className={cn(
                       'text-[13.5px] leading-[1.7] text-forge-text [&_pre]:my-3 [&_code]:text-[12.5px] selection:bg-forge-accent/20',
@@ -241,19 +245,21 @@ export const MessageItem = memo(function MessageItem({
                     key={partIdx}
                     initial={{ opacity: 0, y: 4 }}
                     animate={{ opacity: 1, y: 0 }}
-                    className="border border-amber-200 dark:border-amber-800 bg-amber-50/50 dark:bg-amber-950/20 rounded-xl p-3 text-[12px]"
+                    className="border border-amber-200 dark:border-amber-800 bg-amber-50/50 dark:bg-amber-950/20 rounded-xl p-3.5 text-[12px]"
                   >
-                    <div className="flex items-center gap-1.5 mb-1.5">
-                      <Lightbulb className="w-3.5 h-3.5 text-amber-600 dark:text-amber-400" />
+                    <div className="flex items-center gap-2 mb-2">
+                      <div className="w-5 h-5 rounded-md flex items-center justify-center shrink-0 text-amber-600 bg-amber-50 dark:text-amber-400 dark:bg-amber-950/40">
+                        <Lightbulb className="w-3 h-3" />
+                      </div>
                       <span className="font-medium text-amber-700 dark:text-amber-400">Suggestion</span>
-                      <span className={cn('px-1.5 py-0.5 rounded text-[9px] font-medium uppercase', priorityColor)}>{priority}</span>
+                      <span className={cn('px-1.5 py-0.5 rounded-md text-[10px] font-medium uppercase', priorityColor)}>{priority}</span>
                     </div>
                     <p className="text-amber-700 dark:text-amber-300 mb-1">{sArgs.issue || ''}</p>
                     {sArgs.suggestion && (
-                      <pre className="text-[11px] bg-forge-surface text-forge-text rounded-lg p-2.5 mt-1.5 whitespace-pre-wrap font-mono">{sArgs.suggestion}</pre>
+                      <pre className="text-[11.5px] bg-forge-surface text-forge-text rounded-md p-2.5 mt-1.5 whitespace-pre-wrap font-mono border border-forge-border/30">{sArgs.suggestion}</pre>
                     )}
                     {sArgs.file && (
-                      <span className="inline-block mt-1.5 px-1.5 py-0.5 bg-forge-surface text-forge-text-dim rounded text-[10px] font-mono">{sArgs.file}</span>
+                      <span className="inline-block mt-1.5 px-1.5 py-0.5 bg-forge-surface text-forge-text-dim rounded-md text-[11px] font-mono border border-forge-border/30">{sArgs.file}</span>
                     )}
                   </motion.div>
                 )
@@ -291,7 +297,9 @@ export const MessageItem = memo(function MessageItem({
                     className="border border-emerald-200 dark:border-emerald-800 bg-emerald-50/50 dark:bg-emerald-950/20 rounded-xl p-3.5 text-[12px] animate-success-glow"
                   >
                     <div className="flex items-center gap-2 mb-2">
-                      <CheckCircle className="w-4 h-4 text-emerald-500" />
+                      <div className="w-5 h-5 rounded-md flex items-center justify-center shrink-0 text-emerald-600 bg-emerald-50 dark:text-emerald-400 dark:bg-emerald-950/40">
+                        <CheckCircle className="w-3 h-3" />
+                      </div>
                       <span className="font-medium text-emerald-700 dark:text-emerald-400">
                         {inv.toolName === 'deploy_to_vercel' ? 'Deployed successfully' : `${String(resultData?.type || 'Task')} completed`}
                       </span>
@@ -300,7 +308,7 @@ export const MessageItem = memo(function MessageItem({
                       href={deployUrl}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="flex items-center gap-1.5 text-[12px] text-forge-accent hover:underline font-mono break-all"
+                      className="flex items-center gap-1.5 text-[11.5px] text-forge-accent hover:underline font-mono break-all"
                     >
                       {deployUrl}
                       <ExternalLink className="w-3 h-3 shrink-0" />
@@ -319,14 +327,14 @@ export const MessageItem = memo(function MessageItem({
                     key={partIdx}
                     initial={{ opacity: 0, y: 4 }}
                     animate={{ opacity: 1, y: 0 }}
-                    className="flex items-center gap-2 px-3 py-2 rounded-xl text-[12px] border border-blue-200 dark:border-blue-800 bg-blue-50/50 dark:bg-blue-950/20 animate-shimmer"
+                    className="flex items-center gap-2.5 px-3 py-2 rounded-xl text-[12px] border border-blue-200 dark:border-blue-800 bg-blue-50/50 dark:bg-blue-950/20 animate-shimmer"
                   >
-                    <div className="w-5 h-5 rounded-lg flex items-center justify-center shrink-0 text-blue-600 dark:text-blue-400 bg-blue-100 dark:bg-blue-900/50">
+                    <div className="w-5 h-5 rounded-md flex items-center justify-center shrink-0 text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-950/40 icon-glow-pulse">
                       <Loader2 className="w-3 h-3 animate-spin" />
                     </div>
-                    <span className="truncate flex-1 text-blue-600 dark:text-blue-400">
+                    <span className="truncate flex-1 text-blue-600 dark:text-blue-400 shimmer-text-blue">
                       {taskProgress || `${resultData?.type || 'Task'}: in progress...`}
-                      {taskElapsed > 0 && ` · ${taskElapsed}s`}
+                      {taskElapsed > 0 && ` \u00B7 ${taskElapsed}s`}
                     </span>
                     {runningTaskId && (
                       <button
@@ -343,21 +351,15 @@ export const MessageItem = memo(function MessageItem({
 
               if (isTaskFailed) {
                 const rawError = resultData?.error ? String(resultData.error) : ''
-                const friendlyError = rawError.includes('rate limit') ? 'GitHub rate limit hit — wait a few minutes and retry'
-                  : rawError.includes('timed out') || rawError.includes('timeout') ? 'Operation timed out — try again'
-                  : rawError.includes('401') || rawError.includes('auth') ? 'Authentication failed — check your credentials'
-                  : rawError.includes('404') || rawError.includes('not found') ? 'Resource not found — check the URL or repo name'
-                  : rawError.includes('ENOTFOUND') || rawError.includes('network') ? 'Network error — check your connection'
-                  : rawError.includes('Cancelled') ? 'Cancelled by user'
-                  : rawError.slice(0, 100)
+                const friendlyError = getFriendlyError(rawError, inv.toolName)
                 return (
                   <motion.div
                     key={partIdx}
                     initial={{ opacity: 0, y: 4 }}
                     animate={{ opacity: 1, y: 0 }}
-                    className="flex items-center gap-2 px-3 py-2 rounded-xl text-[12px] border border-red-200 dark:border-red-800 bg-red-50/50 dark:bg-red-950/20"
+                    className="flex items-center gap-2.5 px-3 py-2 rounded-xl text-[12px] border border-red-200 dark:border-red-800 bg-red-50/50 dark:bg-red-950/20"
                   >
-                    <div className="w-5 h-5 rounded-lg flex items-center justify-center shrink-0 text-red-600 dark:text-red-400 bg-red-100 dark:bg-red-900/50">
+                    <div className="w-5 h-5 rounded-md flex items-center justify-center shrink-0 text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-950/40">
                       <XCircle className="w-3 h-3" />
                     </div>
                     <span className="truncate flex-1 text-red-600 dark:text-red-400" title={rawError}>
@@ -373,9 +375,9 @@ export const MessageItem = memo(function MessageItem({
                     key={partIdx}
                     initial={{ opacity: 0, y: 4 }}
                     animate={{ opacity: 1, y: 0 }}
-                    className="flex items-center gap-2 px-3 py-2 rounded-xl text-[12px] border border-emerald-200 dark:border-emerald-800 bg-emerald-50/50 dark:bg-emerald-950/20"
+                    className="flex items-center gap-2.5 px-3 py-2 rounded-xl text-[12px] border border-emerald-200 dark:border-emerald-800 bg-emerald-50/50 dark:bg-emerald-950/20"
                   >
-                    <div className="w-5 h-5 rounded-lg flex items-center justify-center shrink-0 text-emerald-600 dark:text-emerald-400 bg-emerald-100 dark:bg-emerald-900/50">
+                    <div className="w-5 h-5 rounded-md flex items-center justify-center shrink-0 text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/40">
                       <CheckCircle className="w-3 h-3" />
                     </div>
                     <span className="truncate flex-1 text-emerald-600 dark:text-emerald-400">
@@ -385,29 +387,84 @@ export const MessageItem = memo(function MessageItem({
                 )
               }
 
+              const rawError = hasError && typeof (inv.result as Record<string, unknown>)?.error === 'string'
+                ? (inv.result as Record<string, unknown>).error as string : ''
+              const friendlyErr = rawError ? getFriendlyError(rawError, inv.toolName) : ''
+
+              // v0-style timeline item
+              const args = (inv.args || {}) as Record<string, string>
+              const filePath = args.path || args.file || args.filePath || args.file_path || ''
+              const fileName = filePath ? filePath.split('/').pop() : ''
+              // Truncated parent path for context (like v0 shows)
+              const parentPath = filePath && fileName
+                ? filePath.slice(0, filePath.length - fileName.length).replace(/\/$/, '')
+                : ''
+              const displayPath = parentPath.length > 30
+                ? '...' + parentPath.slice(parentPath.length - 27)
+                : parentPath
+
               return (
                 <motion.div
                   key={partIdx}
-                  initial={{ opacity: 0, y: 4, scale: 0.98 }}
-                  animate={{ opacity: isRunning ? 1 : 0.8, y: 0, scale: 1 }}
+                  initial={{ opacity: 0, y: 4 }}
+                  animate={{ opacity: 1, y: 0 }}
                   transition={{ duration: 0.2, ease: [0.16, 1, 0.3, 1] }}
-                  className={cn(
-                    'relative flex items-center gap-2 px-3 py-1.5 rounded-xl text-[12px] border-l-2 border transition-all overflow-hidden',
-                    isRunning ? 'border-forge-border border-l-forge-accent'
-                      : hasError ? 'border-red-200 dark:border-red-800 border-l-red-400 bg-red-50/50 dark:bg-red-950/20'
-                      : 'border-forge-border border-l-emerald-400 dark:border-l-emerald-500 bg-forge-surface/30 animate-chip-complete',
-                  )}
+                  className="tool-timeline-item"
                 >
-                  {isRunning && <div className="indeterminate-bar" />}
-                  <div className={cn('w-5 h-5 rounded-lg flex items-center justify-center shrink-0', colorClasses[info.color] || colorClasses.gray)}>
-                    {isRunning ? <Loader2 className="w-3 h-3 animate-spin" />
-                      : hasError ? <XCircle className="w-3 h-3 text-red-600 dark:text-red-400" />
-                      : <info.Icon className="w-3 h-3" />}
+                  <div className="flex items-center gap-2.5 py-1 relative">
+                    {/* Icon node */}
+                    <div className={cn(
+                      'w-5 h-5 rounded-md flex items-center justify-center shrink-0 z-[1]',
+                      isRunning ? 'bg-forge-accent/10 border border-forge-accent/30 icon-glow-pulse'
+                        : hasError ? 'bg-red-50 dark:bg-red-950/40 border border-red-200 dark:border-red-800'
+                        : colorClasses[info.color] || colorClasses.gray
+                    )}>
+                      {isRunning ? <Loader2 className="w-3 h-3 text-forge-accent animate-spin" />
+                        : hasError ? <XCircle className="w-3 h-3 text-red-500" />
+                        : <info.Icon className="w-3 h-3" />}
+                    </div>
+
+                    {/* Label + path */}
+                    <div className="flex-1 min-w-0 flex items-baseline gap-1.5">
+                      {hasError ? (
+                        <div className="flex flex-col min-w-0">
+                          <span className="text-[13px] text-red-600 dark:text-red-400 font-medium truncate">{info.label} failed</span>
+                          <span className="text-[11.5px] text-red-500/70 dark:text-red-400/50 truncate" title={rawError}>{friendlyErr}</span>
+                        </div>
+                      ) : (
+                        <>
+                          <span className={cn(
+                            'text-[13px] shrink-0',
+                            isRunning ? 'text-forge-text font-medium shimmer-text' : 'text-forge-text-dim'
+                          )}>
+                            {info.label}
+                          </span>
+                          {fileName && (
+                            <span className="flex items-baseline gap-1.5 min-w-0 truncate">
+                              <span className={cn(
+                                'font-mono text-[11.5px] shrink-0',
+                                isRunning ? 'text-forge-accent/80 shimmer-text-subtle' : 'text-forge-text-dim/50'
+                              )}>
+                                {fileName}
+                              </span>
+                              {displayPath && (
+                                <span className={cn('tool-timeline-path hidden sm:inline', isRunning && 'shimmer-text-subtle')}>{displayPath}</span>
+                              )}
+                            </span>
+                          )}
+                        </>
+                      )}
+                    </div>
+
+                    {/* Running dots */}
+                    {isRunning && (
+                      <span className="flex items-center gap-0.5 text-[11px] text-forge-accent/60 shrink-0">
+                        <span className="typing-dot" />
+                        <span className="typing-dot" />
+                        <span className="typing-dot" />
+                      </span>
+                    )}
                   </div>
-                  <span className={cn('truncate flex-1', hasError ? 'text-red-600 dark:text-red-400' : 'text-forge-text-dim')}>
-                    {summary}
-                  </span>
-                  {!isRunning && !hasError && <CheckCircle className="w-3 h-3 text-emerald-500 shrink-0 animate-check-in" />}
                 </motion.div>
               )
             }

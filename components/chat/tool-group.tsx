@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { CheckCircle, ChevronDown, Terminal, Loader2 } from 'lucide-react'
+import { CheckCircle, ChevronDown, Terminal, Loader2, Search, Pencil, GitBranch, Database } from 'lucide-react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { cn } from '@/lib/utils'
 import { TOOL_LABELS, colorClasses } from '@/lib/chat/constants'
@@ -80,53 +80,63 @@ export function groupToolInvocations(parts: Array<any>): RenderItem[] {
   return items
 }
 
+/** Get a v0-style group icon & label based on the dominant tool type */
+function getGroupMeta(tools: ToolGroupData['tools']): { Icon: typeof Search; label: string; color: string } {
+  const counts: Record<string, number> = {}
+  for (const t of tools) counts[t.toolName] = (counts[t.toolName] || 0) + 1
+  const dominant = Object.entries(counts).sort((a, b) => b[1] - a[1])[0]?.[0] || ''
+
+  if (['read_file', 'list_files', 'get_all_files', 'forge_read_own_source'].includes(dominant))
+    return { Icon: Search, label: 'Explore', color: 'blue' }
+  if (['search_files', 'grep_files', 'github_search_code', 'search_references', 'get_reference_code'].includes(dominant))
+    return { Icon: Search, label: 'Search', color: 'purple' }
+  if (['write_file', 'edit_file', 'rename_file', 'delete_file', 'scaffold_component'].includes(dominant))
+    return { Icon: Pencil, label: 'Edit', color: 'yellow' }
+  if (dominant.startsWith('github_') || dominant.startsWith('forge_'))
+    return { Icon: GitBranch, label: 'Git', color: 'green' }
+  if (dominant.startsWith('db_'))
+    return { Icon: Database, label: 'Database', color: 'green' }
+  return { Icon: Terminal, label: 'Actions', color: 'gray' }
+}
+
+/** Get filename + truncated path for a tool call */
+function getToolFileInfo(t: { toolName: string; args: Record<string, unknown> }): { name: string; path: string } {
+  const args = t.args as Record<string, string>
+  const filePath = args.path || args.file || args.filePath || args.file_path || args.pattern || ''
+  if (filePath) {
+    const fileName = filePath.split('/').pop() || filePath
+    const parentPath = filePath.slice(0, filePath.length - fileName.length).replace(/\/$/, '')
+    const displayPath = parentPath.length > 25 ? '...' + parentPath.slice(parentPath.length - 22) : parentPath
+    return { name: fileName, path: displayPath }
+  }
+  const info = TOOL_LABELS[t.toolName]
+  return { name: info?.label || t.toolName.replace(/_/g, ' '), path: '' }
+}
+
 export function CollapsibleToolGroup({ tools }: { tools: ToolGroupData['tools'] }) {
   const [expanded, setExpanded] = useState(false)
+  const groupMeta = getGroupMeta(tools)
 
-  const counts: Record<string, number> = {}
-  for (const t of tools) {
-    const verb = t.toolName === 'write_file' ? 'Wrote'
-      : t.toolName === 'read_file' ? 'Read'
-      : t.toolName === 'edit_file' ? 'Edited'
-      : t.toolName === 'delete_file' ? 'Deleted'
-      : t.toolName === 'create_project' ? 'Scaffolded'
-      : t.toolName === 'rename_file' ? 'Renamed'
-      : t.toolName === 'list_files' ? 'Listed'
-      : t.toolName === 'search_files' ? 'Searched'
-      : t.toolName === 'grep_files' ? 'Grepped'
-      : t.toolName === 'save_project' ? 'Saved'
-      : t.toolName.startsWith('github_') ? 'GitHub op'
-      : t.toolName.startsWith('db_') ? 'DB op'
-      : t.toolName.startsWith('forge_') ? 'Forge op'
-      : t.toolName.replace(/_/g, ' ')
-    counts[verb] = (counts[verb] || 0) + 1
-  }
-  const summaryParts = Object.entries(counts).map(([verb, count]) => {
-    const noun = verb === 'Wrote' || verb === 'Read' || verb === 'Edited' || verb === 'Deleted' || verb === 'Renamed' || verb === 'Listed'
-      ? (count === 1 ? 'file' : 'files')
-      : verb === 'Scaffolded' ? (count === 1 ? 'project' : 'projects')
-      : verb === 'Searched' || verb === 'Grepped' ? (count === 1 ? 'search' : 'searches')
-      : verb === 'Saved' ? (count === 1 ? 'project' : 'projects')
-      : ''
-    return `${verb} ${count}${noun ? ` ${noun}` : ''}`
-  })
-  const summaryText = summaryParts.join(', ')
+  // Count file types for the summary
+  const fileCount = tools.length
+  const summaryText = `${groupMeta.label} \u00B7 ${fileCount} ${fileCount === 1 ? 'File' : 'Files'}`
 
   return (
     <motion.div
       initial={{ opacity: 0, y: 4 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.2 }}
-      className="rounded-xl overflow-hidden border border-forge-border border-l-2 border-l-emerald-400 dark:border-l-emerald-500"
+      className="tool-timeline-group"
     >
       <button
         onClick={() => setExpanded(!expanded)}
-        className="flex items-center gap-2 w-full px-3 py-2 text-[12px] text-forge-text-dim hover:bg-forge-surface-hover transition-colors"
+        className="flex items-center gap-2.5 w-full py-1 text-[13px] text-forge-text-dim hover:text-forge-text transition-colors group/toolbtn"
       >
-        <CheckCircle className="w-3.5 h-3.5 text-emerald-500 shrink-0 animate-check-in" />
-        <span className="flex-1 text-left truncate">{summaryText}</span>
-        <span className="text-[10px] text-forge-text-dim/50">{tools.length}</span>
-        <ChevronDown className={cn('w-3 h-3 transition-transform duration-200', expanded && 'rotate-180')} />
+        <div className={cn('w-5 h-5 rounded-md flex items-center justify-center shrink-0', colorClasses[groupMeta.color] || colorClasses.gray)}>
+          <groupMeta.Icon className="w-3 h-3" />
+        </div>
+        <span className="flex-1 text-left font-medium">{summaryText}</span>
+        <ChevronDown className={cn('w-3.5 h-3.5 text-forge-text-dim/40 transition-transform duration-200', expanded && 'rotate-180')} />
       </button>
       <AnimatePresence>
         {expanded && (
@@ -137,26 +147,20 @@ export function CollapsibleToolGroup({ tools }: { tools: ToolGroupData['tools'] 
             transition={{ type: 'spring', stiffness: 500, damping: 32 }}
             className="overflow-hidden"
           >
-            <div className="border-t border-forge-border space-y-0.5 p-1.5">
+            <div className="ml-2.5 border-l border-forge-border/40 pl-4 py-1 space-y-0.5">
               {tools.map((t, i) => {
-                const info = TOOL_LABELS[t.toolName] || { label: t.toolName.replace(/_/g, ' '), Icon: Terminal, color: 'gray' }
-                const summary = getToolSummary(t.toolName, t.args, t.result)
+                const fileInfo = getToolFileInfo(t)
                 return (
                   <motion.div
                     key={t.partIdx}
-                    initial={{ opacity: 0, y: 4 }}
-                    animate={{ opacity: 1, y: 0 }}
+                    initial={{ opacity: 0, x: -4 }}
+                    animate={{ opacity: 1, x: 0 }}
                     transition={{ duration: 0.15, delay: i * 0.03 }}
-                    className={cn(
-                      'flex items-center gap-2 px-2.5 py-1 rounded-lg text-[11px] hover:bg-forge-surface/80 transition-colors',
-                      i % 2 === 0 && 'bg-forge-surface/30'
-                    )}
+                    className="flex items-baseline gap-1.5 py-0.5 text-[12px] text-forge-text-dim/70"
                   >
-                    <div className={cn('w-4 h-4 rounded flex items-center justify-center shrink-0', colorClasses[info.color] || colorClasses.gray)}>
-                      <info.Icon className="w-2.5 h-2.5" />
-                    </div>
-                    <span className="truncate flex-1 text-forge-text-dim">{summary}</span>
-                    <CheckCircle className="w-2.5 h-2.5 text-emerald-500 shrink-0" />
+                    <div className="w-1.5 h-1.5 rounded-full bg-forge-border shrink-0 -ml-[21px] relative top-[5px]" />
+                    <span className="shrink-0">{fileInfo.name}</span>
+                    {fileInfo.path && <span className="tool-timeline-path hidden sm:inline">{fileInfo.path}</span>}
                   </motion.div>
                 )
               })}
