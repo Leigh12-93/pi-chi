@@ -79,10 +79,10 @@ export const MODEL_OPTIONS = [
 ] as const
 
 export const QUICK_ACTIONS = [
-  { label: 'Landing Page', query: 'Build a modern landing page with hero section, features grid, testimonials with avatars, pricing table, and footer. Use a cohesive color palette with gradients and animations. Make it look like a real SaaS product.', icon: Sparkles },
-  { label: 'Dashboard', query: 'Build an admin dashboard with sidebar navigation, stats cards with sparklines, a chart area, recent activity feed, and a data table with sorting. Dark theme, professional look.', icon: FolderPlus },
-  { label: 'Portfolio', query: 'Create a portfolio site with animated hero, project showcase with hover effects, about section with skills, timeline, and a contact form. Minimal, elegant design.', icon: Globe },
-  { label: 'E-commerce', query: 'Build an e-commerce product page with image gallery, size/color selector, add to cart, reviews section, and related products. Clean, modern design like Apple Store.', icon: FileText },
+  { label: 'Landing Page', query: 'Build a premium SaaS landing page. Design a bespoke design token system first — unique color palette, font pairing, spacing scale, shadows. Then build all sections with those tokens. Must look like a $10k agency build.', icon: Sparkles },
+  { label: 'Dashboard', query: 'Build a professional admin dashboard. Design a bespoke dark-first design token system first — unique color palette, font pairing, spacing scale, shadows. Then build sidebar, stats, charts, tables. Must look like a real production app.', icon: FolderPlus },
+  { label: 'Portfolio', query: 'Build a designer portfolio. Design a bespoke editorial design token system first — refined palette, elegant fonts, generous spacing. Then build hero, project grid, about, contact. Must look like a senior designer made it.', icon: Globe },
+  { label: 'E-commerce', query: 'Build an e-commerce product page. Design a bespoke retail design token system first — premium palette, clean fonts, polished effects. Then build gallery, selectors, reviews, related products. Must look like a real store.', icon: FileText },
 ]
 
 export const colorClasses: Record<string, string> = {

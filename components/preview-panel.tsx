@@ -725,32 +725,9 @@ export function PreviewPanel({ files, projectId, onFixErrors, onCapturePreview }
       }
 
       addLog(message, level, 'preview')
-      // Auto-open console on errors
+      // Auto-open console on errors (but do NOT auto-feed to AI — user must click fix)
       if (level === 'error') {
         setShowConsole(true)
-        // Auto-feed error to AI (debounced, max 3 attempts per unique error)
-        if (onFixErrorsRef.current) {
-          const errorKey = normalizeError(message) // normalize for dedup
-          const attempts = errorAutoFeedRef.current.get(errorKey) || 0
-          if (attempts < 3) {
-            // Global cooldown: skip if last auto-feed was <30s ago
-            if (Date.now() - lastAutoFeedRef.current < 30000) return
-            errorAutoFeedRef.current.set(errorKey, attempts + 1)
-            // Debounce: wait 2s to batch multiple errors from same render
-            if (errorFeedTimerRef.current) clearTimeout(errorFeedTimerRef.current)
-            errorFeedTimerRef.current = setTimeout(() => {
-              // Collect all recent unfed errors (use ref to avoid stale closure)
-              const recentErrors = consoleLogsRef.current
-                .filter(e => e.level === 'error')
-                .map(e => e.message)
-              // Include the current error too (it may not be in consoleLogs yet due to batched state)
-              const allErrors = [...new Set([...recentErrors, message])]
-              const errorText = allErrors.slice(-5).join('\n') // max 5 errors
-              lastAutoFeedRef.current = Date.now()
-              onFixErrorsRef.current?.(`[Auto-detected preview error — attempt ${attempts + 1}/3]\n\nThe preview has runtime errors. Please fix them:\n\n\`\`\`\n${errorText}\n\`\`\``)
-            }, 2000)
-          }
-        }
       }
     }
     window.addEventListener('message', handler)
@@ -848,19 +825,10 @@ export function PreviewPanel({ files, projectId, onFixErrors, onCapturePreview }
     }
     prevFileHashRef.current = h
 
-    // Scan for missing imports (debounced naturally by file hash check)
+    // Scan for missing imports (shown in console, not auto-fed to AI)
     const missing = detectMissingImports(files)
     setMissingImports(missing)
-
-    // Auto-feed missing imports to AI (once per unique set)
-    if (missing.length > 0 && !missingImportsFedRef.current && onFixErrorsRef.current) {
-      missingImportsFedRef.current = true
-      const errorText = missing.join('\n')
-      // Small delay to let the AI finish current tool calls
-      setTimeout(() => {
-        onFixErrorsRef.current?.(`[Auto-detected missing imports]\n\nThe preview is crashing because of missing component files. Please create the missing files:\n\n\`\`\`\n${errorText}\n\`\`\`\n\nCreate each missing component with a proper default export. This is blocking the live preview.`)
-      }, 3000)
-    } else if (missing.length === 0) {
+    if (missing.length === 0) {
       setMissingImports([])
     }
   }, [files])
