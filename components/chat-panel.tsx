@@ -267,31 +267,56 @@ export function ChatPanel(props: ChatPanelProps) {
               />
             ))}
 
-            {/* Streaming activity indicator */}
+            {/* Streaming activity indicator - v0-style timeline */}
             {chat.isLoading && (
-              <div className="py-2 px-1 animate-fade-in space-y-1.5">
-                {/* Current active tool */}
+              <div className="py-2 animate-fade-in space-y-0">
+                {/* Recent completed steps as timeline items */}
+                {chat.currentActivity?.recentCompleted && chat.currentActivity.recentCompleted.length > 0 && (
+                  <div className="space-y-0">
+                    {chat.currentActivity.recentCompleted.map((step, i) => {
+                      const info = TOOL_LABELS[step.toolName] || { label: step.toolName.replace(/_/g, ' '), Icon: CheckCircle, color: 'gray' }
+                      const args = step.args as Record<string, string>
+                      const filePath = args.path || args.file || args.filePath || args.file_path || ''
+                      const fileName = filePath ? filePath.split('/').pop() : ''
+                      return (
+                        <div key={i} className="tool-timeline-item">
+                          <div className="flex items-center gap-2.5 py-1 relative">
+                            <div className={cn('w-5 h-5 rounded-md flex items-center justify-center shrink-0 z-[1]', colorClasses[info.color] || colorClasses.gray)}>
+                              <info.Icon className="w-3 h-3" />
+                            </div>
+                            <span className="text-[13px] text-forge-text-dim/60 truncate">
+                              {info.label}
+                              {fileName && <span className="ml-1.5 font-mono text-[11.5px] text-forge-text-dim/40">{fileName}</span>}
+                            </span>
+                          </div>
+                        </div>
+                      )
+                    })}
+                  </div>
+                )}
+
+                {/* Current active tool or thinking indicator */}
                 {chat.currentActivity?.toolName ? (() => {
                   const info = TOOL_LABELS[chat.currentActivity.toolName] || { label: chat.currentActivity.toolName.replace(/_/g, ' '), Icon: Loader2, color: 'gray' }
                   const args = chat.currentActivity.args as Record<string, string>
                   const filePath = args.path || args.file || args.filePath || args.file_path || ''
                   const fileName = filePath ? filePath.split('/').pop() : ''
                   return (
-                    <div className="flex items-center gap-2 px-3 py-2 bg-forge-surface/80 border border-forge-accent/20 rounded-xl">
-                      <div className={cn('w-5 h-5 rounded-lg flex items-center justify-center shrink-0', colorClasses[info.color] || colorClasses.gray)}>
-                        <Loader2 className="w-3 h-3 animate-spin" />
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <span className="text-[12px] text-forge-text font-medium">{info.label}</span>
-                        {fileName && (
-                          <span className="ml-1.5 text-[11px] text-forge-accent font-mono">{fileName}</span>
+                    <div className="tool-timeline-item">
+                      <div className="flex items-center gap-2.5 py-1 relative">
+                        <div className="w-5 h-5 rounded-md flex items-center justify-center shrink-0 z-[1] bg-forge-accent/10 border border-forge-accent/30">
+                          <Loader2 className="w-3 h-3 text-forge-accent animate-spin" />
+                        </div>
+                        <span className="text-[13px] text-forge-text font-medium truncate flex-1">
+                          {info.label}
+                          {fileName && <span className="ml-1.5 text-forge-accent/70 font-mono text-[11.5px]">{fileName}</span>}
+                        </span>
+                        {chat.elapsed > 0 && (
+                          <span className="text-[11px] text-forge-text-dim/40 font-mono shrink-0 tabular-nums">
+                            {chat.formatElapsed(chat.elapsed)}
+                          </span>
                         )}
                       </div>
-                      {chat.elapsed > 0 && (
-                        <span className="text-[10px] text-forge-text-dim/50 font-mono shrink-0">
-                          {chat.formatElapsed(chat.elapsed)}
-                        </span>
-                      )}
                     </div>
                   )
                 })() : (
@@ -302,23 +327,6 @@ export function ChatPanel(props: ChatPanelProps) {
                     lastCompletedToolName={chat.lastCompletedToolName}
                     status={chat.status}
                   />
-                )}
-                {/* Recent completed steps */}
-                {chat.currentActivity?.recentCompleted && chat.currentActivity.recentCompleted.length > 0 && (
-                  <div className="flex flex-wrap gap-1 px-1">
-                    {chat.currentActivity.recentCompleted.map((step, i) => {
-                      const info = TOOL_LABELS[step.toolName] || { label: step.toolName.replace(/_/g, ' '), Icon: CheckCircle, color: 'gray' }
-                      const args = step.args as Record<string, string>
-                      const filePath = args.path || args.file || args.filePath || args.file_path || ''
-                      const fileName = filePath ? filePath.split('/').pop() : ''
-                      return (
-                        <span key={i} className="inline-flex items-center gap-1 px-2 py-0.5 text-[10px] text-forge-text-dim bg-forge-surface/50 rounded-md border border-forge-border/50">
-                          <CheckCircle className="w-2.5 h-2.5 text-emerald-500" />
-                          {fileName || info.label}
-                        </span>
-                      )
-                    })}
-                  </div>
                 )}
               </div>
             )}

@@ -750,6 +750,33 @@ html.dark .code-block-wrapper:hover > div:first-child {
   animation: readyCheck 0.4s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
 }
 
+/* ─── v0-style Tool Timeline ─────────────────────────────── */
+
+.tool-timeline-item {
+  position: relative;
+  padding-left: 0;
+}
+
+.tool-timeline-group {
+  position: relative;
+  padding-left: 0;
+}
+
+/* Connector line between consecutive timeline items */
+.tool-timeline-item + .tool-timeline-item::before,
+.tool-timeline-group + .tool-timeline-item::before,
+.tool-timeline-item + .tool-timeline-group::before,
+.tool-timeline-group + .tool-timeline-group::before {
+  content: '';
+  position: absolute;
+  left: 9px; /* center of the 20px (w-5) icon */
+  top: -6px;
+  width: 1.5px;
+  height: 6px;
+  background: var(--color-forge-border);
+  opacity: 0.5;
+}
+
 /* ─── Response Complete Signal ───────────────────────────── */
 
 @keyframes completeFadeOut {
