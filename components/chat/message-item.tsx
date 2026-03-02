@@ -107,13 +107,13 @@ export const MessageItem = memo(function MessageItem({
             <textarea
               value={editingContent}
               onChange={e => onSetEditingContent(e.target.value)}
-              className="w-full bg-forge-bg border border-forge-border rounded-xl px-3.5 py-2.5 text-[13.5px] text-forge-text outline-none resize-none focus:ring-2 focus:ring-forge-accent/20 focus:border-forge-accent/40 transition-all"
+              className="w-full bg-forge-bg border border-forge-border rounded-xl px-3.5 py-2.5 text-[13.5px] text-forge-text outline-none resize-none focus:border-forge-accent/40 focus:shadow-[0_0_0_3px_var(--color-forge-ring)] transition-all"
               rows={3}
               autoFocus
             />
             <div className="flex justify-end gap-1.5 mt-1.5">
-              <button onClick={onCancelEdit} className="px-2.5 py-1 text-[11px] text-forge-text-dim hover:text-forge-text rounded-lg transition-colors">Cancel</button>
-              <button onClick={onSaveEdit} className="px-2.5 py-1 text-[11px] font-medium text-white bg-forge-accent rounded-lg hover:bg-forge-accent-hover transition-colors">Resend</button>
+              <button onClick={onCancelEdit} className="px-2.5 py-1 text-[11px] text-forge-text-dim hover:text-forge-text rounded-md transition-colors">Cancel</button>
+              <button onClick={onSaveEdit} className="px-2.5 py-1 text-[11px] font-medium text-white bg-forge-accent rounded-md hover:bg-forge-accent-hover transition-colors">Resend</button>
             </div>
           </div>
         ) : (
@@ -134,7 +134,7 @@ export const MessageItem = memo(function MessageItem({
                 <Pencil className="w-3 h-3" />
               </button>
             </div>
-            <div className="px-4 py-2.5 rounded-2xl rounded-br-md bg-gradient-to-b from-forge-surface to-forge-surface/80 border border-forge-border text-[13.5px] text-forge-text leading-relaxed shadow-sm transition-shadow hover:shadow-md">
+            <div className="px-4 py-2.5 rounded-xl rounded-br-md bg-forge-surface border border-forge-border text-[13.5px] text-forge-text leading-relaxed transition-colors">
               {textContent}
               {parts?.filter(p => p.type === 'file').map((filePart, fi) => {
                 const mType = filePart.mediaType as string | undefined
@@ -145,7 +145,7 @@ export const MessageItem = memo(function MessageItem({
                     {mType?.startsWith('image/') ? (
                       <img src={fUrl} alt={fName || 'image'} className="max-w-[200px] max-h-[150px] rounded-lg border border-forge-border" />
                     ) : (
-                      <div className="inline-flex items-center gap-1 px-2 py-1 bg-forge-bg/50 border border-forge-border rounded-md text-[10px] text-forge-text-dim">
+                      <div className="inline-flex items-center gap-1 px-2 py-1 bg-forge-bg/50 border border-forge-border rounded-md text-[11px] text-forge-text-dim font-mono">
                         <Paperclip className="w-3 h-3" />
                         {fName || 'Attached file'}
                       </div>
@@ -157,7 +157,7 @@ export const MessageItem = memo(function MessageItem({
           </div>
         )
       ) : parts && parts.length > 0 ? (
-        <div className="space-y-1 group/assistant">
+        <div className="space-y-0.5 group/assistant">
           {(() => {
           // Detect tool parts: both v4 (type==='tool-invocation') and v6 (type starts with 'tool-')
           const isToolPart = (p: Record<string, unknown>) => p.type === 'tool-invocation' || (typeof p.type === 'string' && p.type?.startsWith('tool-') && p.type !== 'text')
@@ -245,19 +245,21 @@ export const MessageItem = memo(function MessageItem({
                     key={partIdx}
                     initial={{ opacity: 0, y: 4 }}
                     animate={{ opacity: 1, y: 0 }}
-                    className="border border-amber-200 dark:border-amber-800 bg-amber-50/50 dark:bg-amber-950/20 rounded-xl p-3 text-[12px]"
+                    className="border border-amber-200 dark:border-amber-800 bg-amber-50/50 dark:bg-amber-950/20 rounded-xl p-3.5 text-[12px]"
                   >
-                    <div className="flex items-center gap-1.5 mb-1.5">
-                      <Lightbulb className="w-3.5 h-3.5 text-amber-600 dark:text-amber-400" />
+                    <div className="flex items-center gap-2 mb-2">
+                      <div className="w-5 h-5 rounded-md flex items-center justify-center shrink-0 text-amber-600 bg-amber-50 dark:text-amber-400 dark:bg-amber-950/40">
+                        <Lightbulb className="w-3 h-3" />
+                      </div>
                       <span className="font-medium text-amber-700 dark:text-amber-400">Suggestion</span>
-                      <span className={cn('px-1.5 py-0.5 rounded text-[9px] font-medium uppercase', priorityColor)}>{priority}</span>
+                      <span className={cn('px-1.5 py-0.5 rounded-md text-[10px] font-medium uppercase', priorityColor)}>{priority}</span>
                     </div>
                     <p className="text-amber-700 dark:text-amber-300 mb-1">{sArgs.issue || ''}</p>
                     {sArgs.suggestion && (
-                      <pre className="text-[11px] bg-forge-surface text-forge-text rounded-lg p-2.5 mt-1.5 whitespace-pre-wrap font-mono">{sArgs.suggestion}</pre>
+                      <pre className="text-[11.5px] bg-forge-surface text-forge-text rounded-md p-2.5 mt-1.5 whitespace-pre-wrap font-mono border border-forge-border/30">{sArgs.suggestion}</pre>
                     )}
                     {sArgs.file && (
-                      <span className="inline-block mt-1.5 px-1.5 py-0.5 bg-forge-surface text-forge-text-dim rounded text-[10px] font-mono">{sArgs.file}</span>
+                      <span className="inline-block mt-1.5 px-1.5 py-0.5 bg-forge-surface text-forge-text-dim rounded-md text-[11px] font-mono border border-forge-border/30">{sArgs.file}</span>
                     )}
                   </motion.div>
                 )
@@ -295,7 +297,9 @@ export const MessageItem = memo(function MessageItem({
                     className="border border-emerald-200 dark:border-emerald-800 bg-emerald-50/50 dark:bg-emerald-950/20 rounded-xl p-3.5 text-[12px] animate-success-glow"
                   >
                     <div className="flex items-center gap-2 mb-2">
-                      <CheckCircle className="w-4 h-4 text-emerald-500" />
+                      <div className="w-5 h-5 rounded-md flex items-center justify-center shrink-0 text-emerald-600 bg-emerald-50 dark:text-emerald-400 dark:bg-emerald-950/40">
+                        <CheckCircle className="w-3 h-3" />
+                      </div>
                       <span className="font-medium text-emerald-700 dark:text-emerald-400">
                         {inv.toolName === 'deploy_to_vercel' ? 'Deployed successfully' : `${String(resultData?.type || 'Task')} completed`}
                       </span>
@@ -304,7 +308,7 @@ export const MessageItem = memo(function MessageItem({
                       href={deployUrl}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="flex items-center gap-1.5 text-[12px] text-forge-accent hover:underline font-mono break-all"
+                      className="flex items-center gap-1.5 text-[11.5px] text-forge-accent hover:underline font-mono break-all"
                     >
                       {deployUrl}
                       <ExternalLink className="w-3 h-3 shrink-0" />
@@ -323,9 +327,9 @@ export const MessageItem = memo(function MessageItem({
                     key={partIdx}
                     initial={{ opacity: 0, y: 4 }}
                     animate={{ opacity: 1, y: 0 }}
-                    className="flex items-center gap-2 px-3 py-2 rounded-xl text-[12px] border border-blue-200 dark:border-blue-800 bg-blue-50/50 dark:bg-blue-950/20 animate-shimmer"
+                    className="flex items-center gap-2.5 px-3 py-2 rounded-xl text-[12px] border border-blue-200 dark:border-blue-800 bg-blue-50/50 dark:bg-blue-950/20 animate-shimmer"
                   >
-                    <div className="w-5 h-5 rounded-lg flex items-center justify-center shrink-0 text-blue-600 dark:text-blue-400 bg-blue-100 dark:bg-blue-900/50">
+                    <div className="w-5 h-5 rounded-md flex items-center justify-center shrink-0 text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-950/40">
                       <Loader2 className="w-3 h-3 animate-spin" />
                     </div>
                     <span className="truncate flex-1 text-blue-600 dark:text-blue-400">
@@ -353,9 +357,9 @@ export const MessageItem = memo(function MessageItem({
                     key={partIdx}
                     initial={{ opacity: 0, y: 4 }}
                     animate={{ opacity: 1, y: 0 }}
-                    className="flex items-center gap-2 px-3 py-2 rounded-xl text-[12px] border border-red-200 dark:border-red-800 bg-red-50/50 dark:bg-red-950/20"
+                    className="flex items-center gap-2.5 px-3 py-2 rounded-xl text-[12px] border border-red-200 dark:border-red-800 bg-red-50/50 dark:bg-red-950/20"
                   >
-                    <div className="w-5 h-5 rounded-lg flex items-center justify-center shrink-0 text-red-600 dark:text-red-400 bg-red-100 dark:bg-red-900/50">
+                    <div className="w-5 h-5 rounded-md flex items-center justify-center shrink-0 text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-950/40">
                       <XCircle className="w-3 h-3" />
                     </div>
                     <span className="truncate flex-1 text-red-600 dark:text-red-400" title={rawError}>
@@ -371,9 +375,9 @@ export const MessageItem = memo(function MessageItem({
                     key={partIdx}
                     initial={{ opacity: 0, y: 4 }}
                     animate={{ opacity: 1, y: 0 }}
-                    className="flex items-center gap-2 px-3 py-2 rounded-xl text-[12px] border border-emerald-200 dark:border-emerald-800 bg-emerald-50/50 dark:bg-emerald-950/20"
+                    className="flex items-center gap-2.5 px-3 py-2 rounded-xl text-[12px] border border-emerald-200 dark:border-emerald-800 bg-emerald-50/50 dark:bg-emerald-950/20"
                   >
-                    <div className="w-5 h-5 rounded-lg flex items-center justify-center shrink-0 text-emerald-600 dark:text-emerald-400 bg-emerald-100 dark:bg-emerald-900/50">
+                    <div className="w-5 h-5 rounded-md flex items-center justify-center shrink-0 text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/40">
                       <CheckCircle className="w-3 h-3" />
                     </div>
                     <span className="truncate flex-1 text-emerald-600 dark:text-emerald-400">

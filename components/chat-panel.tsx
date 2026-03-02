@@ -75,7 +75,7 @@ function ThinkingIndicator({ elapsed, formatElapsed, stepCount, lastCompletedToo
         initial={{ opacity: 0, scale: 0.97 }}
         animate={{ opacity: 1, scale: 1 }}
         transition={{ duration: 0.3, ease: [0.16, 1, 0.3, 1] }}
-        className="relative overflow-hidden rounded-xl border border-forge-accent/15 bg-forge-surface/80"
+        className="relative overflow-hidden rounded-xl border border-forge-border bg-forge-surface/80"
       >
         {/* Shimmer progress bar at top */}
         <div className="absolute top-0 left-0 right-0 h-[2px] overflow-hidden">
@@ -85,12 +85,12 @@ function ThinkingIndicator({ elapsed, formatElapsed, stepCount, lastCompletedToo
         <div className="px-3 py-2.5 space-y-1.5">
           {/* Main thinking row */}
           <div className="flex items-center gap-2.5">
-            <div className="w-6 h-6 rounded-lg bg-forge-accent/10 border border-forge-accent/20 flex items-center justify-center shrink-0">
-              <Brain className="w-3.5 h-3.5 text-forge-accent thinking-brain" />
+            <div className="w-5 h-5 rounded-md bg-forge-accent/10 border border-forge-accent/20 flex items-center justify-center shrink-0">
+              <Brain className="w-3 h-3 text-forge-accent thinking-brain" />
             </div>
             <div className="flex-1 min-w-0">
               <div className="flex items-center gap-1.5">
-                <span className="text-[12.5px] text-forge-text font-medium thinking-text-rotate" key={messageIdx}>
+                <span className="text-[13px] text-forge-text font-medium thinking-text-rotate" key={messageIdx}>
                   {THINKING_MESSAGES[messageIdx]}
                 </span>
                 <span className="flex items-center gap-0.5 ml-0.5">
@@ -100,14 +100,14 @@ function ThinkingIndicator({ elapsed, formatElapsed, stepCount, lastCompletedToo
                 </span>
               </div>
             </div>
-            <span className="text-[11px] text-forge-accent/70 font-mono shrink-0 tabular-nums">
+            <span className="text-[11px] text-forge-text-dim/40 font-mono shrink-0 tabular-nums">
               {formatElapsed(elapsed)}
             </span>
           </div>
 
           {/* Milestone message - shows context about why it's taking long */}
           {milestone && elapsed >= 10 && (
-            <p className="text-[10.5px] text-forge-text-dim/60 pl-[34px] thinking-text-rotate" key={milestone}>
+            <p className="text-[11px] text-forge-text-dim/50 pl-[30px] thinking-text-rotate" key={milestone}>
               {milestone}
             </p>
           )}
@@ -118,9 +118,9 @@ function ThinkingIndicator({ elapsed, formatElapsed, stepCount, lastCompletedToo
 
   // Standard between-tools indicator (streaming state or short submitted)
   return (
-    <div className="flex items-center gap-2 px-3 py-2 bg-forge-surface/80 border border-forge-border rounded-xl">
+    <div className="flex items-center gap-2.5 px-3 py-2 bg-forge-surface/80 border border-forge-border rounded-xl">
       {isSubmitted ? (
-        <div className="w-5 h-5 rounded-lg bg-forge-accent/10 flex items-center justify-center shrink-0">
+        <div className="w-5 h-5 rounded-md bg-forge-accent/10 flex items-center justify-center shrink-0">
           <Brain className="w-3 h-3 text-forge-accent thinking-brain" />
         </div>
       ) : (
@@ -130,14 +130,14 @@ function ThinkingIndicator({ elapsed, formatElapsed, stepCount, lastCompletedToo
           <span className="typing-dot" />
         </span>
       )}
-      <span className="text-[12px] text-forge-text-dim">
+      <span className="text-[13px] text-forge-text-dim">
         {isSubmitted ? 'Thinking' : phaseLabel}
         {stepCount >= 3 && (
           <span className="text-forge-text-dim/50"> &middot; {stepCount} actions</span>
         )}
       </span>
       {elapsed > 0 && (
-        <span className="text-[10px] text-forge-text-dim/50 font-mono tabular-nums">
+        <span className="text-[11px] text-forge-text-dim/40 font-mono shrink-0 tabular-nums">
           {formatElapsed(elapsed)}
         </span>
       )}
@@ -163,7 +163,7 @@ function CompletionSignal({ stepCount, elapsed, formatElapsed }: {
       animate={{ opacity: 1, y: 0, scale: 1 }}
       exit={{ opacity: 0, y: -4, scale: 0.96 }}
       transition={{ duration: 0.3, ease: [0.16, 1, 0.3, 1] }}
-      className="flex items-center gap-2 px-3 py-1.5 rounded-xl text-[11.5px] bg-emerald-50/60 dark:bg-emerald-950/15 border border-emerald-200/50 dark:border-emerald-800/30 response-complete-signal"
+      className="flex items-center gap-2 px-3 py-1.5 rounded-xl text-[12px] bg-emerald-50/60 dark:bg-emerald-950/15 border border-emerald-200/50 dark:border-emerald-800/30 response-complete-signal"
     >
       <CheckCircle className="w-3.5 h-3.5 text-emerald-500 animate-check-in" />
       <span className="text-emerald-600 dark:text-emerald-400 font-medium">Done</span>
@@ -413,8 +413,8 @@ export function ChatPanel(props: ChatPanelProps) {
         >
           {/* Drag overlay */}
           {isDraggingChat && (
-            <div className="absolute inset-0 z-10 rounded-2xl border-2 border-dashed border-forge-accent bg-forge-accent/10 flex items-center justify-center pointer-events-none">
-              <span className="text-xs font-medium text-forge-accent">Drop files here</span>
+            <div className="absolute inset-0 z-10 rounded-xl border-2 border-dashed border-forge-accent bg-forge-accent/10 flex items-center justify-center pointer-events-none">
+              <span className="text-[12px] font-medium text-forge-accent">Drop files here</span>
             </div>
           )}
 
@@ -422,7 +422,7 @@ export function ChatPanel(props: ChatPanelProps) {
           {chat.attachments.length > 0 && (
             <div className="flex flex-wrap gap-1.5 px-3 pt-2 pb-1">
               {chat.attachments.map((att, i) => (
-                <div key={i} className="flex items-center gap-1 px-2 py-1 bg-forge-surface border border-forge-border rounded-lg text-[11px]">
+                <div key={i} className="flex items-center gap-1 px-2 py-1 bg-forge-surface border border-forge-border rounded-md text-[11px]">
                   {att.mediaType?.startsWith('image/') ? <ImageIcon className="w-3 h-3" /> : <Paperclip className="w-3 h-3" />}
                   <span className="max-w-[120px] truncate text-forge-text-dim">{att.filename || 'file'}</span>
                   <button onClick={() => chat.handleRemoveAttachment(i)} className="p-0.5 text-forge-text-dim hover:text-red-500 transition-colors" aria-label="Remove attachment">
@@ -449,7 +449,7 @@ export function ChatPanel(props: ChatPanelProps) {
             }}
             placeholder={chat.isEmpty ? 'Describe what you want to build...' : 'Ask for changes, new features, fixes...'}
             rows={1}
-            className="w-full bg-forge-surface border border-forge-border rounded-2xl pl-10 pr-12 py-3 text-[13.5px] text-forge-text placeholder:text-forge-text-dim/40 outline-none focus:border-forge-accent/40 shadow-[inset_0_1px_2px_rgba(0,0,0,0.04),0_1px_2px_rgba(0,0,0,0.02)] focus:shadow-[inset_0_1px_2px_rgba(0,0,0,0.04),0_0_0_3px_var(--color-forge-ring)] resize-none transition-all"
+            className="w-full bg-forge-surface border border-forge-border rounded-xl pl-10 pr-12 py-3 text-[13.5px] text-forge-text placeholder:text-forge-text-dim/40 outline-none focus:border-forge-accent/40 shadow-[inset_0_1px_2px_rgba(0,0,0,0.04),0_1px_2px_rgba(0,0,0,0.02)] focus:shadow-[inset_0_1px_2px_rgba(0,0,0,0.04),0_0_0_3px_var(--color-forge-ring)] resize-none transition-all"
           />
 
           {/* Paperclip file picker button */}
@@ -487,7 +487,7 @@ export function ChatPanel(props: ChatPanelProps) {
                   opacity: (chat.input.trim() || chat.attachments.length > 0) ? 1 : 0.5,
                 }}
                 transition={{ type: 'spring', stiffness: 400, damping: 20 }}
-                className="p-2 rounded-xl bg-gradient-to-b from-forge-accent to-indigo-600 dark:from-forge-accent dark:to-indigo-500 text-white shadow-sm hover:shadow-md disabled:opacity-40 disabled:cursor-not-allowed transition-all"
+                className="p-2 rounded-xl bg-forge-accent hover:bg-forge-accent-hover text-white shadow-sm hover:shadow-md disabled:opacity-40 disabled:cursor-not-allowed transition-all"
                 title="Send message"
                 aria-label="Send message"
               >

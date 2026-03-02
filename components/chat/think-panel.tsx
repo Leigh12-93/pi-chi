@@ -48,7 +48,7 @@ export function ThinkPanel({ plan, files }: { plan: string; files: string[] }) {
             transition={{ duration: 0.25 }}
             className="overflow-hidden"
           >
-            <div className="ml-2.5 border-l border-forge-border/50 pl-5 py-2 space-y-2">
+            <div className="ml-2.5 border-l border-forge-border/40 pl-4 py-2 space-y-2">
               <p className="text-[12.5px] text-forge-text-dim/70 leading-relaxed whitespace-pre-wrap">
                 {planText}
                 {isTruncated && <span className="text-forge-text-dim/40">{'...'} (truncated)</span>}

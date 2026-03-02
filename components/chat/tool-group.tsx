@@ -147,7 +147,7 @@ export function CollapsibleToolGroup({ tools }: { tools: ToolGroupData['tools'] 
             transition={{ type: 'spring', stiffness: 500, damping: 32 }}
             className="overflow-hidden"
           >
-            <div className="ml-2.5 border-l border-forge-border/50 pl-4 py-1 space-y-0.5">
+            <div className="ml-2.5 border-l border-forge-border/40 pl-4 py-1 space-y-0.5">
               {tools.map((t, i) => {
                 const fileInfo = getToolFileInfo(t)
                 return (

@@ -118,11 +118,6 @@ html.dark [data-sonner-toast] [data-description] {
   color: #9ca3af !important;
 }
 
-/* Dark code block hover */
-html.dark .code-block-wrapper:hover > div:first-child {
-  background-color: var(--color-forge-surface);
-}
-
 /* ─── v0-Style Streaming Cursor ────────────────────────────── */
 @keyframes v0Blink {
   0%, 100% { opacity: 1; }
@@ -330,9 +325,9 @@ html.dark .code-block-wrapper:hover > div:first-child {
   will-change: transform, opacity;
 }
 
-/* Code block wrapper hover effect — always dark like v0 */
+/* Code block wrapper hover effect */
 .code-block-wrapper:hover > div:first-child {
-  background-color: var(--color-forge-surface);
+  background-color: var(--color-forge-surface-hover);
 }
 
 /* ─── Forge Building Animation ─────────────────────────────────── */
