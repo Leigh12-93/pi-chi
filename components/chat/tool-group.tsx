@@ -125,7 +125,7 @@ export function CollapsibleToolGroup({ tools }: { tools: ToolGroupData['tools'] 
       >
         <CheckCircle className="w-3.5 h-3.5 text-emerald-500 shrink-0 animate-check-in" />
         <span className="flex-1 text-left truncate">{summaryText}</span>
-        <span className="text-[10px] text-forge-text-dim/50">{tools.length}</span>
+        <span className="inline-flex items-center px-1.5 py-0.5 rounded-md bg-forge-surface text-[9px] text-forge-text-dim/60 font-medium tabular-nums">{tools.length}</span>
         <ChevronDown className={cn('w-3 h-3 transition-transform duration-200', expanded && 'rotate-180')} />
       </button>
       <AnimatePresence>

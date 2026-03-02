@@ -186,6 +186,54 @@ export function getPhaseLabel(lastToolName: string | null): string {
   }
 }
 
+/**
+ * Maps raw tool error strings to user-friendly messages.
+ * Falls back to a truncated version of the raw error.
+ */
+export function getFriendlyError(rawError: string, toolName?: string): string {
+  const lower = rawError.toLowerCase()
+
+  // Rate limiting
+  if (lower.includes('rate limit') || lower.includes('429') || lower.includes('too many requests'))
+    return 'Rate limit hit - wait a moment and retry'
+  // Timeouts
+  if (lower.includes('timed out') || lower.includes('timeout') || lower.includes('etimedout'))
+    return 'Operation timed out - try again'
+  // Auth
+  if (lower.includes('401') || lower.includes('unauthorized') || lower.includes('auth') || lower.includes('forbidden') || lower.includes('403'))
+    return 'Authentication failed - check your credentials'
+  // Not found
+  if (lower.includes('404') || lower.includes('not found') || lower.includes('no such file') || lower.includes('enoent'))
+    return toolName === 'read_file' || toolName === 'edit_file' ? 'File not found - check the path' : 'Resource not found'
+  // Network
+  if (lower.includes('enotfound') || lower.includes('network') || lower.includes('econnrefused') || lower.includes('econnreset') || lower.includes('fetch failed'))
+    return 'Network error - check your connection'
+  // GitHub specific
+  if (lower.includes('github') && lower.includes('abuse'))
+    return 'GitHub abuse detection triggered - slow down requests'
+  // Syntax / parse
+  if (lower.includes('syntax') || lower.includes('parse error') || lower.includes('unexpected token'))
+    return 'Syntax error in the generated code'
+  // Permission
+  if (lower.includes('permission') || lower.includes('eperm') || lower.includes('eacces'))
+    return 'Permission denied - cannot access this resource'
+  // Disk
+  if (lower.includes('enospc') || lower.includes('no space'))
+    return 'No disk space available'
+  // Edit-specific: old_string not found
+  if (lower.includes('old_string not found') || lower.includes('no match') || lower.includes('could not find'))
+    return 'Edit target not found - file may have changed'
+  // Cancelled
+  if (lower.includes('cancelled') || lower.includes('canceled') || lower.includes('aborted'))
+    return 'Cancelled'
+  // Generic server error
+  if (lower.includes('500') || lower.includes('internal server'))
+    return 'Server error - try again'
+
+  // Fallback: truncate the raw error
+  return rawError.length > 80 ? rawError.slice(0, 77) + '...' : rawError
+}
+
 export function extractFileUpdates(
   inv: ToolInvocation,
   currentFiles: Record<string, string>,

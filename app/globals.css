@@ -750,6 +750,16 @@ html.dark .code-block-wrapper:hover > div:first-child {
   animation: readyCheck 0.4s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
 }
 
+/* ─── Response Complete Signal ───────────────────────────── */
+
+@keyframes completeFadeOut {
+  0%, 70% { opacity: 1; }
+  100% { opacity: 0; transform: translateY(-4px); }
+}
+.response-complete-signal {
+  animation: completeFadeOut 3.5s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
 /* ─── Extended Thinking Indicator ────────────────────────── */
 
 /* Brain icon gentle pulse */

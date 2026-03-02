@@ -12,7 +12,7 @@ import { TOOL_LABELS, colorClasses } from '@/lib/chat/constants'
 import { getPhaseLabel } from '@/lib/chat/tool-utils'
 import { cn } from '@/lib/utils'
 import { ErrorBoundary } from '@/components/error-boundary'
-import { motion } from 'framer-motion'
+import { motion, AnimatePresence } from 'framer-motion'
 import { MODEL_OPTIONS, QUICK_ACTIONS } from '@/lib/chat/constants'
 import { MessageItem } from '@/components/chat/message-item'
 import { useForgeChat, type UseForgeChatProps } from '@/hooks/use-forge-chat'
@@ -65,13 +65,18 @@ function ThinkingIndicator({ elapsed, formatElapsed, stepCount, lastCompletedToo
   }, [elapsed])
 
   const isSubmitted = status === 'submitted'
-  const isExtendedThinking = isSubmitted && elapsed >= 5
+  const isExtendedThinking = isSubmitted && elapsed >= 2
   const phaseLabel = getPhaseLabel(lastCompletedToolName)
 
   // During submitted state (pre-stream, extended thinking), show rich thinking UI
   if (isExtendedThinking) {
     return (
-      <div className="relative overflow-hidden rounded-xl border border-forge-accent/15 bg-forge-surface/80">
+      <motion.div
+        initial={{ opacity: 0, scale: 0.97 }}
+        animate={{ opacity: 1, scale: 1 }}
+        transition={{ duration: 0.3, ease: [0.16, 1, 0.3, 1] }}
+        className="relative overflow-hidden rounded-xl border border-forge-accent/15 bg-forge-surface/80"
+      >
         {/* Shimmer progress bar at top */}
         <div className="absolute top-0 left-0 right-0 h-[2px] overflow-hidden">
           <div className="thinking-progress-bar" />
@@ -107,7 +112,7 @@ function ThinkingIndicator({ elapsed, formatElapsed, stepCount, lastCompletedToo
             </p>
           )}
         </div>
-      </div>
+      </motion.div>
     )
   }
 
@@ -142,11 +147,55 @@ function ThinkingIndicator({ elapsed, formatElapsed, stepCount, lastCompletedToo
 
 export type ChatPanelProps = UseForgeChatProps
 
+/** Brief "response complete" banner shown after streaming ends */
+function CompletionSignal({ stepCount, elapsed, formatElapsed }: {
+  stepCount: number
+  elapsed: number
+  formatElapsed: (s: number) => string
+}) {
+  const parts: string[] = []
+  if (stepCount > 0) parts.push(`${stepCount} action${stepCount !== 1 ? 's' : ''}`)
+  if (elapsed > 0) parts.push(formatElapsed(elapsed))
+
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 4, scale: 0.96 }}
+      animate={{ opacity: 1, y: 0, scale: 1 }}
+      exit={{ opacity: 0, y: -4, scale: 0.96 }}
+      transition={{ duration: 0.3, ease: [0.16, 1, 0.3, 1] }}
+      className="flex items-center gap-2 px-3 py-1.5 rounded-xl text-[11.5px] bg-emerald-50/60 dark:bg-emerald-950/15 border border-emerald-200/50 dark:border-emerald-800/30 response-complete-signal"
+    >
+      <CheckCircle className="w-3.5 h-3.5 text-emerald-500 animate-check-in" />
+      <span className="text-emerald-600 dark:text-emerald-400 font-medium">Done</span>
+      {parts.length > 0 && (
+        <span className="text-emerald-500/60 dark:text-emerald-400/40">
+          {parts.join(' in ')}
+        </span>
+      )}
+    </motion.div>
+  )
+}
+
 export function ChatPanel(props: ChatPanelProps) {
   const chat = useForgeChat(props)
   const [isDraggingChat, setIsDraggingChat] = useState(false)
   const [dismissedError, setDismissedError] = useState<string | null>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
+
+  // Track completion signal: show briefly when streaming ends
+  const [showComplete, setShowComplete] = useState(false)
+  const [completionStats, setCompletionStats] = useState({ stepCount: 0, elapsed: 0 })
+  const wasLoadingRef = useRef(false)
+  useEffect(() => {
+    if (wasLoadingRef.current && !chat.isLoading && !chat.error) {
+      // Streaming just finished
+      setCompletionStats({ stepCount: chat.stepCount, elapsed: chat.elapsed })
+      setShowComplete(true)
+      const timer = setTimeout(() => setShowComplete(false), 3500)
+      return () => clearTimeout(timer)
+    }
+    wasLoadingRef.current = chat.isLoading
+  }, [chat.isLoading, chat.error, chat.stepCount, chat.elapsed])
 
   return (
     <ErrorBoundary>
@@ -273,6 +322,17 @@ export function ChatPanel(props: ChatPanelProps) {
                 )}
               </div>
             )}
+
+            {/* Response complete signal */}
+            <AnimatePresence>
+              {showComplete && !chat.isLoading && (
+                <CompletionSignal
+                  stepCount={completionStats.stepCount}
+                  elapsed={completionStats.elapsed}
+                  formatElapsed={chat.formatElapsed}
+                />
+              )}
+            </AnimatePresence>
 
             {/* Error banner */}
             {chat.error && dismissedError !== chat.errorMessage && (
@@ -459,13 +519,18 @@ export function ChatPanel(props: ChatPanelProps) {
                     {chat.autoRoutedModel.model.includes('haiku') ? 'Haiku' : chat.autoRoutedModel.model.includes('opus') ? 'Opus' : 'Sonnet'}
                   </span>
                 )}
+                {chat.isLoading && chat.stepCount > 0 && (
+                  <span className="text-[10px] text-forge-accent/60 font-medium tabular-nums">
+                    {chat.stepCount} action{chat.stepCount !== 1 ? 's' : ''}
+                  </span>
+                )}
                 {(chat.realTokens || chat.estimatedTokens) > 0 && (
                   <span className="text-[10px] text-forge-text-dim/50" title={chat.realTokens ? 'Actual API token usage' : 'Estimated token usage'}>
                     {chat.realTokens ? '' : '~'}{(chat.realTokens || chat.estimatedTokens) > 1000 ? `${((chat.realTokens || chat.estimatedTokens) / 1000).toFixed(1)}k` : (chat.realTokens || chat.estimatedTokens)} tokens
                   </span>
                 )}
                 {chat.isLoading && chat.elapsed > 0 && (
-                  <span className="text-[10px] text-forge-text-dim/50 flex items-center gap-0.5">
+                  <span className="text-[10px] text-forge-text-dim/50 flex items-center gap-0.5 tabular-nums">
                     <Clock className="w-2.5 h-2.5" />
                     {chat.formatElapsed(chat.elapsed)}
                   </span>

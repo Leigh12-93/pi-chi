@@ -10,7 +10,7 @@ import {
 import { motion } from 'framer-motion'
 import { cn } from '@/lib/utils'
 import { TOOL_LABELS, colorClasses } from '@/lib/chat/constants'
-import { getToolSummary, type ToolInvocation } from '@/lib/chat/tool-utils'
+import { getToolSummary, getFriendlyError, type ToolInvocation } from '@/lib/chat/tool-utils'
 import { cachedRenderMarkdown } from '@/lib/chat/markdown'
 import { ThinkPanel } from './think-panel'
 import { EnvVarInputCard } from './env-var-input-card'
@@ -343,13 +343,7 @@ export const MessageItem = memo(function MessageItem({
 
               if (isTaskFailed) {
                 const rawError = resultData?.error ? String(resultData.error) : ''
-                const friendlyError = rawError.includes('rate limit') ? 'GitHub rate limit hit — wait a few minutes and retry'
-                  : rawError.includes('timed out') || rawError.includes('timeout') ? 'Operation timed out — try again'
-                  : rawError.includes('401') || rawError.includes('auth') ? 'Authentication failed — check your credentials'
-                  : rawError.includes('404') || rawError.includes('not found') ? 'Resource not found — check the URL or repo name'
-                  : rawError.includes('ENOTFOUND') || rawError.includes('network') ? 'Network error — check your connection'
-                  : rawError.includes('Cancelled') ? 'Cancelled by user'
-                  : rawError.slice(0, 100)
+                const friendlyError = getFriendlyError(rawError, inv.toolName)
                 return (
                   <motion.div
                     key={partIdx}
@@ -385,6 +379,10 @@ export const MessageItem = memo(function MessageItem({
                 )
               }
 
+              const rawError = hasError && typeof (inv.result as Record<string, unknown>)?.error === 'string'
+                ? (inv.result as Record<string, unknown>).error as string : ''
+              const friendlyErr = rawError ? getFriendlyError(rawError, inv.toolName) : ''
+
               return (
                 <motion.div
                   key={partIdx}
@@ -404,9 +402,18 @@ export const MessageItem = memo(function MessageItem({
                       : hasError ? <XCircle className="w-3 h-3 text-red-600 dark:text-red-400" />
                       : <info.Icon className="w-3 h-3" />}
                   </div>
-                  <span className={cn('truncate flex-1', hasError ? 'text-red-600 dark:text-red-400' : 'text-forge-text-dim')}>
-                    {summary}
-                  </span>
+                  <div className="flex-1 min-w-0">
+                    {hasError ? (
+                      <div className="flex flex-col gap-0.5">
+                        <span className="truncate text-red-600 dark:text-red-400 font-medium">{info.label} failed</span>
+                        <span className="truncate text-red-500/80 dark:text-red-400/60 text-[11px]" title={rawError}>
+                          {friendlyErr}
+                        </span>
+                      </div>
+                    ) : (
+                      <span className="truncate block text-forge-text-dim">{summary}</span>
+                    )}
+                  </div>
                   {!isRunning && !hasError && <CheckCircle className="w-3 h-3 text-emerald-500 shrink-0 animate-check-in" />}
                 </motion.div>
               )
