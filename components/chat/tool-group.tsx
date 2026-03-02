@@ -117,9 +117,18 @@ export function CollapsibleToolGroup({ tools }: { tools: ToolGroupData['tools'] 
   const [expanded, setExpanded] = useState(false)
   const groupMeta = getGroupMeta(tools)
 
-  // Count file types for the summary
+  // Dedupe file names for compact chip display
+  const fileChips = (() => {
+    const seen = new Map<string, number>()
+    for (const t of tools) {
+      const fi = getToolFileInfo(t)
+      const name = fi.name
+      seen.set(name, (seen.get(name) || 0) + 1)
+    }
+    return Array.from(seen.entries())
+  })()
+
   const fileCount = tools.length
-  const summaryText = `${groupMeta.label} \u00B7 ${fileCount} ${fileCount === 1 ? 'File' : 'Files'}`
 
   return (
     <motion.div
@@ -135,9 +144,24 @@ export function CollapsibleToolGroup({ tools }: { tools: ToolGroupData['tools'] 
         <div className={cn('w-5 h-5 rounded-md flex items-center justify-center shrink-0', colorClasses[groupMeta.color] || colorClasses.gray)}>
           <groupMeta.Icon className="w-3 h-3" />
         </div>
-        <span className="flex-1 text-left font-medium">{summaryText}</span>
+        <span className="flex-1 text-left font-medium">{groupMeta.label}</span>
+        <span className="text-[11px] text-forge-text-dim/40 font-mono shrink-0 mr-1">{fileCount} file{fileCount !== 1 ? 's' : ''}</span>
         <ChevronDown className={cn('w-3.5 h-3.5 text-forge-text-dim/40 transition-transform duration-200', expanded && 'rotate-180')} />
       </button>
+
+      {/* Compact file chips row - always visible */}
+      {!expanded && fileChips.length > 0 && (
+        <div className="flex flex-wrap gap-1.5 pl-[30px] pb-1">
+          {fileChips.map(([name, count]) => (
+            <span key={name} className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md text-[11px] font-mono text-forge-text-dim/60 bg-forge-surface border border-forge-border/40">
+              <CheckCircle className="w-3 h-3 text-emerald-500/70" />
+              {name}
+              {count > 1 && <span className="text-forge-text-dim/40">x{count}</span>}
+            </span>
+          ))}
+        </div>
+      )}
+
       <AnimatePresence>
         {expanded && (
           <motion.div
@@ -150,16 +174,18 @@ export function CollapsibleToolGroup({ tools }: { tools: ToolGroupData['tools'] 
             <div className="ml-2.5 border-l border-forge-border/40 pl-4 py-1 space-y-0.5">
               {tools.map((t, i) => {
                 const fileInfo = getToolFileInfo(t)
+                const info = TOOL_LABELS[t.toolName] || { label: t.toolName.replace(/_/g, ' '), Icon: Terminal, color: 'gray' }
                 return (
                   <motion.div
                     key={t.partIdx}
                     initial={{ opacity: 0, x: -4 }}
                     animate={{ opacity: 1, x: 0 }}
                     transition={{ duration: 0.15, delay: i * 0.03 }}
-                    className="flex items-baseline gap-1.5 py-0.5 text-[12px] text-forge-text-dim/70"
+                    className="flex items-center gap-1.5 py-0.5 text-[12px] text-forge-text-dim/70"
                   >
-                    <div className="w-1.5 h-1.5 rounded-full bg-forge-border shrink-0 -ml-[21px] relative top-[5px]" />
-                    <span className="shrink-0">{fileInfo.name}</span>
+                    <div className="w-1.5 h-1.5 rounded-full bg-emerald-400/60 shrink-0 -ml-[21px]" />
+                    <span className="text-forge-text-dim/50 shrink-0">{info.label}</span>
+                    <span className="font-mono shrink-0">{fileInfo.name}</span>
                     {fileInfo.path && <span className="tool-timeline-path hidden sm:inline">{fileInfo.path}</span>}
                   </motion.div>
                 )

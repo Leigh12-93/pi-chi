@@ -68,86 +68,75 @@ function ThinkingIndicator({ elapsed, formatElapsed, stepCount, lastCompletedToo
   const isExtendedThinking = isSubmitted && elapsed >= 2
   const phaseLabel = getPhaseLabel(lastCompletedToolName)
 
-  // During submitted state (pre-stream, extended thinking), show rich thinking UI
+  // Extended thinking: flat inline timeline item (no card)
   if (isExtendedThinking) {
     return (
       <motion.div
-        initial={{ opacity: 0, scale: 0.97 }}
-        animate={{ opacity: 1, scale: 1 }}
-        transition={{ duration: 0.3, ease: [0.16, 1, 0.3, 1] }}
-        className="relative overflow-hidden rounded-xl border border-forge-border bg-forge-surface/80"
+        initial={{ opacity: 0, y: 4 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.25, ease: [0.16, 1, 0.3, 1] }}
+        className="tool-timeline-item space-y-0.5"
       >
-        {/* Shimmer progress bar at top */}
-        <div className="absolute top-0 left-0 right-0 h-[2px] overflow-hidden">
-          <div className="thinking-progress-bar" />
-        </div>
-
-        <div className="px-3 py-2.5 space-y-1.5">
-          {/* Main thinking row */}
-          <div className="flex items-center gap-2.5">
-            <div className="w-5 h-5 rounded-md bg-forge-accent/10 border border-forge-accent/20 flex items-center justify-center shrink-0 icon-glow-pulse">
-              <Brain className="w-3 h-3 text-forge-accent thinking-brain" />
-            </div>
-            <div className="flex-1 min-w-0">
-              <div className="flex items-center gap-1.5">
-                <span className="text-[13px] text-forge-text font-medium thinking-text-rotate shimmer-task" key={messageIdx}>
-                  {THINKING_MESSAGES[messageIdx]}
-                </span>
-                <span className="flex items-center gap-0.5 ml-0.5">
-                  <span className="typing-dot" />
-                  <span className="typing-dot" />
-                  <span className="typing-dot" />
-                </span>
-              </div>
-            </div>
-            <span className="text-[11px] text-forge-text-dim/40 font-mono shrink-0 tabular-nums">
-              {formatElapsed(elapsed)}
+        <div className="flex items-center gap-2.5 py-1">
+          <div className="w-5 h-5 rounded-md bg-forge-accent/10 border border-forge-accent/20 flex items-center justify-center shrink-0 icon-glow-pulse">
+            <Brain className="w-3 h-3 text-forge-accent thinking-brain" />
+          </div>
+          <div className="flex-1 min-w-0 flex items-center gap-1.5">
+            <span className="text-[13px] text-forge-text font-medium shimmer-text thinking-text-rotate" key={messageIdx}>
+              {THINKING_MESSAGES[messageIdx]}
+            </span>
+            <span className="flex items-center gap-0.5">
+              <span className="typing-dot" />
+              <span className="typing-dot" />
+              <span className="typing-dot" />
             </span>
           </div>
-
-          {/* Milestone message - shows context about why it's taking long */}
-          {milestone && elapsed >= 10 && (
-            <p className="text-[11px] text-forge-text-dim/50 pl-[30px] thinking-text-rotate" key={milestone}>
-              {milestone}
-            </p>
-          )}
+          <span className="text-[11px] text-forge-text-dim/40 font-mono shrink-0 tabular-nums">
+            {formatElapsed(elapsed)}
+          </span>
         </div>
+        {milestone && elapsed >= 10 && (
+          <p className="text-[11px] text-forge-text-dim/40 pl-[30px] thinking-text-rotate" key={milestone}>
+            {milestone}
+          </p>
+        )}
       </motion.div>
     )
   }
 
-  // Standard between-tools indicator (streaming state or short submitted)
+  // Standard between-tools indicator: flat inline timeline item (no card)
   return (
-    <div className="flex items-center gap-2.5 px-3 py-2 bg-forge-surface/80 border border-forge-border rounded-xl">
-      {isSubmitted ? (
-        <div className="w-5 h-5 rounded-md bg-forge-accent/10 flex items-center justify-center shrink-0">
-          <Brain className="w-3 h-3 text-forge-accent thinking-brain" />
-        </div>
-      ) : (
-        <span className="flex items-center gap-0.5">
-          <span className="typing-dot" />
-          <span className="typing-dot" />
-          <span className="typing-dot" />
-        </span>
-      )}
-      <span className={cn('text-[13px] text-forge-text-dim', isSubmitted && 'shimmer-task')}>
-        {isSubmitted ? 'Thinking' : phaseLabel}
-        {stepCount >= 3 && (
-          <span className="text-forge-text-dim/50"> &middot; {stepCount} actions</span>
+    <div className="tool-timeline-item">
+      <div className="flex items-center gap-2.5 py-1">
+        {isSubmitted ? (
+          <div className="w-5 h-5 rounded-md bg-forge-accent/10 flex items-center justify-center shrink-0 icon-glow-pulse">
+            <Brain className="w-3 h-3 text-forge-accent thinking-brain" />
+          </div>
+        ) : (
+          <div className="w-5 h-5 rounded-md bg-forge-surface flex items-center justify-center shrink-0">
+            <span className="flex items-center gap-0.5">
+              <span className="typing-dot !w-[3px] !h-[3px]" />
+              <span className="typing-dot !w-[3px] !h-[3px]" />
+              <span className="typing-dot !w-[3px] !h-[3px]" />
+            </span>
+          </div>
         )}
-      </span>
-      {elapsed > 0 && (
-        <span className="text-[11px] text-forge-text-dim/40 font-mono shrink-0 tabular-nums">
-          {formatElapsed(elapsed)}
+        <span className={cn('text-[13px] text-forge-text-dim', isSubmitted && 'shimmer-task')}>
+          {isSubmitted ? 'Thinking' : phaseLabel}
         </span>
-      )}
+        {elapsed > 0 && (
+          <span className="text-[11px] text-forge-text-dim/40 font-mono shrink-0 tabular-nums">
+            {formatElapsed(elapsed)}
+          </span>
+        )}
+      </div>
     </div>
   )
 }
 
 export type ChatPanelProps = UseForgeChatProps
 
-/** Brief "response complete" banner shown after streaming ends */
+/** Brief "response complete" signal -- flat inline timeline item */
 function CompletionSignal({ stepCount, elapsed, formatElapsed }: {
   stepCount: number
   elapsed: number
@@ -159,19 +148,23 @@ function CompletionSignal({ stepCount, elapsed, formatElapsed }: {
 
   return (
     <motion.div
-      initial={{ opacity: 0, y: 4, scale: 0.96 }}
-      animate={{ opacity: 1, y: 0, scale: 1 }}
-      exit={{ opacity: 0, y: -4, scale: 0.96 }}
-      transition={{ duration: 0.3, ease: [0.16, 1, 0.3, 1] }}
-      className="flex items-center gap-2 px-3 py-1.5 rounded-xl text-[12px] bg-emerald-50/60 dark:bg-emerald-950/15 border border-emerald-200/50 dark:border-emerald-800/30 response-complete-signal"
+      initial={{ opacity: 0, y: 4 }}
+      animate={{ opacity: 1, y: 0 }}
+      exit={{ opacity: 0, y: -4 }}
+      transition={{ duration: 0.25, ease: [0.16, 1, 0.3, 1] }}
+      className="tool-timeline-item response-complete-signal"
     >
-      <CheckCircle className="w-3.5 h-3.5 text-emerald-500 animate-check-in" />
-      <span className="text-emerald-600 dark:text-emerald-400 font-medium">Done</span>
-      {parts.length > 0 && (
-        <span className="text-emerald-500/60 dark:text-emerald-400/40">
-          {parts.join(' in ')}
-        </span>
-      )}
+      <div className="flex items-center gap-2.5 py-1">
+        <div className="w-5 h-5 rounded-md flex items-center justify-center shrink-0 text-emerald-600 bg-emerald-50 dark:text-emerald-400 dark:bg-emerald-950/40">
+          <CheckCircle className="w-3 h-3 animate-check-in" />
+        </div>
+        <span className="text-[13px] text-forge-text-dim font-medium">Done</span>
+        {parts.length > 0 && (
+          <span className="text-[11px] text-forge-text-dim/40">
+            {parts.join(' in ')}
+          </span>
+        )}
+      </div>
     </motion.div>
   )
 }
@@ -267,42 +260,10 @@ export function ChatPanel(props: ChatPanelProps) {
               />
             ))}
 
-            {/* Streaming activity indicator - v0-style timeline */}
+            {/* Streaming activity indicator - v0-style flat inline timeline */}
             {chat.isLoading && (
-              <div className="py-2 animate-fade-in space-y-0">
-                {/* Recent completed steps as timeline items */}
-                {chat.currentActivity?.recentCompleted && chat.currentActivity.recentCompleted.length > 0 && (
-                  <div className="space-y-0">
-                    {chat.currentActivity.recentCompleted.map((step, i) => {
-                      const info = TOOL_LABELS[step.toolName] || { label: step.toolName.replace(/_/g, ' '), Icon: CheckCircle, color: 'gray' }
-                      const args = step.args as Record<string, string>
-                      const filePath = args.path || args.file || args.filePath || args.file_path || ''
-                      const fileName = filePath ? filePath.split('/').pop() : ''
-                      const parentPath = filePath && fileName ? filePath.slice(0, filePath.length - fileName.length).replace(/\/$/, '') : ''
-                      const displayPath = parentPath.length > 30 ? '...' + parentPath.slice(parentPath.length - 27) : parentPath
-                      return (
-                        <div key={i} className="tool-timeline-item">
-                          <div className="flex items-center gap-2.5 py-1 relative">
-                            <div className={cn('w-5 h-5 rounded-md flex items-center justify-center shrink-0 z-[1]', colorClasses[info.color] || colorClasses.gray)}>
-                              <info.Icon className="w-3 h-3" />
-                            </div>
-                            <div className="flex-1 min-w-0 flex items-baseline gap-1.5">
-                              <span className="text-[13px] text-forge-text-dim/60 shrink-0">{info.label}</span>
-                              {fileName && (
-                                <span className="flex items-baseline gap-1.5 min-w-0 truncate">
-                                  <span className="font-mono text-[11.5px] text-forge-text-dim/40 shrink-0">{fileName}</span>
-                                  {displayPath && <span className="tool-timeline-path hidden sm:inline">{displayPath}</span>}
-                                </span>
-                              )}
-                            </div>
-                          </div>
-                        </div>
-                      )
-                    })}
-                  </div>
-                )}
-
-                {/* Current active tool or thinking indicator */}
+              <div className="animate-fade-in">
+                {/* Current active tool or thinking indicator -- no card, just timeline items */}
                 {chat.currentActivity?.toolName ? (() => {
                   const info = TOOL_LABELS[chat.currentActivity.toolName] || { label: chat.currentActivity.toolName.replace(/_/g, ' '), Icon: Loader2, color: 'gray' }
                   const args = chat.currentActivity.args as Record<string, string>
