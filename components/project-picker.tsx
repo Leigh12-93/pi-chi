@@ -47,6 +47,8 @@ interface ProjectPickerProps {
   isLoggedIn: boolean
   loadError?: boolean
   onRetryLoad?: () => void
+  hasMoreProjects?: boolean
+  onLoadMoreProjects?: () => void
 }
 
 const FRAMEWORK_COLORS: Record<string, string> = {
@@ -80,30 +82,37 @@ const QUICK_STARTS = [
   { label: 'E-commerce', icon: ShoppingBag, query: 'Build an e-commerce product page with image gallery, size/color selector, add to cart, reviews section, and related products. Clean, modern design like Apple Store.' },
 ]
 
-export function ProjectPicker({ onSelect, savedProjects, loadingProjects, onDeleteProject, deletingProjectId, loadingProjectId, isLoggedIn, loadError, onRetryLoad }: ProjectPickerProps) {
+export function ProjectPicker({ onSelect, savedProjects, loadingProjects, onDeleteProject, deletingProjectId, loadingProjectId, isLoggedIn, loadError, onRetryLoad, hasMoreProjects, onLoadMoreProjects }: ProjectPickerProps) {
   const [name, setName] = useState('')
   const [creating, setCreating] = useState(false)
   const deletingId = deletingProjectId ?? null
   const [githubRepos, setGithubRepos] = useState<GitHubRepo[]>([])
   const [loadingRepos, setLoadingRepos] = useState(false)
+  const [reposHasMore, setReposHasMore] = useState(false)
+  const [reposPage, setReposPage] = useState(1)
   const [importingRepo, setImportingRepo] = useState<string | null>(null)
   const [tab, setTab] = useState<'projects' | 'github'>('projects')
   const [searchQuery, setSearchQuery] = useState('')
   const [deleteConfirm, setDeleteConfirm] = useState<{ id: string; name: string } | null>(null)
 
+  const loadRepos = async (page = 1) => {
+    setLoadingRepos(true)
+    try {
+      const res = await fetch(`/api/github/repos?page=${page}&per_page=30`)
+      const data = await res.json()
+      const repos = Array.isArray(data) ? data : data?.repos
+      if (Array.isArray(repos)) {
+        setGithubRepos(prev => page === 1 ? repos : [...prev, ...repos])
+        setReposHasMore(!!data.hasMore)
+        setReposPage(page)
+      }
+    } catch {}
+    setLoadingRepos(false)
+  }
+
   // Load GitHub repos when logged in
   useEffect(() => {
-    if (isLoggedIn) {
-      setLoadingRepos(true)
-      fetch('/api/github/repos')
-        .then(res => res.json())
-        .then(data => {
-          const repos = Array.isArray(data) ? data : data?.repos
-          if (Array.isArray(repos)) setGithubRepos(repos)
-        })
-        .catch(() => {})
-        .finally(() => setLoadingRepos(false))
-    }
+    if (isLoggedIn) loadRepos(1)
   }, [isLoggedIn])
 
   const handleCreate = () => {
@@ -401,6 +410,16 @@ export function ProjectPicker({ onSelect, savedProjects, loadingProjects, onDele
                     ))}
                   </div>
                 )}
+                {hasMoreProjects && !loadingProjects && (
+                  <div className="flex justify-center mt-4">
+                    <button
+                      onClick={onLoadMoreProjects}
+                      className="flex items-center gap-1.5 px-4 py-2 text-xs font-medium text-forge-text-dim hover:text-forge-text border border-forge-border rounded-lg hover:border-forge-accent/50 hover:bg-forge-accent/5 transition-all"
+                    >
+                      Load more
+                    </button>
+                  </div>
+                )}
               </>
             )}
 
@@ -476,6 +495,16 @@ export function ProjectPicker({ onSelect, savedProjects, loadingProjects, onDele
                         )}
                       </button>
                     ))}
+                  </div>
+                )}
+                {reposHasMore && !loadingRepos && (
+                  <div className="flex justify-center mt-4">
+                    <button
+                      onClick={() => loadRepos(reposPage + 1)}
+                      className="flex items-center gap-1.5 px-4 py-2 text-xs font-medium text-forge-text-dim hover:text-forge-text border border-forge-border rounded-lg hover:border-forge-accent/50 hover:bg-forge-accent/5 transition-all"
+                    >
+                      Load more
+                    </button>
                   </div>
                 )}
               </>

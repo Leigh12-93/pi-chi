@@ -26,6 +26,8 @@ export default function ForgePage() {
   const [activeFile, setActiveFile] = useState<string | null>(null)
   const [savedProjects, setSavedProjects] = useState<SavedProject[]>([])
   const [loadingProjects, setLoadingProjects] = useState(false)
+  const [projectsHasMore, setProjectsHasMore] = useState(false)
+  const projectsPageRef = useRef(1)
   const [loadingProjectId, setLoadingProjectId] = useState<string | null>(null)
   const autoSaveTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const lastSavedHash = useRef<string>('')
@@ -151,22 +153,25 @@ export default function ForgePage() {
     }
   }, [session?.githubUsername])
 
-  const loadProjects = async () => {
+  const loadProjects = async (page = 1) => {
     if (loadingProjectsRef.current) return
     loadingProjectsRef.current = true
     setLoadingProjects(true)
-    setProjectsLoadError(false)
+    if (page === 1) setProjectsLoadError(false)
     try {
-      const res = await fetch('/api/projects')
+      const res = await fetch(`/api/projects?page=${page}&limit=20`)
       if (res.ok) {
         const data = await res.json()
-        setSavedProjects(data.projects || data)
+        const projects = data.projects || data
+        setSavedProjects(prev => page === 1 ? projects : [...prev, ...projects])
+        setProjectsHasMore(!!data.hasMore)
+        projectsPageRef.current = page
       } else {
-        setProjectsLoadError(true)
+        if (page === 1) setProjectsLoadError(true)
       }
     } catch (err) {
       console.error('Failed to load projects:', err)
-      setProjectsLoadError(true)
+      if (page === 1) setProjectsLoadError(true)
     } finally {
       setLoadingProjects(false)
       loadingProjectsRef.current = false
@@ -385,6 +390,8 @@ export default function ForgePage() {
           isLoggedIn={!!session?.user}
           loadError={projectsLoadError}
           onRetryLoad={loadProjects}
+          hasMoreProjects={projectsHasMore}
+          onLoadMoreProjects={() => loadProjects(projectsPageRef.current + 1)}
         />
       </ErrorBoundary>
     )
