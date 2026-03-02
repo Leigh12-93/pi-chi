@@ -109,6 +109,9 @@ function classifyModelComplexity(messages: any[], fileCount: number): { model: s
 // POST handler — AI SDK v6 with Vercel AI Gateway
 // ═══════════════════════════════════════════════════════════════════
 
+// Allow long-running streams — Vercel Pro plan supports up to 300s
+export const maxDuration = 300
+
 export async function POST(req: Request) {
   const requestId = crypto.randomUUID()
 
@@ -387,10 +390,13 @@ export async function POST(req: Request) {
     'claude-opus-4-20250514': 64000,
   }
 
-  // Per-model step budgets (more complex models can do more agentic loops)
+  // Per-model step budgets — higher = more agentic loops before stopping
+  // These need to be high enough that the AI never stops mid-task
   const MODEL_MAX_STEPS: Record<string, number> = {
-    'claude-opus-4-6': 75,
-    'claude-opus-4-20250514': 60,
+    'claude-opus-4-6': 120,
+    'claude-opus-4-20250514': 100,
+    'claude-sonnet-4-20250514': 80,
+    'claude-haiku-35-20241022': 60,
   }
 
   // ── Layer 2: Auto-compaction via Haiku summarization ──────────
@@ -516,7 +522,7 @@ export async function POST(req: Request) {
 
   // Global timeout
   const streamAbort = new AbortController()
-  const streamTimeout = setTimeout(() => streamAbort.abort('Stream timeout: 5 minutes exceeded'), 5 * 60 * 1000)
+  const streamTimeout = setTimeout(() => streamAbort.abort('Stream timeout: 10 minutes exceeded'), 10 * 60 * 1000)
 
   // Build tool context
   const ctx: ToolContext = {
@@ -591,7 +597,7 @@ export async function POST(req: Request) {
             + (promptExample ? `\n\n## Structural Guide for This Request\n${promptExample}` : ''),
           messages,
           maxOutputTokens: dynamicMaxTokens,
-          stopWhen: stepCountIs(MODEL_MAX_STEPS[selectedModel] || 50),
+          stopWhen: stepCountIs(MODEL_MAX_STEPS[selectedModel] || 70),
           abortSignal: streamAbort.signal,
           tools: allTools,
           // Enable Anthropic prompt caching — 90% input token discount on cached prefix
