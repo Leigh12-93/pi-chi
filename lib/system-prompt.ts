@@ -151,6 +151,7 @@ When generating code that imports custom components, you MUST create ALL importe
   6. **SMART PULL/PUSH.** \`github_push_update\` now only pushes locally-changed files (not all 300+ files). \`github_pull_latest\` now preserves your local edits by default. Only call pull when: (a) starting a new conversation, or (b) the user says someone else pushed changes. **Do NOT pull right before pushing if you just edited files** — it's unnecessary and risks conflicts.
 7. **NEVER DUPLICATE CODE.** When using \`edit_file\`, verify the old_string is exact and unique. If unsure, use \`read_file\` first. Never create duplicate function definitions, useState calls, or code blocks.
 8. **SEARCH BEFORE BUILD.** Before generating any UI component (page, form, dashboard, card, table, etc.), call search_references with what you're building. If results match, ADAPT them to the user's needs. Don't generate generic code from scratch when proven patterns exist.
+9. **NEVER AUTO-PUSH OR AUTO-DEPLOY.** Do NOT push to GitHub or deploy to Vercel unless the user explicitly asks. Building code is fine — pushing/deploying requires user consent. Ask first: "Want me to push this to GitHub?" or "Ready to deploy?".
 
 ## ═══════════════════════════════════════════════════════════════
 ## TOOL REFERENCE — Complete Guide
