@@ -1,8 +1,8 @@
 'use client'
 
-import { useState, useRef } from 'react'
+import { useState, useRef, useEffect, useMemo } from 'react'
 import {
-  Loader2, Check, Trash2,
+  Loader2, Check, Trash2, Brain,
   Sparkles, ArrowUp, StopCircle,
   AlertTriangle, ChevronDown, Clock,
   Globe, FileText, FolderPlus,
@@ -16,6 +16,129 @@ import { motion } from 'framer-motion'
 import { MODEL_OPTIONS, QUICK_ACTIONS } from '@/lib/chat/constants'
 import { MessageItem } from '@/components/chat/message-item'
 import { useForgeChat, type UseForgeChatProps } from '@/hooks/use-forge-chat'
+
+/** Rotating messages shown during extended thinking (Opus etc.) */
+const THINKING_MESSAGES = [
+  'Thinking deeply',
+  'Reasoning through the problem',
+  'Analyzing your codebase',
+  'Considering the best approach',
+  'Planning the implementation',
+  'Evaluating options',
+  'Working through the details',
+  'Almost ready',
+]
+
+const THINKING_MILESTONES = [
+  { at: 10, text: 'This model thinks before responding' },
+  { at: 30, text: 'Deep reasoning in progress' },
+  { at: 60, text: 'Still working - complex problems take time' },
+  { at: 120, text: 'Extended thinking - hang tight' },
+  { at: 180, text: 'Long reasoning session - almost there' },
+  { at: 240, text: 'This is a deep one - still going' },
+  { at: 300, text: 'Nearly done thinking' },
+]
+
+function ThinkingIndicator({ elapsed, formatElapsed, stepCount, lastCompletedToolName, status }: {
+  elapsed: number
+  formatElapsed: (s: number) => string
+  stepCount: number
+  lastCompletedToolName: string | null
+  status: string
+}) {
+  // Rotate through thinking messages every 8 seconds
+  const [messageIdx, setMessageIdx] = useState(0)
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setMessageIdx(prev => (prev + 1) % THINKING_MESSAGES.length)
+    }, 8000)
+    return () => clearInterval(interval)
+  }, [])
+
+  // Get the appropriate milestone message based on elapsed time
+  const milestone = useMemo(() => {
+    let msg = ''
+    for (const m of THINKING_MILESTONES) {
+      if (elapsed >= m.at) msg = m.text
+    }
+    return msg
+  }, [elapsed])
+
+  const isSubmitted = status === 'submitted'
+  const isExtendedThinking = isSubmitted && elapsed >= 5
+  const phaseLabel = getPhaseLabel(lastCompletedToolName)
+
+  // During submitted state (pre-stream, extended thinking), show rich thinking UI
+  if (isExtendedThinking) {
+    return (
+      <div className="relative overflow-hidden rounded-xl border border-forge-accent/15 bg-forge-surface/80">
+        {/* Shimmer progress bar at top */}
+        <div className="absolute top-0 left-0 right-0 h-[2px] overflow-hidden">
+          <div className="thinking-progress-bar" />
+        </div>
+
+        <div className="px-3 py-2.5 space-y-1.5">
+          {/* Main thinking row */}
+          <div className="flex items-center gap-2.5">
+            <div className="w-6 h-6 rounded-lg bg-forge-accent/10 border border-forge-accent/20 flex items-center justify-center shrink-0">
+              <Brain className="w-3.5 h-3.5 text-forge-accent thinking-brain" />
+            </div>
+            <div className="flex-1 min-w-0">
+              <div className="flex items-center gap-1.5">
+                <span className="text-[12.5px] text-forge-text font-medium thinking-text-rotate" key={messageIdx}>
+                  {THINKING_MESSAGES[messageIdx]}
+                </span>
+                <span className="flex items-center gap-0.5 ml-0.5">
+                  <span className="typing-dot" />
+                  <span className="typing-dot" />
+                  <span className="typing-dot" />
+                </span>
+              </div>
+            </div>
+            <span className="text-[11px] text-forge-accent/70 font-mono shrink-0 tabular-nums">
+              {formatElapsed(elapsed)}
+            </span>
+          </div>
+
+          {/* Milestone message - shows context about why it's taking long */}
+          {milestone && elapsed >= 10 && (
+            <p className="text-[10.5px] text-forge-text-dim/60 pl-[34px] thinking-text-rotate" key={milestone}>
+              {milestone}
+            </p>
+          )}
+        </div>
+      </div>
+    )
+  }
+
+  // Standard between-tools indicator (streaming state or short submitted)
+  return (
+    <div className="flex items-center gap-2 px-3 py-2 bg-forge-surface/80 border border-forge-border rounded-xl">
+      {isSubmitted ? (
+        <div className="w-5 h-5 rounded-lg bg-forge-accent/10 flex items-center justify-center shrink-0">
+          <Brain className="w-3 h-3 text-forge-accent thinking-brain" />
+        </div>
+      ) : (
+        <span className="flex items-center gap-0.5">
+          <span className="typing-dot" />
+          <span className="typing-dot" />
+          <span className="typing-dot" />
+        </span>
+      )}
+      <span className="text-[12px] text-forge-text-dim">
+        {isSubmitted ? 'Thinking' : phaseLabel}
+        {stepCount >= 3 && (
+          <span className="text-forge-text-dim/50"> &middot; {stepCount} actions</span>
+        )}
+      </span>
+      {elapsed > 0 && (
+        <span className="text-[10px] text-forge-text-dim/50 font-mono tabular-nums">
+          {formatElapsed(elapsed)}
+        </span>
+      )}
+    </div>
+  )
+}
 
 export type ChatPanelProps = UseForgeChatProps
 
@@ -123,24 +246,13 @@ export function ChatPanel(props: ChatPanelProps) {
                     </div>
                   )
                 })() : (
-                  <div className="flex items-center gap-2 px-3 py-2 bg-forge-surface/80 border border-forge-border rounded-xl">
-                    <span className="flex items-center gap-0.5">
-                      <span className="typing-dot" />
-                      <span className="typing-dot" />
-                      <span className="typing-dot" />
-                    </span>
-                    <span className="text-[12px] text-forge-text-dim">
-                      {getPhaseLabel(chat.lastCompletedToolName)}
-                      {chat.stepCount >= 3 && (
-                        <span className="text-forge-text-dim/50"> &middot; {chat.stepCount} actions</span>
-                      )}
-                    </span>
-                    {chat.elapsed > 0 && (
-                      <span className="text-[10px] text-forge-text-dim/50 font-mono">
-                        {chat.formatElapsed(chat.elapsed)}
-                      </span>
-                    )}
-                  </div>
+                  <ThinkingIndicator
+                    elapsed={chat.elapsed}
+                    formatElapsed={chat.formatElapsed}
+                    stepCount={chat.stepCount}
+                    lastCompletedToolName={chat.lastCompletedToolName}
+                    status={chat.status}
+                  />
                 )}
                 {/* Recent completed steps */}
                 {chat.currentActivity?.recentCompleted && chat.currentActivity.recentCompleted.length > 0 && (

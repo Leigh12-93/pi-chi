@@ -749,3 +749,39 @@ html.dark .code-block-wrapper:hover > div:first-child {
 .forge-ready-check {
   animation: readyCheck 0.4s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
 }
+
+/* ─── Extended Thinking Indicator ────────────────────────── */
+
+/* Brain icon gentle pulse */
+@keyframes brainPulse {
+  0%, 100% { opacity: 0.7; transform: scale(1); }
+  50% { opacity: 1; transform: scale(1.08); }
+}
+.thinking-brain {
+  animation: brainPulse 2s ease-in-out infinite;
+}
+
+/* Smooth text crossfade for rotating messages */
+@keyframes textRotateIn {
+  0% { opacity: 0; transform: translateY(4px); filter: blur(2px); }
+  100% { opacity: 1; transform: translateY(0); filter: blur(0); }
+}
+.thinking-text-rotate {
+  animation: textRotateIn 0.35s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+/* Progress bar that slowly fills with shimmer */
+@keyframes thinkingProgress {
+  0% { left: -40%; width: 30%; }
+  50% { left: 30%; width: 50%; }
+  100% { left: 110%; width: 30%; }
+}
+.thinking-progress-bar {
+  position: absolute;
+  top: 0;
+  height: 100%;
+  background: linear-gradient(90deg, transparent, var(--color-forge-accent), transparent);
+  opacity: 0.4;
+  border-radius: 1px;
+  animation: thinkingProgress 2.5s ease-in-out infinite;
+}
