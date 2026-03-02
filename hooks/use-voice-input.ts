@@ -2,51 +2,54 @@
 
 import { useState, useRef, useCallback, useEffect } from 'react'
 
-type SpeechRecognitionEvent = {
-  results: SpeechRecognitionResultList
-  resultIndex: number
-}
-
-type SpeechRecognitionErrorEvent = {
-  error: string
-  message?: string
-}
-
 interface UseVoiceInputOptions {
   onTranscript: (text: string) => void
+  onError?: (error: string) => void
   lang?: string
 }
 
-export function useVoiceInput({ onTranscript, lang = 'en-AU' }: UseVoiceInputOptions) {
+export function useVoiceInput({ onTranscript, onError, lang = 'en-AU' }: UseVoiceInputOptions) {
   const [isListening, setIsListening] = useState(false)
   const [interimText, setInterimText] = useState('')
   const [isSupported, setIsSupported] = useState(false)
   const recognitionRef = useRef<any>(null)
   const onTranscriptRef = useRef(onTranscript)
+  const onErrorRef = useRef(onError)
   onTranscriptRef.current = onTranscript
+  onErrorRef.current = onError
 
   // Detect support client-side only (SSR-safe)
   useEffect(() => {
-    setIsSupported(
-      'SpeechRecognition' in window || 'webkitSpeechRecognition' in window
-    )
+    const supported = 'SpeechRecognition' in window || 'webkitSpeechRecognition' in window
+    setIsSupported(supported)
   }, [])
 
   const stop = useCallback(() => {
     if (recognitionRef.current) {
-      recognitionRef.current.stop()
+      try { recognitionRef.current.stop() } catch {}
       recognitionRef.current = null
     }
     setIsListening(false)
     setInterimText('')
   }, [])
 
-  const start = useCallback(() => {
-    if (!isSupported) return
+  const start = useCallback(async () => {
+    if (!isSupported) {
+      onErrorRef.current?.('Speech recognition not supported in this browser')
+      return
+    }
+
+    // Request mic permission explicitly first
+    try {
+      await navigator.mediaDevices.getUserMedia({ audio: true })
+    } catch {
+      onErrorRef.current?.('Microphone access denied. Check browser permissions.')
+      return
+    }
 
     // Stop any existing session
     if (recognitionRef.current) {
-      recognitionRef.current.stop()
+      try { recognitionRef.current.stop() } catch {}
     }
 
     const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition
@@ -60,7 +63,7 @@ export function useVoiceInput({ onTranscript, lang = 'en-AU' }: UseVoiceInputOpt
       setIsListening(true)
     }
 
-    recognition.onresult = (event: SpeechRecognitionEvent) => {
+    recognition.onresult = (event: any) => {
       let interim = ''
       for (let i = event.resultIndex; i < event.results.length; i++) {
         const result = event.results[i]
@@ -77,10 +80,16 @@ export function useVoiceInput({ onTranscript, lang = 'en-AU' }: UseVoiceInputOpt
       if (interim) setInterimText(interim)
     }
 
-    recognition.onerror = (event: SpeechRecognitionErrorEvent) => {
-      // 'aborted' is normal when we call stop()
-      if (event.error !== 'aborted') {
-        console.warn('Speech recognition error:', event.error)
+    recognition.onerror = (event: any) => {
+      const err = event.error as string
+      if (err !== 'aborted' && err !== 'no-speech') {
+        const messages: Record<string, string> = {
+          'not-allowed': 'Microphone access denied',
+          'network': 'Network error — speech service unavailable',
+          'service-not-allowed': 'Speech service not allowed on this origin',
+          'audio-capture': 'No microphone found',
+        }
+        onErrorRef.current?.(messages[err] || `Speech error: ${err}`)
       }
       stop()
     }
@@ -92,7 +101,12 @@ export function useVoiceInput({ onTranscript, lang = 'en-AU' }: UseVoiceInputOpt
     }
 
     recognitionRef.current = recognition
-    recognition.start()
+    try {
+      recognition.start()
+    } catch (e: any) {
+      onErrorRef.current?.(`Failed to start: ${e.message}`)
+      stop()
+    }
   }, [isSupported, lang, stop])
 
   const toggle = useCallback(() => {
@@ -107,7 +121,7 @@ export function useVoiceInput({ onTranscript, lang = 'en-AU' }: UseVoiceInputOpt
   useEffect(() => {
     return () => {
       if (recognitionRef.current) {
-        recognitionRef.current.stop()
+        try { recognitionRef.current.stop() } catch {}
       }
     }
   }, [])

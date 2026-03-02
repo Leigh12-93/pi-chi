@@ -17,6 +17,7 @@ import { MODEL_OPTIONS, QUICK_ACTIONS } from '@/lib/chat/constants'
 import { MessageItem } from '@/components/chat/message-item'
 import { useForgeChat, type UseForgeChatProps } from '@/hooks/use-forge-chat'
 import { useVoiceInput } from '@/hooks/use-voice-input'
+import { toast } from 'sonner'
 
 /** Rotating messages shown during extended thinking (Opus etc.) */
 const THINKING_MESSAGES = [
@@ -183,6 +184,7 @@ export function ChatPanel(props: ChatPanelProps) {
         return prev + separator + text
       })
     },
+    onError: (msg) => toast.error(msg),
   })
 
   // Track completion signal: show briefly when streaming ends
