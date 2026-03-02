@@ -4,6 +4,10 @@
 
 export class VirtualFS {
   files: Map<string, string>
+  /** Tracks which paths have been written/deleted since initialization or last clearDirty() */
+  private _dirty: Set<string> = new Set()
+  /** Snapshot of file contents at initialization (or after last clearDirty()) for diff detection */
+  private _baseline: Map<string, string> = new Map()
 
   /** Sanitize a file path — block traversal, normalize separators */
   static sanitizePath(path: string): string | null {
@@ -22,6 +26,8 @@ export class VirtualFS {
 
   constructor(initial?: Record<string, string>) {
     this.files = new Map(Object.entries(initial || {}))
+    // Snapshot baseline so we can detect real changes later
+    this._baseline = new Map(this.files)
   }
 
   /** Max file size: 2 MB */
@@ -33,6 +39,17 @@ export class VirtualFS {
     // Note: string.length is UTF-16 code units, not bytes — approximate check
     if (content.length > VirtualFS.MAX_FILE_SIZE) return false
     this.files.set(safe, content)
+    this._dirty.add(safe)
+    return true
+  }
+
+  /** Write a file without marking it dirty (used by pull to update baseline) */
+  writeClean(path: string, content: string): boolean {
+    const safe = VirtualFS.sanitizePath(path)
+    if (!safe) return false
+    if (content.length > VirtualFS.MAX_FILE_SIZE) return false
+    this.files.set(safe, content)
+    this._baseline.set(safe, content)
     return true
   }
 
@@ -48,7 +65,10 @@ export class VirtualFS {
 
   delete(path: string): boolean {
     const safe = VirtualFS.sanitizePath(path)
-    return safe ? this.files.delete(safe) : false
+    if (!safe) return false
+    const deleted = this.files.delete(safe)
+    if (deleted) this._dirty.add(safe)
+    return deleted
   }
 
   list(prefix = ''): string[] {
@@ -82,6 +102,56 @@ export class VirtualFS {
       }
     }
     return results
+  }
+
+  // ── Dirty tracking helpers ──────────────────────────────────────
+
+  /** Returns all paths that have been written or deleted since init / last clearDirty */
+  getDirtyPaths(): string[] {
+    return Array.from(this._dirty)
+  }
+
+  /** Returns true if any local edits exist */
+  hasDirtyFiles(): boolean {
+    return this._dirty.size > 0
+  }
+
+  /** Check if a specific path has been locally modified */
+  isDirty(path: string): boolean {
+    const safe = VirtualFS.sanitizePath(path)
+    return safe ? this._dirty.has(safe) : false
+  }
+
+  /** Returns only files that actually changed content compared to baseline */
+  getChangedFiles(): Record<string, string> {
+    const changed: Record<string, string> = {}
+    for (const p of this._dirty) {
+      const current = this.files.get(p)
+      const baseline = this._baseline.get(p)
+      // File was written and content differs from baseline (or is new)
+      if (current !== undefined && current !== baseline) {
+        changed[p] = current
+      }
+      // File was deleted (exists in baseline but not in files) — handled separately
+    }
+    return changed
+  }
+
+  /** Returns paths that were deleted (existed in baseline but not current) */
+  getDeletedPaths(): string[] {
+    const deleted: string[] = []
+    for (const p of this._dirty) {
+      if (!this.files.has(p) && this._baseline.has(p)) {
+        deleted.push(p)
+      }
+    }
+    return deleted
+  }
+
+  /** Reset dirty state — call after successful push or pull */
+  clearDirty(): void {
+    this._dirty.clear()
+    this._baseline = new Map(this.files)
   }
 
   toRecord(): Record<string, string> {

@@ -202,7 +202,7 @@ export const MessageItem = memo(function MessageItem({
               const isAfterTool = prevItem && (prevItem.type === 'tool-group' || (prevItem.type === 'part' && prevItem.part.type !== 'text'))
               const isBeforeTool = nextItem && (nextItem.type === 'tool-group' || (nextItem.type === 'part' && nextItem.part.type !== 'text'))
               return (
-                <div key={partIdx} className={cn('relative group', isAfterTool && 'mt-2.5', isBeforeTool && 'mb-1')}>
+                <div key={partIdx} className={cn('relative group', isAfterTool && 'mt-3', isBeforeTool && 'mb-1.5')}>
                   <div
                     className={cn(
                       'text-[13.5px] leading-[1.7] text-forge-text [&_pre]:my-3 [&_code]:text-[12.5px] selection:bg-forge-accent/20',
@@ -456,12 +456,10 @@ export const MessageItem = memo(function MessageItem({
                       )}
                     </div>
 
-                    {/* Running dots */}
+                    {/* Duration placeholder for running tools */}
                     {isRunning && (
-                      <span className="flex items-center gap-0.5 text-[11px] text-forge-accent/60 shrink-0">
-                        <span className="typing-dot" />
-                        <span className="typing-dot" />
-                        <span className="typing-dot" />
+                      <span className="text-[11px] text-forge-text-dim/30 font-mono shrink-0 tabular-nums">
+                        ...
                       </span>
                     )}
                   </div>

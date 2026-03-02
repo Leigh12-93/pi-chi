@@ -368,10 +368,22 @@ export async function POST(req: Request) {
   const MODEL_CONTEXT_LIMITS: Record<string, number> = {
     'claude-sonnet-4-20250514': 200000,
     'claude-opus-4-20250514': 200000,
-    'claude-opus-4-6': 200000,
+    'claude-opus-4-6': 680000,       // Opus 4.6 supports up to 1M context
     'claude-haiku-35-20241022': 200000,
   }
   const contextLimit = MODEL_CONTEXT_LIMITS[selectedModel] || 200000
+
+  // Per-model output token budgets
+  const MODEL_MAX_OUTPUT: Record<string, number> = {
+    'claude-opus-4-6': 128000,        // Opus 4.6 supports much higher output
+    'claude-opus-4-20250514': 64000,
+  }
+
+  // Per-model step budgets (more complex models can do more agentic loops)
+  const MODEL_MAX_STEPS: Record<string, number> = {
+    'claude-opus-4-6': 75,
+    'claude-opus-4-20250514': 60,
+  }
 
   // ── Layer 2: Auto-compaction via Haiku summarization ──────────
   let compactionOccurred = false
@@ -393,7 +405,7 @@ export async function POST(req: Request) {
   // Track whether this request's stream count has been decremented
   let streamCounted = true
 
-  const DESIRED_MAX_TOKENS = 64000
+  const DESIRED_MAX_TOKENS = MODEL_MAX_OUTPUT[selectedModel] || 64000
   const MIN_OUTPUT_TOKENS = 4000
   let availableForOutput = contextLimit - estimatedInputTokens
   let dynamicMaxTokens = Math.min(DESIRED_MAX_TOKENS, Math.max(MIN_OUTPUT_TOKENS, availableForOutput))
@@ -568,12 +580,18 @@ export async function POST(req: Request) {
             + (promptExample ? `\n\n## Structural Guide for This Request\n${promptExample}` : ''),
           messages,
           maxOutputTokens: dynamicMaxTokens,
-          stopWhen: stepCountIs(50),
+          stopWhen: stepCountIs(MODEL_MAX_STEPS[selectedModel] || 50),
           abortSignal: streamAbort.signal,
           tools: allTools,
           // Enable Anthropic prompt caching — 90% input token discount on cached prefix
+          // For Opus 4.6, also enable extended thinking for better agentic reasoning
           providerOptions: {
-            anthropic: { cacheControl: { type: 'ephemeral' } },
+            anthropic: {
+              cacheControl: { type: 'ephemeral' },
+              ...(selectedModel === 'claude-opus-4-6' ? {
+                thinking: { type: 'enabled', budgetTokens: 32000 },
+              } : {}),
+            },
           },
 
           onFinish: async (event) => {
