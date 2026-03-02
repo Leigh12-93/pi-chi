@@ -6,7 +6,7 @@ import {
   Sparkles, ArrowUp, StopCircle,
   AlertTriangle, ChevronDown, Clock,
   Globe, FileText, FolderPlus,
-  Paperclip, ImageIcon, X, CheckCircle,
+  Paperclip, ImageIcon, X, CheckCircle, Mic,
 } from 'lucide-react'
 import { TOOL_LABELS, colorClasses } from '@/lib/chat/constants'
 import { getPhaseLabel } from '@/lib/chat/tool-utils'
@@ -16,6 +16,7 @@ import { motion, AnimatePresence } from 'framer-motion'
 import { MODEL_OPTIONS, QUICK_ACTIONS } from '@/lib/chat/constants'
 import { MessageItem } from '@/components/chat/message-item'
 import { useForgeChat, type UseForgeChatProps } from '@/hooks/use-forge-chat'
+import { useVoiceInput } from '@/hooks/use-voice-input'
 
 /** Rotating messages shown during extended thinking (Opus etc.) */
 const THINKING_MESSAGES = [
@@ -174,6 +175,15 @@ export function ChatPanel(props: ChatPanelProps) {
   const [isDraggingChat, setIsDraggingChat] = useState(false)
   const [dismissedError, setDismissedError] = useState<string | null>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
+
+  const voice = useVoiceInput({
+    onTranscript: (text) => {
+      chat.setInput(prev => {
+        const separator = prev.trim() ? ' ' : ''
+        return prev + separator + text
+      })
+    },
+  })
 
   // Track completion signal: show briefly when streaming ends
   const [showComplete, setShowComplete] = useState(false)
@@ -410,7 +420,7 @@ export function ChatPanel(props: ChatPanelProps) {
             }}
             placeholder={chat.isEmpty ? 'Describe what you want to build...' : 'Ask for changes, new features, fixes...'}
             rows={1}
-            className="w-full bg-forge-surface border border-forge-border rounded-xl pl-10 pr-12 py-3 text-[13.5px] text-forge-text placeholder:text-forge-text-dim/40 outline-none focus:border-forge-accent/40 shadow-[inset_0_1px_2px_rgba(0,0,0,0.04),0_1px_2px_rgba(0,0,0,0.02)] focus:shadow-[inset_0_1px_2px_rgba(0,0,0,0.04),0_0_0_3px_var(--color-forge-ring)] resize-none transition-all"
+            className="w-full bg-forge-surface border border-forge-border rounded-xl pl-10 pr-20 py-3 text-[13.5px] text-forge-text placeholder:text-forge-text-dim/40 outline-none focus:border-forge-accent/40 shadow-[inset_0_1px_2px_rgba(0,0,0,0.04),0_1px_2px_rgba(0,0,0,0.02)] focus:shadow-[inset_0_1px_2px_rgba(0,0,0,0.04),0_0_0_3px_var(--color-forge-ring)] resize-none transition-all"
           />
 
           {/* Paperclip file picker button */}
@@ -433,7 +443,22 @@ export function ChatPanel(props: ChatPanelProps) {
             <Paperclip className="w-4 h-4" />
           </button>
 
-          <div className="absolute right-2 bottom-1.5">
+          <div className="absolute right-2 bottom-1.5 flex items-center gap-1">
+            {voice.isSupported && (
+              <button
+                onClick={voice.toggle}
+                className={cn(
+                  'p-2 rounded-xl transition-all',
+                  voice.isListening
+                    ? 'bg-red-100 dark:bg-red-900/40 text-red-500 hover:bg-red-200 dark:hover:bg-red-800/60 animate-pulse'
+                    : 'text-forge-text-dim hover:text-forge-text hover:bg-forge-surface-hover',
+                )}
+                title={voice.isListening ? 'Stop recording' : 'Voice input'}
+                aria-label={voice.isListening ? 'Stop recording' : 'Voice input'}
+              >
+                <Mic className="w-4 h-4" />
+              </button>
+            )}
             {chat.isLoading ? (
               <button onClick={chat.stop} className="p-2 rounded-xl bg-red-100 dark:bg-red-900/40 text-forge-danger hover:bg-red-200 dark:hover:bg-red-800/60 transition-colors animate-stop-pulse" title="Stop generating (Esc)" aria-label="Stop generating">
                 <StopCircle className="w-4 h-4" />
@@ -457,6 +482,12 @@ export function ChatPanel(props: ChatPanelProps) {
             )}
           </div>
         </div>
+        {/* Voice interim text */}
+        {voice.isListening && voice.interimText && (
+          <div className="px-3 pt-1 text-[12px] text-forge-text-dim/60 italic truncate">
+            {voice.interimText}...
+          </div>
+        )}
         {/* Footer: model picker + hints + clear + tokens */}
         <div className="flex items-center justify-between mt-2 px-1">
           <div className="flex items-center gap-2">
