@@ -9,6 +9,7 @@ import {
   Paperclip, ImageIcon, X, CheckCircle,
 } from 'lucide-react'
 import { TOOL_LABELS, colorClasses } from '@/lib/chat/constants'
+import { getPhaseLabel } from '@/lib/chat/tool-utils'
 import { cn } from '@/lib/utils'
 import { ErrorBoundary } from '@/components/error-boundary'
 import { motion } from 'framer-motion'
@@ -129,7 +130,10 @@ export function ChatPanel(props: ChatPanelProps) {
                       <span className="typing-dot" />
                     </span>
                     <span className="text-[12px] text-forge-text-dim">
-                      {chat.stepCount > 0 ? `Step ${chat.stepCount}` : 'Thinking'}
+                      {getPhaseLabel(chat.lastCompletedToolName)}
+                      {chat.stepCount >= 3 && (
+                        <span className="text-forge-text-dim/50"> &middot; {chat.stepCount} actions</span>
+                      )}
                     </span>
                     {chat.elapsed > 0 && (
                       <span className="text-[10px] text-forge-text-dim/50 font-mono">

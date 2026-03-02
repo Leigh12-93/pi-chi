@@ -663,9 +663,14 @@ export function useForgeChat(props: UseForgeChatProps) {
       if (invs) steps += invs.length
     }
 
+    const lastCompleted = recentCompleted.length > 0
+      ? recentCompleted[recentCompleted.length - 1].toolName
+      : null
+
     return {
       stepCount: steps,
       estimatedTokens: tokens,
+      lastCompletedToolName: lastCompleted,
       currentActivity: activity
         ? { ...activity, recentCompleted: recentCompleted.slice(-3) }
         : recentCompleted.length > 0
@@ -741,7 +746,7 @@ export function useForgeChat(props: UseForgeChatProps) {
     selectedModel, setSelectedModel, showModelPicker, setShowModelPicker,
     copiedId, loadingHistory, editingMessageId, editingContent,
     clearConfirm, envVars, elapsed, isEmpty, attachments,
-    stepCount, estimatedTokens, realTokens, autoRoutedModel, currentActivity,
+    stepCount, estimatedTokens, realTokens, autoRoutedModel, currentActivity, lastCompletedToolName,
     // Refs
     messagesEndRef, inputRef, clearConfirmTimer, processedInvs,
     // Handlers
