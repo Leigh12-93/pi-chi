@@ -14,6 +14,7 @@ import { getToolSummary, getFriendlyError, type ToolInvocation } from '@/lib/cha
 import { cachedRenderMarkdown } from '@/lib/chat/markdown'
 import { ThinkPanel } from './think-panel'
 import { EnvVarInputCard } from './env-var-input-card'
+import { TaskListPanel, type TaskItem } from './task-list-panel'
 import { CollapsibleToolGroup, groupToolInvocations, type RenderItem } from './tool-group'
 import { ToolResultDetail, getInlineSummary } from './tool-result-detail'
 
@@ -225,7 +226,42 @@ export const MessageItem = memo(function MessageItem({
             return true
           })
 
-          const grouped = groupToolInvocations(filteredParts)
+          // Aggregate set_tasks + update_task into a single live task list
+          const taskListItems: TaskItem[] = []
+          let hasTaskList = false
+          for (const part of filteredParts) {
+            if (!isToolPart(part)) continue
+            const inv = extractToolInvocation(part)
+            if (!inv) continue
+            if (inv.toolName === 'set_tasks' && (inv.state === 'result' || inv.state === 'call')) {
+              const tasks = (inv.args as any)?.tasks
+              if (Array.isArray(tasks)) {
+                hasTaskList = true
+                taskListItems.length = 0 // reset if set_tasks called again
+                for (const t of tasks) {
+                  taskListItems.push({ id: t.id, label: t.label, status: t.status || 'pending' })
+                }
+              }
+            }
+            if (inv.toolName === 'update_task' && (inv.state === 'result' || inv.state === 'call')) {
+              const args = inv.args as any
+              if (args?.id) {
+                const existing = taskListItems.find(t => t.id === args.id)
+                if (existing) {
+                  existing.status = args.status || existing.status
+                  if (args.detail) existing.detail = args.detail
+                }
+              }
+            }
+          }
+
+          // Filter out set_tasks/update_task from normal rendering (they render as the task list panel)
+          const taskToolNames = new Set(['set_tasks', 'update_task'])
+          const displayParts = hasTaskList
+            ? filteredParts.filter(p => !isToolPart(p) || !taskToolNames.has(getToolName(p)))
+            : filteredParts
+
+          const grouped = groupToolInvocations(displayParts)
 
           let lastTextItemIdx = -1
           for (let gi = grouped.length - 1; gi >= 0; gi--) {
@@ -236,7 +272,12 @@ export const MessageItem = memo(function MessageItem({
             }
           }
 
-          return grouped.map((item: RenderItem, itemIdx: number) => {
+          return (<>
+          {/* Live task list (aggregated from set_tasks + update_task) */}
+          {hasTaskList && taskListItems.length > 0 && (
+            <TaskListPanel tasks={taskListItems} />
+          )}
+          {grouped.map((item: RenderItem, itemIdx: number) => {
             if (item.type === 'tool-group') {
               return <CollapsibleToolGroup key={`group-${itemIdx}`} tools={item.tools} />
             }
@@ -529,7 +570,8 @@ export const MessageItem = memo(function MessageItem({
             }
 
             return null
-          })
+          })}
+          </>)
         })()}
           {!isLoading && (
             <button

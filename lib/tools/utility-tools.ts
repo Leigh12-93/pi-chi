@@ -18,7 +18,7 @@ export function createUtilityTools(ctx: ToolContext) {
 
   return {
     think: tool({
-      description: 'Think through your approach before building. Use this for complex tasks (3+ files) to plan the file structure, component hierarchy, and implementation order.',
+      description: 'Think through your approach before building. Use this for complex tasks (3+ files) to plan the file structure, component hierarchy, and implementation order. IMPORTANT: After calling think, immediately call set_tasks and then start executing. Never output text after think.',
       inputSchema: z.object({
         plan: z.string().describe('Your step-by-step plan for implementing this task'),
         files: z.array(z.string()).describe('List of files you plan to create/modify'),
@@ -29,6 +29,38 @@ export function createUtilityTools(ctx: ToolContext) {
         plan,
         files,
         approach,
+        next: 'Call set_tasks immediately, then start building. Do NOT output text.',
+      }),
+    }),
+
+    set_tasks: tool({
+      description: 'Create a visible task checklist for the user. Call this right after think to show your plan as a live progress tracker. The UI renders this as a checklist the user can see updating in real time.',
+      inputSchema: z.object({
+        tasks: z.array(z.object({
+          id: z.string().describe('Unique task ID (e.g., "t1", "t2")'),
+          label: z.string().describe('Short task description shown to user'),
+          status: z.enum(['pending', 'in_progress', 'done']).default('pending'),
+        })).describe('Ordered list of tasks to complete'),
+      }),
+      execute: async ({ tasks }) => ({
+        type: 'task_list',
+        tasks,
+        next: 'Start executing tasks immediately. Call update_task as you complete each one.',
+      }),
+    }),
+
+    update_task: tool({
+      description: 'Update the status of a task in the visible checklist. Call this as you complete each task so the user sees live progress.',
+      inputSchema: z.object({
+        id: z.string().describe('Task ID from set_tasks'),
+        status: z.enum(['in_progress', 'done', 'error']).describe('New status'),
+        detail: z.string().optional().describe('Optional detail (e.g., error message)'),
+      }),
+      execute: async ({ id, status, detail }) => ({
+        type: 'task_update',
+        id,
+        status,
+        detail,
       }),
     }),
 
