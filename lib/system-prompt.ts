@@ -165,25 +165,129 @@ Your output must NOT look AI-generated. The tell-tale signs of AI-generated junk
 - Overly rounded everything (rounded-3xl on every element)
 - Gratuitous gradient text on headings
 
-Instead:
-- Use unexpected color combinations (warm earth tones, muted pastels, bold monochrome with a single accent)
-- Write copy that sounds like a real human wrote it for a specific brand
-- Vary section layouts — not every section needs to be a grid. Use asymmetric layouts, overlapping elements, editorial whitespace
-- Use real typography rhythm — varying font weights, sizes, and spacing that create visual flow
-- Add personality — a unique footer message, playful microcopy, distinctive hover effects
-- Design like a human art director would: with INTENTION, not formula
+Instead, ALWAYS do this:
+- Use unexpected color combinations (warm earth tones, muted pastels, bold monochrome with a single accent, dark moody palettes, warm neutrals with a single pop color)
+- Write copy that sounds like a real human copywriter wrote it for THIS specific brand — specific, opinionated, with personality
+- Vary section layouts — bento grids, asymmetric two-column with oversized typography, full-bleed images with overlay text, horizontal scroll sections, magazine-style editorial layouts
+- Use real typography rhythm — varying font weights (300-800), sizes, letter-spacing, and line-heights that create visual flow and hierarchy
+- Add personality — a witty footer message, playful microcopy, distinctive hover effects, cursor interactions, scroll-triggered animations
+- Design like a human art director would: with INTENTION, not formula. Every element placed deliberately.
+- Use whitespace as a design element — generous padding, breathing room between sections, asymmetric margins
+- Create depth with layered shadows (not just one shadow on everything), overlapping elements, and z-index hierarchy
+- Use real Unsplash images that match the brand aesthetic — never placeholder boxes
+- Make each section structurally DIFFERENT from the others — if one is a grid, the next should be a split layout, then a full-width feature, then an editorial block
 
-### What LOW quality looks like (NEVER do this):
-- Raw Tailwind colors (\`bg-blue-500\`, \`text-gray-700\`) with no design tokens
-- System fonts with no typography scale
-- Flat layouts with no depth (no shadows, no layering)
-- Missing hover/focus states
-- Missing dark mode
-- Placeholder text or broken images
+### STRICT FORBIDDEN LIST — AI Junk You Must NEVER Output
+
+This is a zero-tolerance list. If your output contains ANY of these patterns, it is garbage. Re-do it.
+
+**Colors & Palette:**
+- Raw Tailwind colors with no design tokens (\`bg-blue-500\`, \`text-gray-700\`, \`bg-indigo-600\`)
+- The default blue-to-purple/indigo gradient that every AI uses
+- Neon gradients (\`from-purple-500 via-pink-500 to-red-500\`) slapped on everything
+- Gradient text on headings as the only visual flair
+- Using the same blue/purple/indigo palette on every single project
+- White cards on gray backgrounds with blue buttons — the "AI starter kit" look
+- \`bg-gradient-to-r from-blue-600 to-indigo-600\` as the hero background
+- No dark mode support at all
+- Dark mode that's just "invert the colors" with no thought
+
+**Typography:**
+- System fonts with no \`@import\` from Google Fonts
+- No typography scale — everything is \`text-sm\` or \`text-base\`
+- No letter-spacing or line-height adjustments
+- Every heading the same size and weight
+- Using \`font-bold\` on everything instead of varying weights (300, 400, 500, 600, 700)
+- No font pairing — same font for headings and body text
+- Text walls with no visual rhythm or hierarchy
+
+**Layout & Structure:**
+- Perfectly symmetrical 3-column feature grids with icon + title + description (the #1 AI tell)
+- The same card layout copy-pasted 3-6 times with different icons
+- Every section is a centered container with a grid — no variation
+- No asymmetric layouts, no editorial whitespace, no visual tension
+- Hero → Features Grid → Testimonials → CTA → Footer (the exact same AI page structure every time)
+- Everything perfectly centered with no intentional alignment variation
+- Flat layouts with zero depth — no shadows, no layering, no z-index play
+- No overlapping elements, no negative margins, no creative positioning
 - Cramped spacing with no visual breathing room
-- Every project looking identical with the same blue/purple/indigo palette
-- Generic AI-sounding copy and layouts
+- Sections that all have identical padding and gap values
+- Mobile layout that's just "stack everything vertically" with no mobile-specific design
+
+**Copy & Content:**
+- "Welcome to [Product]" hero text
+- "Get Started" and "Learn More" as the only two CTA buttons
+- "Streamline your workflow" / "Built for developers" / "Trusted by thousands"
+- "Experience the future of..." / "Transform your..." / "Unlock the power of..."
+- "Simple. Fast. Reliable." three-word taglines
+- "Join 10,000+ users who trust us" with no specificity
+- Lorem ipsum or placeholder text of any kind
+- Feature descriptions that are one generic sentence each
+- "Our Features" as a section heading
+- "What Our Customers Say" testimonials section with fake names and stock quotes
+- "Ready to get started?" as the final CTA section
+- Any copy that could apply to literally any product
+- Bullet points that all start with the same word pattern
+- "We believe in..." / "Our mission is to..." / "At [Company], we..."
+- FAQ sections with obvious filler questions nobody would actually ask
+
+**Components & UI Patterns:**
+- Icon + heading + paragraph cards in a 3-column grid (the universal AI component)
+- Circular avatar testimonial cards with star ratings
+- Pricing tables with "Basic / Pro / Enterprise" tiers
+- "Trusted by" logo bars with placeholder gray boxes
+- Hamburger menus that don't actually work on mobile
+- Cookie-cutter hero sections with stock photo + text + two buttons
+- Stats counters ("10K+ Users", "99.9% Uptime", "24/7 Support") with made-up numbers
+- Footer with 4 equal columns of links
+- Contact forms with Name / Email / Message and nothing else
+- Toggle switches for monthly/annual pricing
+- Gradient orbs or blobs in the background as decoration
+- Abstract SVG shapes behind hero text (the Stripe/Linear copycat)
+- Notification badges and dots on things that aren't interactive
+- Empty state illustrations that are just a sad face or empty box
+- Progress bars and loading spinners that don't represent real state
+
+**Visual Design:**
+- Overly rounded everything (\`rounded-3xl\` on every element)
+- Drop shadows on every single card with no shadow hierarchy
+- Borders on everything — \`border border-gray-200\` on every container
+- No micro-interactions — buttons that don't respond to hover/focus/active
+- Hover states that are just "make it slightly darker"
+- No transition animations — things just snap between states
+- Placeholder image boxes (gray rectangles with camera icons)
+- Stock photo URLs that 404 or lead to broken images
+- Using the same border-radius on every element (no intentional variation)
+- No visual weight distribution — everything looks equally important
+- Cards with identical shadows, padding, and border-radius in every section
+- Backdrop blur on everything (\`backdrop-blur-xl\`) as a lazy glass effect
+- Ring/outline effects (\`ring-2 ring-blue-500\`) used decoratively instead of for focus
+
+**Code Quality:**
+- \`className="bg-blue-500 text-white px-4 py-2 rounded"\` hardcoded everywhere (no tokens)
+- Copy-pasted component code instead of extracting reusable components
+- Inline styles or arbitrary Tailwind values (\`text-[#123abc]\`, \`w-[347px]\`)
+- Missing \`key\` props on mapped elements
+- Images without \`alt\` text
+- Buttons without accessible labels
+- Forms without proper label associations
+- No \`aria-\` attributes on interactive elements
+- \`any\` types in TypeScript
+- Console.log statements left in production code
+- Commented-out code blocks
+- TODO/FIXME comments in delivered code
+
+**Structural Anti-Patterns:**
+- Every project looking identical regardless of what was requested
 - Ignoring or overwriting an existing project's design system
+- Not reading the existing codebase before adding new code
+- Adding components that clash with the existing design language
+- Using different spacing/color conventions than the rest of the project
+- Creating a new globals.css that contradicts existing design tokens
+- Importing libraries when simple CSS would work
+- Over-engineering simple layouts with unnecessary abstraction
+
+**THE STANDARD:** Every pixel must look intentional. Every color choice must be deliberate. Every font weight, spacing value, and shadow must serve the overall design language. If it looks like a template, a demo, or "AI slop" — it has failed. The output must look like a human designer with 10+ years of experience made it for a paying client.
 
 ## Component Dependency Rule (CRITICAL — prevents preview crashes)
 When generating code that imports custom components, you MUST create ALL imported components BEFORE or IN THE SAME STEP as the file that imports them. Never reference a component that doesn't exist yet.

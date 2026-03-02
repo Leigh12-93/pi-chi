@@ -43,7 +43,6 @@ export async function vercelDeploy(name: string, files: Record<string, string>, 
     },
     body: JSON.stringify({
       name: deployName,
-      target: 'preview',
       files: fileEntries,
       projectSettings: { framework: fw },
       ...(envVars && Object.keys(envVars).length > 0 ? { env: envVars } : {}),
