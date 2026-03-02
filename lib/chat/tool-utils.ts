@@ -71,6 +71,121 @@ export function getToolSummary(toolName: string, args: Record<string, unknown>, 
   }
 }
 
+/**
+ * Returns a human-readable "phase label" based on what the last completed tool was.
+ * Used in the streaming indicator to show contextual status instead of "Step N".
+ */
+export function getPhaseLabel(lastToolName: string | null): string {
+  if (!lastToolName) return 'Thinking'
+
+  switch (lastToolName) {
+    // Reading / analysis tools
+    case 'read_file':
+    case 'get_all_files':
+    case 'list_files':
+    case 'forge_read_own_source':
+    case 'github_read_file':
+    case 'github_list_repo_files':
+      return 'Reviewing code'
+
+    case 'search_files':
+    case 'grep_files':
+    case 'github_search_code':
+    case 'search_references':
+    case 'get_reference_code':
+    case 'forge_check_npm_package':
+    case 'check_dependency_health':
+      return 'Analyzing results'
+
+    // Writing / editing tools
+    case 'write_file':
+    case 'edit_file':
+    case 'rename_file':
+    case 'delete_file':
+    case 'forge_modify_own_source':
+    case 'github_modify_external_file':
+    case 'scaffold_component':
+      return 'Applying changes'
+
+    // Planning / thinking
+    case 'think':
+      return 'Forming a plan'
+    case 'suggest_improvement':
+      return 'Considering improvements'
+    case 'check_coherence':
+    case 'validate_file':
+      return 'Verifying changes'
+
+    // Project / scaffolding
+    case 'create_project':
+    case 'add_dependency':
+    case 'generate_env_file':
+    case 'generate_tests':
+      return 'Setting things up'
+
+    // Deployment / git
+    case 'deploy_to_vercel':
+    case 'forge_redeploy':
+    case 'forge_deployment_status':
+    case 'forge_check_build':
+    case 'forge_read_deploy_log':
+      return 'Finalizing deployment'
+    case 'github_create_repo':
+    case 'github_push_update':
+    case 'github_pull_latest':
+    case 'forge_create_branch':
+    case 'forge_create_pr':
+    case 'forge_merge_pr':
+    case 'forge_revert_commit':
+    case 'forge_list_branches':
+    case 'forge_delete_branch':
+      return 'Working with Git'
+
+    // Database
+    case 'db_query':
+    case 'db_mutate':
+    case 'db_introspect':
+      return 'Querying database'
+
+    // Sandbox / environment
+    case 'start_sandbox':
+    case 'stop_sandbox':
+    case 'sandbox_status':
+    case 'capture_preview':
+      return 'Checking preview'
+
+    // MCP / external
+    case 'mcp_list_servers':
+    case 'mcp_connect_server':
+    case 'mcp_call_tool':
+      return 'Using external tool'
+
+    // Chat / history
+    case 'load_chat_history':
+    case 'save_project':
+    case 'save_preference':
+    case 'load_preferences':
+      return 'Loading context'
+
+    // Env / config
+    case 'request_env_vars':
+    case 'set_custom_domain':
+      return 'Configuring environment'
+
+    // Media
+    case 'add_image':
+      return 'Finding media'
+
+    // Tasks
+    case 'check_task_status':
+    case 'cancel_task':
+      return 'Checking progress'
+
+    default:
+      return 'Working'
+  }
+}
+
 export function extractFileUpdates(
   inv: ToolInvocation,
   currentFiles: Record<string, string>,
