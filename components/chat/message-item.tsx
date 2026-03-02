@@ -198,9 +198,11 @@ export const MessageItem = memo(function MessageItem({
             if (part.type === 'text' && part.text) {
               const isLastText = itemIdx === lastTextItemIdx
               const prevItem = itemIdx > 0 ? grouped[itemIdx - 1] : null
+              const nextItem = itemIdx < grouped.length - 1 ? grouped[itemIdx + 1] : null
               const isAfterTool = prevItem && (prevItem.type === 'tool-group' || (prevItem.type === 'part' && prevItem.part.type !== 'text'))
+              const isBeforeTool = nextItem && (nextItem.type === 'tool-group' || (nextItem.type === 'part' && nextItem.part.type !== 'text'))
               return (
-                <div key={partIdx} className={cn('relative group', isAfterTool && 'mt-2')}>
+                <div key={partIdx} className={cn('relative group', isAfterTool && 'mt-2.5', isBeforeTool && 'mb-1')}>
                   <div
                     className={cn(
                       'text-[13.5px] leading-[1.7] text-forge-text [&_pre]:my-3 [&_code]:text-[12.5px] selection:bg-forge-accent/20',
@@ -389,6 +391,13 @@ export const MessageItem = memo(function MessageItem({
               const args = (inv.args || {}) as Record<string, string>
               const filePath = args.path || args.file || args.filePath || args.file_path || ''
               const fileName = filePath ? filePath.split('/').pop() : ''
+              // Truncated parent path for context (like v0 shows)
+              const parentPath = filePath && fileName
+                ? filePath.slice(0, filePath.length - fileName.length).replace(/\/$/, '')
+                : ''
+              const displayPath = parentPath.length > 30
+                ? '...' + parentPath.slice(parentPath.length - 27)
+                : parentPath
 
               return (
                 <motion.div
@@ -398,11 +407,8 @@ export const MessageItem = memo(function MessageItem({
                   transition={{ duration: 0.2, ease: [0.16, 1, 0.3, 1] }}
                   className="tool-timeline-item"
                 >
-                  {/* Timeline connector line */}
-                  <div className="tool-timeline-connector" />
-
                   <div className="flex items-center gap-2.5 py-1 relative">
-                    {/* Icon node on the timeline */}
+                    {/* Icon node */}
                     <div className={cn(
                       'w-5 h-5 rounded-md flex items-center justify-center shrink-0 z-[1]',
                       isRunning ? 'bg-forge-accent/10 border border-forge-accent/30'
@@ -414,27 +420,41 @@ export const MessageItem = memo(function MessageItem({
                         : <info.Icon className="w-3 h-3" />}
                     </div>
 
-                    {/* Label */}
-                    <div className="flex-1 min-w-0">
+                    {/* Label + path */}
+                    <div className="flex-1 min-w-0 flex items-baseline gap-1.5">
                       {hasError ? (
-                        <div className="flex flex-col">
+                        <div className="flex flex-col min-w-0">
                           <span className="text-[13px] text-red-600 dark:text-red-400 font-medium truncate">{info.label} failed</span>
                           <span className="text-[11.5px] text-red-500/70 dark:text-red-400/50 truncate" title={rawError}>{friendlyErr}</span>
                         </div>
                       ) : (
-                        <span className={cn(
-                          'text-[13px] truncate block',
-                          isRunning ? 'text-forge-text font-medium' : 'text-forge-text-dim'
-                        )}>
-                          {info.label}
-                          {fileName && <span className="ml-1.5 text-forge-text-dim/50 font-mono text-[11.5px]">{fileName}</span>}
-                        </span>
+                        <>
+                          <span className={cn(
+                            'text-[13px] shrink-0',
+                            isRunning ? 'text-forge-text font-medium' : 'text-forge-text-dim'
+                          )}>
+                            {info.label}
+                          </span>
+                          {fileName && (
+                            <span className="flex items-baseline gap-1.5 min-w-0 truncate">
+                              <span className={cn(
+                                'font-mono text-[11.5px] shrink-0',
+                                isRunning ? 'text-forge-accent/80' : 'text-forge-text-dim/50'
+                              )}>
+                                {fileName}
+                              </span>
+                              {displayPath && (
+                                <span className="tool-timeline-path hidden sm:inline">{displayPath}</span>
+                              )}
+                            </span>
+                          )}
+                        </>
                       )}
                     </div>
 
-                    {/* Running shimmer or duration */}
+                    {/* Running dots */}
                     {isRunning && (
-                      <span className="flex items-center gap-0.5 text-[11px] text-forge-accent/60">
+                      <span className="flex items-center gap-0.5 text-[11px] text-forge-accent/60 shrink-0">
                         <span className="typing-dot" />
                         <span className="typing-dot" />
                         <span className="typing-dot" />

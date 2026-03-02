@@ -1,15 +1,24 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useMemo } from 'react'
 import { Brain, ChevronRight } from 'lucide-react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { cn } from '@/lib/utils'
 
+/** Estimate thinking duration from plan length (rough heuristic) */
+function estimateDuration(text: string): string {
+  const words = text.trim().split(/\s+/).length
+  // Rough: ~100 words per second of thinking
+  const seconds = Math.max(1, Math.round(words / 80))
+  return `${seconds}s`
+}
+
 export function ThinkPanel({ plan, files }: { plan: string; files: string[] }) {
   const [expanded, setExpanded] = useState(false)
   const rawPlan = String(plan || '')
-  const planText = rawPlan.slice(0, 800)
-  const isTruncated = rawPlan.length > 800
+  const planText = rawPlan.slice(0, 1200)
+  const isTruncated = rawPlan.length > 1200
+  const duration = useMemo(() => estimateDuration(rawPlan), [rawPlan])
 
   return (
     <motion.div
@@ -20,12 +29,14 @@ export function ThinkPanel({ plan, files }: { plan: string; files: string[] }) {
     >
       <button
         onClick={() => setExpanded(!expanded)}
-        className="flex items-center gap-2.5 w-full py-1 text-[13px] hover:opacity-80 transition-opacity"
+        className="flex items-center gap-2.5 w-full py-1 text-[13px] hover:opacity-80 transition-opacity group/think"
       >
         <div className="w-5 h-5 rounded-md flex items-center justify-center shrink-0 text-purple-600 bg-purple-50 dark:text-purple-400 dark:bg-purple-950/40">
           <Brain className="w-3 h-3" />
         </div>
-        <span className="flex-1 text-left text-forge-text-dim font-medium">Thought</span>
+        <span className="flex-1 text-left text-forge-text-dim font-medium">
+          Thought for {duration}
+        </span>
         <ChevronRight className={cn('w-3.5 h-3.5 text-forge-text-dim/40 transition-transform duration-200', expanded && 'rotate-90')} />
       </button>
       <AnimatePresence>
@@ -38,7 +49,10 @@ export function ThinkPanel({ plan, files }: { plan: string; files: string[] }) {
             className="overflow-hidden"
           >
             <div className="ml-2.5 border-l border-forge-border/50 pl-5 py-2 space-y-2">
-              <p className="text-[12.5px] text-forge-text-dim/70 leading-relaxed whitespace-pre-wrap">{planText}{isTruncated && <span className="text-forge-text-dim/40">... (truncated)</span>}</p>
+              <p className="text-[12.5px] text-forge-text-dim/70 leading-relaxed whitespace-pre-wrap">
+                {planText}
+                {isTruncated && <span className="text-forge-text-dim/40">{'...'} (truncated)</span>}
+              </p>
               {files.length > 0 && (
                 <div className="flex flex-wrap gap-1">
                   {files.map((f: string, fi: number) => (

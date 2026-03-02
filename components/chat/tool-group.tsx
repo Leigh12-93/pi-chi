@@ -99,16 +99,18 @@ function getGroupMeta(tools: ToolGroupData['tools']): { Icon: typeof Search; lab
   return { Icon: Terminal, label: 'Actions', color: 'gray' }
 }
 
-/** Get a short file-focused label for a tool call */
-function getToolFileLabel(t: { toolName: string; args: Record<string, unknown> }): string {
+/** Get filename + truncated path for a tool call */
+function getToolFileInfo(t: { toolName: string; args: Record<string, unknown> }): { name: string; path: string } {
   const args = t.args as Record<string, string>
   const filePath = args.path || args.file || args.filePath || args.file_path || args.pattern || ''
   if (filePath) {
     const fileName = filePath.split('/').pop() || filePath
-    return fileName
+    const parentPath = filePath.slice(0, filePath.length - fileName.length).replace(/\/$/, '')
+    const displayPath = parentPath.length > 25 ? '...' + parentPath.slice(parentPath.length - 22) : parentPath
+    return { name: fileName, path: displayPath }
   }
   const info = TOOL_LABELS[t.toolName]
-  return info?.label || t.toolName.replace(/_/g, ' ')
+  return { name: info?.label || t.toolName.replace(/_/g, ' '), path: '' }
 }
 
 export function CollapsibleToolGroup({ tools }: { tools: ToolGroupData['tools'] }) {
@@ -147,18 +149,18 @@ export function CollapsibleToolGroup({ tools }: { tools: ToolGroupData['tools'] 
           >
             <div className="ml-2.5 border-l border-forge-border/50 pl-4 py-1 space-y-0.5">
               {tools.map((t, i) => {
-                const info = TOOL_LABELS[t.toolName] || { label: t.toolName.replace(/_/g, ' '), Icon: Terminal, color: 'gray' }
-                const fileLabel = getToolFileLabel(t)
+                const fileInfo = getToolFileInfo(t)
                 return (
                   <motion.div
                     key={t.partIdx}
                     initial={{ opacity: 0, x: -4 }}
                     animate={{ opacity: 1, x: 0 }}
                     transition={{ duration: 0.15, delay: i * 0.03 }}
-                    className="flex items-center gap-2 py-0.5 text-[12px] text-forge-text-dim/70"
+                    className="flex items-baseline gap-1.5 py-0.5 text-[12px] text-forge-text-dim/70"
                   >
-                    <div className="w-1.5 h-1.5 rounded-full bg-forge-border shrink-0 -ml-[21px]" />
-                    <span className="truncate">{fileLabel}</span>
+                    <div className="w-1.5 h-1.5 rounded-full bg-forge-border shrink-0 -ml-[21px] relative top-[5px]" />
+                    <span className="shrink-0">{fileInfo.name}</span>
+                    {fileInfo.path && <span className="tool-timeline-path hidden sm:inline">{fileInfo.path}</span>}
                   </motion.div>
                 )
               })}

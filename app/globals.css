@@ -752,29 +752,36 @@ html.dark .code-block-wrapper:hover > div:first-child {
 
 /* ─── v0-style Tool Timeline ─────────────────────────────── */
 
-.tool-timeline-item {
-  position: relative;
-  padding-left: 0;
-}
-
+.tool-timeline-item,
 .tool-timeline-group {
   position: relative;
-  padding-left: 0;
 }
 
-/* Connector line between consecutive timeline items */
+/* Continuous connector line between consecutive timeline entries */
 .tool-timeline-item + .tool-timeline-item::before,
 .tool-timeline-group + .tool-timeline-item::before,
 .tool-timeline-item + .tool-timeline-group::before,
 .tool-timeline-group + .tool-timeline-group::before {
   content: '';
   position: absolute;
-  left: 9px; /* center of the 20px (w-5) icon */
-  top: -6px;
+  left: 9px; /* center of 20px icon (w-5) */
+  top: -4px;
   width: 1.5px;
-  height: 6px;
+  height: 8px;
   background: var(--color-forge-border);
-  opacity: 0.5;
+  opacity: 0.4;
+}
+
+/* File path shown after filename */
+.tool-timeline-path {
+  color: var(--color-forge-text-dim);
+  opacity: 0.35;
+  font-size: 11px;
+  font-family: var(--font-mono);
+  max-width: 200px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 /* ─── Response Complete Signal ───────────────────────────── */

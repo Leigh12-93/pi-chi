@@ -278,16 +278,23 @@ export function ChatPanel(props: ChatPanelProps) {
                       const args = step.args as Record<string, string>
                       const filePath = args.path || args.file || args.filePath || args.file_path || ''
                       const fileName = filePath ? filePath.split('/').pop() : ''
+                      const parentPath = filePath && fileName ? filePath.slice(0, filePath.length - fileName.length).replace(/\/$/, '') : ''
+                      const displayPath = parentPath.length > 30 ? '...' + parentPath.slice(parentPath.length - 27) : parentPath
                       return (
                         <div key={i} className="tool-timeline-item">
                           <div className="flex items-center gap-2.5 py-1 relative">
                             <div className={cn('w-5 h-5 rounded-md flex items-center justify-center shrink-0 z-[1]', colorClasses[info.color] || colorClasses.gray)}>
                               <info.Icon className="w-3 h-3" />
                             </div>
-                            <span className="text-[13px] text-forge-text-dim/60 truncate">
-                              {info.label}
-                              {fileName && <span className="ml-1.5 font-mono text-[11.5px] text-forge-text-dim/40">{fileName}</span>}
-                            </span>
+                            <div className="flex-1 min-w-0 flex items-baseline gap-1.5">
+                              <span className="text-[13px] text-forge-text-dim/60 shrink-0">{info.label}</span>
+                              {fileName && (
+                                <span className="flex items-baseline gap-1.5 min-w-0 truncate">
+                                  <span className="font-mono text-[11.5px] text-forge-text-dim/40 shrink-0">{fileName}</span>
+                                  {displayPath && <span className="tool-timeline-path hidden sm:inline">{displayPath}</span>}
+                                </span>
+                              )}
+                            </div>
                           </div>
                         </div>
                       )
@@ -301,16 +308,25 @@ export function ChatPanel(props: ChatPanelProps) {
                   const args = chat.currentActivity.args as Record<string, string>
                   const filePath = args.path || args.file || args.filePath || args.file_path || ''
                   const fileName = filePath ? filePath.split('/').pop() : ''
+                  const parentPath = filePath && fileName ? filePath.slice(0, filePath.length - fileName.length).replace(/\/$/, '') : ''
+                  const displayPath = parentPath.length > 30 ? '...' + parentPath.slice(parentPath.length - 27) : parentPath
                   return (
                     <div className="tool-timeline-item">
                       <div className="flex items-center gap-2.5 py-1 relative">
                         <div className="w-5 h-5 rounded-md flex items-center justify-center shrink-0 z-[1] bg-forge-accent/10 border border-forge-accent/30">
                           <Loader2 className="w-3 h-3 text-forge-accent animate-spin" />
                         </div>
-                        <span className="text-[13px] text-forge-text font-medium truncate flex-1">
-                          {info.label}
-                          {fileName && <span className="ml-1.5 text-forge-accent/70 font-mono text-[11.5px]">{fileName}</span>}
-                        </span>
+                        <div className="flex-1 min-w-0 flex items-baseline gap-1.5">
+                          <span className="text-[13px] text-forge-text font-medium shrink-0">
+                            {info.label}
+                          </span>
+                          {fileName && (
+                            <span className="flex items-baseline gap-1.5 min-w-0 truncate">
+                              <span className="font-mono text-[11.5px] text-forge-accent/70 shrink-0">{fileName}</span>
+                              {displayPath && <span className="tool-timeline-path hidden sm:inline">{displayPath}</span>}
+                            </span>
+                          )}
+                        </div>
                         {chat.elapsed > 0 && (
                           <span className="text-[11px] text-forge-text-dim/40 font-mono shrink-0 tabular-nums">
                             {chat.formatElapsed(chat.elapsed)}
