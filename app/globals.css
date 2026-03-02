@@ -824,3 +824,114 @@ html.dark [data-sonner-toast] [data-description] {
   border-radius: 1px;
   animation: thinkingProgress 2.5s ease-in-out infinite;
 }
+
+/* ─── v0-style Text Shimmer for active/loading states ────── */
+
+/* Sweeping gradient text shimmer - used on running tool labels */
+@keyframes textShimmer {
+  0% { background-position: -200% center; }
+  100% { background-position: 200% center; }
+}
+
+/* Primary shimmer - for active tool labels, task names */
+.shimmer-text {
+  background: linear-gradient(
+    90deg,
+    var(--color-forge-text) 0%,
+    var(--color-forge-text) 35%,
+    var(--color-forge-accent) 50%,
+    var(--color-forge-text) 65%,
+    var(--color-forge-text) 100%
+  );
+  background-size: 200% auto;
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  animation: textShimmer 2.5s linear infinite;
+}
+
+/* Subtle shimmer - for file paths and secondary text */
+.shimmer-text-subtle {
+  background: linear-gradient(
+    90deg,
+    var(--color-forge-text-dim) 0%,
+    var(--color-forge-text-dim) 40%,
+    var(--color-forge-accent) 50%,
+    var(--color-forge-text-dim) 60%,
+    var(--color-forge-text-dim) 100%
+  );
+  background-size: 200% auto;
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  animation: textShimmer 3s linear infinite;
+}
+
+/* Streaming text trailing edge fade - last paragraph softens at the right */
+.streaming-cursor > :last-child,
+.streaming-cursor > p:last-of-type {
+  mask-image: linear-gradient(90deg, black 70%, rgba(0,0,0,0.4) 95%);
+  -webkit-mask-image: linear-gradient(90deg, black 70%, rgba(0,0,0,0.4) 95%);
+}
+
+/* Pulsing glow on running icon containers */
+@keyframes iconGlow {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(99, 102, 241, 0.15); }
+  50% { box-shadow: 0 0 8px 2px rgba(99, 102, 241, 0.12); }
+}
+.icon-glow-pulse {
+  animation: iconGlow 2s ease-in-out infinite;
+}
+
+/* Task-specific shimmer - warmer feel for "Thinking" and task labels */
+@keyframes taskShimmer {
+  0% { background-position: -100% center; }
+  100% { background-position: 200% center; }
+}
+.shimmer-task {
+  background: linear-gradient(
+    90deg,
+    var(--color-forge-text-dim) 0%,
+    var(--color-forge-text-dim) 30%,
+    var(--color-forge-accent) 50%,
+    var(--color-forge-text-dim) 70%,
+    var(--color-forge-text-dim) 100%
+  );
+  background-size: 200% auto;
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  animation: taskShimmer 2s ease-in-out infinite;
+}
+
+/* Blue shimmer variant for blue-colored running tasks */
+.shimmer-text-blue {
+  background: linear-gradient(
+    90deg,
+    #2563eb 0%,
+    #2563eb 35%,
+    #818cf8 50%,
+    #2563eb 65%,
+    #2563eb 100%
+  );
+  background-size: 200% auto;
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  animation: textShimmer 2.5s linear infinite;
+}
+:is(.dark) .shimmer-text-blue {
+  background: linear-gradient(
+    90deg,
+    #60a5fa 0%,
+    #60a5fa 35%,
+    #a5b4fc 50%,
+    #60a5fa 65%,
+    #60a5fa 100%
+  );
+  background-size: 200% auto;
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  animation: textShimmer 2.5s linear infinite;
+}

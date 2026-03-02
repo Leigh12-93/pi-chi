@@ -85,12 +85,12 @@ function ThinkingIndicator({ elapsed, formatElapsed, stepCount, lastCompletedToo
         <div className="px-3 py-2.5 space-y-1.5">
           {/* Main thinking row */}
           <div className="flex items-center gap-2.5">
-            <div className="w-5 h-5 rounded-md bg-forge-accent/10 border border-forge-accent/20 flex items-center justify-center shrink-0">
+            <div className="w-5 h-5 rounded-md bg-forge-accent/10 border border-forge-accent/20 flex items-center justify-center shrink-0 icon-glow-pulse">
               <Brain className="w-3 h-3 text-forge-accent thinking-brain" />
             </div>
             <div className="flex-1 min-w-0">
               <div className="flex items-center gap-1.5">
-                <span className="text-[13px] text-forge-text font-medium thinking-text-rotate" key={messageIdx}>
+                <span className="text-[13px] text-forge-text font-medium thinking-text-rotate shimmer-task" key={messageIdx}>
                   {THINKING_MESSAGES[messageIdx]}
                 </span>
                 <span className="flex items-center gap-0.5 ml-0.5">
@@ -130,7 +130,7 @@ function ThinkingIndicator({ elapsed, formatElapsed, stepCount, lastCompletedToo
           <span className="typing-dot" />
         </span>
       )}
-      <span className="text-[13px] text-forge-text-dim">
+      <span className={cn('text-[13px] text-forge-text-dim', isSubmitted && 'shimmer-task')}>
         {isSubmitted ? 'Thinking' : phaseLabel}
         {stepCount >= 3 && (
           <span className="text-forge-text-dim/50"> &middot; {stepCount} actions</span>
@@ -313,17 +313,17 @@ export function ChatPanel(props: ChatPanelProps) {
                   return (
                     <div className="tool-timeline-item">
                       <div className="flex items-center gap-2.5 py-1 relative">
-                        <div className="w-5 h-5 rounded-md flex items-center justify-center shrink-0 z-[1] bg-forge-accent/10 border border-forge-accent/30">
+                        <div className="w-5 h-5 rounded-md flex items-center justify-center shrink-0 z-[1] bg-forge-accent/10 border border-forge-accent/30 icon-glow-pulse">
                           <Loader2 className="w-3 h-3 text-forge-accent animate-spin" />
                         </div>
                         <div className="flex-1 min-w-0 flex items-baseline gap-1.5">
-                          <span className="text-[13px] text-forge-text font-medium shrink-0">
+                          <span className="text-[13px] text-forge-text font-medium shrink-0 shimmer-text">
                             {info.label}
                           </span>
                           {fileName && (
                             <span className="flex items-baseline gap-1.5 min-w-0 truncate">
-                              <span className="font-mono text-[11.5px] text-forge-accent/70 shrink-0">{fileName}</span>
-                              {displayPath && <span className="tool-timeline-path hidden sm:inline">{displayPath}</span>}
+                              <span className="font-mono text-[11.5px] text-forge-accent/70 shrink-0 shimmer-text-subtle">{fileName}</span>
+                              {displayPath && <span className="tool-timeline-path shimmer-text-subtle hidden sm:inline">{displayPath}</span>}
                             </span>
                           )}
                         </div>

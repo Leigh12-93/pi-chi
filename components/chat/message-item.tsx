@@ -329,12 +329,12 @@ export const MessageItem = memo(function MessageItem({
                     animate={{ opacity: 1, y: 0 }}
                     className="flex items-center gap-2.5 px-3 py-2 rounded-xl text-[12px] border border-blue-200 dark:border-blue-800 bg-blue-50/50 dark:bg-blue-950/20 animate-shimmer"
                   >
-                    <div className="w-5 h-5 rounded-md flex items-center justify-center shrink-0 text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-950/40">
+                    <div className="w-5 h-5 rounded-md flex items-center justify-center shrink-0 text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-950/40 icon-glow-pulse">
                       <Loader2 className="w-3 h-3 animate-spin" />
                     </div>
-                    <span className="truncate flex-1 text-blue-600 dark:text-blue-400">
+                    <span className="truncate flex-1 text-blue-600 dark:text-blue-400 shimmer-text-blue">
                       {taskProgress || `${resultData?.type || 'Task'}: in progress...`}
-                      {taskElapsed > 0 && ` · ${taskElapsed}s`}
+                      {taskElapsed > 0 && ` \u00B7 ${taskElapsed}s`}
                     </span>
                     {runningTaskId && (
                       <button
@@ -415,7 +415,7 @@ export const MessageItem = memo(function MessageItem({
                     {/* Icon node */}
                     <div className={cn(
                       'w-5 h-5 rounded-md flex items-center justify-center shrink-0 z-[1]',
-                      isRunning ? 'bg-forge-accent/10 border border-forge-accent/30'
+                      isRunning ? 'bg-forge-accent/10 border border-forge-accent/30 icon-glow-pulse'
                         : hasError ? 'bg-red-50 dark:bg-red-950/40 border border-red-200 dark:border-red-800'
                         : colorClasses[info.color] || colorClasses.gray
                     )}>
@@ -435,7 +435,7 @@ export const MessageItem = memo(function MessageItem({
                         <>
                           <span className={cn(
                             'text-[13px] shrink-0',
-                            isRunning ? 'text-forge-text font-medium' : 'text-forge-text-dim'
+                            isRunning ? 'text-forge-text font-medium shimmer-text' : 'text-forge-text-dim'
                           )}>
                             {info.label}
                           </span>
@@ -443,12 +443,12 @@ export const MessageItem = memo(function MessageItem({
                             <span className="flex items-baseline gap-1.5 min-w-0 truncate">
                               <span className={cn(
                                 'font-mono text-[11.5px] shrink-0',
-                                isRunning ? 'text-forge-accent/80' : 'text-forge-text-dim/50'
+                                isRunning ? 'text-forge-accent/80 shimmer-text-subtle' : 'text-forge-text-dim/50'
                               )}>
                                 {fileName}
                               </span>
                               {displayPath && (
-                                <span className="tool-timeline-path hidden sm:inline">{displayPath}</span>
+                                <span className={cn('tool-timeline-path hidden sm:inline', isRunning && 'shimmer-text-subtle')}>{displayPath}</span>
                               )}
                             </span>
                           )}
