@@ -140,8 +140,13 @@ export async function POST(req: Request) {
   }
   activeStreams.set(ip, { count: currentStreams + 1, ts: now })
 
-  // Auth check
-  const session = await getSession()
+  // Auth check — wrap in try/catch in case session infrastructure fails
+  let session
+  try {
+    session = await getSession()
+  } catch {
+    session = null
+  }
   if (!session?.user) {
     return new Response(JSON.stringify({ error: 'Authentication required. Please sign in with GitHub.' }), {
       status: 401,
@@ -359,10 +364,13 @@ export async function POST(req: Request) {
       : '')
     + `\n\n---\nProject: "${projectName}"${projectId ? ` (id: ${projectId})` : ''}\nFile manifest:\n${manifestStr}`
 
-  let messageTokens = JSON.stringify(trimmedMessages).length / 4 // rough 4 chars/token
-  const systemTokens = systemPromptStr.length / 4
-  const TOOL_SCHEMA_OVERHEAD = 16000 // ~40 tools with Zod schemas → JSON Schema (measured)
-  const SAFETY_BUFFER = 2000 // breathing room for framing tokens
+  // Token estimation: JSON.stringify/4 underestimates real Anthropic token count
+  // because tool schemas, message framing, and code tokenization add ~40% overhead.
+  // Use /3 instead of /4 for a safer estimate.
+  let messageTokens = JSON.stringify(trimmedMessages).length / 3
+  const systemTokens = systemPromptStr.length / 3
+  const TOOL_SCHEMA_OVERHEAD = 20000 // ~40 tools with Zod schemas, descriptions, enums
+  const SAFETY_BUFFER = 4000 // framing tokens, message metadata, caching headers
   let estimatedInputTokens = messageTokens + systemTokens + TOOL_SCHEMA_OVERHEAD + SAFETY_BUFFER
 
   const MODEL_CONTEXT_LIMITS: Record<string, number> = {
@@ -386,9 +394,12 @@ export async function POST(req: Request) {
   }
 
   // ── Layer 2: Auto-compaction via Haiku summarization ──────────
+  // Triggers on: token threshold (50%) OR message count (>20 messages = always compact)
   let compactionOccurred = false
   let compactedTokensSaved = 0
-  if (estimatedInputTokens > contextLimit * 0.50 && trimmedMessages.length > 6) {
+  const shouldCompact = (estimatedInputTokens > contextLimit * 0.50 && trimmedMessages.length > 6)
+    || trimmedMessages.length > 20 // Safety net: always compact long conversations
+  if (shouldCompact) {
     const preCompactionTokens = estimatedInputTokens
     const result = await compactMessages(trimmedMessages, projectId, estimatedInputTokens, contextLimit)
     trimmedMessages = result.messages

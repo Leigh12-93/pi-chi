@@ -60,16 +60,17 @@ export function createGithubTools(ctx: ToolContext) {
             if (ref.error) throw new Error(`Repo created but failed to get initial ref: ${ref.error}`)
             const parentSha = ref.object.sha
 
-            // Upload blobs in parallel batches of 5
+            // Upload blobs in parallel batches (smaller batches + delay for large pushes)
             const fileEntries = Object.entries(files)
-            const blobs = await batchParallel(fileEntries, 5, async ([path, content]) => {
+            const batchSize = fileEntries.length > 50 ? 3 : 5
+            const blobs = await batchParallel(fileEntries, batchSize, async ([path, content]) => {
               const blob = await ctx.githubFetch(`/repos/${owner}/${repoName}/git/blobs`, token, {
                 method: 'POST',
                 body: JSON.stringify({ content, encoding: 'utf-8' }),
               })
               if (blob.error) throw new Error(`Failed to create blob for ${path}: ${blob.error}`)
               return { path, mode: '100644' as const, type: 'blob' as const, sha: blob.sha as string }
-            })
+            }, fileEntries.length > 20 ? 200 : 100)
 
             const tree = await ctx.githubFetch(`/repos/${owner}/${repoName}/git/trees`, token, {
               method: 'POST',
@@ -142,16 +143,17 @@ export function createGithubTools(ctx: ToolContext) {
             if (ref.error) throw new Error(`Failed to get branch "${branchName}": ${ref.error}`)
             const parentSha = ref.object.sha
 
-            // Upload blobs in parallel batches of 5
+            // Upload blobs in parallel batches (smaller batches + delay for large pushes)
             const fileEntries = Object.entries(files)
-            const blobs = await batchParallel(fileEntries, 5, async ([path, content]) => {
+            const batchSize = fileEntries.length > 50 ? 3 : 5
+            const blobs = await batchParallel(fileEntries, batchSize, async ([path, content]) => {
               const blob = await ctx.githubFetch(`/repos/${owner}/${repo}/git/blobs`, token, {
                 method: 'POST',
                 body: JSON.stringify({ content, encoding: 'utf-8' }),
               })
               if (blob.error) throw new Error(`Failed to create blob for ${path}: ${blob.error}`)
               return { path, mode: '100644' as const, type: 'blob' as const, sha: blob.sha as string }
-            })
+            }, fileEntries.length > 20 ? 200 : 100)
 
             // For incremental mode, include deletions as well
             const treeEntries = [...blobs]
@@ -237,14 +239,15 @@ export function createGithubTools(ctx: ToolContext) {
           const parentSha = ref.object.sha
 
           const fileEntries = Object.entries(filesToPush)
-          const blobs = await batchParallel(fileEntries, 5, async ([path, content]) => {
+          const batchSize = fileEntries.length > 50 ? 3 : 5
+          const blobs = await batchParallel(fileEntries, batchSize, async ([path, content]) => {
             const blob = await ctx.githubFetch(`/repos/${owner}/${repo}/git/blobs`, token, {
               method: 'POST',
               body: JSON.stringify({ content, encoding: 'utf-8' }),
             })
             if (blob.error) throw new Error(`Failed to create blob for ${path}: ${blob.error}`)
             return { path, mode: '100644' as const, type: 'blob' as const, sha: blob.sha as string }
-          })
+          }, fileEntries.length > 20 ? 200 : 100)
 
           const tree = await ctx.githubFetch(`/repos/${owner}/${repo}/git/trees`, token, {
             method: 'POST',

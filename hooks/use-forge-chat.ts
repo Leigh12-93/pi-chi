@@ -94,8 +94,18 @@ export function useForgeChat(props: UseForgeChatProps) {
     for (const m of msgs) {
       if (Array.isArray(m.parts)) {
         for (const p of m.parts) {
-          if (p.type === 'text') msgsSize += (p.text?.length || 0)
-          else msgsSize += 500 // tool parts overhead estimate
+          if (p.type === 'text') {
+            msgsSize += (p.text?.length || 0)
+          } else {
+            // Tool parts include full file content in input/args — measure real size
+            const input = p.input || p.args
+            if (input && typeof input === 'object') {
+              const content = input.content || input.old_string || input.new_string || ''
+              msgsSize += 300 + (typeof content === 'string' ? content.length : 0)
+            } else {
+              msgsSize += 300
+            }
+          }
         }
       } else if (typeof m.content === 'string') {
         msgsSize += m.content.length
@@ -104,7 +114,8 @@ export function useForgeChat(props: UseForgeChatProps) {
     const estimatedBodyBytes = filesSize + msgsSize + 5000
 
     // Aggressive compaction if body would exceed ~3MB (Vercel limit is 4.5MB)
-    if (estimatedBodyBytes > 3 * 1024 * 1024) {
+    // Also trigger if message content alone exceeds ~1.5MB (heavy tool results)
+    if (estimatedBodyBytes > 3 * 1024 * 1024 || msgsSize > 1.5 * 1024 * 1024) {
       const first2 = msgs.slice(0, 2)
       const recent6 = msgs.slice(-6)
       const dropped = msgs.length - 8
@@ -119,7 +130,7 @@ export function useForgeChat(props: UseForgeChatProps) {
     }
 
     // Strip tool invocation details from older messages to reduce token count
-    if (msgs.length > 14) {
+    if (msgs.length > 12) {
       return msgs.map((m: any, i: number) => {
         if (i >= msgs.length - 8) return m // keep recent 8 intact
         if (m.role !== 'assistant' || !Array.isArray(m.parts)) return m

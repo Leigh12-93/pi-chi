@@ -1,11 +1,12 @@
 'use client'
 
 import { useState } from 'react'
-import { CheckCircle, ChevronDown, Terminal, Loader2, Search, Pencil, GitBranch, Database } from 'lucide-react'
+import { CheckCircle, ChevronDown, ChevronRight, Terminal, Loader2, Search, Pencil, GitBranch, Database } from 'lucide-react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { cn } from '@/lib/utils'
 import { TOOL_LABELS, colorClasses } from '@/lib/chat/constants'
 import { getToolSummary, type ToolInvocation } from '@/lib/chat/tool-utils'
+import { ToolResultDetail, getInlineSummary } from './tool-result-detail'
 
 export const SPECIAL_TOOLS = new Set([
   'think', 'suggest_improvement', 'request_env_vars',
@@ -172,26 +173,54 @@ export function CollapsibleToolGroup({ tools }: { tools: ToolGroupData['tools'] 
             className="overflow-hidden"
           >
             <div className="ml-2.5 border-l border-forge-border/40 pl-4 py-1 space-y-0.5">
-              {tools.map((t, i) => {
-                const fileInfo = getToolFileInfo(t)
-                const info = TOOL_LABELS[t.toolName] || { label: t.toolName.replace(/_/g, ' '), Icon: Terminal, color: 'gray' }
-                return (
-                  <motion.div
-                    key={t.partIdx}
-                    initial={{ opacity: 0, x: -4 }}
-                    animate={{ opacity: 1, x: 0 }}
-                    transition={{ duration: 0.15, delay: i * 0.03 }}
-                    className="flex items-center gap-1.5 py-0.5 text-[12px] text-forge-text-dim/70"
-                  >
-                    <div className="w-1.5 h-1.5 rounded-full bg-emerald-400/60 shrink-0 -ml-[21px]" />
-                    <span className="text-forge-text-dim/50 shrink-0">{info.label}</span>
-                    <span className="font-mono shrink-0">{fileInfo.name}</span>
-                    {fileInfo.path && <span className="tool-timeline-path hidden sm:inline">{fileInfo.path}</span>}
-                  </motion.div>
-                )
-              })}
+              {tools.map((t, i) => (
+                <GroupedToolDetail key={t.partIdx} tool={t} index={i} />
+              ))}
             </div>
           </motion.div>
+        )}
+      </AnimatePresence>
+    </motion.div>
+  )
+}
+
+/** Individual tool within a group — shows summary badge and is expandable for detail */
+function GroupedToolDetail({ tool: t, index: i }: { tool: ToolGroupData['tools'][0]; index: number }) {
+  const [detailOpen, setDetailOpen] = useState(false)
+  const fileInfo = getToolFileInfo(t)
+  const info = TOOL_LABELS[t.toolName] || { label: t.toolName.replace(/_/g, ' '), Icon: Terminal, color: 'gray' }
+  const summary = getInlineSummary(t.toolName, t.args, t.result as Record<string, unknown> | null)
+
+  return (
+    <motion.div
+      key={t.partIdx}
+      initial={{ opacity: 0, x: -4 }}
+      animate={{ opacity: 1, x: 0 }}
+      transition={{ duration: 0.15, delay: i * 0.03 }}
+    >
+      <div
+        className="flex items-center gap-1.5 py-0.5 text-[12px] text-forge-text-dim/70 cursor-pointer hover:text-forge-text-dim/90 transition-colors"
+        onClick={() => setDetailOpen(!detailOpen)}
+        role="button"
+        tabIndex={0}
+        onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') setDetailOpen(!detailOpen) }}
+      >
+        <div className="w-1.5 h-1.5 rounded-full bg-emerald-400/60 shrink-0 -ml-[21px]" />
+        <span className="text-forge-text-dim/50 shrink-0">{info.label}</span>
+        <span className="font-mono shrink-0">{fileInfo.name}</span>
+        {fileInfo.path && <span className="tool-timeline-path hidden sm:inline">{fileInfo.path}</span>}
+        {summary && (
+          <span className="text-[10px] text-forge-text-dim/30 font-mono shrink-0 hidden sm:inline">{summary}</span>
+        )}
+        <ChevronRight className={cn('w-2.5 h-2.5 text-forge-text-dim/20 shrink-0 ml-auto transition-transform duration-150', detailOpen && 'rotate-90')} />
+      </div>
+      <AnimatePresence>
+        {detailOpen && (
+          <ToolResultDetail
+            toolName={t.toolName}
+            args={t.args}
+            result={t.result as Record<string, unknown> | null}
+          />
         )}
       </AnimatePresence>
     </motion.div>

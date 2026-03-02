@@ -1,13 +1,13 @@
 'use client'
 
-import { memo } from 'react'
+import { memo, useState } from 'react'
 import {
   Loader2, Copy, Check, Pencil,
   Terminal, Lightbulb, RefreshCw,
   CheckCircle, XCircle, StopCircle, ExternalLink,
-  Paperclip, ImageIcon,
+  Paperclip, ImageIcon, ChevronRight,
 } from 'lucide-react'
-import { motion } from 'framer-motion'
+import { motion, AnimatePresence } from 'framer-motion'
 import { cn } from '@/lib/utils'
 import { TOOL_LABELS, colorClasses } from '@/lib/chat/constants'
 import { getToolSummary, getFriendlyError, type ToolInvocation } from '@/lib/chat/tool-utils'
@@ -15,6 +15,7 @@ import { cachedRenderMarkdown } from '@/lib/chat/markdown'
 import { ThinkPanel } from './think-panel'
 import { EnvVarInputCard } from './env-var-input-card'
 import { CollapsibleToolGroup, groupToolInvocations, type RenderItem } from './tool-group'
+import { ToolResultDetail, getInlineSummary } from './tool-result-detail'
 
 /** A single part from the AI SDK message (v4 or v6 format) */
 interface MessagePart {
@@ -69,6 +70,52 @@ function getTextContent(message: ChatMessage): string {
     return message.parts.filter((p) => p.type === 'text').map((p) => (p.text as string) || '').join('')
   }
   return ''
+}
+
+/** Wrapper that makes a tool timeline item expandable with detail dropdown */
+function ExpandableToolItem({ toolName, args, result, canExpand, children }: {
+  toolName: string
+  args: Record<string, unknown>
+  result: Record<string, unknown> | undefined
+  canExpand: boolean
+  children: React.ReactNode
+}) {
+  const [expanded, setExpanded] = useState(false)
+
+  if (!canExpand) {
+    return (
+      <motion.div
+        initial={{ opacity: 0, y: 4 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.2, ease: [0.16, 1, 0.3, 1] }}
+        className="tool-timeline-item"
+      >
+        {children}
+      </motion.div>
+    )
+  }
+
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 4 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.2, ease: [0.16, 1, 0.3, 1] }}
+      className={cn('tool-timeline-item', expanded && 'tool-timeline-expanded')}
+    >
+      <div onClick={() => setExpanded(!expanded)} role="button" tabIndex={0} onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') setExpanded(!expanded) }}>
+        {children}
+      </div>
+      <AnimatePresence>
+        {expanded && (
+          <ToolResultDetail
+            toolName={toolName}
+            args={args}
+            result={result || null}
+          />
+        )}
+      </AnimatePresence>
+    </motion.div>
+  )
 }
 
 export interface MessageItemProps {
@@ -391,11 +438,10 @@ export const MessageItem = memo(function MessageItem({
                 ? (inv.result as Record<string, unknown>).error as string : ''
               const friendlyErr = rawError ? getFriendlyError(rawError, inv.toolName) : ''
 
-              // v0-style timeline item
+              // v0-style timeline item — expandable with detail dropdown
               const args = (inv.args || {}) as Record<string, string>
               const filePath = args.path || args.file || args.filePath || args.file_path || ''
               const fileName = filePath ? filePath.split('/').pop() : ''
-              // Truncated parent path for context (like v0 shows)
               const parentPath = filePath && fileName
                 ? filePath.slice(0, filePath.length - fileName.length).replace(/\/$/, '')
                 : ''
@@ -403,15 +449,23 @@ export const MessageItem = memo(function MessageItem({
                 ? '...' + parentPath.slice(parentPath.length - 27)
                 : parentPath
 
+              // Inline result summary badge (e.g., "45 lines", "3 matches")
+              const inlineSummary = !isRunning && !hasError
+                ? getInlineSummary(inv.toolName, inv.args || {}, inv.result as Record<string, unknown> | null)
+                : null
+
+              // Completed tools are expandable
+              const canExpand = !isRunning && inv.state === 'result'
+
               return (
-                <motion.div
+                <ExpandableToolItem
                   key={partIdx}
-                  initial={{ opacity: 0, y: 4 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ duration: 0.2, ease: [0.16, 1, 0.3, 1] }}
-                  className="tool-timeline-item"
+                  toolName={inv.toolName}
+                  args={inv.args || {}}
+                  result={inv.result as Record<string, unknown> | undefined}
+                  canExpand={canExpand}
                 >
-                  <div className="flex items-center gap-2.5 py-1 relative">
+                  <div className={cn('flex items-center gap-2.5 py-1 relative', canExpand && 'cursor-pointer')}>
                     {/* Icon node */}
                     <div className={cn(
                       'w-5 h-5 rounded-md flex items-center justify-center shrink-0 z-[1]',
@@ -424,7 +478,7 @@ export const MessageItem = memo(function MessageItem({
                         : <info.Icon className="w-3 h-3" />}
                     </div>
 
-                    {/* Label + path */}
+                    {/* Label + path + summary */}
                     <div className="flex-1 min-w-0 flex items-baseline gap-1.5">
                       {hasError ? (
                         <div className="flex flex-col min-w-0">
@@ -452,18 +506,25 @@ export const MessageItem = memo(function MessageItem({
                               )}
                             </span>
                           )}
+                          {inlineSummary && (
+                            <span className="text-[10.5px] text-forge-text-dim/35 font-mono shrink-0 hidden sm:inline">
+                              {inlineSummary}
+                            </span>
+                          )}
                         </>
                       )}
                     </div>
 
-                    {/* Duration placeholder for running tools */}
-                    {isRunning && (
+                    {/* Chevron for expandable / duration for running */}
+                    {isRunning ? (
                       <span className="text-[11px] text-forge-text-dim/30 font-mono shrink-0 tabular-nums">
                         ...
                       </span>
-                    )}
+                    ) : canExpand ? (
+                      <ChevronRight className="w-3 h-3 text-forge-text-dim/20 shrink-0 transition-transform duration-200 expand-chevron" />
+                    ) : null}
                   </div>
-                </motion.div>
+                </ExpandableToolItem>
               )
             }
 

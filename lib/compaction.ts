@@ -12,7 +12,7 @@ const COMPACTION_MODEL = (process.env.COMPACTION_MODEL || 'claude-haiku-35-20241
 // Constants
 const COMPACTION_THRESHOLD = 0.35        // Trigger at 35% of context limit — compact early to avoid 413 errors
 const PRESERVE_FIRST = 2                 // Keep first 2 messages (initial context)
-const PRESERVE_RECENT = 8               // Keep last 8 messages (current work)
+const PRESERVE_RECENT = 6               // Keep last 6 messages (current work — 3 exchanges)
 const MAX_SUMMARY_INPUT_CHARS = 50000   // Cap Haiku input at ~12.5K tokens
 const MAX_SUMMARY_TOKENS = 2000         // Concise summary output
 const COMPACTION_TIMEOUT_MS = 10000     // 10s timeout for Haiku call

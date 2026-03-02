@@ -779,6 +779,19 @@ html.dark [data-sonner-toast] [data-description] {
   white-space: nowrap;
 }
 
+/* Expandable tool items */
+.tool-timeline-item:hover .expand-chevron {
+  opacity: 0.5;
+}
+.tool-timeline-expanded .expand-chevron {
+  transform: rotate(90deg);
+  opacity: 0.5;
+}
+.tool-timeline-item[role="button"]:hover,
+.tool-timeline-item [role="button"]:hover {
+  opacity: 0.85;
+}
+
 /* ─── Response Complete Signal ───────────────────────────── */
 
 @keyframes completeFadeOut {
