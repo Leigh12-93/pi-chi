@@ -14,7 +14,6 @@ import { getToolSummary, getFriendlyError, type ToolInvocation } from '@/lib/cha
 import { cachedRenderMarkdown } from '@/lib/chat/markdown'
 import { ThinkPanel } from './think-panel'
 import { EnvVarInputCard } from './env-var-input-card'
-import { TaskListPanel, type TaskItem } from './task-list-panel'
 import { CollapsibleToolGroup, groupToolInvocations, type RenderItem } from './tool-group'
 import { ToolResultDetail, getInlineSummary } from './tool-result-detail'
 
@@ -226,42 +225,29 @@ export const MessageItem = memo(function MessageItem({
             return true
           })
 
-          // Aggregate set_tasks + update_task into a single live task list
-          const taskListItems: TaskItem[] = []
-          let hasTaskList = false
+          // Track files completed by write_file/edit_file — used by ThinkPanel for auto-progress
+          const completedFiles = new Set<string>()
           for (const part of filteredParts) {
             if (!isToolPart(part)) continue
             const inv = extractToolInvocation(part)
             if (!inv) continue
-            if (inv.toolName === 'set_tasks' && (inv.state === 'result' || inv.state === 'call')) {
-              const tasks = (inv.args as any)?.tasks
-              if (Array.isArray(tasks)) {
-                hasTaskList = true
-                taskListItems.length = 0 // reset if set_tasks called again
-                for (const t of tasks) {
-                  taskListItems.push({ id: t.id, label: t.label, status: t.status || 'pending' })
-                }
+            const isComplete = inv.state === 'result'
+            const hasError = inv.result && typeof inv.result === 'object' && 'error' in inv.result
+            if (isComplete && !hasError) {
+              const args = inv.args as Record<string, unknown>
+              const path = (args.path || args.file || args.filePath) as string | undefined
+              if (path && ['write_file', 'edit_file', 'create_project', 'rename_file', 'delete_file'].includes(inv.toolName)) {
+                completedFiles.add(path)
               }
-            }
-            if (inv.toolName === 'update_task' && (inv.state === 'result' || inv.state === 'call')) {
-              const args = inv.args as any
-              if (args?.id) {
-                const existing = taskListItems.find(t => t.id === args.id)
-                if (existing) {
-                  existing.status = args.status || existing.status
-                  if (args.detail) existing.detail = args.detail
-                }
+              // create_project completes multiple files — mark all scaffold files
+              if (inv.toolName === 'create_project' && inv.result && typeof inv.result === 'object') {
+                const files = (inv.result as Record<string, unknown>).files
+                if (Array.isArray(files)) files.forEach((f: string) => completedFiles.add(f))
               }
             }
           }
 
-          // Filter out set_tasks/update_task from normal rendering (they render as the task list panel)
-          const taskToolNames = new Set(['set_tasks', 'update_task'])
-          const displayParts = hasTaskList
-            ? filteredParts.filter(p => !isToolPart(p) || !taskToolNames.has(getToolName(p)))
-            : filteredParts
-
-          const grouped = groupToolInvocations(displayParts)
+          const grouped = groupToolInvocations(filteredParts)
 
           let lastTextItemIdx = -1
           for (let gi = grouped.length - 1; gi >= 0; gi--) {
@@ -272,12 +258,7 @@ export const MessageItem = memo(function MessageItem({
             }
           }
 
-          return (<>
-          {/* Live task list (aggregated from set_tasks + update_task) */}
-          {hasTaskList && taskListItems.length > 0 && (
-            <TaskListPanel tasks={taskListItems} />
-          )}
-          {grouped.map((item: RenderItem, itemIdx: number) => {
+          return grouped.map((item: RenderItem, itemIdx: number) => {
             if (item.type === 'tool-group') {
               return <CollapsibleToolGroup key={`group-${itemIdx}`} tools={item.tools} />
             }
@@ -321,7 +302,7 @@ export const MessageItem = memo(function MessageItem({
 
               if (inv.toolName === 'think' && inv.state === 'result') {
                 const planFiles = Array.isArray(inv.args?.files) ? inv.args.files as string[] : []
-                return <ThinkPanel key={partIdx} plan={String(inv.args?.plan || '')} files={planFiles} />
+                return <ThinkPanel key={partIdx} plan={String(inv.args?.plan || '')} files={planFiles} completedFiles={completedFiles} isStreaming={isLoading && isLast} />
               }
 
               if (inv.toolName === 'suggest_improvement' && inv.state === 'result') {
@@ -570,8 +551,7 @@ export const MessageItem = memo(function MessageItem({
             }
 
             return null
-          })}
-          </>)
+          })
         })()}
           {!isLoading && (
             <button

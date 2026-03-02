@@ -3,7 +3,7 @@ import {
   FolderPlus, Search, Terminal, Globe, Rocket,
   CheckCircle, Sparkles, ArrowUp, Database, Wrench,
   RefreshCw, BookOpen, Save, Plug, ImageIcon, Package,
-  GitBranch, Key, ListChecks,
+  GitBranch, Key,
   type LucideIcon,
 } from 'lucide-react'
 
@@ -69,8 +69,6 @@ export const TOOL_LABELS: Record<string, { label: string; Icon: LucideIcon; colo
   save_preference: { label: 'Saving preference', Icon: Save, color: 'green' },
   load_preferences: { label: 'Loading preferences', Icon: Database, color: 'blue' },
   set_custom_domain: { label: 'Setting domain', Icon: Globe, color: 'blue' },
-  set_tasks: { label: 'Setting up tasks', Icon: ListChecks, color: 'purple' },
-  update_task: { label: 'Updating task', Icon: CheckCircle, color: 'green' },
 }
 
 export const MODEL_OPTIONS = [
