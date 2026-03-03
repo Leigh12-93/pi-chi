@@ -674,6 +674,9 @@ export async function POST(req: Request) {
 
         // Merge the streamText result into our UIMessageStream
         writer.merge(result.toUIMessageStream({
+          // Stream reasoning/thinking blocks to the client so the user
+          // can see what the AI is thinking (Opus 4.6 extended thinking)
+          sendReasoning: true,
           // Send usage as message metadata on the final message
           messageMetadata: ({ part }) => {
             if (part.type === 'finish') {
