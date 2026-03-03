@@ -600,24 +600,25 @@ export async function POST(req: Request) {
           stopWhen: stepCountIs(MODEL_MAX_STEPS[selectedModel] || 70),
           abortSignal: streamAbort.signal,
           tools: allTools,
-          // Force tool use for the first N steps — prevents the model from outputting
-          // a text-only response (which ends the agentic loop) before actually building.
-          // After step 2, switch to 'auto' so the model can finish with a text summary.
-          toolChoice: 'required' as const,
-          prepareStep: ({ stepNumber }) => ({
-            // After step 2, allow the model to choose whether to use tools or output text.
-            // This means: step 0 = forced tool, step 1 = forced tool, step 2+ = auto.
-            // The model will keep calling tools as long as it has work to do, then
-            // naturally output a text summary to finish.
-            toolChoice: stepNumber < 2 ? ('required' as const) : ('auto' as const),
-          }),
+          // Force tool use on first 2 steps to prevent the model from stopping
+          // with a text-only response before actually building anything.
+          // NOTE: toolChoice 'required' is INCOMPATIBLE with Anthropic extended thinking
+          // (API error: "Thinking may not be enabled when tool_choice forces tool use")
+          // so we only use it for non-thinking models. For Opus 4.6, the system prompt
+          // instructs continuous tool calling instead.
+          ...(selectedModel !== 'claude-opus-4-6' ? {
+            toolChoice: 'required' as const,
+            prepareStep: ({ stepNumber }: { stepNumber: number }) => ({
+              toolChoice: stepNumber < 2 ? ('required' as const) : ('auto' as const),
+            }),
+          } : {}),
           // Enable Anthropic prompt caching — 90% input token discount on cached prefix
           // For Opus 4.6, also enable extended thinking for better agentic reasoning
           providerOptions: {
             anthropic: {
               cacheControl: { type: 'ephemeral' },
               ...(selectedModel === 'claude-opus-4-6' ? {
-                thinking: { type: 'enabled', budgetTokens: 32000 },
+                thinking: { type: 'enabled', budgetTokens: 10000 },
               } : {}),
             },
           },
