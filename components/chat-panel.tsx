@@ -136,7 +136,9 @@ function ThinkingIndicator({ elapsed, formatElapsed, stepCount, lastCompletedToo
   )
 }
 
-export type ChatPanelProps = UseForgeChatProps
+export type ChatPanelProps = UseForgeChatProps & {
+  onLoadingChange?: (isLoading: boolean) => void
+}
 
 /** Brief "response complete" signal -- flat inline timeline item */
 function CompletionSignal({ stepCount, elapsed, formatElapsed }: {
@@ -171,7 +173,7 @@ function CompletionSignal({ stepCount, elapsed, formatElapsed }: {
   )
 }
 
-export function ChatPanel(props: ChatPanelProps) {
+export function ChatPanel({ onLoadingChange, ...props }: ChatPanelProps) {
   const chat = useForgeChat(props)
   const [isDraggingChat, setIsDraggingChat] = useState(false)
   const [dismissedError, setDismissedError] = useState<string | null>(null)
@@ -186,6 +188,11 @@ export function ChatPanel(props: ChatPanelProps) {
     },
     onError: (msg) => toast.error(msg),
   })
+
+  // Bubble loading state to parent (workspace auto-switching)
+  useEffect(() => {
+    onLoadingChange?.(chat.isLoading)
+  }, [chat.isLoading, onLoadingChange])
 
   // Track completion signal: show briefly when streaming ends
   const [showComplete, setShowComplete] = useState(false)

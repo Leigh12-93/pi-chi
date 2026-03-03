@@ -5,7 +5,7 @@ import {
   Loader2, Copy, Check, Pencil,
   Terminal, Lightbulb, RefreshCw,
   CheckCircle, XCircle, StopCircle, ExternalLink,
-  Paperclip, ImageIcon, ChevronRight,
+  Paperclip, ImageIcon, ChevronRight, Brain,
 } from 'lucide-react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { cn } from '@/lib/utils'
@@ -53,6 +53,50 @@ function extractToolInvocation(part: Record<string, unknown>): ToolInvocation | 
     }
   }
   return null
+}
+
+/** Collapsible reasoning/thinking block — shows the AI's internal reasoning */
+function ReasoningBlock({ text }: { text: string }) {
+  const [expanded, setExpanded] = useState(false)
+  const preview = text.slice(0, 120).replace(/\n/g, ' ')
+  const isTruncated = text.length > 120
+
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 4 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.2 }}
+      className="tool-timeline-item"
+    >
+      <button
+        onClick={() => setExpanded(!expanded)}
+        className="flex items-center gap-2.5 w-full py-1 text-[13px] hover:opacity-80 transition-opacity"
+      >
+        <div className="w-5 h-5 rounded-md flex items-center justify-center shrink-0 text-purple-600 bg-purple-50 dark:text-purple-400 dark:bg-purple-950/40">
+          <Brain className="w-3 h-3" />
+        </div>
+        <span className="flex-1 text-left text-forge-text-dim font-medium truncate">
+          {expanded ? 'Thinking' : preview}{!expanded && isTruncated ? '...' : ''}
+        </span>
+        <ChevronRight className={cn('w-3.5 h-3.5 text-forge-text-dim/40 transition-transform duration-200 shrink-0', expanded && 'rotate-90')} />
+      </button>
+      <AnimatePresence>
+        {expanded && (
+          <motion.div
+            initial={{ height: 0, opacity: 0 }}
+            animate={{ height: 'auto', opacity: 1 }}
+            exit={{ height: 0, opacity: 0 }}
+            transition={{ duration: 0.25 }}
+            className="overflow-hidden"
+          >
+            <div className="ml-2.5 border-l border-forge-border/40 pl-4 py-2">
+              <p className="text-[12.5px] text-forge-text-dim/70 leading-relaxed whitespace-pre-wrap">{text}</p>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </motion.div>
+  )
 }
 
 /** Message shape expected by this component — uses Record for broad compatibility with UIMessage */
@@ -289,6 +333,11 @@ export const MessageItem = memo(function MessageItem({
                   </button>
                 </div>
               )
+            }
+
+            // Reasoning/thinking blocks from extended thinking (Opus 4.6)
+            if (part.type === 'reasoning' && (part as any).text) {
+              return <ReasoningBlock key={partIdx} text={(part as any).text} />
             }
 
             if (isToolPart(part)) {

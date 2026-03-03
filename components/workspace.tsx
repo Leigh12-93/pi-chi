@@ -84,6 +84,13 @@ export function Workspace({
   const filesRef = useRef(files)
   filesRef.current = files
 
+  // ─── Smart panel auto-switching state ──────────────────────
+  const [aiLoading, setAiLoading] = useState(false)
+  const userManualSwitchRef = useRef(false)  // true when user manually clicked a tab
+  const userSwitchTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const prevAiLoadingRef = useRef(false)
+  const fileCountAtStartRef = useRef(0)  // file count when AI started
+
   // Persist snapshots to sessionStorage (survive page refresh)
   useEffect(() => {
     if (!projectId || snapshots.length === 0) return
@@ -490,6 +497,59 @@ export function Workspace({
     }
   }, [pendingChatMessage, mobileTab])
 
+  // ─── Smart desktop panel auto-switching ────────────────────
+  // When AI starts: show code so user can watch files being written.
+  // When AI finishes AND wrote files: auto-switch to preview after a short delay.
+  // When preview reports ready: switch to preview.
+  // All auto-switches are suppressed if user manually clicked a tab recently.
+
+  const handleAiLoadingChange = useCallback((loading: boolean) => {
+    setAiLoading(loading)
+  }, [])
+
+  // Track AI start/stop — switch to code on start, preview on finish
+  useEffect(() => {
+    const wasLoading = prevAiLoadingRef.current
+    prevAiLoadingRef.current = aiLoading
+
+    if (aiLoading && !wasLoading) {
+      // AI just started — show code tab so user can watch files being written
+      fileCountAtStartRef.current = Object.keys(files).length
+      if (!userManualSwitchRef.current) {
+        setRightTab('code')
+      }
+    }
+
+    if (!aiLoading && wasLoading) {
+      // AI just finished — if files were created/changed, switch to preview after brief delay
+      const currentCount = Object.keys(files).length
+      if (currentCount > fileCountAtStartRef.current && !userManualSwitchRef.current) {
+        // Delay to let preview panel debounce + sandbox sync catch up
+        const timer = setTimeout(() => {
+          if (!userManualSwitchRef.current) {
+            setRightTab('preview')
+          }
+        }, 1500)
+        return () => clearTimeout(timer)
+      }
+    }
+  }, [aiLoading, files])
+
+  // Preview ready callback — auto-switch to preview
+  const handlePreviewReady = useCallback(() => {
+    // Only auto-switch if AI is not currently streaming (otherwise stay on code)
+    if (!aiLoading && !userManualSwitchRef.current && Object.keys(files).length >= 3) {
+      setRightTab('preview')
+    }
+  }, [aiLoading, files])
+
+  // Cleanup manual switch timer on unmount
+  useEffect(() => {
+    return () => {
+      if (userSwitchTimerRef.current) clearTimeout(userSwitchTimerRef.current)
+    }
+  }, [])
+
   const paletteCommands = useMemo(() => [
     { id: 'save', label: 'Save Project', description: 'Save all files to database', shortcut: 'Ctrl+S', icon: Save, category: 'actions' as const, action: handleSave },
     { id: 'deploy', label: 'Deploy to Vercel', description: 'Create production deployment', icon: Rocket, category: 'actions' as const, action: () => setActiveDialog('deploy') },
@@ -521,6 +581,7 @@ export function Workspace({
       pendingMessage={pendingChatMessage}
       onPendingMessageSent={() => setPendingChatMessage(null)}
       activeFile={activeFile}
+      onLoadingChange={handleAiLoadingChange}
     />
   )
 
@@ -576,7 +637,13 @@ export function Workspace({
         {(['code', 'split', 'preview'] as const).map(tab => (
           <button
             key={tab}
-            onClick={() => setRightTab(tab)}
+            onClick={() => {
+              setRightTab(tab)
+              // Mark as manual switch — prevents auto-switching for 15s
+              userManualSwitchRef.current = true
+              if (userSwitchTimerRef.current) clearTimeout(userSwitchTimerRef.current)
+              userSwitchTimerRef.current = setTimeout(() => { userManualSwitchRef.current = false }, 15000)
+            }}
             className={`relative px-4 py-2 text-xs font-medium transition-colors ${
               rightTab === tab ? 'text-forge-accent bg-forge-surface' : 'text-forge-text-dim hover:text-forge-text'
             }`}
@@ -613,11 +680,11 @@ export function Workspace({
             </Panel>
             <PanelResizeHandle />
             <Panel defaultSize={50} minSize={30}>
-              <PreviewPanel files={files} projectId={projectId} onFixErrors={(msg) => setPendingChatMessage(msg)} onCapturePreview={(msg) => setPendingChatMessage(msg)} />
+              <PreviewPanel files={files} projectId={projectId} onFixErrors={(msg) => setPendingChatMessage(msg)} onCapturePreview={(msg) => setPendingChatMessage(msg)} onPreviewReady={handlePreviewReady} />
             </Panel>
           </PanelGroup>
         ) : (
-          <PreviewPanel files={files} projectId={projectId} onFixErrors={(msg) => setPendingChatMessage(msg)} onCapturePreview={(msg) => setPendingChatMessage(msg)} />
+          <PreviewPanel files={files} projectId={projectId} onFixErrors={(msg) => setPendingChatMessage(msg)} onCapturePreview={(msg) => setPendingChatMessage(msg)} onPreviewReady={handlePreviewReady} />
         )}
       </div>
     </div>
@@ -727,7 +794,7 @@ export function Workspace({
               </div>
             </div>
           )}
-          {mobileTab === 'preview' && <PreviewPanel files={files} projectId={projectId} onFixErrors={(msg) => { setPendingChatMessage(msg) }} onCapturePreview={(msg) => { setPendingChatMessage(msg) }} />}
+          {mobileTab === 'preview' && <PreviewPanel files={files} projectId={projectId} onFixErrors={(msg) => { setPendingChatMessage(msg) }} onCapturePreview={(msg) => { setPendingChatMessage(msg) }} onPreviewReady={handlePreviewReady} />}
         </div>
 
         <div className="flex items-center justify-around border-t border-forge-border bg-forge-panel py-1.5 shrink-0 safe-bottom">

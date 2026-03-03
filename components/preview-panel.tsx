@@ -21,6 +21,8 @@ interface PreviewPanelProps {
   projectId?: string | null
   onFixErrors?: (errorSummary: string) => void
   onCapturePreview?: (summary: string) => void
+  /** Fires when the preview becomes viewable (sandbox iframe loaded or static HTML ready) */
+  onPreviewReady?: () => void
 }
 
 type ViewMode = 'desktop' | 'tablet' | 'mobile'
@@ -264,7 +266,7 @@ function normalizeError(msg: string): string {
     .slice(0, 200)                // cap length
 }
 
-export function PreviewPanel({ files, projectId, onFixErrors, onCapturePreview }: PreviewPanelProps) {
+export function PreviewPanel({ files, projectId, onFixErrors, onCapturePreview, onPreviewReady }: PreviewPanelProps) {
   const [viewMode, setViewMode] = useState<ViewMode>('desktop')
   const [refreshKey, setRefreshKey] = useState(0)
   const [previewError, setPreviewError] = useState<string | null>(null)
@@ -495,11 +497,15 @@ export function PreviewPanel({ files, projectId, onFixErrors, onCapturePreview }
     previewDebounceRef.current = setTimeout(() => {
       setPreviewHtml(computedPreviewHtml)
       setPreviewError(computedPreviewHtml.includes('>Preview Error<') ? 'Preview rendering failed' : null)
+      // Signal static preview is ready (only for real HTML, not placeholders)
+      if (computedPreviewHtml && computedPreviewHtml !== '__JSX_BUILDING_PLACEHOLDER__' && !computedPreviewHtml.includes('>Preview Error<')) {
+        onPreviewReady?.()
+      }
     }, 800)
     return () => {
       if (previewDebounceRef.current) clearTimeout(previewDebounceRef.current)
     }
-  }, [computedPreviewHtml])
+  }, [computedPreviewHtml, onPreviewReady])
 
   // ─── Sandbox lifecycle ─────────────────────────────────────────
 
@@ -1360,6 +1366,7 @@ export function PreviewPanel({ files, projectId, onFixErrors, onCapturePreview }
                       setBuildPhase(null)
                     }, 600) // matches CSS crossfade duration
                   }
+                  onPreviewReady?.()
                 }}
                 onError={() => setIframeError('Preview failed to load')}
               />
