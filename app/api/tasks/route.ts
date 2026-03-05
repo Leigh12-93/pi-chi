@@ -313,7 +313,6 @@ export async function POST(req: Request) {
       project_id: projectId || null,
       type,
       status: 'running',
-      github_username: session.githubUsername,
     }),
   })
 
@@ -382,7 +381,7 @@ export async function GET(req: Request) {
     return NextResponse.json({ error: 'Invalid ID format' }, { status: 400 })
   }
 
-  let path = `/forge_tasks?github_username=eq.${encodeURIComponent(session.githubUsername)}&order=created_at.desc&limit=20`
+  let path = `/forge_tasks?order=created_at.desc&limit=20`
   if (projectId) {
     path += `&project_id=eq.${encodeURIComponent(projectId)}`
   }
