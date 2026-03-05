@@ -23,15 +23,26 @@ async function updateProgress(taskId: string, progress: string) {
 async function executeDeploy(taskId: string, params: { projectName: string; files: Record<string, string>; framework?: string }) {
   if (!VERCEL_TOKEN) throw new Error('VERCEL_TOKEN not configured')
   const startTime = Date.now()
+  const buildLogs: string[] = []
+
+  // Structured progress: stores JSON with stage, logs, metadata
+  const setProgress = async (stage: string, message: string, extra?: Record<string, unknown>) => {
+    await updateProgress(taskId, JSON.stringify({
+      stage, message,
+      logs: buildLogs.slice(-80),
+      elapsed: Math.round((Date.now() - startTime) / 1000),
+      ...extra,
+    }))
+  }
 
   const fileCount = Object.keys(params.files).length
-  await updateProgress(taskId, `Uploading ${fileCount} files to Vercel...`)
+  await setProgress('upload', `Uploading ${fileCount} files to Vercel...`, { fileCount })
 
   const fileEntries = Object.entries(params.files).map(([file, data]) => ({ file, data }))
   const fw = params.framework || detectFramework(params.files) || 'static'
 
   const teamParam = VERCEL_TEAM ? `?teamId=${VERCEL_TEAM}` : ''
-  await updateProgress(taskId, `Creating ${fw} deployment...`)
+  await setProgress('upload', `Creating ${fw} deployment...`, { fileCount, framework: fw })
 
   const deployName = params.projectName.replace(/\s+/g, '-').toLowerCase().replace(/[^a-z0-9-]/g, '').slice(0, 52)
 
@@ -55,14 +66,49 @@ async function executeDeploy(taskId: string, params: { projectName: string; file
   const deployUrl = `https://${data.url}`
   let state = data.readyState || 'QUEUED'
 
+  buildLogs.push(`▸ Project: ${deployName}`)
+  buildLogs.push(`▸ Framework: ${fw}`)
+  buildLogs.push(`▸ Files: ${fileCount}`)
+  buildLogs.push(`▸ URL: ${deployUrl}`)
+  buildLogs.push('')
+
+  await setProgress('build', 'Queued for build...', { url: deployUrl, framework: fw, fileCount })
+
   // Poll for build completion (up to 120s)
   let attempts = 0
   while (['QUEUED', 'BUILDING', 'INITIALIZING'].includes(state) && attempts < 24) {
     await new Promise(r => setTimeout(r, 5000))
     attempts++
-    const elapsed = Math.round((Date.now() - startTime) / 1000)
-    await updateProgress(taskId, `Building... (${elapsed}s)`)
 
+    // Fetch build events/logs from Vercel
+    try {
+      const logsRes = await fetch(
+        `https://api.vercel.com/v2/deployments/${deployId}/events${teamParam}`,
+        { headers: { Authorization: `Bearer ${VERCEL_TOKEN}` } },
+      )
+      if (logsRes.ok) {
+        const events = await logsRes.json()
+        const allEvents = Array.isArray(events) ? events : []
+        const logLines = allEvents
+          .filter((e: Record<string, unknown>) => {
+            const payload = e.payload as Record<string, unknown> | undefined
+            return payload && typeof payload.text === 'string'
+          })
+          .map((e: Record<string, unknown>) => {
+            const payload = e.payload as Record<string, string>
+            return payload.text
+          })
+          .filter(Boolean)
+
+        if (logLines.length > 0) {
+          // Keep initial metadata lines (5), replace rest with fresh event data
+          buildLogs.length = 5
+          buildLogs.push(...logLines)
+        }
+      }
+    } catch { /* ignore log fetch errors */ }
+
+    // Check deployment status
     try {
       const check = await fetch(`https://api.vercel.com/v13/deployments/${deployId}${teamParam}`, {
         headers: { Authorization: `Bearer ${VERCEL_TOKEN}` },
@@ -71,43 +117,22 @@ async function executeDeploy(taskId: string, params: { projectName: string; file
         const checkData = await check.json()
         state = checkData.readyState || state
         if (state === 'READY') {
-          await updateProgress(taskId, 'Deployment ready!')
+          await setProgress('ready', 'Deployment ready!', { url: deployUrl, framework: fw, fileCount })
         } else if (state === 'ERROR' || state === 'CANCELED') {
-          // Fetch actual build errors from Vercel
-          await updateProgress(taskId, 'Build failed — fetching error logs...')
-          let errorLog = 'Build failed on Vercel'
-          try {
-            const logsRes = await fetch(
-              `https://api.vercel.com/v2/deployments/${deployId}/events${teamParam}`,
-              { headers: { Authorization: `Bearer ${VERCEL_TOKEN}` } },
+          await setProgress('error', 'Build failed', { url: deployUrl, framework: fw, fileCount })
+          // Extract error lines from accumulated logs
+          const errorLines = buildLogs
+            .filter(l =>
+              l.includes('Error') || l.includes('error') ||
+              l.includes('failed') || l.includes('FAIL') ||
+              l.includes('Module not found') || l.includes('Cannot find') ||
+              l.includes('SyntaxError') || l.includes('TypeError')
             )
-            if (logsRes.ok) {
-              const events = await logsRes.json()
-              const allEvents = Array.isArray(events) ? events : []
-              // Extract error events and stderr output
-              const errorLines = allEvents
-                .filter((e: Record<string, unknown>) => {
-                  if (e.type === 'error') return true
-                  const payload = e.payload as Record<string, unknown> | undefined
-                  if (!payload || typeof payload.text !== 'string') return false
-                  const text = payload.text as string
-                  return text.includes('Error') || text.includes('error') ||
-                    text.includes('failed') || text.includes('FAIL') ||
-                    text.includes('Module not found') || text.includes('Cannot find') ||
-                    text.includes('SyntaxError') || text.includes('TypeError')
-                })
-                .map((e: Record<string, unknown>) => {
-                  const payload = e.payload as Record<string, string> | undefined
-                  return payload?.text || ''
-                })
-                .filter(Boolean)
-                .slice(-30)
-              if (errorLines.length > 0) {
-                errorLog = errorLines.join('\n')
-              }
-            }
-          } catch { /* ignore log fetch errors */ }
-          throw new Error(errorLog)
+            .slice(-30)
+          throw new Error(errorLines.length > 0 ? errorLines.join('\n') : 'Build failed on Vercel')
+        } else {
+          const elapsed = Math.round((Date.now() - startTime) / 1000)
+          await setProgress('build', `Building... (${elapsed}s)`, { url: deployUrl, framework: fw, fileCount })
         }
       }
     } catch (e) {

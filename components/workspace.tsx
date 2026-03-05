@@ -11,6 +11,7 @@ import { PreviewPanel } from './preview-panel'
 import { TerminalPanel } from './terminal-panel'
 import { Header } from './header'
 import { ActionDialog, TaskPollingDialog } from './action-dialog'
+import { DeployPanel } from './deploy-panel'
 import { CommandPalette } from './command-palette'
 import { StatusBar } from './status-bar'
 import { KeyboardShortcutsOverlay } from './keyboard-shortcuts-overlay'
@@ -56,7 +57,7 @@ interface WorkspaceProps {
 }
 
 type MobileTab = 'chat' | 'files' | 'code' | 'preview'
-type DialogType = 'deploy' | 'push' | 'create-repo' | 'import' | null
+type DialogType = 'push' | 'create-repo' | 'import' | null
 
 export function Workspace({
   projectName, projectId, files, activeFile,
@@ -69,6 +70,7 @@ export function Workspace({
   const [openFiles, setOpenFiles] = useState<string[]>([])
 
   const [activeDialog, setActiveDialog] = useState<DialogType>(null)
+  const [showDeployPanel, setShowDeployPanel] = useState(false)
   const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle')
   const [pendingChatMessage, setPendingChatMessage] = useState<string | null>(null)
   const [showCommandPalette, setShowCommandPalette] = useState(false)
@@ -475,6 +477,8 @@ export function Workspace({
         }
         break
       case 'deploy':
+        setShowDeployPanel(true)
+        break
       case 'push':
       case 'create-repo':
       case 'import':
@@ -640,7 +644,7 @@ export function Workspace({
 
   const paletteCommands = useMemo(() => [
     { id: 'save', label: 'Save Project', description: 'Save all files to database', shortcut: 'Ctrl+S', icon: Save, category: 'actions' as const, action: handleSave },
-    { id: 'deploy', label: 'Deploy to Vercel', description: 'Create production deployment', icon: Rocket, category: 'actions' as const, action: () => setActiveDialog('deploy') },
+    { id: 'deploy', label: 'Deploy to Vercel', description: 'Create production deployment', icon: Rocket, category: 'actions' as const, action: () => setShowDeployPanel(true) },
     { id: 'push', label: 'Push to GitHub', description: 'Push files to a repository', icon: Upload, category: 'actions' as const, action: () => setActiveDialog('push') },
     { id: 'create-repo', label: 'Create GitHub Repo', description: 'Create a new repository', icon: GitBranch, category: 'actions' as const, action: () => setActiveDialog('create-repo') },
     { id: 'import', label: 'Import from GitHub', description: 'Import files from a GitHub repository', icon: FolderInput, category: 'actions' as const, action: () => setActiveDialog('import') },
@@ -946,22 +950,17 @@ export function Workspace({
         </div>
       </div>
 
-      {/* Deploy Dialog */}
-      <TaskPollingDialog
-        open={activeDialog === 'deploy'}
-        onClose={() => setActiveDialog(null)}
-        title="Deploy to Vercel"
-        description={`Deploy "${projectName}" to Vercel. This will create a production deployment with all ${Object.keys(files).length} files.`}
-        confirmLabel="Deploy"
-        taskType="deploy"
-        projectId={projectId}
-        buildParams={() => ({
-          projectName,
-          files,
-        })}
-        onSuccess={handleDialogSuccess}
-        onFix={handleDialogFix}
-      />
+      {/* Deploy Panel (non-blocking floating) */}
+      {showDeployPanel && (
+        <DeployPanel
+          projectId={projectId}
+          files={files}
+          projectName={projectName}
+          onClose={() => setShowDeployPanel(false)}
+          onSuccess={handleDialogSuccess}
+          onFix={handleDialogFix}
+        />
+      )}
 
       {/* Create Repo Dialog */}
       <TaskPollingDialog

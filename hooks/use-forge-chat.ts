@@ -563,17 +563,28 @@ export function useForgeChat(props: UseForgeChatProps) {
   const handleSend = useCallback((text?: string) => {
     const content = (text || input).trim()
     if (!content && attachments.length === 0) return
-    if (isLoading) return
+
+    // Capture state before clearing
+    const currentAttachments = [...attachments]
     setInput('')
-    const currentAttachments = attachments
     setAttachments([])
     if (inputRef.current) inputRef.current.style.height = 'auto'
-    // v6: sendMessage takes { text, files }
-    sendMessage({
-      text: content || 'Process these files',
-      files: currentAttachments.length > 0 ? currentAttachments : undefined,
-    })
-  }, [input, isLoading, sendMessage, attachments])
+
+    const doSend = () => {
+      sendMessage({
+        text: content || 'Process these files',
+        files: currentAttachments.length > 0 ? currentAttachments : undefined,
+      })
+    }
+
+    // If still loading (e.g. stop() hasn't fully propagated), force stop then send
+    if (isLoading) {
+      stop()
+      setTimeout(doSend, 200)
+    } else {
+      doSend()
+    }
+  }, [input, isLoading, sendMessage, attachments, stop])
 
   const sendMessageRef = useRef(sendMessage)
   useEffect(() => { sendMessageRef.current = sendMessage }, [sendMessage])

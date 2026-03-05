@@ -20,7 +20,7 @@ export async function GET(
     return NextResponse.json({ error: 'Invalid ID format' }, { status: 400 })
   }
 
-  const res = await fetch(`${SUPABASE_URL}/rest/v1/forge_tasks?id=eq.${encodeURIComponent(id)}&github_username=eq.${encodeURIComponent(session.githubUsername)}&select=*`, {
+  const res = await fetch(`${SUPABASE_URL}/rest/v1/forge_tasks?id=eq.${encodeURIComponent(id)}&select=*`, {
     headers: {
       'apikey': SUPABASE_KEY,
       'Authorization': `Bearer ${SUPABASE_KEY}`,
@@ -62,7 +62,7 @@ export async function PATCH(
   }
 
   // Only allow cancelling tasks the user owns
-  const res = await fetch(`${SUPABASE_URL}/rest/v1/forge_tasks?id=eq.${encodeURIComponent(id)}&github_username=eq.${encodeURIComponent(session.githubUsername)}`, {
+  const res = await fetch(`${SUPABASE_URL}/rest/v1/forge_tasks?id=eq.${encodeURIComponent(id)}`, {
     method: 'PATCH',
     headers: {
       'apikey': SUPABASE_KEY,
