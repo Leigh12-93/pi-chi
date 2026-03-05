@@ -257,6 +257,7 @@ export function TaskPollingDialog({
   const [resultData, setResultData] = useState<Record<string, unknown> | null>(null)
   const [elapsed, setElapsed] = useState(0)
   const [copied, setCopied] = useState(false)
+  const [isBuildError, setIsBuildError] = useState(false)
   const overlayRef = useRef<HTMLDivElement>(null)
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null)
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null)
@@ -269,6 +270,7 @@ export function TaskPollingDialog({
       setResultData(null)
       setElapsed(0)
       setCopied(false)
+      setIsBuildError(false)
       const defaults: Record<string, string> = {}
       fields?.forEach(f => {
         if (f.defaultValue) defaults[f.name] = f.defaultValue
@@ -359,6 +361,7 @@ export function TaskPollingDialog({
             onSuccess?.(task.result || {})
           } else if (task.status === 'failed') {
             if (pollRef.current) clearInterval(pollRef.current)
+            setIsBuildError(true)
             setState('error')
             setErrorMessage(task.error || 'Task failed')
           }
@@ -367,6 +370,7 @@ export function TaskPollingDialog({
         }
       }, 2000)
     } catch (err) {
+      setIsBuildError(false)
       setState('error')
       setErrorMessage(err instanceof Error ? err.message : String(err))
     }
@@ -575,7 +579,7 @@ export function TaskPollingDialog({
                 <RefreshCw className="w-3.5 h-3.5 sm:w-3 sm:h-3" />
                 Retry
               </button>
-              {onFix && (
+              {onFix && isBuildError && (
                 <button
                   onClick={() => { onFix(errorMessage); onClose() }}
                   className="px-5 py-2.5 sm:px-4 sm:py-1.5 text-sm sm:text-xs font-medium bg-forge-accent text-white rounded-lg hover:bg-forge-accent-hover transition-colors"
