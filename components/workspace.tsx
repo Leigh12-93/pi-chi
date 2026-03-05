@@ -6,6 +6,7 @@ import { ChatPanel } from './chat-panel'
 import { CodeEditor } from './code-editor'
 import { EditorTabs } from './editor-tabs'
 import { FileTree } from './file-tree'
+import { Sidebar, type SidebarRef } from './sidebar'
 import { PreviewPanel } from './preview-panel'
 import { TerminalPanel } from './terminal-panel'
 import { Header } from './header'
@@ -66,7 +67,7 @@ export function Workspace({
   const [rightTab, setRightTab] = useState<'code' | 'preview' | 'split' | 'terminal'>('code')
   const [mobileTab, setMobileTab] = useState<MobileTab>('chat')
   const [openFiles, setOpenFiles] = useState<string[]>([])
-  const [showSidebar, setShowSidebar] = useState(true)
+
   const [activeDialog, setActiveDialog] = useState<DialogType>(null)
   const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle')
   const [pendingChatMessage, setPendingChatMessage] = useState<string | null>(null)
@@ -96,6 +97,7 @@ export function Workspace({
   const [showMcpManager, setShowMcpManager] = useState(false)
   const dragCounterRef = useRef(0)
   const chatSendRef = useRef<((message: string) => void) | null>(null)
+  const sidebarRef = useRef<SidebarRef>(null)
   const initialFilesRef = useRef<Record<string, string>>({})
   const filesRef = useRef(files)
   filesRef.current = files
@@ -534,7 +536,7 @@ export function Workspace({
   useKeyboardShortcuts([
     { key: 'k', ctrlKey: true, action: () => setShowCommandPalette(prev => !prev), description: 'Command palette' },
     { key: 'p', ctrlKey: true, shiftKey: true, action: () => setRightTab(prev => prev === 'code' ? 'split' : prev === 'split' ? 'preview' : 'code'), description: 'Cycle view mode' },
-    { key: 'b', ctrlKey: true, action: () => setShowSidebar(prev => !prev), description: 'Toggle sidebar' },
+    { key: 'b', ctrlKey: true, action: () => sidebarRef.current?.toggle(), description: 'Toggle sidebar' },
     { key: 'w', ctrlKey: true, action: () => { if (activeFile) handleCloseFile(activeFile) }, description: 'Close current file' },
     { key: '/', ctrlKey: true, action: () => setShowShortcuts(prev => !prev), description: 'Keyboard shortcuts' },
     { key: 'f', ctrlKey: true, action: () => setShowFileSearch(prev => !prev), description: 'Search in files' },
@@ -644,7 +646,7 @@ export function Workspace({
     { id: 'import', label: 'Import from GitHub', description: 'Import files from a GitHub repository', icon: FolderInput, category: 'actions' as const, action: () => setActiveDialog('import') },
     { id: 'download', label: 'Download as ZIP', description: 'Download all project files', icon: Download, category: 'actions' as const, action: handleDownload },
     { id: 'toggle-preview', label: 'Toggle Preview', description: 'Switch between code and preview', shortcut: 'Ctrl+Shift+P', icon: Eye, category: 'view' as const, action: () => setRightTab(prev => prev === 'code' ? 'preview' : 'code') },
-    { id: 'toggle-sidebar', label: 'Toggle File Sidebar', description: 'Show or hide the file tree', shortcut: 'Ctrl+B', icon: SidebarOpen, category: 'view' as const, action: () => setShowSidebar(prev => !prev) },
+    { id: 'toggle-sidebar', label: 'Toggle Sidebar', description: 'Show or hide the sidebar', shortcut: 'Ctrl+B', icon: SidebarOpen, category: 'view' as const, action: () => sidebarRef.current?.toggle() },
     { id: 'close-file', label: 'Close Current File', shortcut: 'Ctrl+W', icon: Code2, category: 'view' as const, action: () => { if (activeFile) handleCloseFile(activeFile) } },
     { id: 'switch-project', label: 'Switch Project', description: 'Go back to project picker', icon: FolderTree, category: 'navigation' as const, action: onSwitchProject },
     { id: 'shortcuts', label: 'Keyboard Shortcuts', description: 'View all keyboard shortcuts', shortcut: 'Ctrl+/', icon: Keyboard, category: 'view' as const, action: () => setShowShortcuts(true) },
@@ -834,44 +836,64 @@ export function Workspace({
       />
 
       {/* Desktop layout */}
-      <div className="flex-1 hidden md:flex flex-col overflow-hidden">
-        <PanelGroup direction="horizontal" autoSaveId="forge-workspace-panels">
-          <Panel defaultSize={30} minSize={20} maxSize={50}>
-            {chatPanel}
-          </Panel>
-          <PanelResizeHandle />
-          <Panel defaultSize={70} minSize={40}>
-            <div className="h-full flex flex-col overflow-hidden">
-              <div className="flex-1 overflow-hidden">
-                <PanelGroup direction="horizontal" autoSaveId="forge-sidebar-panels">
-                  {showSidebar && (
-                    <>
-                      <Panel defaultSize={20} minSize={12} maxSize={35}>
-                        {fileTreePanel}
-                      </Panel>
-                      <PanelResizeHandle />
-                    </>
-                  )}
-                  <Panel defaultSize={showSidebar ? 80 : 100} minSize={40}>
-                    {editorPanel}
-                  </Panel>
-                </PanelGroup>
+      <div className="flex-1 hidden md:flex overflow-hidden">
+        <Sidebar
+          fileTree={fileTree}
+          activeFile={activeFile}
+          onFileSelect={handleFileSelect}
+          onFileDelete={onFileDelete}
+          onFileRename={handleFileRename}
+          onFileCreate={handleFileCreate}
+          fileContents={files}
+          modifiedFiles={modifiedFiles}
+          githubRepoUrl={githubRepoUrl || null}
+          onAction={handleAction}
+          projectId={projectId}
+          onFileChange={onFileChange}
+          onOpenDbExplorer={() => setShowDbExplorer(true)}
+          snapshots={snapshots}
+          onOpenVersionHistory={() => setShowVersionHistory(true)}
+          onRestoreSnapshot={(snap) => {
+            onBulkFileUpdate(snap.files, { replace: true })
+            toast.success('Snapshot restored', { description: snap.label })
+          }}
+          onCreateSnapshot={() => {
+            setSnapshots(prev => [{
+              id: `snap-${Date.now()}`,
+              label: `Snapshot ${prev.length + 1}`,
+              timestamp: Date.now(),
+              files: { ...files },
+            }, ...prev].slice(0, 50))
+            toast.success('Snapshot created')
+          }}
+          ref={sidebarRef}
+        >
+          <PanelGroup direction="horizontal" autoSaveId="forge-workspace-panels">
+            <Panel defaultSize={30} minSize={20} maxSize={50}>
+              {chatPanel}
+            </Panel>
+            <PanelResizeHandle />
+            <Panel defaultSize={70} minSize={40}>
+              <div className="h-full flex flex-col overflow-hidden">
+                <div className="flex-1 overflow-hidden">
+                  {editorPanel}
+                </div>
+                <ConsolePanel
+                  entries={consoleEntries}
+                  onClear={() => setConsoleEntries([])}
+                  open={consoleOpen}
+                  onToggle={() => setConsoleOpen(prev => !prev)}
+                />
+                <StatusBar
+                  activeFile={activeFile}
+                  fileCount={Object.keys(files).length}
+                  framework={detectFramework(files)}
+                  saveStatus={saveStatus}
+                />
               </div>
-              <ConsolePanel
-                entries={consoleEntries}
-                onClear={() => setConsoleEntries([])}
-                open={consoleOpen}
-                onToggle={() => setConsoleOpen(prev => !prev)}
-              />
-              <StatusBar
-                activeFile={activeFile}
-                fileCount={Object.keys(files).length}
-                framework={detectFramework(files)}
-                saveStatus={saveStatus}
-              />
-            </div>
-          </Panel>
-        </PanelGroup>
+            </Panel>
+          </PanelGroup>
+        </Sidebar>
       </div>
 
       {/* Mobile layout */}
