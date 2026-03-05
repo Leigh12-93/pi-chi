@@ -61,9 +61,10 @@ export function DeployPanel({ onAction, projectId, vercelProjectId, onVercelConn
     }
   }
 
-  const connectedName = vercelProjectId
-    ? vercelProjects.find(p => p.id === vercelProjectId)?.name || vercelProjectId
+  const connectedProject = vercelProjectId
+    ? vercelProjects.find(p => p.id === vercelProjectId)
     : null
+  const connectedName = connectedProject?.name || vercelProjectId
 
   return (
     <div className="p-3 space-y-3">
@@ -86,11 +87,16 @@ export function DeployPanel({ onAction, projectId, vercelProjectId, onVercelConn
       <div className="border-t border-forge-border pt-3">
         <p className="text-[10px] uppercase tracking-wider text-forge-text-dim font-medium mb-2">Vercel Project</p>
         {vercelProjectId ? (
-          <div className="flex items-center gap-2 px-2 py-1.5 bg-forge-surface rounded-md">
+          <a
+            href={connectedProject?.url ? `https://${connectedProject.url}` : `https://vercel.com/~/projects/${vercelProjectId}`}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="flex items-center gap-2 px-2 py-1.5 bg-forge-surface rounded-md hover:bg-forge-surface/80 transition-colors"
+          >
             <Check className="w-3 h-3 text-forge-success shrink-0" />
             <span className="text-xs text-forge-text truncate">{connectedName}</span>
             <ExternalLink className="w-3 h-3 text-forge-text-dim shrink-0 ml-auto" />
-          </div>
+          </a>
         ) : (
           <>
             <button

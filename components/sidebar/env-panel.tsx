@@ -34,6 +34,7 @@ export function EnvPanel({ fileContents, onFileChange, vercelProjectId }: EnvPan
   const [newKey, setNewKey] = useState('')
   const [newValue, setNewValue] = useState('')
   const [syncing, setSyncing] = useState<'pull' | 'push' | null>(null)
+  const [confirmDelete, setConfirmDelete] = useState<string | null>(null)
 
   const toggleVisibility = (key: string) => {
     setVisibleKeys(prev => {
@@ -164,12 +165,21 @@ export function EnvPanel({ fileContents, onFileChange, vercelProjectId }: EnvPan
             >
               {visibleKeys.has(key) ? <EyeOff className="w-3 h-3" /> : <Eye className="w-3 h-3" />}
             </button>
-            <button
-              onClick={() => handleDelete(key)}
-              className="p-0.5 text-forge-text-dim hover:text-red-400 opacity-0 group-hover:opacity-100 transition-opacity"
-            >
-              <Trash2 className="w-3 h-3" />
-            </button>
+            {confirmDelete === key ? (
+              <button
+                onClick={() => { handleDelete(key); setConfirmDelete(null) }}
+                className="px-1.5 py-0.5 text-[9px] bg-red-500/20 text-red-400 rounded hover:bg-red-500/30 transition-colors"
+              >
+                confirm
+              </button>
+            ) : (
+              <button
+                onClick={() => setConfirmDelete(key)}
+                className="p-0.5 text-forge-text-dim hover:text-red-400 opacity-0 group-hover:opacity-100 transition-opacity"
+              >
+                <Trash2 className="w-3 h-3" />
+              </button>
+            )}
           </div>
         ))}
       </div>

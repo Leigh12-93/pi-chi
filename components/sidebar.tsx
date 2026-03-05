@@ -77,6 +77,7 @@ interface SidebarContentProps {
   onAction: (action: string) => void
   onFileChange: (path: string, content: string) => void
   onOpenDbExplorer: () => void
+  onOpenSettings?: () => void
   onRepoConnected?: (url: string) => void
   onVercelConnected?: (id: string) => void
   snapshots: Snapshot[]
@@ -89,7 +90,7 @@ export function SidebarContent({
   activeTab, fileTree, activeFile, onFileSelect, onFileDelete, onFileRename,
   onFileCreate, fileContents, modifiedFiles, aiEditingFiles, fileDiffs,
   githubRepoUrl, projectId, vercelProjectId, onAction, onFileChange,
-  onOpenDbExplorer, onRepoConnected, onVercelConnected, snapshots,
+  onOpenDbExplorer, onOpenSettings, onRepoConnected, onVercelConnected, snapshots,
   onOpenVersionHistory, onRestoreSnapshot, onCreateSnapshot,
 }: SidebarContentProps) {
   return (
@@ -104,7 +105,7 @@ export function SidebarContent({
         <EnvPanel fileContents={fileContents} onFileChange={onFileChange} vercelProjectId={vercelProjectId} />
       )}
       {activeTab === 'db' && (
-        <DbPanel fileContents={fileContents} onOpenDbExplorer={onOpenDbExplorer} />
+        <DbPanel fileContents={fileContents} onOpenDbExplorer={onOpenDbExplorer} onOpenSettings={onOpenSettings} />
       )}
       {activeTab === 'snapshots' && (
         <SnapshotsPanel

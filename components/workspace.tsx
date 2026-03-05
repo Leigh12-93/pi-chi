@@ -86,6 +86,7 @@ export function Workspace({
   const [showVersionHistory, setShowVersionHistory] = useState(false)
   const [showFindReplace, setShowFindReplace] = useState(false)
   const [showEditorSettings, setShowEditorSettings] = useState(false)
+  const [settingsDefaultTab, setSettingsDefaultTab] = useState<'general' | 'editor' | 'api-key' | 'vercel' | 'supabase' | undefined>(undefined)
   const [diffState, setDiffState] = useState<{ open: boolean; path: string; oldContent: string; newContent: string } | null>(null)
   const [modifiedFiles, setModifiedFiles] = useState<Set<string>>(new Set())
   const [auditPlan, setAuditPlan] = useState<AuditPlan | null>(null)
@@ -1021,6 +1022,7 @@ export function Workspace({
               onAction={handleAction}
               onFileChange={onFileChange}
               onOpenDbExplorer={() => setShowDbExplorer(true)}
+              onOpenSettings={() => { setSettingsDefaultTab('supabase'); setShowEditorSettings(true) }}
               onRepoConnected={(url) => toast.success('Repository connected', { description: url.replace('https://github.com/', '') })}
               onVercelConnected={(id) => { setVercelProjectId(id); toast.success('Vercel project connected') }}
               snapshots={snapshots}
@@ -1365,7 +1367,8 @@ export function Workspace({
       {/* Editor Settings */}
       <SettingsDialog
         open={showEditorSettings}
-        onClose={() => setShowEditorSettings(false)}
+        onClose={() => { setShowEditorSettings(false); setSettingsDefaultTab(undefined) }}
+        defaultTab={settingsDefaultTab}
       />
 
       {/* Audit Panel — shown as overlay when audit plan is active */}
