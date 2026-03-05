@@ -73,6 +73,26 @@ export function getToolSummary(toolName: string, args: Record<string, unknown>, 
     case 'stop_sandbox': return data?.ok ? 'Sandbox stopped' : 'Stopping...'
     case 'sandbox_status': return data?.running ? 'Running' : 'Checking...'
     case 'add_image': return args.query ? `"${String(args.query).slice(0, 30)}"` : 'Finding image...'
+    case 'run_command': return args.command ? String(args.command).slice(0, 60) : 'Running...'
+    case 'install_package': return args.packages ? String(args.packages) : 'Installing...'
+    case 'run_dev_server': return data?.ok ? `Dev server at ${data.url || 'localhost'}` : 'Starting dev server...'
+    case 'run_build': return data?.ok ? 'Build passed' : (data?.error ? 'Build failed' : 'Building...')
+    case 'run_tests': {
+      if (!data) return 'Running tests...'
+      const passed = (data as any).passed || 0
+      const failed = (data as any).failed || 0
+      return failed > 0 ? `${passed} passed, ${failed} failed` : `${passed} passed`
+    }
+    case 'check_types': return data?.ok ? 'Types OK' : (data?.errorCount ? `${data.errorCount} type errors` : 'Type checking...')
+    case 'verify_build': return data?.ok ? 'All checks passed' : 'Verifying...'
+    case 'audit_codebase': return data ? `${(data as any).filesAnalyzed || 0} files analyzed` : 'Auditing...'
+    case 'create_audit_plan': {
+      if (!data) return 'Creating audit plan...'
+      const findings = (data as any).findings?.length || 0
+      const critical = (data as any).stats?.criticalCount || 0
+      return critical > 0 ? `${findings} findings (${critical} critical)` : `${findings} findings`
+    }
+    case 'execute_audit_task': return data?.ok ? `${args.findingId || 'Issue'} fixed` : `Fixing ${args.findingId || 'issue'}...`
     default: return 'Done'
   }
 }
@@ -153,6 +173,25 @@ export function getPhaseLabel(lastToolName: string | null): string {
     case 'db_mutate':
     case 'db_introspect':
       return 'Querying database'
+
+    // Terminal / commands
+    case 'run_command':
+    case 'install_package':
+    case 'run_dev_server':
+      return 'Running terminal'
+
+    // Build / test / verify
+    case 'run_build':
+    case 'run_tests':
+    case 'check_types':
+    case 'verify_build':
+      return 'Verifying changes'
+
+    // Audit
+    case 'audit_codebase':
+    case 'create_audit_plan':
+    case 'execute_audit_task':
+      return 'Auditing code'
 
     // Sandbox / environment
     case 'start_sandbox':

@@ -4,8 +4,10 @@ import { useState, useMemo, useEffect, useRef, useCallback } from 'react'
 import { Panel, PanelGroup, PanelResizeHandle } from 'react-resizable-panels'
 import { ChatPanel } from './chat-panel'
 import { CodeEditor } from './code-editor'
+import { EditorTabs } from './editor-tabs'
 import { FileTree } from './file-tree'
 import { PreviewPanel } from './preview-panel'
+import { TerminalPanel } from './terminal-panel'
 import { Header } from './header'
 import { ActionDialog, TaskPollingDialog } from './action-dialog'
 import { CommandPalette } from './command-palette'
@@ -18,9 +20,16 @@ import { OnboardingTour } from './onboarding-tour'
 import { VersionHistory, type Snapshot } from './version-history'
 import { DiffViewer } from './diff-viewer'
 import { NotificationCenter, type Notification } from './notification-center'
+import { FindReplacePanel } from './find-replace-panel'
+import { SettingsDialog } from './settings-dialog'
+import { AuditPanel, type AuditPlan } from './audit-panel'
+import { DbExplorer } from './db-explorer'
+import { ComponentLibrary } from './component-library'
+import { MCPManager } from './mcp-manager'
 import { useKeyboardShortcuts } from '@/lib/keyboard-shortcuts'
+import { useWebcontainer } from '@/hooks/use-webcontainer'
 import { detectFramework } from '@/lib/vercel'
-import { MessageSquare, FolderTree, Code2, Eye, Loader2, Save, Rocket, Upload, GitBranch, Download, SidebarOpen, FolderInput, Keyboard, Settings2, Search, History } from 'lucide-react'
+import { MessageSquare, FolderTree, Code2, Eye, Loader2, Save, Rocket, Upload, GitBranch, Download, SidebarOpen, FolderInput, Keyboard, Settings2, Search, History, Terminal, Plug } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { toast } from 'sonner'
 import type { FileNode } from '@/lib/types'
@@ -42,6 +51,7 @@ interface WorkspaceProps {
   onUpdateSettings?: (settings: { name?: string; description?: string }) => void
   initialPendingMessage?: string | null
   onInitialPendingMessageSent?: () => void
+  githubRepoUrl?: string | null
 }
 
 type MobileTab = 'chat' | 'files' | 'code' | 'preview'
@@ -51,9 +61,9 @@ export function Workspace({
   projectName, projectId, files, activeFile,
   onFileSelect, onFileChange, onFileDelete, onBulkFileUpdate, onSwitchProject,
   githubToken, autoSaveError, onManualSave, onUpdateSettings,
-  initialPendingMessage, onInitialPendingMessageSent,
+  initialPendingMessage, onInitialPendingMessageSent, githubRepoUrl,
 }: WorkspaceProps) {
-  const [rightTab, setRightTab] = useState<'code' | 'preview' | 'split'>('code')
+  const [rightTab, setRightTab] = useState<'code' | 'preview' | 'split' | 'terminal'>('code')
   const [mobileTab, setMobileTab] = useState<MobileTab>('chat')
   const [openFiles, setOpenFiles] = useState<string[]>([])
   const [showSidebar, setShowSidebar] = useState(true)
@@ -76,13 +86,78 @@ export function Workspace({
     } catch { return [] }
   })
   const [showVersionHistory, setShowVersionHistory] = useState(false)
+  const [showFindReplace, setShowFindReplace] = useState(false)
+  const [showEditorSettings, setShowEditorSettings] = useState(false)
   const [diffState, setDiffState] = useState<{ open: boolean; path: string; oldContent: string; newContent: string } | null>(null)
   const [modifiedFiles, setModifiedFiles] = useState<Set<string>>(new Set())
+  const [auditPlan, setAuditPlan] = useState<AuditPlan | null>(null)
+  const [showDbExplorer, setShowDbExplorer] = useState(false)
+  const [showComponentLibrary, setShowComponentLibrary] = useState(false)
+  const [showMcpManager, setShowMcpManager] = useState(false)
   const dragCounterRef = useRef(0)
   const chatSendRef = useRef<((message: string) => void) | null>(null)
   const initialFilesRef = useRef<Record<string, string>>({})
   const filesRef = useRef(files)
   filesRef.current = files
+
+  // ─── WebContainer integration ──────────────────────────────
+  const hasPackageJson = 'package.json' in files
+  const wc = useWebcontainer({
+    files,
+    enabled: hasPackageJson && Object.keys(files).length > 0,
+    onTerminalOutput: (data) => {
+      setConsoleEntries(prev => [...prev.slice(-200), {
+        id: `wc-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+        type: 'info' as const,
+        message: data,
+        timestamp: Date.now(),
+      }])
+    },
+  })
+
+  // Sync individual file changes to WebContainer
+  const prevFilesRef = useRef<Record<string, string>>(files)
+  useEffect(() => {
+    if (wc.status !== 'ready') return
+    const prev = prevFilesRef.current
+    for (const [path, content] of Object.entries(files)) {
+      if (prev[path] !== content) {
+        wc.syncFile(path, content)
+      }
+    }
+    // Handle deletions
+    for (const path of Object.keys(prev)) {
+      if (!(path in files)) {
+        wc.deleteFile(path)
+      }
+    }
+    prevFilesRef.current = { ...files }
+  }, [files, wc.status]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // ─── Terminal action + audit plan event listeners ─────────
+  useEffect(() => {
+    const handleTerminalAction = (e: Event) => {
+      const detail = (e as CustomEvent).detail
+      if (!detail) return
+      // Switch to terminal tab to show the action
+      setRightTab('terminal')
+      // If WebContainer is ready, spawn the command
+      if (wc.status === 'ready' && detail.command) {
+        const parts = detail.command.split(' ')
+        wc.spawn(parts[0], parts.slice(1)).catch(() => {})
+      }
+    }
+    const handleAuditPlan = (e: Event) => {
+      const detail = (e as CustomEvent).detail
+      if (detail) setAuditPlan(detail as AuditPlan)
+    }
+    window.addEventListener('forge:terminal-action', handleTerminalAction)
+    window.addEventListener('forge:audit-plan', handleAuditPlan)
+    return () => {
+      window.removeEventListener('forge:terminal-action', handleTerminalAction)
+      window.removeEventListener('forge:audit-plan', handleAuditPlan)
+    }
+  }, [wc.status]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // ─── Smart panel auto-switching state ──────────────────────
   const [aiLoading, setAiLoading] = useState(false)
@@ -435,6 +510,15 @@ export function Workspace({
     })
   }, [activeFile, onFileSelect])
 
+  const handleReorderTabs = useCallback((from: number, to: number) => {
+    setOpenFiles(prev => {
+      const next = [...prev]
+      const [moved] = next.splice(from, 1)
+      next.splice(to, 0, moved)
+      return next
+    })
+  }, [])
+
   const handleFileRename = (oldPath: string, newPath: string) => {
     setOpenFiles(prev => prev.map(f => f === oldPath ? newPath : f))
     if (activeFile === oldPath) onFileSelect(newPath)
@@ -454,6 +538,8 @@ export function Workspace({
     { key: 'w', ctrlKey: true, action: () => { if (activeFile) handleCloseFile(activeFile) }, description: 'Close current file' },
     { key: '/', ctrlKey: true, action: () => setShowShortcuts(prev => !prev), description: 'Keyboard shortcuts' },
     { key: 'f', ctrlKey: true, action: () => setShowFileSearch(prev => !prev), description: 'Search in files' },
+    { key: 'h', ctrlKey: true, action: () => setShowFindReplace(prev => !prev), description: 'Find & replace' },
+    { key: ',', ctrlKey: true, action: () => setShowEditorSettings(prev => !prev), description: 'Editor settings' },
   ])
 
   // ─── Smart mobile view switching ─────────────────────────────
@@ -566,6 +652,9 @@ export function Workspace({
     { id: 'search-files', label: 'Search in Files', description: 'Search text across all project files', shortcut: 'Ctrl+F', icon: Search, category: 'navigation' as const, action: () => setShowFileSearch(true) },
     { id: 'split-view', label: 'Split View', description: 'Show code and preview side by side', icon: Code2, category: 'view' as const, action: () => setRightTab('split') },
     { id: 'version-history', label: 'Version History', description: 'View and restore previous snapshots', icon: History, category: 'navigation' as const, action: () => setShowVersionHistory(true) },
+    { id: 'db-explorer', label: 'Database Explorer', description: 'Browse and query Forge database tables', icon: Terminal, category: 'navigation' as const, action: () => setShowDbExplorer(true) },
+    { id: 'component-library', label: 'Component Library', description: 'Browse pre-built components to add', icon: FolderTree, category: 'navigation' as const, action: () => setShowComponentLibrary(true) },
+    { id: 'mcp-servers', label: 'MCP Servers', description: 'Manage external MCP server connections', icon: Plug, category: 'actions' as const, action: () => setShowMcpManager(true) },
   ], [handleSave, handleDownload, activeFile, onSwitchProject]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const chatPanel = (
@@ -634,7 +723,7 @@ export function Workspace({
   const editorPanel = (
     <div className="h-full flex flex-col bg-forge-surface">
       <div className="flex items-center border-b border-forge-border bg-forge-panel">
-        {(['code', 'split', 'preview'] as const).map(tab => (
+        {(['code', 'split', 'preview', 'terminal'] as const).map(tab => (
           <button
             key={tab}
             onClick={() => {
@@ -655,8 +744,15 @@ export function Workspace({
           </button>
         ))}
         {(rightTab === 'code' || rightTab === 'split') && openFiles.length > 0 && (
-          <div className="ml-2 border-l border-forge-border pl-2">
-            {fileTabBar(openFiles)}
+          <div className="flex-1 min-w-0 ml-2 border-l border-forge-border">
+            <EditorTabs
+              openFiles={openFiles}
+              activeFile={activeFile}
+              onFileSelect={onFileSelect}
+              onCloseFile={handleCloseFile}
+              onReorder={handleReorderTabs}
+              modifiedFiles={modifiedFiles}
+            />
           </div>
         )}
       </div>
@@ -680,11 +776,16 @@ export function Workspace({
             </Panel>
             <PanelResizeHandle />
             <Panel defaultSize={50} minSize={30}>
-              <PreviewPanel files={files} projectId={projectId} onFixErrors={(msg) => setPendingChatMessage(msg)} onCapturePreview={(msg) => setPendingChatMessage(msg)} onPreviewReady={handlePreviewReady} />
+              <PreviewPanel files={files} projectId={projectId} onFixErrors={(msg) => setPendingChatMessage(msg)} onCapturePreview={(msg) => setPendingChatMessage(msg)} onPreviewReady={handlePreviewReady} wcPreviewUrl={wc.previewUrl} />
             </Panel>
           </PanelGroup>
+        ) : rightTab === 'terminal' ? (
+          <TerminalPanel
+            getShellProcess={wc.getShellProcess}
+            wcReady={wc.status === 'ready'}
+          />
         ) : (
-          <PreviewPanel files={files} projectId={projectId} onFixErrors={(msg) => setPendingChatMessage(msg)} onCapturePreview={(msg) => setPendingChatMessage(msg)} onPreviewReady={handlePreviewReady} />
+          <PreviewPanel files={files} projectId={projectId} onFixErrors={(msg) => setPendingChatMessage(msg)} onCapturePreview={(msg) => setPendingChatMessage(msg)} onPreviewReady={handlePreviewReady} wcPreviewUrl={wc.previewUrl} />
         )}
       </div>
     </div>
@@ -729,6 +830,7 @@ export function Workspace({
             onDismiss={(id) => setNotifications(prev => prev.filter(n => n.id !== id))}
           />
         }
+        githubRepoUrl={githubRepoUrl}
       />
 
       {/* Desktop layout */}
@@ -794,7 +896,7 @@ export function Workspace({
               </div>
             </div>
           )}
-          {mobileTab === 'preview' && <PreviewPanel files={files} projectId={projectId} onFixErrors={(msg) => { setPendingChatMessage(msg) }} onCapturePreview={(msg) => { setPendingChatMessage(msg) }} onPreviewReady={handlePreviewReady} />}
+          {mobileTab === 'preview' && <PreviewPanel files={files} projectId={projectId} onFixErrors={(msg) => { setPendingChatMessage(msg) }} onCapturePreview={(msg) => { setPendingChatMessage(msg) }} onPreviewReady={handlePreviewReady} wcPreviewUrl={wc.previewUrl} />}
         </div>
 
         <div className="flex items-center justify-around border-t border-forge-border bg-forge-panel py-1.5 shrink-0 safe-bottom">
@@ -1001,6 +1103,65 @@ export function Workspace({
           newLabel="Current"
         />
       )}
+
+      {/* Find & Replace */}
+      <FindReplacePanel
+        open={showFindReplace}
+        onClose={() => setShowFindReplace(false)}
+        files={files}
+        onReplace={onFileChange}
+        activeFile={activeFile}
+      />
+
+      {/* Editor Settings */}
+      <SettingsDialog
+        open={showEditorSettings}
+        onClose={() => setShowEditorSettings(false)}
+      />
+
+      {/* Audit Panel — shown as overlay when audit plan is active */}
+      {auditPlan && (
+        <div className="fixed bottom-16 right-4 z-40 w-[420px] max-h-[70vh] animate-slide-up">
+          <AuditPanel
+            plan={auditPlan}
+            onApprove={() => {
+              chatSendRef.current?.('[AUDIT APPROVED]')
+              setAuditPlan(prev => prev ? { ...prev, status: 'in_progress' } : null)
+            }}
+            onReplan={(feedback) => {
+              chatSendRef.current?.(`[REPLAN] feedback: ${feedback}`)
+              setAuditPlan(null)
+            }}
+            onDismiss={() => setAuditPlan(null)}
+          />
+        </div>
+      )}
+
+      {/* DB Explorer Dialog */}
+      {showDbExplorer && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm animate-fade-in" onClick={() => setShowDbExplorer(false)}>
+          <div className="w-[900px] h-[600px] max-w-[95vw] max-h-[85vh] rounded-2xl border border-forge-border shadow-xl overflow-hidden" onClick={e => e.stopPropagation()}>
+            <DbExplorer />
+          </div>
+        </div>
+      )}
+
+      {/* Component Library Dialog */}
+      {showComponentLibrary && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm animate-fade-in" onClick={() => setShowComponentLibrary(false)}>
+          <div className="w-[500px] h-[600px] max-w-[95vw] max-h-[85vh] rounded-2xl border border-forge-border shadow-xl overflow-hidden" onClick={e => e.stopPropagation()}>
+            <ComponentLibrary
+              onInsert={(code) => {
+                chatSendRef.current?.(code)
+                setShowComponentLibrary(false)
+              }}
+            />
+          </div>
+        </div>
+      )}
+
+      {/* MCP Server Manager */}
+      <MCPManager isOpen={showMcpManager} onClose={() => setShowMcpManager(false)} />
 
       {/* Onboarding Tour */}
       <OnboardingTour />

@@ -14,7 +14,7 @@ npx vercel --prod    # Manual production deploy
 
 ## Architecture
 
-**Stack:** Next.js 15 | Tailwind v4 | Vercel AI SDK | Claude Sonnet 4 | Monaco Editor | Supabase
+**Stack:** Next.js 15 | Tailwind v4 | Vercel AI SDK v6 | Claude Sonnet 4 / Opus 4.6 | Monaco Editor | Supabase
 
 **Cloud-only** — no local filesystem. All files live in browser memory (VirtualFS).
 Client sends file state with each request. Tool results carry updates back.
@@ -25,13 +25,15 @@ app/
   page.tsx                 Main page — project persistence, auto-save, project picker → workspace
   layout.tsx               Root layout (dark theme, SessionProvider)
   globals.css              Tailwind v4 + custom forge theme tokens
-  api/chat/route.ts        AI endpoint — VirtualFS, 35+ tools, GitHub/Vercel/Supabase APIs
+  api/chat/route.ts        AI endpoint — VirtualFS, 60+ tools, extended thinking, project memory, auto-routing
   api/projects/route.ts    Project CRUD (GET list, POST create)
   api/projects/[id]/       Project detail (GET with files, PUT save, DELETE)
   api/auth/login|callback|logout|session  Custom PKCE S256 GitHub OAuth + JWT
 components/
   workspace.tsx            3-panel resizable layout, auto-selects first file
-  chat-panel.tsx           Chat — useChat, live tool processing, step counter
+  chat-panel.tsx           Chat — useChat, live tool processing, step counter, session cost display
+  chat/message-item.tsx    Message rendering — reasoning blocks, inline diffs, command output, cost chips
+  approval-card.tsx        Smart approval gates for destructive tool calls
   code-editor.tsx          Monaco editor with Ctrl+S
   file-tree.tsx            Recursive expand/collapse
   preview-panel.tsx        iframe preview (JSX→HTML + Tailwind CDN)
@@ -43,11 +45,13 @@ lib/
   supabase.ts              Supabase client + type definitions
   utils.ts                 cn(), formatRelative(), getFileIcon(), getLanguageFromPath()
   types.ts                 Project, FileNode, FileChange, ChatSession types
+  chat/constants.ts        Model pricing, token formatting, destructive tool patterns
+  chat/tool-utils.ts       extractFileUpdates, getToolSummary, diff snapshots
 supabase/
   migrations/001_forge_tables.sql   Database schema (run in Supabase SQL editor)
 ```
 
-## AI Tools (35+)
+## AI Tools (60+)
 
 | Category | Tools |
 |----------|-------|
@@ -59,7 +63,8 @@ supabase/
 | Database | `db_query`, `db_mutate`, `db_introspect`, `save_project` |
 | Self-Mod | `forge_read_own_source`, `forge_modify_own_source`, `forge_redeploy`, `forge_revert_commit`, `forge_create_branch`, `forge_create_pr`, `forge_merge_pr`, `forge_check_npm_package`, `forge_list_branches`, `forge_delete_branch` |
 | Task Mgmt | `check_task_status` |
-| Model | `select_model` |
+| Model | `select_model` (switch between haiku/sonnet/opus mid-session) |
+| Memory | `save_memory`, `load_memory` (persistent per-project memory) |
 
 ## Superpower Tools
 
@@ -87,6 +92,36 @@ Read and modify any GitHub repo the user has access to:
 - `save_project` tool — AI can trigger explicit saves
 - Projects load with all files from database
 - Filtered by GitHub username from OAuth session
+
+### Persistent Project Memory
+Per-project memory stored as JSONB in `forge_projects.memory`:
+- `save_memory` tool — AI saves key/value pairs (conventions, architecture, preferences)
+- `load_memory` tool — AI reads all memory entries at conversation start
+- Memory auto-loaded into system prompt on each request
+- Max 5KB per project
+- User can view/edit in Project Settings → Memory tab
+
+## Claude Code-Level Chat Features
+
+### Visible Extended Thinking
+Opus 4.6 reasoning blocks stream in real-time as collapsible `<ReasoningBlock>` with brain icon. Default collapsed after completion.
+
+### Smart Approval Gates
+Client-side interception for destructive tools (`delete_file`, `db_mutate`, dangerous `run_command` patterns like `rm -rf`, `drop table`, `--force`). Shows inline `ApprovalCard` with Approve/Deny + "Always allow" checkbox (persisted to localStorage).
+
+### Token/Cost Display
+- Per-message: `CostChip` showing input/output tokens + estimated cost
+- Session total: running cost in chat footer
+- Model pricing: Sonnet $3/$15, Opus $15/$75, Haiku $0.80/$4 per 1M tokens
+
+### Inline Diff Review
+`edit_file` tool calls show old→new unified diff inline in the message timeline. Green/red lines, collapsible for large diffs.
+
+### Command Output in Chat
+Terminal tools (`run_command`, `run_build`, `run_tests`, `check_types`) render output inline with terminal styling, exit code badge, and collapsible output for long results.
+
+### Auto-Verify Mode
+System prompt instructs AI: after writing/editing 2+ files, run `run_build` to verify compilation. Fix errors up to 3 attempts. Report final status.
 
 ## Token Optimization (Brick-inspired)
 
@@ -126,7 +161,7 @@ The `localFiles` ref maintains a running copy so chained edits resolve correctly
 
 | Table | Purpose |
 |-------|---------|
-| `forge_projects` | Project metadata (name, github_username, framework, URLs) |
+| `forge_projects` | Project metadata (name, github_username, framework, URLs, memory JSONB) |
 | `forge_project_files` | All virtual files per project (path + content) |
 | `forge_chat_messages` | Conversation history per project |
 | `forge_deployments` | Deployment history |

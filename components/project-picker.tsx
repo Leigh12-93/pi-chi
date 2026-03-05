@@ -9,6 +9,7 @@ import {
 } from 'lucide-react'
 import { toast } from 'sonner'
 import { formatRelative } from '@/lib/utils'
+import { UsageDashboard } from './usage-dashboard'
 
 interface SavedProject {
   id: string
@@ -509,6 +510,13 @@ export function ProjectPicker({ onSelect, savedProjects, loadingProjects, onDele
                 )}
               </>
             )}
+          </div>
+        )}
+
+        {/* Usage Dashboard — shown when there are projects */}
+        {isLoggedIn && savedProjects.length > 0 && (
+          <div className="mt-6">
+            <UsageDashboard projects={savedProjects} />
           </div>
         )}
 

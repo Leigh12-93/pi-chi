@@ -54,13 +54,14 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
   const body = await req.json()
 
   // Update project metadata if provided
-  if (body.name || body.description || body.framework || body.github_repo_url || body.vercel_url) {
+  if (body.name || body.description || body.framework || body.github_repo_url || body.vercel_url || body.memory !== undefined) {
     const updates: Record<string, unknown> = {}
     if (body.name) updates.name = body.name
     if (body.description !== undefined) updates.description = body.description
     if (body.framework) updates.framework = body.framework
     if (body.github_repo_url) updates.github_repo_url = body.github_repo_url
     if (body.vercel_url) updates.vercel_url = body.vercel_url
+    if (body.memory !== undefined) updates.memory = body.memory
 
     await supabase.from('forge_projects').update(updates).eq('id', id)
   }

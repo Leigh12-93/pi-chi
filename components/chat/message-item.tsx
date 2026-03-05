@@ -6,7 +6,9 @@ import {
   Terminal, Lightbulb, RefreshCw,
   CheckCircle, XCircle, StopCircle, ExternalLink,
   Paperclip, ImageIcon, ChevronRight, Brain,
+  Coins, ChevronDown,
 } from 'lucide-react'
+import { formatTokens, estimateCost } from '@/lib/chat/constants'
 import { motion, AnimatePresence } from 'framer-motion'
 import { cn } from '@/lib/utils'
 import { TOOL_LABELS, colorClasses } from '@/lib/chat/constants'
@@ -99,6 +101,150 @@ function ReasoningBlock({ text }: { text: string }) {
   )
 }
 
+/** Inline terminal-styled command output for run_command, run_build, etc. */
+function CommandOutputBlock({ toolName, args, result }: {
+  toolName: string
+  args: Record<string, unknown>
+  result: Record<string, unknown>
+}) {
+  const [expanded, setExpanded] = useState(false)
+  const command = String(args.command || args.packages || toolName.replace(/_/g, ' '))
+  const stdout = String(result.stdout || result.output || '')
+  const stderr = String(result.stderr || '')
+  const exitCode = result.exitCode as number | undefined ?? (result.ok ? 0 : 1)
+  const ok = exitCode === 0 || result.ok === true
+  const output = stderr && !ok ? stderr : stdout || stderr
+  const lines = output.split('\n')
+  const truncated = lines.length > 10
+  const preview = truncated ? lines.slice(0, 10).join('\n') : output
+
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 4 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.2 }}
+      className="tool-timeline-item"
+    >
+      <div className="rounded-lg border border-forge-border bg-[#1a1a2e] dark:bg-[#0d0d1a] overflow-hidden text-[12px] font-mono">
+        {/* Command header */}
+        <div className={cn(
+          'flex items-center gap-2 px-3 py-1.5 border-b',
+          ok ? 'border-emerald-800/30 bg-emerald-950/20' : 'border-red-800/30 bg-red-950/20'
+        )}>
+          <Terminal className={cn('w-3 h-3', ok ? 'text-emerald-400' : 'text-red-400')} />
+          <span className="text-gray-300 flex-1 truncate">$ {command}</span>
+          <span className={cn(
+            'text-[10px] px-1.5 py-0.5 rounded',
+            ok ? 'text-emerald-400 bg-emerald-900/30' : 'text-red-400 bg-red-900/30'
+          )}>
+            {ok ? 'exit 0' : `exit ${exitCode}`}
+          </span>
+        </div>
+        {/* Output */}
+        {output.trim() && (
+          <div className="px-3 py-2">
+            <pre className={cn(
+              'text-[11.5px] leading-relaxed whitespace-pre-wrap break-all',
+              ok ? 'text-gray-300' : 'text-red-300'
+            )}>
+              {expanded ? output : preview}
+            </pre>
+            {truncated && (
+              <button
+                onClick={() => setExpanded(!expanded)}
+                className="mt-1.5 text-[10px] text-blue-400 hover:text-blue-300 transition-colors flex items-center gap-0.5"
+              >
+                <ChevronDown className={cn('w-3 h-3 transition-transform', expanded && 'rotate-180')} />
+                {expanded ? 'Show less' : `Show full output (${lines.length} lines)`}
+              </button>
+            )}
+          </div>
+        )}
+      </div>
+    </motion.div>
+  )
+}
+
+/** Inline diff display for edit_file operations */
+function InlineDiffBlock({ oldStr, newStr, path }: {
+  oldStr: string
+  newStr: string
+  path: string
+}) {
+  const [expanded, setExpanded] = useState(false)
+  const oldLines = oldStr.split('\n')
+  const newLines = newStr.split('\n')
+
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 4 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.2 }}
+      className="tool-timeline-item"
+    >
+      <button
+        onClick={() => setExpanded(!expanded)}
+        className="flex items-center gap-2 w-full py-0.5 text-[11px] hover:opacity-80 transition-opacity"
+      >
+        <span className="text-red-400 font-mono">-{oldLines.length}</span>
+        <span className="text-emerald-400 font-mono">+{newLines.length}</span>
+        <span className="text-forge-text-dim/50 truncate flex-1 text-left">{path}</span>
+        <ChevronRight className={cn('w-3 h-3 text-forge-text-dim/30 transition-transform', expanded && 'rotate-90')} />
+      </button>
+      <AnimatePresence>
+        {expanded && (
+          <motion.div
+            initial={{ height: 0, opacity: 0 }}
+            animate={{ height: 'auto', opacity: 1 }}
+            exit={{ height: 0, opacity: 0 }}
+            transition={{ duration: 0.2 }}
+            className="overflow-hidden"
+          >
+            <div className="rounded-lg border border-forge-border bg-[#1a1a2e] dark:bg-[#0d0d1a] overflow-hidden text-[11px] font-mono mt-1 max-h-[200px] overflow-y-auto">
+              {oldLines.map((line, i) => (
+                <div key={`old-${i}`} className="px-2 py-0.5 bg-red-950/20 text-red-300/80">
+                  <span className="text-red-400/50 inline-block w-4 text-right mr-2 select-none">-</span>
+                  {line}
+                </div>
+              ))}
+              {newLines.map((line, i) => (
+                <div key={`new-${i}`} className="px-2 py-0.5 bg-emerald-950/20 text-emerald-300/80">
+                  <span className="text-emerald-400/50 inline-block w-4 text-right mr-2 select-none">+</span>
+                  {line}
+                </div>
+              ))}
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </motion.div>
+  )
+}
+
+/** Per-message cost chip */
+function CostChip({ inputTokens, outputTokens, cost, model }: {
+  inputTokens: number
+  outputTokens: number
+  cost: number
+  model: string
+}) {
+  if (inputTokens === 0 && outputTokens === 0) return null
+  const modelLabel = model.includes('haiku') ? 'Haiku'
+    : model.includes('opus-4-6') ? 'Opus 4.6'
+    : model.includes('opus') ? 'Opus'
+    : 'Sonnet'
+  return (
+    <div className="flex items-center gap-1.5 text-[10px] text-forge-text-dim/40 mt-1 select-none" title={`${modelLabel}: ${inputTokens.toLocaleString()} input + ${outputTokens.toLocaleString()} output tokens`}>
+      <Coins className="w-2.5 h-2.5" />
+      <span>{formatTokens(inputTokens)} in</span>
+      <span className="text-forge-text-dim/20">·</span>
+      <span>{formatTokens(outputTokens)} out</span>
+      <span className="text-forge-text-dim/20">·</span>
+      <span>~${cost < 0.01 ? cost.toFixed(4) : cost.toFixed(3)}</span>
+    </div>
+  )
+}
+
 /** Message shape expected by this component — uses Record for broad compatibility with UIMessage */
 interface ChatMessage {
   id: string
@@ -170,6 +316,7 @@ export interface MessageItemProps {
   isLoading: boolean
   isLast: boolean
   envVars: Record<string, string>
+  messageCost?: { inputTokens: number; outputTokens: number; cost: number; model: string } | null
   onCopy: (id: string, content: string) => void
   onEditMessage: (id: string, content: string) => void
   onSaveEdit: () => void
@@ -181,7 +328,7 @@ export interface MessageItemProps {
 }
 
 export const MessageItem = memo(function MessageItem({
-  message, copiedId, isEditing, editingContent, isLoading, isLast, envVars,
+  message, copiedId, isEditing, editingContent, isLoading, isLast, envVars, messageCost,
   onCopy, onEditMessage, onSaveEdit, onCancelEdit, onSetEditingContent, onRegenerate, onEnvVarsSave, onCancelTask,
 }: MessageItemProps) {
   const isUser = message.role === 'user'
@@ -505,6 +652,37 @@ export const MessageItem = memo(function MessageItem({
                 )
               }
 
+              // Command output inline rendering for terminal tools
+              const terminalTools = ['run_command', 'run_build', 'run_tests', 'check_types', 'verify_build']
+              if (terminalTools.includes(inv.toolName) && !isRunning && resultData && !hasError) {
+                const hasOutput = resultData.stdout || resultData.stderr || resultData.output
+                if (hasOutput) {
+                  return (
+                    <CommandOutputBlock
+                      key={partIdx}
+                      toolName={inv.toolName}
+                      args={inv.args || {}}
+                      result={resultData}
+                    />
+                  )
+                }
+              }
+
+              // Inline diff for edit_file
+              if (inv.toolName === 'edit_file' && !isRunning && !hasError) {
+                const editArgs = (inv.args || {}) as Record<string, string>
+                if (editArgs.old_string && editArgs.new_string && editArgs.path) {
+                  return (
+                    <InlineDiffBlock
+                      key={partIdx}
+                      oldStr={editArgs.old_string}
+                      newStr={editArgs.new_string}
+                      path={editArgs.path}
+                    />
+                  )
+                }
+              }
+
               const rawError = hasError && typeof (inv.result as Record<string, unknown>)?.error === 'string'
                 ? (inv.result as Record<string, unknown>).error as string : ''
               const friendlyErr = rawError ? getFriendlyError(rawError, inv.toolName) : ''
@@ -602,6 +780,15 @@ export const MessageItem = memo(function MessageItem({
             return null
           })
         })()}
+          {/* Cost chip for parts-based messages */}
+          {!isLoading && messageCost && (
+            <CostChip
+              inputTokens={messageCost.inputTokens}
+              outputTokens={messageCost.outputTokens}
+              cost={messageCost.cost}
+              model={messageCost.model}
+            />
+          )}
           {!isLoading && (
             <button
               onClick={() => onRegenerate(message.id)}
@@ -633,6 +820,15 @@ export const MessageItem = memo(function MessageItem({
                 {copiedId === message.id ? <Check className="w-3.5 h-3.5 text-emerald-500" /> : <Copy className="w-3.5 h-3.5 text-forge-text-dim" />}
               </button>
             </div>
+          )}
+          {/* Cost chip for legacy messages */}
+          {!isLoading && messageCost && (
+            <CostChip
+              inputTokens={messageCost.inputTokens}
+              outputTokens={messageCost.outputTokens}
+              cost={messageCost.cost}
+              model={messageCost.model}
+            />
           )}
           {!isLoading && (
             <button
@@ -674,5 +870,6 @@ export const MessageItem = memo(function MessageItem({
   if (prev.isLoading !== next.isLoading) return false
   if (prev.isLast !== next.isLast) return false
   if (prev.envVars !== next.envVars) return false
+  if (prev.messageCost?.cost !== next.messageCost?.cost) return false
   return true
 })

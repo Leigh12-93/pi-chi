@@ -23,6 +23,8 @@ interface PreviewPanelProps {
   onCapturePreview?: (summary: string) => void
   /** Fires when the preview becomes viewable (sandbox iframe loaded or static HTML ready) */
   onPreviewReady?: () => void
+  /** WebContainer dev server URL — if provided, use this instead of v0 sandbox */
+  wcPreviewUrl?: string | null
 }
 
 type ViewMode = 'desktop' | 'tablet' | 'mobile'
@@ -266,7 +268,7 @@ function normalizeError(msg: string): string {
     .slice(0, 200)                // cap length
 }
 
-export function PreviewPanel({ files, projectId, onFixErrors, onCapturePreview, onPreviewReady }: PreviewPanelProps) {
+export function PreviewPanel({ files, projectId, onFixErrors, onCapturePreview, onPreviewReady, wcPreviewUrl }: PreviewPanelProps) {
   const [viewMode, setViewMode] = useState<ViewMode>('desktop')
   const [refreshKey, setRefreshKey] = useState(0)
   const [previewError, setPreviewError] = useState<string | null>(null)
@@ -1340,8 +1342,27 @@ export function PreviewPanel({ files, projectId, onFixErrors, onCapturePreview, 
             </div>
           )}
 
-          {/* Live sandbox iframe */}
-          {isSandboxActive && (
+          {/* WebContainer live preview — takes priority over v0 sandbox */}
+          {wcPreviewUrl && (
+            <>
+              <iframe
+                id="forge-preview-iframe"
+                key={`wc-${wcPreviewUrl}`}
+                src={wcPreviewUrl}
+                className="w-full h-full border-0 absolute inset-0"
+                title="Live Preview"
+                allow="cross-origin-isolated"
+                onLoad={() => {
+                  setIframeLoading(false)
+                  onPreviewReady?.()
+                }}
+                onError={() => setIframeError('Preview failed to load')}
+              />
+            </>
+          )}
+
+          {/* Live sandbox iframe (fallback when WebContainer is not available) */}
+          {!wcPreviewUrl && isSandboxActive && (
             <>
               {iframeLoading && (
                 <div className="absolute top-3 right-3 z-10">

@@ -68,7 +68,21 @@ export const TOOL_LABELS: Record<string, { label: string; Icon: LucideIcon; colo
   get_reference_code: { label: 'Loading reference', Icon: BookOpen, color: 'blue' },
   save_preference: { label: 'Saving preference', Icon: Save, color: 'green' },
   load_preferences: { label: 'Loading preferences', Icon: Database, color: 'blue' },
+  select_model: { label: 'Switching model', Icon: Sparkles, color: 'purple' },
+  web_search: { label: 'Searching web', Icon: Globe, color: 'blue' },
+  save_memory: { label: 'Saving to memory', Icon: Save, color: 'green' },
+  load_memory: { label: 'Loading memory', Icon: Database, color: 'blue' },
   set_custom_domain: { label: 'Setting domain', Icon: Globe, color: 'blue' },
+  run_command: { label: 'Running command', Icon: Terminal, color: 'green' },
+  install_package: { label: 'Installing packages', Icon: Package, color: 'green' },
+  run_dev_server: { label: 'Starting dev server', Icon: Rocket, color: 'green' },
+  run_build: { label: 'Building project', Icon: Rocket, color: 'yellow' },
+  run_tests: { label: 'Running tests', Icon: CheckCircle, color: 'blue' },
+  check_types: { label: 'Type checking', Icon: CheckCircle, color: 'purple' },
+  verify_build: { label: 'Verifying build', Icon: CheckCircle, color: 'green' },
+  audit_codebase: { label: 'Auditing codebase', Icon: Search, color: 'purple' },
+  create_audit_plan: { label: 'Creating audit plan', Icon: Brain, color: 'purple' },
+  execute_audit_task: { label: 'Fixing issue', Icon: Wrench, color: 'yellow' },
 }
 
 export const MODEL_OPTIONS = [
@@ -77,6 +91,30 @@ export const MODEL_OPTIONS = [
   { id: 'claude-opus-4-20250514', label: 'Opus 4', description: 'Most capable' },
   { id: 'claude-opus-4-6', label: 'Opus 4.6', description: 'Latest flagship' },
 ] as const
+
+/** Per 1M token pricing (USD) for cost estimation */
+export const MODEL_PRICING: Record<string, { input: number; output: number }> = {
+  'claude-sonnet-4-20250514': { input: 3, output: 15 },
+  'claude-opus-4-20250514': { input: 15, output: 75 },
+  'claude-opus-4-6': { input: 15, output: 75 },
+  'claude-haiku-35-20241022': { input: 0.80, output: 4 },
+}
+
+/** Calculate cost in USD from token counts and model ID */
+export function estimateCost(inputTokens: number, outputTokens: number, model: string): number {
+  const pricing = MODEL_PRICING[model] || MODEL_PRICING['claude-sonnet-4-20250514']
+  return (inputTokens / 1_000_000) * pricing.input + (outputTokens / 1_000_000) * pricing.output
+}
+
+/** Format token count as human-readable string */
+export function formatTokens(count: number): string {
+  if (count >= 1000) return `${(count / 1000).toFixed(1)}K`
+  return String(count)
+}
+
+/** Destructive tool patterns for approval gates */
+export const DESTRUCTIVE_TOOLS = new Set(['delete_file', 'db_mutate'])
+export const DANGEROUS_COMMAND_PATTERNS = /\b(rm\s+-rf|rm\s+-r|drop\s+table|drop\s+database|delete\s+from|truncate|reset\s+--hard|--force|--no-verify)\b/i
 
 export const QUICK_ACTIONS = [
   { label: 'Landing Page', query: 'Build a premium SaaS landing page. Design a bespoke design token system first — unique color palette, font pairing, spacing scale, shadows. Then build all sections with those tokens. Must look like a $10k agency build.', icon: Sparkles },

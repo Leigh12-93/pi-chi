@@ -3,6 +3,7 @@
 import { useRef, useCallback, useEffect, useState } from 'react'
 import Editor, { type OnMount, type BeforeMount } from '@monaco-editor/react'
 import { getLanguageFromPath, cn } from '@/lib/utils'
+import { setupMonacoTypes } from '@/lib/monaco-types'
 import { useTheme } from '@/components/theme-provider'
 import { FileText, Save, ChevronRight } from 'lucide-react'
 
@@ -11,14 +12,16 @@ interface CodeEditorProps {
   content: string
   onSave: (path: string, content: string) => void
   onChange: (content: string) => void
+  readOnly?: boolean
 }
 
-export function CodeEditor({ path, content, onSave, onChange }: CodeEditorProps) {
+export function CodeEditor({ path, content, onSave, onChange, readOnly }: CodeEditorProps) {
   const editorRef = useRef<Parameters<OnMount>[0] | null>(null)
   const [modified, setModified] = useState(false)
   const { theme } = useTheme()
 
   const handleBeforeMount: BeforeMount = (monaco) => {
+    setupMonacoTypes(monaco)
     // Enable syntax error detection (red squiggles) — semantic validation disabled
     // to avoid false positives from missing node_modules in virtual FS
     monaco.languages.typescript.typescriptDefaults.setDiagnosticsOptions({
@@ -142,6 +145,7 @@ export function CodeEditor({ path, content, onSave, onChange }: CodeEditorProps)
           onMount={handleMount}
           onChange={handleChange}
           options={{
+            readOnly: readOnly ?? false,
             fontSize: 13,
             fontFamily: "'Cascadia Code', 'Fira Code', 'JetBrains Mono', monospace",
             fontLigatures: true,

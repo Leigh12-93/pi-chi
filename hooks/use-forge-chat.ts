@@ -7,7 +7,7 @@ import type { FileUIPart } from 'ai'
 import { toast } from 'sonner'
 import { extractFileUpdates, type ToolInvocation } from '@/lib/chat/tool-utils'
 import { clearMarkdownCache } from '@/lib/chat/markdown'
-import { MODEL_OPTIONS } from '@/lib/chat/constants'
+import { MODEL_OPTIONS, estimateCost, DESTRUCTIVE_TOOLS, DANGEROUS_COMMAND_PATTERNS } from '@/lib/chat/constants'
 
 export interface UseForgeChatProps {
   projectName: string
@@ -249,6 +249,15 @@ export function useForgeChat(props: UseForgeChatProps) {
   const [clearConfirm, setClearConfirm] = useState(false)
   const [attachments, setAttachments] = useState<FileUIPart[]>([])
 
+  // ─── Approval gates ─────────────────────────────────────────
+  const [pendingApproval, setPendingApproval] = useState<{
+    toolName: string
+    args: Record<string, unknown>
+    key: string
+  } | null>(null)
+  const approvedKeys = useRef(new Set<string>())
+  const deniedKeys = useRef(new Set<string>())
+
   // ─── Refs ─────────────────────────────────────────────────────
   const clearConfirmTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const messagesEndRef = useRef<HTMLDivElement>(null)
@@ -443,6 +452,33 @@ export function useForgeChat(props: UseForgeChatProps) {
           continue
         }
 
+        // ── Approval gate: check if this is a destructive tool ──
+        const isDestructive = DESTRUCTIVE_TOOLS.has(inv.toolName) ||
+          (inv.toolName === 'run_command' && typeof inv.args?.command === 'string' && DANGEROUS_COMMAND_PATTERNS.test(inv.args.command as string))
+
+        if (isDestructive && !approvedKeys.current.has(key) && !deniedKeys.current.has(key)) {
+          // Check localStorage for pre-approved tools
+          let preApproved = false
+          try {
+            const stored = JSON.parse(localStorage.getItem('forge:approved-tools') || '[]')
+            preApproved = stored.includes(inv.toolName)
+          } catch { /* ignore */ }
+
+          if (!preApproved) {
+            // Show approval card but don't block other processing
+            if (!pendingApproval || pendingApproval.key !== key) {
+              setPendingApproval({ toolName: inv.toolName, args: inv.args || {}, key })
+            }
+            // Skip applying this tool's changes until approved
+            if (inv.toolName === 'delete_file') continue
+          }
+        }
+
+        if (deniedKeys.current.has(key)) {
+          processedInvs.current.add(key)
+          continue
+        }
+
         // capture_preview — signal client to extract preview DOM content
         if (inv.toolName === 'capture_preview' && isResult) {
           processedInvs.current.add(key)
@@ -450,6 +486,31 @@ export function useForgeChat(props: UseForgeChatProps) {
             detail: { messageId: msg.id, invocationIndex: i }
           }))
           continue
+        }
+
+        // Terminal tools — dispatch action event for workspace/terminal panel
+        const terminalTools = ['run_command', 'install_package', 'run_dev_server', 'run_build', 'run_tests', 'check_types', 'verify_build']
+        if (terminalTools.includes(inv.toolName) && isResult && inv.result) {
+          const result = inv.result as Record<string, unknown>
+          if (result.__terminal_action) {
+            processedInvs.current.add(key)
+            window.dispatchEvent(new CustomEvent('forge:terminal-action', {
+              detail: result
+            }))
+            continue
+          }
+        }
+
+        // Audit plan — dispatch event for workspace to display audit panel
+        if (inv.toolName === 'create_audit_plan' && isResult && inv.result) {
+          const result = inv.result as Record<string, unknown>
+          if (result.plan || result.findings) {
+            processedInvs.current.add(key)
+            window.dispatchEvent(new CustomEvent('forge:audit-plan', {
+              detail: result.plan || result
+            }))
+            continue
+          }
         }
 
         const changes = extractFileUpdates(inv, localFiles.current)
@@ -701,6 +762,51 @@ export function useForgeChat(props: UseForgeChatProps) {
     return 0
   }, [messages])
 
+  // ─── Session cost tracking ──────────────────────────────────
+  const sessionCost = useMemo(() => {
+    let totalCost = 0
+    let totalInput = 0
+    let totalOutput = 0
+    for (const msg of messages) {
+      const meta = (msg as any).metadata
+      if (meta?.usage && meta?.model) {
+        const inTok = meta.usage.inputTokens || 0
+        const outTok = meta.usage.outputTokens || 0
+        totalInput += inTok
+        totalOutput += outTok
+        totalCost += estimateCost(inTok, outTok, meta.model)
+      }
+    }
+    return { cost: totalCost, inputTokens: totalInput, outputTokens: totalOutput }
+  }, [messages])
+
+  // ─── Per-message cost data (for cost chips) ─────────────────
+  const getMessageCost = useCallback((msgId: string) => {
+    const msg = messages.find(m => m.id === msgId) as any
+    if (!msg?.metadata?.usage || !msg?.metadata?.model) return null
+    const { inputTokens = 0, outputTokens = 0 } = msg.metadata.usage
+    const cost = estimateCost(inputTokens, outputTokens, msg.metadata.model)
+    return { inputTokens, outputTokens, cost, model: msg.metadata.model }
+  }, [messages])
+
+  // ─── Approval gate handlers ─────────────────────────────────
+  const handleApprove = useCallback((key: string) => {
+    approvedKeys.current.add(key)
+    setPendingApproval(null)
+  }, [])
+
+  const handleDeny = useCallback((key: string) => {
+    deniedKeys.current.add(key)
+    setPendingApproval(null)
+    // Inject a synthetic message telling the AI the action was denied
+    const denied = deniedKeys.current
+    if (denied.has(key)) {
+      const parts = key.split(':')
+      const toolName = parts[1] || 'the operation'
+      sendMessage({ text: `I denied ${toolName.replace(/_/g, ' ')}. Please try a different approach.` })
+    }
+  }, [sendMessage])
+
   // v6: Extract auto-routed model info from message metadata
   const autoRoutedModel = useMemo(() => {
     for (let i = messages.length - 1; i >= 0; i--) {
@@ -758,6 +864,10 @@ export function useForgeChat(props: UseForgeChatProps) {
     copiedId, loadingHistory, editingMessageId, editingContent,
     clearConfirm, envVars, elapsed, isEmpty, attachments,
     stepCount, estimatedTokens, realTokens, autoRoutedModel, currentActivity, lastCompletedToolName,
+    // Cost tracking
+    sessionCost, getMessageCost,
+    // Approval gates
+    pendingApproval, handleApprove, handleDeny,
     // Refs
     messagesEndRef, inputRef, clearConfirmTimer, processedInvs,
     // Handlers

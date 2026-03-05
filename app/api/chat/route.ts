@@ -6,11 +6,12 @@ import {
   stepCountIs,
   UIMessage,
 } from 'ai'
-import { anthropic } from '@ai-sdk/anthropic'
+import { anthropic, createAnthropic } from '@ai-sdk/anthropic'
 import { chatLimiter } from '@/lib/rate-limit'
 import { TaskStore } from '@/lib/background-tasks'
-import { getSession } from '@/lib/auth'
-import { SYSTEM_PROMPT } from '@/lib/system-prompt'
+import { getSession, decryptToken } from '@/lib/auth'
+import { supabaseFetch as supabaseFetchDirect } from '@/lib/supabase-fetch'
+import { SYSTEM_PROMPT, MEMORY_MARKER } from '@/lib/system-prompt'
 import { getPromptExample } from '@/lib/prompt-examples'
 import { VirtualFS } from '@/lib/virtual-fs'
 import { compactMessages } from '@/lib/compaction'
@@ -24,6 +25,9 @@ import {
   createSelfModTools,
   createDbTools,
   createUtilityTools,
+  createTerminalTools,
+  createTestingTools,
+  createAuditTools,
 } from '@/lib/tools'
 import type { ToolContext } from '@/lib/tools'
 
@@ -197,6 +201,29 @@ export async function POST(req: Request) {
     }
   }
 
+  // ─── BYOK: Load user's API key ──────────────────────────────
+  let userApiKey: string | null = null
+  try {
+    const { data: settingsData, ok: settingsOk } = await supabaseFetchDirect(
+      `/forge_user_settings?github_username=eq.${encodeURIComponent(session.githubUsername)}&select=encrypted_api_key`,
+    )
+    if (settingsOk && Array.isArray(settingsData) && settingsData.length > 0) {
+      const encryptedKey = (settingsData[0] as any).encrypted_api_key
+      if (encryptedKey) {
+        // Handle versioned format: v1:iv:ciphertext
+        const raw = encryptedKey.startsWith('v1:') ? encryptedKey.slice(3) : encryptedKey
+        userApiKey = await decryptToken(raw)
+      }
+    }
+  } catch (err: any) {
+    console.warn('[chat] Failed to load user API key, falling back to server key:', err.message)
+  }
+
+  // Create the AI provider — user's key takes priority, falls back to server key
+  const aiProvider = userApiKey
+    ? createAnthropic({ apiKey: userApiKey })
+    : anthropic
+
   const ALLOWED_MODELS = [
     'claude-sonnet-4-20250514',
     'claude-haiku-35-20241022',
@@ -261,6 +288,22 @@ export async function POST(req: Request) {
 
   // Edit fail tracking
   const editFailCounts = getEditFailCounts(projectId)
+
+  // Load project memory for system prompt injection
+  let projectMemory: Record<string, string> = {}
+  if (projectId) {
+    try {
+      const memResult = await supabaseFetch(`/forge_projects?id=eq.${encodeURIComponent(projectId)}&select=memory`)
+      if (memResult.ok && Array.isArray(memResult.data) && memResult.data[0]?.memory) {
+        const mem = memResult.data[0].memory
+        if (typeof mem === 'object' && mem !== null) {
+          projectMemory = mem as Record<string, string>
+        }
+      }
+    } catch {
+      // Non-critical — continue without memory
+    }
+  }
 
   // Build file manifest
   const manifest = vfs.manifest()
@@ -361,7 +404,11 @@ export async function POST(req: Request) {
 
   // ── Estimate FULL context size (system + tools + messages) ───
   // Build the system prompt string early so we can measure it
-  const systemPromptStr = SYSTEM_PROMPT
+  // Inject project memory into the MEMORY_MARKER placeholder
+  const memorySection = Object.keys(projectMemory).length > 0
+    ? `\n\n## Project Memory (persisted across sessions)\n\`\`\`json\n${JSON.stringify(projectMemory, null, 2)}\n\`\`\``
+    : '\n\n(No project memory saved yet — use save_memory to persist insights.)'
+  const systemPromptStr = SYSTEM_PROMPT.replace(MEMORY_MARKER, memorySection)
     + (activeFile && activeFileContent
       ? `\n\nUser is currently viewing: ${activeFile}\n\`\`\`\n${activeFileContent}\n\`\`\``
       : '')
@@ -552,6 +599,9 @@ export async function POST(req: Request) {
     ...(session.githubUsername.toLowerCase() === FORGE_OWNER ? createSelfModTools(ctx) : {}),
     ...createDbTools(ctx),
     ...createUtilityTools(ctx),
+    ...createTerminalTools(ctx),
+    ...createTestingTools(ctx),
+    ...createAuditTools(ctx),
   }
 
   try {
@@ -590,9 +640,9 @@ export async function POST(req: Request) {
           } as any)
         }
 
-        // Use @ai-sdk/anthropic provider for prompt caching support
+        // Use @ai-sdk/anthropic provider — BYOK key if available, else server key
         const result = streamText({
-          model: anthropic(selectedModel),
+          model: aiProvider(selectedModel),
           system: systemPromptStr
             + (promptExample ? `\n\n## Structural Guide for This Request\n${promptExample}` : ''),
           messages,

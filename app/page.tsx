@@ -5,6 +5,9 @@ import { useSession } from '@/components/session-provider'
 import { Workspace } from '@/components/workspace'
 import { ProjectPicker } from '@/components/project-picker'
 import { ErrorBoundary } from '@/components/error-boundary'
+import { SignInPage } from '@/components/sign-in-page'
+import { ApiKeyGate } from '@/components/api-key-gate'
+import { Onboarding } from '@/components/onboarding'
 import { hashFileMapDeep } from '@/lib/utils'
 
 interface SavedProject {
@@ -19,7 +22,7 @@ interface SavedProject {
 }
 
 export default function ForgePage() {
-  const { session, status } = useSession()
+  const { session, status, refresh } = useSession()
   const [projectId, setProjectId] = useState<string | null>(null)
   const [projectName, setProjectName] = useState<string | null>(null)
   const [files, setFiles] = useState<Record<string, string>>({})
@@ -42,6 +45,10 @@ export default function ForgePage() {
   const [isOffline, setIsOffline] = useState(false)
   const [pendingMessage, setPendingMessage] = useState<string | null>(null)
   const [deletingProjectId, setDeletingProjectId] = useState<string | null>(null)
+  const [githubRepoUrl, setGithubRepoUrl] = useState<string | null>(null)
+  const [onboardingDismissed, setOnboardingDismissed] = useState(() => {
+    try { return sessionStorage.getItem('forge_onboarding_done') === '1' } catch { return false }
+  })
 
   // Concurrent-tab detection: warn if another tab is editing the same project
   useEffect(() => {
@@ -87,6 +94,7 @@ export default function ForgePage() {
               setProjectId(data.id)
               setProjectName(data.name)
               setFiles(data.files || {})
+              setGithubRepoUrl(data.github_repo_url || null)
               lastSavedHash.current = hashFileMapDeep(data.files || {})
               // Restore active file if it still exists
               if (stored.activeFile && data.files?.[stored.activeFile]) {
@@ -269,6 +277,7 @@ export default function ForgePage() {
           setProjectId(data.id)
           setProjectName(data.name)
           setFiles(data.files || {})
+          setGithubRepoUrl(data.github_repo_url || null)
           lastSavedHash.current = hashFileMapDeep(data.files || {})
           setActiveFile(null)
           return
@@ -311,6 +320,7 @@ export default function ForgePage() {
     setProjectName(name)
     setFiles(initialFiles || {})
     setActiveFile(null)
+    setGithubRepoUrl(null)
     if (query) setPendingMessage(query)
   }, [session])
 
@@ -354,6 +364,24 @@ export default function ForgePage() {
 
   // GitHub token is now handled server-side from JWT session — not exposed to client
 
+  // Auth gate: show sign-in page if not authenticated
+  if (status === 'loading') {
+    return (
+      <div className="flex items-center justify-center h-screen bg-forge-bg">
+        <div className="h-5 w-5 border-2 border-forge-border border-t-forge-accent rounded-full animate-spin" />
+      </div>
+    )
+  }
+
+  if (status === 'unauthenticated') {
+    return <SignInPage />
+  }
+
+  // API key gate: require BYOK before proceeding
+  if (session && !session.hasApiKey) {
+    return <ApiKeyGate onKeySet={() => refresh()} />
+  }
+
   if (restoringProject && !projectName) {
     return (
       <ErrorBoundary>
@@ -368,6 +396,25 @@ export default function ForgePage() {
   }
 
   if (!projectName) {
+    // Show onboarding for users with zero projects (first-time experience)
+    if (!loadingProjects && savedProjects.length === 0 && !onboardingDismissed && !projectsLoadError) {
+      return (
+        <ErrorBoundary>
+          <Onboarding
+            onComplete={({ template, description }) => {
+              setOnboardingDismissed(true)
+              try { sessionStorage.setItem('forge_onboarding_done', '1') } catch {}
+              const projectName = template || 'my-project'
+              const query = description
+                ? `Create a ${template} project: ${description}`
+                : undefined
+              handleSelectProject(projectName, undefined, undefined, query)
+            }}
+          />
+        </ErrorBoundary>
+      )
+    }
+
     return (
       <ErrorBoundary>
         {errorMessage && (
@@ -439,6 +486,7 @@ export default function ForgePage() {
         }}
         initialPendingMessage={pendingMessage}
         onInitialPendingMessageSent={() => setPendingMessage(null)}
+        githubRepoUrl={githubRepoUrl}
       />
     </ErrorBoundary>
   )

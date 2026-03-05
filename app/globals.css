@@ -180,6 +180,12 @@ html.dark [data-sonner-toast] [data-description] {
 }
 .animate-slide-down { animation: slideDown 0.15s var(--ease-spring); }
 
+@keyframes slideUp {
+  from { opacity: 0; transform: translateY(12px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+.animate-slide-up { animation: slideUp 0.2s var(--ease-spring); }
+
 @keyframes pulse-dot {
   0%, 100% { opacity: 0.4; }
   50% { opacity: 1; }

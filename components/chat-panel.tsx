@@ -15,6 +15,7 @@ import { ErrorBoundary } from '@/components/error-boundary'
 import { motion, AnimatePresence } from 'framer-motion'
 import { MODEL_OPTIONS, QUICK_ACTIONS } from '@/lib/chat/constants'
 import { MessageItem } from '@/components/chat/message-item'
+import { ApprovalCard } from '@/components/approval-card'
 import { useForgeChat, type UseForgeChatProps } from '@/hooks/use-forge-chat'
 import { useVoiceInput } from '@/hooks/use-voice-input'
 import { toast } from 'sonner'
@@ -268,6 +269,7 @@ export function ChatPanel({ onLoadingChange, ...props }: ChatPanelProps) {
                 isLoading={chat.isLoading}
                 isLast={idx === chat.messages.length - 1}
                 envVars={chat.envVars}
+                messageCost={message.role === 'assistant' ? chat.getMessageCost(message.id) : null}
                 onCopy={chat.handleCopy}
                 onEditMessage={chat.handleEditMessage}
                 onSaveEdit={chat.handleSaveEdit}
@@ -278,6 +280,16 @@ export function ChatPanel({ onLoadingChange, ...props }: ChatPanelProps) {
                 onCancelTask={chat.handleCancelTask}
               />
             ))}
+
+            {/* Approval gate card */}
+            {chat.pendingApproval && (
+              <ApprovalCard
+                toolName={chat.pendingApproval.toolName}
+                args={chat.pendingApproval.args}
+                onApprove={() => chat.handleApprove(chat.pendingApproval!.key)}
+                onDeny={() => chat.handleDeny(chat.pendingApproval!.key)}
+              />
+            )}
 
             {/* Streaming activity indicator - v0-style flat inline timeline */}
             {chat.isLoading && (
@@ -536,7 +548,7 @@ export function ChatPanel({ onLoadingChange, ...props }: ChatPanelProps) {
             </span>
           </div>
           <div className="flex items-center gap-1.5">
-            {(chat.autoRoutedModel || (chat.realTokens || chat.estimatedTokens) > 0 || (chat.isLoading && chat.elapsed > 0)) && (
+            {(chat.autoRoutedModel || (chat.realTokens || chat.estimatedTokens) > 0 || (chat.isLoading && chat.elapsed > 0) || chat.sessionCost.cost > 0) && (
               <div className="flex items-center gap-1.5 px-2 py-0.5 bg-forge-surface/50 rounded-lg">
                 {chat.autoRoutedModel && (
                   <span className="text-[10px] text-forge-text-dim/60 flex items-center gap-0.5" title={chat.autoRoutedModel.reason}>
@@ -552,6 +564,11 @@ export function ChatPanel({ onLoadingChange, ...props }: ChatPanelProps) {
                 {(chat.realTokens || chat.estimatedTokens) > 0 && (
                   <span className="text-[10px] text-forge-text-dim/50" title={chat.realTokens ? 'Actual API token usage' : 'Estimated token usage'}>
                     {chat.realTokens ? '' : '~'}{(chat.realTokens || chat.estimatedTokens) > 1000 ? `${((chat.realTokens || chat.estimatedTokens) / 1000).toFixed(1)}k` : (chat.realTokens || chat.estimatedTokens)} tokens
+                  </span>
+                )}
+                {chat.sessionCost.cost > 0 && !chat.isLoading && (
+                  <span className="text-[10px] text-forge-text-dim/50" title={`Session: ${chat.sessionCost.inputTokens.toLocaleString()} in + ${chat.sessionCost.outputTokens.toLocaleString()} out`}>
+                    ~${chat.sessionCost.cost < 0.01 ? chat.sessionCost.cost.toFixed(4) : chat.sessionCost.cost.toFixed(2)}
                   </span>
                 )}
                 {chat.isLoading && chat.elapsed > 0 && (

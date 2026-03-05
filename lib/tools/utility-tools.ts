@@ -597,6 +597,137 @@ describe('${componentName}', () => {
       },
     }),
 
+    select_model: tool({
+      description: 'Switch to a different Claude model for the remainder of this session. Use when a task requires more reasoning power (Opus) or when a simple task can be handled faster (Haiku).',
+      inputSchema: z.object({
+        model: z.enum(['haiku', 'sonnet', 'opus']).describe('Model to switch to: haiku (fast), sonnet (balanced), opus (most capable)'),
+        reason: z.string().optional().describe('Why you are switching models'),
+      }),
+      execute: async ({ model, reason }) => {
+        const modelMap: Record<string, string> = {
+          haiku: 'claude-haiku-35-20241022',
+          sonnet: 'claude-sonnet-4-20250514',
+          opus: 'claude-opus-4-6',
+        }
+        return {
+          ok: true,
+          selectedModel: modelMap[model] || modelMap.sonnet,
+          reason: reason || `Switched to ${model}`,
+          __model_override: modelMap[model] || modelMap.sonnet,
+        }
+      },
+    }),
+
+    web_search: tool({
+      description: 'Search the web for documentation, API references, library info, or solutions. Returns top results with title, URL, and snippet. Use when you need to look up current docs or verify API patterns.',
+      inputSchema: z.object({
+        query: z.string().describe('Search query — be specific for better results'),
+        count: z.number().optional().default(5).describe('Number of results to return (max 10)'),
+      }),
+      execute: async ({ query, count }) => {
+        const numResults = Math.min(count || 5, 10)
+        try {
+          // Try Brave Search API (free tier: 1 query/sec, 2000/month)
+          const braveKey = process.env.BRAVE_SEARCH_API_KEY
+          if (braveKey) {
+            const url = `https://api.search.brave.com/res/v1/web/search?q=${encodeURIComponent(query)}&count=${numResults}`
+            const res = await fetch(url, {
+              headers: { 'X-Subscription-Token': braveKey, 'Accept': 'application/json' },
+              signal: AbortSignal.timeout(10000),
+            })
+            if (res.ok) {
+              const data = await res.json()
+              const results = (data.web?.results || []).slice(0, numResults).map((r: any) => ({
+                title: r.title || '',
+                url: r.url || '',
+                snippet: (r.description || '').slice(0, 200),
+              }))
+              return { ok: true, results, count: results.length, source: 'brave' }
+            }
+          }
+
+          // Fallback: Serper API
+          const serperKey = process.env.SERPER_API_KEY
+          if (serperKey) {
+            const res = await fetch('https://google.serper.dev/search', {
+              method: 'POST',
+              headers: { 'X-API-KEY': serperKey, 'Content-Type': 'application/json' },
+              body: JSON.stringify({ q: query, num: numResults }),
+              signal: AbortSignal.timeout(10000),
+            })
+            if (res.ok) {
+              const data = await res.json()
+              const results = (data.organic || []).slice(0, numResults).map((r: any) => ({
+                title: r.title || '',
+                url: r.link || '',
+                snippet: (r.snippet || '').slice(0, 200),
+              }))
+              return { ok: true, results, count: results.length, source: 'serper' }
+            }
+          }
+
+          return {
+            error: 'No search API key configured. Set BRAVE_SEARCH_API_KEY or SERPER_API_KEY in environment variables.',
+          }
+        } catch (err) {
+          return { error: `Search failed: ${err instanceof Error ? err.message : 'unknown error'}` }
+        }
+      },
+    }),
+
+    save_memory: tool({
+      description: 'Save a project insight to persistent memory. Use when you discover project patterns, architectural decisions, user preferences, or known issues. Memory persists across sessions for this project. Max 5KB total per project.',
+      inputSchema: z.object({
+        key: z.string().describe('Memory key (e.g., "framework", "conventions", "known_issues", "architecture")'),
+        value: z.string().describe('The value to remember'),
+      }),
+      execute: async ({ key, value }) => {
+        if (!projectId) return { error: 'Cannot save memory without a project' }
+
+        // Load existing memory
+        const getResult = await supabaseFetch(`/forge_projects?id=eq.${projectId}&select=memory`)
+        if (!getResult.ok) return { error: 'Failed to load project memory' }
+        const existing = (Array.isArray(getResult.data) && getResult.data[0]?.memory) || {}
+        const memory = typeof existing === 'object' ? { ...existing } : {}
+
+        // Check 5KB limit
+        memory[key] = value
+        const serialized = JSON.stringify(memory)
+        if (serialized.length > 5120) {
+          return { error: `Memory would exceed 5KB limit (${serialized.length} bytes). Remove some entries first.` }
+        }
+
+        // Save
+        const saveResult = await supabaseFetch(`/forge_projects?id=eq.${projectId}`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ memory }),
+        })
+        if (!saveResult.ok) return { error: `Failed to save memory: ${JSON.stringify(saveResult.data)}` }
+        return { ok: true, key, value, totalKeys: Object.keys(memory).length, sizeBytes: serialized.length }
+      },
+    }),
+
+    load_memory: tool({
+      description: 'Load all saved memory entries for this project. Returns the full memory object with all key-value pairs.',
+      inputSchema: z.object({}),
+      execute: async () => {
+        if (!projectId) return { error: 'Cannot load memory without a project' }
+
+        const result = await supabaseFetch(`/forge_projects?id=eq.${projectId}&select=memory`)
+        if (!result.ok) return { error: 'Failed to load project memory' }
+        const memory = (Array.isArray(result.data) && result.data[0]?.memory) || {}
+        const keys = typeof memory === 'object' ? Object.keys(memory) : []
+        return {
+          memory: typeof memory === 'object' ? memory : {},
+          count: keys.length,
+          message: keys.length === 0
+            ? 'No memory saved for this project yet.'
+            : `Loaded ${keys.length} memory entries: ${keys.join(', ')}`,
+        }
+      },
+    }),
+
     save_preference: tool({
       description: 'Save a learned user preference for future sessions. Use this when you notice the user consistently prefers certain patterns (color schemes, component libraries, naming conventions, code style). Preferences persist across projects.',
       inputSchema: z.object({

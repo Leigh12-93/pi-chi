@@ -8,6 +8,7 @@ import {
   Loader2, Check, Search, ChevronRight, Sun, Moon, Share2,
   Menu, X,
 } from 'lucide-react'
+import { BranchMenu } from './branch-menu'
 import { useTheme } from '@/components/theme-provider'
 import { cn } from '@/lib/utils'
 
@@ -19,6 +20,7 @@ interface HeaderProps {
   saveStatus?: 'idle' | 'saving' | 'saved' | 'error'
   onOpenCommandPalette?: () => void
   notificationSlot?: React.ReactNode
+  githubRepoUrl?: string | null
 }
 
 const actions: Array<{ id: string; icon: typeof Save; label: string; tip: string } | 'separator'> = [
@@ -33,7 +35,7 @@ const actions: Array<{ id: string; icon: typeof Save; label: string; tip: string
   { id: 'share', icon: Share2, label: 'Share', tip: 'Copy share link' },
 ]
 
-export function Header({ projectName, onSwitchProject, fileCount, onAction, saveStatus = 'idle', onOpenCommandPalette, notificationSlot }: HeaderProps) {
+export function Header({ projectName, onSwitchProject, fileCount, onAction, saveStatus = 'idle', onOpenCommandPalette, notificationSlot, githubRepoUrl }: HeaderProps) {
   const { session, status } = useSession()
   const { theme, toggleTheme } = useTheme()
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
@@ -86,6 +88,12 @@ export function Header({ projectName, onSwitchProject, fileCount, onAction, save
             {fileCount} files
           </span>
         )}
+        {/* Branch menu — shown when project has a GitHub repo */}
+        {githubRepoUrl && (() => {
+          const match = githubRepoUrl.match(/github\.com\/([^/]+)\/([^/]+)/)
+          if (!match) return null
+          return <BranchMenu owner={match[1]} repo={match[2].replace(/\.git$/, '')} />
+        })()}
       </div>
 
       {/* Center: Action Buttons — desktop only */}

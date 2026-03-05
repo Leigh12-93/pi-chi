@@ -5,6 +5,7 @@ import { createContext, useContext, useEffect, useState, useCallback } from 'rea
 interface Session {
   user: { name: string; email: string; image: string }
   githubUsername: string
+  hasApiKey: boolean
 }
 
 interface SessionContextValue {
@@ -32,7 +33,11 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
       const res = await fetch('/api/auth/session')
       const data = await res.json()
       if (data?.user) {
-        setSession(data)
+        setSession({
+          user: data.user,
+          githubUsername: data.githubUsername,
+          hasApiKey: data.hasApiKey ?? false,
+        })
         setStatus('authenticated')
       } else {
         setSession(null)
