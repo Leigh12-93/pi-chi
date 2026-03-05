@@ -248,6 +248,7 @@ export function useForgeChat(props: UseForgeChatProps) {
   const [editingContent, setEditingContent] = useState('')
   const [clearConfirm, setClearConfirm] = useState(false)
   const [attachments, setAttachments] = useState<FileUIPart[]>([])
+  const [tasks, setTasks] = useState<Array<{ id: string; label: string; status: string }>>([])
 
   // ─── Approval gates ─────────────────────────────────────────
   const [pendingApproval, setPendingApproval] = useState<{
@@ -511,6 +512,16 @@ export function useForgeChat(props: UseForgeChatProps) {
             }))
             continue
           }
+        }
+
+        // Task list — extract tasks from manage_tasks tool
+        if (inv.toolName === 'manage_tasks' && (isCall || isResult)) {
+          const taskArgs = inv.args as { tasks?: Array<{ id: string; label: string; status: string }> }
+          if (Array.isArray(taskArgs?.tasks)) {
+            setTasks(taskArgs.tasks)
+          }
+          processedInvs.current.add(key)
+          continue
         }
 
         const changes = extractFileUpdates(inv, localFiles.current)
@@ -874,6 +885,7 @@ export function useForgeChat(props: UseForgeChatProps) {
     selectedModel, setSelectedModel, showModelPicker, setShowModelPicker,
     copiedId, loadingHistory, editingMessageId, editingContent,
     clearConfirm, envVars, elapsed, isEmpty, attachments,
+    tasks,
     stepCount, estimatedTokens, realTokens, autoRoutedModel, currentActivity, lastCompletedToolName,
     // Cost tracking
     sessionCost, getMessageCost,

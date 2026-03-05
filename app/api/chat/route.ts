@@ -28,6 +28,7 @@ import {
   createTerminalTools,
   createTestingTools,
   createAuditTools,
+  createTaskTools,
 } from '@/lib/tools'
 import type { ToolContext } from '@/lib/tools'
 
@@ -602,6 +603,7 @@ export async function POST(req: Request) {
     ...createTerminalTools(ctx),
     ...createTestingTools(ctx),
     ...createAuditTools(ctx),
+    ...createTaskTools(ctx),
   }
 
   try {

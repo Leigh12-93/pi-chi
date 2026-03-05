@@ -137,6 +137,64 @@ function ThinkingIndicator({ elapsed, formatElapsed, stepCount, lastCompletedToo
   )
 }
 
+/** Task tray — collapsible list above chat input, v0-style */
+function TaskTray({ tasks }: { tasks: Array<{ id: string; label: string; status: string }> }) {
+  const [expanded, setExpanded] = useState(true)
+  const completed = tasks.filter(t => t.status === 'completed').length
+  const total = tasks.length
+  const allDone = completed === total
+
+  return (
+    <div className="border-t border-forge-border bg-forge-panel/50 shrink-0">
+      {/* Summary bar */}
+      <button
+        onClick={() => setExpanded(e => !e)}
+        className="w-full flex items-center justify-between px-3 py-1.5 hover:bg-forge-surface/50 transition-colors"
+      >
+        <div className="flex items-center gap-2">
+          {allDone ? (
+            <CheckCircle className="w-3.5 h-3.5 text-emerald-500" />
+          ) : (
+            <Loader2 className="w-3.5 h-3.5 text-forge-accent animate-spin" />
+          )}
+          <span className="text-[11px] font-medium text-forge-text">
+            {allDone ? 'All tasks completed' : `Working on tasks (${completed}/${total})`}
+          </span>
+        </div>
+        <ChevronDown className={cn('w-3 h-3 text-forge-text-dim transition-transform', expanded && 'rotate-180')} />
+      </button>
+
+      {/* Task list */}
+      {expanded && (
+        <div className="px-3 pb-2 space-y-0.5 max-h-[200px] overflow-y-auto">
+          {tasks.map((task) => (
+            <div key={task.id} className="flex items-center gap-2 py-1 px-1 rounded">
+              {task.status === 'completed' ? (
+                <CheckCircle className="w-3 h-3 text-emerald-500 shrink-0" />
+              ) : task.status === 'in_progress' ? (
+                <Loader2 className="w-3 h-3 text-forge-accent animate-spin shrink-0" />
+              ) : task.status === 'failed' ? (
+                <X className="w-3 h-3 text-forge-danger shrink-0" />
+              ) : (
+                <div className="w-3 h-3 rounded-full border border-forge-border shrink-0" />
+              )}
+              <span className={cn(
+                'text-[11px] leading-tight',
+                task.status === 'completed' ? 'text-forge-text-dim line-through' :
+                task.status === 'in_progress' ? 'text-forge-text' :
+                task.status === 'failed' ? 'text-forge-danger' :
+                'text-forge-text-dim'
+              )}>
+                {task.label}
+              </span>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
 export type ChatPanelProps = UseForgeChatProps & {
   onLoadingChange?: (isLoading: boolean) => void
 }
@@ -387,6 +445,9 @@ export function ChatPanel({ onLoadingChange, ...props }: ChatPanelProps) {
           </div>
         )}
       </div>
+
+      {/* Task tray */}
+      {chat.tasks.length > 0 && <TaskTray tasks={chat.tasks} />}
 
       {/* Input area */}
       <div className="border-t border-forge-border shrink-0 safe-bottom">

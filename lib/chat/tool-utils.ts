@@ -93,6 +93,12 @@ export function getToolSummary(toolName: string, args: Record<string, unknown>, 
       return critical > 0 ? `${findings} findings (${critical} critical)` : `${findings} findings`
     }
     case 'execute_audit_task': return data?.ok ? `${args.findingId || 'Issue'} fixed` : `Fixing ${args.findingId || 'issue'}...`
+    case 'manage_tasks': {
+      const taskList = args.tasks as Array<{ status: string }> | undefined
+      if (!taskList) return 'Updating tasks...'
+      const done = taskList.filter(t => t.status === 'completed').length
+      return `${done}/${taskList.length} tasks`
+    }
     default: return 'Done'
   }
 }
@@ -192,6 +198,10 @@ export function getPhaseLabel(lastToolName: string | null): string {
     case 'create_audit_plan':
     case 'execute_audit_task':
       return 'Auditing code'
+
+    // Tasks
+    case 'manage_tasks':
+      return 'Working through tasks'
 
     // Sandbox / environment
     case 'start_sandbox':
