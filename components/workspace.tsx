@@ -31,7 +31,7 @@ import { MCPManager } from './mcp-manager'
 import { useKeyboardShortcuts } from '@/lib/keyboard-shortcuts'
 import { useWebcontainer } from '@/hooks/use-webcontainer'
 import { detectFramework } from '@/lib/vercel'
-import { MessageSquare, FolderTree, Code2, Eye, Loader2, Save, Rocket, Upload, GitBranch, Download, SidebarOpen, FolderInput, Keyboard, Settings2, Search, History, Terminal, Plug } from 'lucide-react'
+import { MessageSquare, FolderTree, Code2, Eye, Loader2, Save, Rocket, Upload, GitBranch, Download, SidebarOpen, FolderInput, Keyboard, Settings2, Search, History, Terminal, Plug, Pin, PinOff } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { toast } from 'sonner'
 import type { FileNode } from '@/lib/types'
@@ -95,6 +95,10 @@ export function Workspace({
   const dragCounterRef = useRef(0)
   const chatSendRef = useRef<((message: string) => void) | null>(null)
   const [sidebarTab, setSidebarTab] = useState<SidebarTab | null>('files')
+  const [sidebarPinned, setSidebarPinned] = useState(false)
+  const [sidebarHovered, setSidebarHovered] = useState(false)
+  const sidebarLeaveTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const sidebarVisible = sidebarPinned || sidebarHovered
   const [vercelProjectId, setVercelProjectId] = useState<string | null>(null)
   const initialFilesRef = useRef<Record<string, string>>({})
   const filesRef = useRef(files)
@@ -939,14 +943,67 @@ export function Workspace({
         githubRepoUrl={githubRepoUrl}
       />
 
-      {/* Desktop layout: ActivityBar | Chat | Editor — Sidebar overlays chat */}
+      {/* Desktop layout: Chat | Editor — Sidebar slides in from left on hover */}
       <div className="flex-1 hidden md:flex overflow-hidden relative">
-        <ActivityBar activeTab={sidebarTab} onTabChange={setSidebarTab} />
 
-        {/* Sidebar overlay — absolutely positioned over chat panel */}
-        {sidebarTab && (
-          <div className="absolute left-[44px] top-0 bottom-0 w-[280px] z-30 bg-forge-panel border-r border-forge-border shadow-xl sidebar-overlay">
-            <SidebarContent
+        {/* Hover trigger zone — thin strip on left edge */}
+        {!sidebarVisible && (
+          <div
+            className="absolute left-0 top-0 bottom-0 w-2 z-40"
+            onMouseEnter={() => {
+              if (sidebarLeaveTimer.current) { clearTimeout(sidebarLeaveTimer.current); sidebarLeaveTimer.current = null }
+              setSidebarHovered(true)
+            }}
+          />
+        )}
+
+        {/* Sidebar tray — slides in from left, contains ActivityBar + content */}
+        {sidebarVisible && (
+          <div
+            className={cn(
+              'absolute left-0 top-0 bottom-0 z-30 flex shadow-xl sidebar-tray',
+              !sidebarPinned && 'sidebar-unpinned',
+            )}
+            onMouseEnter={() => {
+              if (sidebarLeaveTimer.current) { clearTimeout(sidebarLeaveTimer.current); sidebarLeaveTimer.current = null }
+              setSidebarHovered(true)
+            }}
+            onMouseLeave={() => {
+              if (!sidebarPinned) {
+                sidebarLeaveTimer.current = setTimeout(() => setSidebarHovered(false), 300)
+              }
+            }}
+          >
+            <ActivityBar activeTab={sidebarTab} onTabChange={(tab) => {
+              setSidebarTab(tab)
+              // Clicking a tab pins the sidebar open
+              if (tab) setSidebarPinned(true)
+            }} />
+
+            {sidebarTab && (
+              <div className="w-[260px] bg-forge-panel border-r border-forge-border flex flex-col overflow-hidden">
+                {/* Pin/unpin header */}
+                <div className="flex items-center justify-between px-3 py-1.5 border-b border-forge-border shrink-0">
+                  <span className="text-[10px] uppercase tracking-wider text-forge-text-dim font-medium">
+                    {sidebarTab === 'files' ? 'Explorer' : sidebarTab.charAt(0).toUpperCase() + sidebarTab.slice(1)}
+                  </span>
+                  <button
+                    onClick={() => {
+                      if (sidebarPinned) {
+                        setSidebarPinned(false)
+                        setSidebarHovered(false)
+                      } else {
+                        setSidebarPinned(true)
+                      }
+                    }}
+                    title={sidebarPinned ? 'Unpin sidebar' : 'Pin sidebar'}
+                    className="p-1 rounded text-forge-text-dim hover:text-forge-text hover:bg-forge-surface transition-colors"
+                  >
+                    {sidebarPinned ? <PinOff className="w-3.5 h-3.5" /> : <Pin className="w-3.5 h-3.5" />}
+                  </button>
+                </div>
+                <div className="flex-1 overflow-y-auto">
+                  <SidebarContent
               activeTab={sidebarTab}
               fileTree={fileTree}
               activeFile={activeFile}
@@ -1016,6 +1073,9 @@ export function Workspace({
                 }
               }}
             />
+                </div>
+              </div>
+            )}
           </div>
         )}
 

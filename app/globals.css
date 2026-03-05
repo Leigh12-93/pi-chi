@@ -959,12 +959,17 @@ html.dark [data-sonner-toast] [data-description] {
 @keyframes sidebar-slide { from { opacity: 0; transform: translateX(-4px); } to { opacity: 1; transform: translateX(0); } }
 .animate-sidebar-in { animation: sidebar-slide 0.15s ease-out; }
 
-/* Sidebar overlay — slides in from left over chat panel */
-@keyframes sidebar-overlay-in {
+/* Sidebar tray — slides in from left edge on hover, pins on click */
+@keyframes sidebar-tray-in {
   from { transform: translateX(-100%); opacity: 0; }
   to { transform: translateX(0); opacity: 1; }
 }
-.sidebar-overlay { animation: sidebar-overlay-in 0.2s var(--ease-spring); }
+.sidebar-tray {
+  animation: sidebar-tray-in 0.2s var(--ease-spring);
+}
+.sidebar-unpinned {
+  opacity: 0.97;
+}
 
 /* AI file edit pulse — highlights file tree row when AI writes to a file */
 @keyframes ai-edit-pulse {
