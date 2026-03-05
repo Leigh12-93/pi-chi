@@ -11,10 +11,9 @@ import { SnapshotsPanel } from './sidebar/snapshots-panel'
 import type { FileNode } from '@/lib/types'
 import type { Snapshot } from './version-history'
 
-export type SidebarTab = 'files' | 'git' | 'deploy' | 'env' | 'db' | 'snapshots'
+export type SidebarTab = 'git' | 'deploy' | 'env' | 'db' | 'snapshots'
 
 const TABS: { id: SidebarTab; icon: typeof FolderTree; label: string }[] = [
-  { id: 'files', icon: FolderTree, label: 'Files' },
   { id: 'git', icon: GitBranch, label: 'Git' },
   { id: 'deploy', icon: Rocket, label: 'Deploy' },
   { id: 'env', icon: Key, label: 'Environment' },
@@ -95,20 +94,6 @@ export function SidebarContent({
 }: SidebarContentProps) {
   return (
     <div className="h-full overflow-y-auto bg-forge-panel animate-sidebar-in">
-      {activeTab === 'files' && (
-        <FileTree
-          files={fileTree}
-          activeFile={activeFile}
-          onFileSelect={onFileSelect}
-          onFileDelete={onFileDelete}
-          onFileRename={onFileRename}
-          onFileCreate={onFileCreate}
-          fileContents={fileContents}
-          modifiedFiles={modifiedFiles}
-          aiEditingFiles={aiEditingFiles}
-          fileDiffs={fileDiffs}
-        />
-      )}
       {activeTab === 'git' && (
         <GitPanel githubRepoUrl={githubRepoUrl} projectId={projectId} onAction={onAction} onRepoConnected={onRepoConnected} />
       )}

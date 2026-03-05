@@ -94,7 +94,7 @@ export function Workspace({
   const [showMcpManager, setShowMcpManager] = useState(false)
   const dragCounterRef = useRef(0)
   const chatSendRef = useRef<((message: string) => void) | null>(null)
-  const [sidebarTab, setSidebarTab] = useState<SidebarTab | null>('files')
+  const [sidebarTab, setSidebarTab] = useState<SidebarTab | null>(null)
   const [sidebarPinned, setSidebarPinned] = useState(false)
   const [sidebarHovered, setSidebarHovered] = useState(false)
   const sidebarLeaveTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -642,7 +642,7 @@ export function Workspace({
   useKeyboardShortcuts([
     { key: 'k', ctrlKey: true, action: () => setShowCommandPalette(prev => !prev), description: 'Command palette' },
     { key: 'p', ctrlKey: true, shiftKey: true, action: () => setRightTab(prev => prev === 'code' ? 'split' : prev === 'split' ? 'preview' : 'code'), description: 'Cycle view mode' },
-    { key: 'b', ctrlKey: true, action: () => setSidebarTab(prev => prev ? null : 'files'), description: 'Toggle sidebar' },
+    { key: 'b', ctrlKey: true, action: () => setSidebarTab(prev => prev ? null : 'git'), description: 'Toggle sidebar' },
     { key: 'w', ctrlKey: true, action: () => { if (activeFile) handleCloseFile(activeFile) }, description: 'Close current file' },
     { key: '/', ctrlKey: true, action: () => setShowShortcuts(prev => !prev), description: 'Keyboard shortcuts' },
     { key: 'f', ctrlKey: true, action: () => setShowFileSearch(prev => !prev), description: 'Search in files' },
@@ -752,7 +752,7 @@ export function Workspace({
     { id: 'import', label: 'Import from GitHub', description: 'Import files from a GitHub repository', icon: FolderInput, category: 'actions' as const, action: () => setActiveDialog('import') },
     { id: 'download', label: 'Download as ZIP', description: 'Download all project files', icon: Download, category: 'actions' as const, action: handleDownload },
     { id: 'toggle-preview', label: 'Toggle Preview', description: 'Switch between code and preview', shortcut: 'Ctrl+Shift+P', icon: Eye, category: 'view' as const, action: () => setRightTab(prev => prev === 'code' ? 'preview' : 'code') },
-    { id: 'toggle-sidebar', label: 'Toggle Sidebar', description: 'Show or hide the sidebar', shortcut: 'Ctrl+B', icon: SidebarOpen, category: 'view' as const, action: () => setSidebarTab(prev => prev ? null : 'files') },
+    { id: 'toggle-sidebar', label: 'Toggle Sidebar', description: 'Show or hide the sidebar', shortcut: 'Ctrl+B', icon: SidebarOpen, category: 'view' as const, action: () => setSidebarTab(prev => prev ? null : 'git') },
     { id: 'close-file', label: 'Close Current File', shortcut: 'Ctrl+W', icon: Code2, category: 'view' as const, action: () => { if (activeFile) handleCloseFile(activeFile) } },
     { id: 'switch-project', label: 'Switch Project', description: 'Go back to project picker', icon: FolderTree, category: 'navigation' as const, action: onSwitchProject },
     { id: 'shortcuts', label: 'Keyboard Shortcuts', description: 'View all keyboard shortcuts', shortcut: 'Ctrl+/', icon: Keyboard, category: 'view' as const, action: () => setShowShortcuts(true) },
@@ -985,7 +985,7 @@ export function Workspace({
                 {/* Pin/unpin header */}
                 <div className="flex items-center justify-between px-3 py-1.5 border-b border-forge-border shrink-0">
                   <span className="text-[10px] uppercase tracking-wider text-forge-text-dim font-medium">
-                    {sidebarTab === 'files' ? 'Explorer' : sidebarTab.charAt(0).toUpperCase() + sidebarTab.slice(1)}
+                    {sidebarTab ? sidebarTab.charAt(0).toUpperCase() + sidebarTab.slice(1) : ''}
                   </span>
                   <button
                     onClick={() => {
@@ -1079,12 +1079,29 @@ export function Workspace({
           </div>
         )}
 
-        <PanelGroup direction="horizontal" autoSaveId="forge-workspace-v2">
-          <Panel defaultSize={30} minSize={20} maxSize={50}>
+        <PanelGroup direction="horizontal" autoSaveId="forge-workspace-v3">
+          <Panel defaultSize={25} minSize={15} maxSize={45}>
             {chatPanel}
           </Panel>
           <PanelResizeHandle />
-          <Panel defaultSize={70} minSize={30}>
+          <Panel defaultSize={15} minSize={8} maxSize={25}>
+            <div className="h-full overflow-y-auto bg-forge-panel border-r border-forge-border">
+              <FileTree
+                files={fileTree}
+                activeFile={activeFile}
+                onFileSelect={handleFileSelect}
+                onFileDelete={onFileDelete}
+                onFileRename={handleFileRename}
+                onFileCreate={handleFileCreate}
+                fileContents={files}
+                modifiedFiles={modifiedFiles}
+                aiEditingFiles={aiEditingFiles}
+                fileDiffs={fileDiffs}
+              />
+            </div>
+          </Panel>
+          <PanelResizeHandle />
+          <Panel defaultSize={60} minSize={30}>
             <div className="h-full flex flex-col overflow-hidden">
               <div className="flex-1 overflow-hidden">
                 {editorPanel}
