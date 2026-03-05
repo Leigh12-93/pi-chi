@@ -389,9 +389,17 @@ export function ChatPanel({ onLoadingChange, ...props }: ChatPanelProps) {
       </div>
 
       {/* Input area */}
-      <div className="border-t border-forge-border p-3 shrink-0 safe-bottom">
+      <div className="border-t border-forge-border shrink-0 safe-bottom">
+        {/* Voice interim text */}
+        {voice.isListening && voice.interimText && (
+          <div className="px-4 pt-2 text-[12px] text-forge-text-dim/60 italic truncate">
+            {voice.interimText}...
+          </div>
+        )}
+
+        {/* Composer */}
         <div
-          className="relative"
+          className="p-3"
           onDragOver={(e) => { e.preventDefault(); setIsDraggingChat(true) }}
           onDragLeave={() => setIsDraggingChat(false)}
           onDrop={async (e) => {
@@ -403,195 +411,199 @@ export function ChatPanel({ onLoadingChange, ...props }: ChatPanelProps) {
             }
           }}
         >
-          {/* Drag overlay */}
-          {isDraggingChat && (
-            <div className="absolute inset-0 z-10 rounded-xl border-2 border-dashed border-forge-accent bg-forge-accent/10 flex items-center justify-center pointer-events-none">
-              <span className="text-[12px] font-medium text-forge-accent">Drop files here</span>
-            </div>
-          )}
+          <div className="relative bg-forge-surface border border-forge-border rounded-xl focus-within:border-forge-accent/40 shadow-[inset_0_1px_2px_rgba(0,0,0,0.04),0_1px_2px_rgba(0,0,0,0.02)] focus-within:shadow-[inset_0_1px_2px_rgba(0,0,0,0.04),0_0_0_3px_var(--color-forge-ring)] transition-all">
+            {/* Drag overlay */}
+            {isDraggingChat && (
+              <div className="absolute inset-0 z-10 rounded-xl border-2 border-dashed border-forge-accent bg-forge-accent/10 flex items-center justify-center pointer-events-none">
+                <span className="text-[12px] font-medium text-forge-accent">Drop files here</span>
+              </div>
+            )}
 
-          {/* Attachment chips */}
-          {chat.attachments.length > 0 && (
-            <div className="flex flex-wrap gap-1.5 px-3 pt-2 pb-1">
-              {chat.attachments.map((att, i) => (
-                <div key={i} className="flex items-center gap-1 px-2 py-1 bg-forge-surface border border-forge-border rounded-md text-[11px]">
-                  {att.mediaType?.startsWith('image/') ? <ImageIcon className="w-3 h-3" /> : <Paperclip className="w-3 h-3" />}
-                  <span className="max-w-[120px] truncate text-forge-text-dim">{att.filename || 'file'}</span>
-                  <button onClick={() => chat.handleRemoveAttachment(i)} className="p-0.5 text-forge-text-dim hover:text-red-500 transition-colors" aria-label="Remove attachment">
-                    <X className="w-2.5 h-2.5" />
+            {/* Attachment chips */}
+            {chat.attachments.length > 0 && (
+              <div className="flex flex-wrap gap-1.5 px-3 pt-2.5">
+                {chat.attachments.map((att, i) => (
+                  <div key={i} className="flex items-center gap-1 px-2 py-1 bg-forge-bg/60 border border-forge-border rounded-md text-[11px]">
+                    {att.mediaType?.startsWith('image/') ? <ImageIcon className="w-3 h-3 text-forge-text-dim" /> : <Paperclip className="w-3 h-3 text-forge-text-dim" />}
+                    <span className="max-w-[120px] truncate text-forge-text-dim">{att.filename || 'file'}</span>
+                    <button onClick={() => chat.handleRemoveAttachment(i)} className="p-0.5 text-forge-text-dim hover:text-red-500 transition-colors" aria-label="Remove attachment">
+                      <X className="w-2.5 h-2.5" />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {/* Textarea */}
+            <textarea
+              ref={chat.inputRef}
+              value={chat.input}
+              onChange={e => {
+                chat.setInput(e.target.value)
+                const textarea = e.target
+                requestAnimationFrame(() => {
+                  textarea.style.height = 'auto'
+                  textarea.style.height = Math.min(textarea.scrollHeight, 200) + 'px'
+                })
+              }}
+              onKeyDown={e => {
+                if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); chat.handleSend() }
+              }}
+              placeholder={chat.isEmpty ? 'Describe what you want to build...' : 'Ask for changes, new features, fixes...'}
+              rows={1}
+              className="w-full bg-transparent px-3 py-3 text-[13.5px] text-forge-text placeholder:text-forge-text-dim/40 outline-none resize-none"
+            />
+
+            {/* Action bar */}
+            <div className="flex items-center justify-between px-2 pb-2">
+              <div className="flex items-center gap-0.5">
+                {/* File attach */}
+                <input
+                  type="file"
+                  ref={fileInputRef}
+                  className="hidden"
+                  multiple
+                  onChange={(e) => {
+                    if (e.target.files) chat.handleAttachFiles(e.target.files)
+                    e.target.value = ''
+                  }}
+                />
+                <button
+                  onClick={() => fileInputRef.current?.click()}
+                  className="p-1.5 text-forge-text-dim hover:text-forge-text rounded-lg hover:bg-forge-bg/60 transition-colors"
+                  title="Attach files"
+                  aria-label="Attach files"
+                >
+                  <Paperclip className="w-4 h-4" />
+                </button>
+
+                {/* Voice input */}
+                {voice.isSupported && (
+                  <button
+                    onClick={voice.toggle}
+                    className={cn(
+                      'p-1.5 rounded-lg transition-all',
+                      voice.isListening
+                        ? 'bg-red-100 dark:bg-red-900/40 text-red-500 hover:bg-red-200 dark:hover:bg-red-800/60 animate-pulse'
+                        : 'text-forge-text-dim hover:text-forge-text hover:bg-forge-bg/60',
+                    )}
+                    title={voice.isListening ? 'Stop recording' : 'Voice input'}
+                    aria-label={voice.isListening ? 'Stop recording' : 'Voice input'}
+                  >
+                    <Mic className="w-4 h-4" />
                   </button>
-                </div>
-              ))}
-            </div>
-          )}
-
-          <textarea
-            ref={chat.inputRef}
-            value={chat.input}
-            onChange={e => {
-              chat.setInput(e.target.value)
-              const textarea = e.target
-              requestAnimationFrame(() => {
-                textarea.style.height = 'auto'
-                textarea.style.height = Math.min(textarea.scrollHeight, 200) + 'px'
-              })
-            }}
-            onKeyDown={e => {
-              if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); chat.handleSend() }
-            }}
-            placeholder={chat.isEmpty ? 'Describe what you want to build...' : 'Ask for changes, new features, fixes...'}
-            rows={1}
-            className="w-full bg-forge-surface border border-forge-border rounded-xl pl-10 pr-20 py-3 text-[13.5px] text-forge-text placeholder:text-forge-text-dim/40 outline-none focus:border-forge-accent/40 shadow-[inset_0_1px_2px_rgba(0,0,0,0.04),0_1px_2px_rgba(0,0,0,0.02)] focus:shadow-[inset_0_1px_2px_rgba(0,0,0,0.04),0_0_0_3px_var(--color-forge-ring)] resize-none transition-all"
-          />
-
-          {/* Paperclip file picker button */}
-          <input
-            type="file"
-            ref={fileInputRef}
-            className="hidden"
-            multiple
-            onChange={(e) => {
-              if (e.target.files) chat.handleAttachFiles(e.target.files)
-              e.target.value = ''
-            }}
-          />
-          <button
-            onClick={() => fileInputRef.current?.click()}
-            className="absolute left-2.5 bottom-2.5 p-1.5 text-forge-text-dim hover:text-forge-text transition-colors rounded-lg hover:bg-forge-surface-hover"
-            title="Attach files"
-            aria-label="Attach files"
-          >
-            <Paperclip className="w-4 h-4" />
-          </button>
-
-          <div className="absolute right-2 bottom-1.5 flex items-center gap-1">
-            {voice.isSupported && (
-              <button
-                onClick={voice.toggle}
-                className={cn(
-                  'p-2 rounded-xl transition-all',
-                  voice.isListening
-                    ? 'bg-red-100 dark:bg-red-900/40 text-red-500 hover:bg-red-200 dark:hover:bg-red-800/60 animate-pulse'
-                    : 'text-forge-text-dim hover:text-forge-text hover:bg-forge-surface-hover',
                 )}
-                title={voice.isListening ? 'Stop recording' : 'Voice input'}
-                aria-label={voice.isListening ? 'Stop recording' : 'Voice input'}
-              >
-                <Mic className="w-4 h-4" />
-              </button>
-            )}
-            {chat.isLoading ? (
-              <button onClick={chat.stop} className="p-2 rounded-xl bg-red-100 dark:bg-red-900/40 text-forge-danger hover:bg-red-200 dark:hover:bg-red-800/60 transition-colors animate-stop-pulse" title="Stop generating (Esc)" aria-label="Stop generating">
-                <StopCircle className="w-4 h-4" />
-              </button>
-            ) : (
-              <motion.button
-                onClick={() => chat.handleSend()}
-                disabled={!chat.input.trim() && chat.attachments.length === 0}
-                initial={{ scale: 0.9, opacity: 0.5 }}
-                animate={{
-                  scale: (chat.input.trim() || chat.attachments.length > 0) ? 1 : 0.9,
-                  opacity: (chat.input.trim() || chat.attachments.length > 0) ? 1 : 0.5,
-                }}
-                transition={{ type: 'spring', stiffness: 400, damping: 20 }}
-                className="p-2 rounded-xl bg-forge-accent hover:bg-forge-accent-hover text-white shadow-sm hover:shadow-md disabled:opacity-40 disabled:cursor-not-allowed transition-all"
-                title="Send message"
-                aria-label="Send message"
-              >
-                <ArrowUp className="w-4 h-4" strokeWidth={2.5} />
-              </motion.button>
-            )}
+
+                {/* Model picker */}
+                <div className="relative ml-1">
+                  <button
+                    onClick={() => chat.setShowModelPicker(prev => !prev)}
+                    className="flex items-center gap-1 px-2 py-1 text-[11px] text-forge-text-dim hover:text-forge-text rounded-lg hover:bg-forge-bg/60 transition-all"
+                  >
+                    {MODEL_OPTIONS.find(m => m.id === chat.selectedModel)?.label || 'Sonnet 4'}
+                    <ChevronDown className="w-2.5 h-2.5" />
+                  </button>
+                  {chat.showModelPicker && (
+                    <>
+                      <div className="fixed inset-0 z-40" onClick={() => chat.setShowModelPicker(false)} />
+                      <div className="absolute left-0 bottom-full mb-1 z-50 w-44 bg-forge-bg/95 backdrop-blur-lg border border-forge-border rounded-xl shadow-lg overflow-hidden animate-slide-down">
+                        {MODEL_OPTIONS.map(model => (
+                          <button
+                            key={model.id}
+                            onClick={() => { chat.setSelectedModel(model.id); chat.setShowModelPicker(false) }}
+                            className={cn(
+                              'flex items-center gap-2 w-full px-3 py-2 text-[12px] hover:bg-forge-surface-hover transition-colors',
+                              chat.selectedModel === model.id && 'bg-forge-surface text-forge-text font-medium',
+                            )}
+                          >
+                            <Check className={cn('w-3 h-3 shrink-0', chat.selectedModel === model.id ? 'text-forge-accent' : 'invisible')} />
+                            <span className="flex-1 text-left">{model.label}</span>
+                            <span className="text-[10px] text-forge-text-dim">{model.description}</span>
+                          </button>
+                        ))}
+                      </div>
+                    </>
+                  )}
+                </div>
+              </div>
+
+              <div className="flex items-center gap-1">
+                {/* Send / Stop */}
+                {chat.isLoading ? (
+                  <button onClick={chat.stop} className="p-1.5 rounded-lg bg-red-100 dark:bg-red-900/40 text-forge-danger hover:bg-red-200 dark:hover:bg-red-800/60 transition-colors animate-stop-pulse" title="Stop generating (Esc)" aria-label="Stop generating">
+                    <StopCircle className="w-4 h-4" />
+                  </button>
+                ) : (
+                  <motion.button
+                    onClick={() => chat.handleSend()}
+                    disabled={!chat.input.trim() && chat.attachments.length === 0}
+                    initial={{ scale: 0.9, opacity: 0.5 }}
+                    animate={{
+                      scale: (chat.input.trim() || chat.attachments.length > 0) ? 1 : 0.9,
+                      opacity: (chat.input.trim() || chat.attachments.length > 0) ? 1 : 0.5,
+                    }}
+                    transition={{ type: 'spring', stiffness: 400, damping: 20 }}
+                    className="p-1.5 rounded-lg bg-forge-accent hover:bg-forge-accent-hover text-white shadow-sm hover:shadow-md disabled:opacity-40 disabled:cursor-not-allowed transition-all"
+                    title="Send message"
+                    aria-label="Send message"
+                  >
+                    <ArrowUp className="w-4 h-4" strokeWidth={2.5} />
+                  </motion.button>
+                )}
+              </div>
+            </div>
           </div>
         </div>
-        {/* Voice interim text */}
-        {voice.isListening && voice.interimText && (
-          <div className="px-3 pt-1 text-[12px] text-forge-text-dim/60 italic truncate">
-            {voice.interimText}...
-          </div>
-        )}
-        {/* Footer: model picker + hints + clear + tokens */}
-        <div className="flex items-center justify-between mt-2 px-1">
-          <div className="flex items-center gap-2">
-            {/* Model picker chip */}
-            <div className="relative">
-              <button
-                onClick={() => chat.setShowModelPicker(prev => !prev)}
-                className="flex items-center gap-1 px-2 py-0.5 text-[11px] text-forge-text-dim hover:text-forge-text bg-forge-surface border border-forge-border rounded-lg hover:border-forge-text-dim/30 transition-all"
-              >
-                {MODEL_OPTIONS.find(m => m.id === chat.selectedModel)?.label || 'Sonnet 4'}
-                <ChevronDown className="w-2.5 h-2.5" />
-              </button>
-              {chat.showModelPicker && (
-                <>
-                  <div className="fixed inset-0 z-40" onClick={() => chat.setShowModelPicker(false)} />
-                  <div className="absolute left-0 bottom-full mb-1 z-50 w-44 bg-forge-bg/95 backdrop-blur-lg border border-forge-border rounded-xl shadow-lg overflow-hidden animate-slide-down">
-                    {MODEL_OPTIONS.map(model => (
-                      <button
-                        key={model.id}
-                        onClick={() => { chat.setSelectedModel(model.id); chat.setShowModelPicker(false) }}
-                        className={cn(
-                          'flex items-center gap-2 w-full px-3 py-2 text-[12px] hover:bg-forge-surface-hover transition-colors',
-                          chat.selectedModel === model.id && 'bg-forge-surface text-forge-text font-medium',
-                        )}
-                      >
-                        <Check className={cn('w-3 h-3 shrink-0', chat.selectedModel === model.id ? 'text-forge-accent' : 'invisible')} />
-                        <span className="flex-1 text-left">{model.label}</span>
-                        <span className="text-[10px] text-forge-text-dim">{model.description}</span>
-                      </button>
-                    ))}
-                  </div>
-                </>
-              )}
-            </div>
-            <span className="text-[10px] text-forge-text-dim/40 hidden sm:inline">
+
+        {/* Footer: metrics + clear */}
+        <div className="flex items-center justify-between px-4 pb-2">
+          <div className="flex items-center gap-1.5">
+            {chat.autoRoutedModel && (
+              <span className="text-[10px] text-forge-text-dim/60 flex items-center gap-0.5" title={chat.autoRoutedModel.reason}>
+                <Sparkles className="w-2.5 h-2.5" />
+                {chat.autoRoutedModel.model.includes('haiku') ? 'Haiku' : chat.autoRoutedModel.model.includes('opus') ? 'Opus' : 'Sonnet'}
+              </span>
+            )}
+            {chat.isLoading && chat.stepCount > 0 && (
+              <span className="text-[10px] text-forge-accent/60 font-medium tabular-nums">
+                {chat.stepCount} action{chat.stepCount !== 1 ? 's' : ''}
+              </span>
+            )}
+            {(chat.realTokens || chat.estimatedTokens) > 0 && (
+              <span className="text-[10px] text-forge-text-dim/50" title={chat.realTokens ? 'Actual API token usage' : 'Estimated token usage'}>
+                {chat.realTokens ? '' : '~'}{(chat.realTokens || chat.estimatedTokens) > 1000 ? `${((chat.realTokens || chat.estimatedTokens) / 1000).toFixed(1)}k` : (chat.realTokens || chat.estimatedTokens)} tok
+              </span>
+            )}
+            {chat.sessionCost.cost > 0 && !chat.isLoading && (
+              <span className="text-[10px] text-forge-text-dim/50" title={`Session: ${chat.sessionCost.inputTokens.toLocaleString()} in + ${chat.sessionCost.outputTokens.toLocaleString()} out`}>
+                ${chat.sessionCost.cost < 0.01 ? chat.sessionCost.cost.toFixed(4) : chat.sessionCost.cost.toFixed(2)}
+              </span>
+            )}
+            {chat.isLoading && chat.elapsed > 0 && (
+              <span className="text-[10px] text-forge-text-dim/50 flex items-center gap-0.5 tabular-nums">
+                <Clock className="w-2.5 h-2.5" />
+                {chat.formatElapsed(chat.elapsed)}
+              </span>
+            )}
+            <span className="text-[10px] text-forge-text-dim/30 hidden sm:inline">
               Enter to send{chat.isLoading ? ' · Esc to stop' : ''}
             </span>
           </div>
-          <div className="flex items-center gap-1.5">
-            {(chat.autoRoutedModel || (chat.realTokens || chat.estimatedTokens) > 0 || (chat.isLoading && chat.elapsed > 0) || chat.sessionCost.cost > 0) && (
-              <div className="flex items-center gap-1.5 px-2 py-0.5 bg-forge-surface/50 rounded-lg">
-                {chat.autoRoutedModel && (
-                  <span className="text-[10px] text-forge-text-dim/60 flex items-center gap-0.5" title={chat.autoRoutedModel.reason}>
-                    <Sparkles className="w-2.5 h-2.5" />
-                    {chat.autoRoutedModel.model.includes('haiku') ? 'Haiku' : chat.autoRoutedModel.model.includes('opus') ? 'Opus' : 'Sonnet'}
-                  </span>
-                )}
-                {chat.isLoading && chat.stepCount > 0 && (
-                  <span className="text-[10px] text-forge-accent/60 font-medium tabular-nums">
-                    {chat.stepCount} action{chat.stepCount !== 1 ? 's' : ''}
-                  </span>
-                )}
-                {(chat.realTokens || chat.estimatedTokens) > 0 && (
-                  <span className="text-[10px] text-forge-text-dim/50" title={chat.realTokens ? 'Actual API token usage' : 'Estimated token usage'}>
-                    {chat.realTokens ? '' : '~'}{(chat.realTokens || chat.estimatedTokens) > 1000 ? `${((chat.realTokens || chat.estimatedTokens) / 1000).toFixed(1)}k` : (chat.realTokens || chat.estimatedTokens)} tokens
-                  </span>
-                )}
-                {chat.sessionCost.cost > 0 && !chat.isLoading && (
-                  <span className="text-[10px] text-forge-text-dim/50" title={`Session: ${chat.sessionCost.inputTokens.toLocaleString()} in + ${chat.sessionCost.outputTokens.toLocaleString()} out`}>
-                    ~${chat.sessionCost.cost < 0.01 ? chat.sessionCost.cost.toFixed(4) : chat.sessionCost.cost.toFixed(2)}
-                  </span>
-                )}
-                {chat.isLoading && chat.elapsed > 0 && (
-                  <span className="text-[10px] text-forge-text-dim/50 flex items-center gap-0.5 tabular-nums">
-                    <Clock className="w-2.5 h-2.5" />
-                    {chat.formatElapsed(chat.elapsed)}
-                  </span>
-                )}
-              </div>
-            )}
-            {chat.messages.length > 0 && (
-              <button
-                onClick={chat.handleClearChat}
-                onMouseLeave={() => { if (chat.clearConfirm) { chat.setClearConfirm(false); if (chat.clearConfirmTimer.current) clearTimeout(chat.clearConfirmTimer.current) } }}
-                className={`p-1 transition-colors rounded text-[10px] flex items-center gap-0.5 ${chat.clearConfirm ? 'text-forge-danger' : 'text-forge-text-dim/40 hover:text-forge-danger'}`}
-                title={chat.clearConfirm ? 'Click again to confirm' : 'Clear chat'}
-                aria-label={chat.clearConfirm ? 'Confirm clear chat' : 'Clear chat'}
-              >
-                <Trash2 className="w-3.5 h-3.5" />
-                {chat.clearConfirm && <span>Clear?</span>}
-              </button>
-            )}
-          </div>
+          {chat.messages.length > 0 && (
+            <button
+              onClick={chat.handleClearChat}
+              onMouseLeave={() => { if (chat.clearConfirm) { chat.setClearConfirm(false); if (chat.clearConfirmTimer.current) clearTimeout(chat.clearConfirmTimer.current) } }}
+              className={cn(
+                'p-1 rounded transition-colors text-[10px] flex items-center gap-0.5',
+                chat.clearConfirm ? 'text-forge-danger' : 'text-forge-text-dim/40 hover:text-forge-danger',
+              )}
+              title={chat.clearConfirm ? 'Click again to confirm' : 'Clear chat'}
+              aria-label={chat.clearConfirm ? 'Confirm clear chat' : 'Clear chat'}
+            >
+              <Trash2 className="w-3 h-3" />
+              {chat.clearConfirm && <span>Clear?</span>}
+            </button>
+          )}
         </div>
       </div>
     </div>
