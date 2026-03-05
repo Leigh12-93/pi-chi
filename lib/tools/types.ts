@@ -14,4 +14,5 @@ export interface ToolContext {
   supabaseFetch: (path: string, options?: RequestInit) => Promise<{ data: unknown; status: number; ok: boolean }>
   githubFetch: (path: string, token: string, options?: RequestInit) => Promise<Record<string, any>>
   githubUsername?: string
+  userVercelToken?: string  // User's own Vercel token (BYOK), falls back to server token
 }

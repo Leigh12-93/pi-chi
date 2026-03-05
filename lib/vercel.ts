@@ -15,8 +15,9 @@ export function detectFramework(files: Record<string, string>): string | undefin
   return undefined // let Vercel auto-detect for static sites
 }
 
-export async function vercelDeploy(name: string, files: Record<string, string>, framework?: string, onProgress?: (msg: string) => Promise<void>, envVars?: Record<string, string>) {
-  if (!VERCEL_TOKEN) return { error: 'VERCEL_TOKEN not configured' }
+export async function vercelDeploy(name: string, files: Record<string, string>, framework?: string, onProgress?: (msg: string) => Promise<void>, envVars?: Record<string, string>, userToken?: string) {
+  const deployToken = userToken || VERCEL_TOKEN
+  if (!deployToken) return { error: 'VERCEL_TOKEN not configured' }
 
   const progress = onProgress || (async () => {})
   const fileEntries = Object.entries(files).map(([file, data]) => ({ file, data }))
@@ -32,13 +33,14 @@ export async function vercelDeploy(name: string, files: Record<string, string>, 
   }
 
   await progress('Uploading files...')
-  const teamParam = VERCEL_TEAM ? `?teamId=${VERCEL_TEAM}` : ''
+  // When using user's token, skip team param (deploys to their personal account)
+  const teamParam = (!userToken && VERCEL_TEAM) ? `?teamId=${VERCEL_TEAM}` : ''
   const uploadCtrl = new AbortController()
   const uploadTimeout = setTimeout(() => uploadCtrl.abort(), 30000)
   const res = await fetch(`https://api.vercel.com/v13/deployments${teamParam}`, {
     method: 'POST',
     headers: {
-      Authorization: `Bearer ${VERCEL_TOKEN}`,
+      Authorization: `Bearer ${deployToken}`,
       'Content-Type': 'application/json',
     },
     body: JSON.stringify({
@@ -68,7 +70,7 @@ export async function vercelDeploy(name: string, files: Record<string, string>, 
       const pollCtrl = new AbortController()
       const pollTimeout = setTimeout(() => pollCtrl.abort(), 15000)
       const check = await fetch(`https://api.vercel.com/v13/deployments/${deployId}${teamParam}`, {
-        headers: { Authorization: `Bearer ${VERCEL_TOKEN}` },
+        headers: { Authorization: `Bearer ${deployToken}` },
         signal: pollCtrl.signal,
       })
       clearTimeout(pollTimeout)
@@ -88,7 +90,7 @@ export async function vercelDeploy(name: string, files: Record<string, string>, 
           try {
             const logsRes = await fetch(
               `https://api.vercel.com/v2/deployments/${deployId}/events${teamParam}`,
-              { headers: { Authorization: `Bearer ${VERCEL_TOKEN}` } },
+              { headers: { Authorization: `Bearer ${deployToken}` } },
             )
             if (logsRes.ok) {
               const events = await logsRes.json()
@@ -117,7 +119,7 @@ export async function vercelDeploy(name: string, files: Record<string, string>, 
   let productionUrl = deployUrl
   try {
     const aliasRes = await fetch(`https://api.vercel.com/v9/projects/${deployName}${teamParam}`, {
-      headers: { Authorization: `Bearer ${VERCEL_TOKEN}` },
+      headers: { Authorization: `Bearer ${deployToken}` },
     })
     if (aliasRes.ok) {
       const projectData = await aliasRes.json()

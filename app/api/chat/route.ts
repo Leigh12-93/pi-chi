@@ -202,22 +202,26 @@ export async function POST(req: Request) {
     }
   }
 
-  // ─── BYOK: Load user's API key ──────────────────────────────
+  // ─── BYOK: Load user's API key + Vercel token ──────────────
   let userApiKey: string | null = null
+  let userVercelToken: string | null = null
   try {
     const { data: settingsData, ok: settingsOk } = await supabaseFetchDirect(
-      `/forge_user_settings?github_username=eq.${encodeURIComponent(session.githubUsername)}&select=encrypted_api_key`,
+      `/forge_user_settings?github_username=eq.${encodeURIComponent(session.githubUsername)}&select=encrypted_api_key,encrypted_vercel_token`,
     )
     if (settingsOk && Array.isArray(settingsData) && settingsData.length > 0) {
-      const encryptedKey = (settingsData[0] as any).encrypted_api_key
-      if (encryptedKey) {
-        // Handle versioned format: v1:iv:ciphertext
-        const raw = encryptedKey.startsWith('v1:') ? encryptedKey.slice(3) : encryptedKey
+      const row = settingsData[0] as any
+      if (row.encrypted_api_key) {
+        const raw = row.encrypted_api_key.startsWith('v1:') ? row.encrypted_api_key.slice(3) : row.encrypted_api_key
         userApiKey = await decryptToken(raw)
+      }
+      if (row.encrypted_vercel_token) {
+        const raw = row.encrypted_vercel_token.startsWith('v1:') ? row.encrypted_vercel_token.slice(3) : row.encrypted_vercel_token
+        userVercelToken = await decryptToken(raw)
       }
     }
   } catch (err: any) {
-    console.warn('[chat] Failed to load user API key, falling back to server key:', err.message)
+    console.warn('[chat] Failed to load user credentials, falling back to server keys:', err.message)
   }
 
   // Create the AI provider — user's key takes priority, falls back to server key
@@ -585,6 +589,7 @@ export async function POST(req: Request) {
     supabaseFetch,
     githubFetch,
     githubUsername: (session as any).githubUsername || session.user?.name || 'unknown',
+    userVercelToken: userVercelToken || undefined,
   }
 
   // Structural prompt example

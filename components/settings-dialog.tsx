@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect, useCallback } from 'react'
-import { X, Key, Monitor, Type, Palette, Trash2, Loader2, CheckCircle2 } from 'lucide-react'
+import { X, Key, Monitor, Type, Trash2, Loader2, CheckCircle2, Rocket } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useSession } from './session-provider'
 
@@ -10,7 +10,7 @@ interface SettingsDialogProps {
   onClose: () => void
 }
 
-type Tab = 'general' | 'editor' | 'api-key'
+type Tab = 'general' | 'editor' | 'api-key' | 'vercel'
 
 export function SettingsDialog({ open, onClose }: SettingsDialogProps) {
   const { session, refresh } = useSession()
@@ -28,6 +28,13 @@ export function SettingsDialog({ open, onClose }: SettingsDialogProps) {
   const [hasKey, setHasKey] = useState(false)
   const [deleting, setDeleting] = useState(false)
 
+  // Vercel token state
+  const [vercelInput, setVercelInput] = useState('')
+  const [vercelStatus, setVercelStatus] = useState<'idle' | 'saving' | 'success' | 'error'>('idle')
+  const [vercelError, setVercelError] = useState('')
+  const [hasVercel, setHasVercel] = useState(false)
+  const [deletingVercel, setDeletingVercel] = useState(false)
+
   // Load settings on open
   useEffect(() => {
     if (!open) return
@@ -35,6 +42,7 @@ export function SettingsDialog({ open, onClose }: SettingsDialogProps) {
       .then(r => r.json())
       .then(data => {
         setHasKey(data.hasApiKey)
+        setHasVercel(data.hasVercelToken)
         if (data.preferences) {
           setSettings(prev => ({ ...prev, ...data.preferences }))
         }
@@ -79,12 +87,45 @@ export function SettingsDialog({ open, onClose }: SettingsDialogProps) {
   const deleteApiKey = useCallback(async () => {
     setDeleting(true)
     try {
-      await fetch('/api/settings', { method: 'DELETE' })
+      await fetch('/api/settings?target=apiKey', { method: 'DELETE' })
       setHasKey(false)
       refresh()
     } catch {}
     setDeleting(false)
   }, [refresh])
+
+  const saveVercelToken = useCallback(async () => {
+    setVercelStatus('saving')
+    setVercelError('')
+    try {
+      const res = await fetch('/api/settings', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ vercelToken: vercelInput }),
+      })
+      if (res.ok) {
+        setVercelStatus('success')
+        setHasVercel(true)
+        setVercelInput('')
+      } else {
+        const data = await res.json()
+        setVercelError(data.error || 'Failed to save')
+        setVercelStatus('error')
+      }
+    } catch {
+      setVercelError('Network error')
+      setVercelStatus('error')
+    }
+  }, [vercelInput])
+
+  const deleteVercelToken = useCallback(async () => {
+    setDeletingVercel(true)
+    try {
+      await fetch('/api/settings?target=vercelToken', { method: 'DELETE' })
+      setHasVercel(false)
+    } catch {}
+    setDeletingVercel(false)
+  }, [])
 
   if (!open) return null
 
@@ -92,6 +133,7 @@ export function SettingsDialog({ open, onClose }: SettingsDialogProps) {
     { id: 'general', label: 'General', icon: Monitor },
     { id: 'editor', label: 'Editor', icon: Type },
     { id: 'api-key', label: 'API Key', icon: Key },
+    { id: 'vercel', label: 'Vercel', icon: Rocket },
   ]
 
   return (
@@ -225,6 +267,66 @@ export function SettingsDialog({ open, onClose }: SettingsDialogProps) {
                 >
                   {apiKeyStatus === 'saving' ? 'Validating...' : hasKey ? 'Update Key' : 'Save Key'}
                 </button>
+
+                <p className="text-[10px] text-forge-text-dim">
+                  Get your key at{' '}
+                  <a href="https://console.anthropic.com/settings/keys" target="_blank" rel="noopener" className="text-forge-accent hover:underline">
+                    console.anthropic.com
+                  </a>
+                </p>
+              </div>
+            )}
+
+            {tab === 'vercel' && (
+              <div className="space-y-4">
+                <div className="text-xs text-forge-text-dim">
+                  {hasVercel
+                    ? 'Your Vercel token is stored and encrypted. Projects deploy to your Vercel account.'
+                    : 'Connect your Vercel account to deploy projects under your own account.'}
+                </div>
+
+                {hasVercel && (
+                  <div className="flex items-center gap-2 p-3 bg-green-500/10 border border-green-500/20 rounded-lg">
+                    <CheckCircle2 className="w-4 h-4 text-green-400" />
+                    <span className="text-xs text-green-400">Vercel connected</span>
+                    <button
+                      onClick={deleteVercelToken}
+                      disabled={deletingVercel}
+                      className="ml-auto flex items-center gap-1 text-xs text-red-400 hover:text-red-300 transition-colors"
+                    >
+                      <Trash2 className="w-3 h-3" />
+                      {deletingVercel ? 'Removing...' : 'Disconnect'}
+                    </button>
+                  </div>
+                )}
+
+                <input
+                  type="password"
+                  value={vercelInput}
+                  onChange={e => { setVercelInput(e.target.value); setVercelStatus('idle') }}
+                  placeholder={hasVercel ? 'Enter new token to update...' : 'Vercel personal access token...'}
+                  className="w-full px-3 py-2 text-xs bg-forge-surface border border-forge-border rounded-lg text-forge-text font-mono placeholder:text-forge-text-dim/50 focus:outline-none focus:border-forge-accent"
+                />
+
+                {vercelError && (
+                  <p className="text-xs text-red-400">{vercelError}</p>
+                )}
+
+                <button
+                  onClick={saveVercelToken}
+                  disabled={!vercelInput.trim() || vercelStatus === 'saving'}
+                  className="px-4 py-2 text-xs font-medium bg-forge-accent text-white rounded-lg hover:bg-forge-accent-hover disabled:opacity-50 transition-colors"
+                >
+                  {vercelStatus === 'saving' ? 'Validating...' : hasVercel ? 'Update Token' : 'Connect Vercel'}
+                </button>
+
+                <p className="text-[10px] text-forge-text-dim">
+                  Create a token at{' '}
+                  <a href="https://vercel.com/account/tokens" target="_blank" rel="noopener" className="text-forge-accent hover:underline">
+                    vercel.com/account/tokens
+                  </a>
+                  {' '}with full access scope.
+                </p>
               </div>
             )}
           </div>
