@@ -55,7 +55,7 @@ export async function PUT(req: Request) {
           'content-type': 'application/json',
         },
         body: JSON.stringify({
-          model: 'claude-haiku-35-20241022',
+          model: 'claude-3-5-haiku-20241022',
           max_tokens: 1,
           messages: [{ role: 'user', content: 'Hi' }],
         }),

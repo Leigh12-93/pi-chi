@@ -102,7 +102,7 @@ function classifyModelComplexity(messages: any[], fileCount: number): { model: s
   // Haiku indicators: simple edits, quick fixes, small questions
   const hasAttachments = lastMsg?.parts?.some((p: any) => p.type === 'file')
   if (!hasAttachments && HAIKU_RE.test(lower) && wordCount < 30 && fileCount <= 5) {
-    return { model: 'claude-haiku-35-20241022', reason: 'Simple task — using Haiku for speed' }
+    return { model: 'claude-3-5-haiku-20241022', reason: 'Simple task — using Haiku for speed' }
   }
 
   // Default: Sonnet for balanced performance
@@ -226,7 +226,7 @@ export async function POST(req: Request) {
 
   const ALLOWED_MODELS = [
     'claude-sonnet-4-20250514',
-    'claude-haiku-35-20241022',
+    'claude-3-5-haiku-20241022',
     'claude-opus-4-20250514',
     'claude-opus-4-6',
   ]
@@ -427,7 +427,7 @@ export async function POST(req: Request) {
     'claude-sonnet-4-20250514': 200000,
     'claude-opus-4-20250514': 200000,
     'claude-opus-4-6': 680000,       // Opus 4.6 supports up to 1M context
-    'claude-haiku-35-20241022': 200000,
+    'claude-3-5-haiku-20241022': 200000,
   }
   const contextLimit = MODEL_CONTEXT_LIMITS[selectedModel] || 200000
 
@@ -443,7 +443,7 @@ export async function POST(req: Request) {
     'claude-opus-4-6': 120,
     'claude-opus-4-20250514': 100,
     'claude-sonnet-4-20250514': 80,
-    'claude-haiku-35-20241022': 60,
+    'claude-3-5-haiku-20241022': 60,
   }
 
   // ── Layer 2: Auto-compaction via Haiku summarization ──────────
