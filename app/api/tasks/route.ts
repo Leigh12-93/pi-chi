@@ -39,14 +39,26 @@ function classifyBuildError(errorText: string, files: Record<string, string>): E
   // Extract file references from error text
   const referencedFiles = new Set<string>()
   for (const line of lines) {
-    // Match patterns like "./src/app/page.tsx", "app/page.tsx:12:5", "/components/foo.tsx"
-    const fileMatches = line.match(/(?:\.\/)?([a-zA-Z0-9_\-/.]+\.(?:tsx?|jsx?|css|json|mjs))/g)
+    // Match file paths including Next.js route groups with parentheses: (customer), (auth), etc.
+    const fileMatches = line.match(/(?:\.\/)?([a-zA-Z0-9_\-/.()]+\.(?:tsx?|jsx?|css|json|mjs))/g)
     if (fileMatches) {
       for (const match of fileMatches) {
         const clean = match.replace(/^\.\//, '').replace(/:\d+.*$/, '')
-        // Check if it's actually one of our project files
         if (filePaths.includes(clean) || filePaths.includes(`/${clean}`)) {
           referencedFiles.add(filePaths.find(f => f === clean || f === `/${clean}`) || clean)
+        }
+      }
+    }
+
+    // Fallback: match Next.js "error on /route/page" pattern and infer the file
+    const routeMatch = line.match(/error on \/([^\s:,]+)\/page/)
+    if (routeMatch) {
+      const routePath = routeMatch[1]
+      // Try common Next.js app router patterns: app/route/page.tsx, app/(group)/route/page.tsx
+      for (const fp of filePaths) {
+        const norm = fp.replace(/^\//, '')
+        if (norm.match(new RegExp(`app/(?:\\([^)]+\\)/)?${routePath.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}/page\\.tsx?$`))) {
+          referencedFiles.add(fp)
         }
       }
     }
@@ -71,20 +83,36 @@ function classifyBuildError(errorText: string, files: Record<string, string>): E
     errorType = 'import_export_error'
   }
 
+  // If no files matched but error mentions "exiting the build" or a page route,
+  // try to find the page file from the error text
+  if (targetFiles.length === 0) {
+    const exitMatch = errorText.match(/error on \/([^\s:,]+)/)
+    if (exitMatch) {
+      const route = exitMatch[1].replace(/^\//, '')
+      // Search all files for a matching page/layout
+      for (const fp of filePaths) {
+        const norm = fp.replace(/^\//, '')
+        if (norm.includes(route) && (norm.endsWith('page.tsx') || norm.endsWith('page.ts') || norm.endsWith('page.jsx'))) {
+          targetFiles.push(fp)
+        }
+      }
+    }
+  }
+
   // Confidence gate: only auto-fix if:
-  // 1. We can identify the target file(s)
-  // 2. Max 2 files affected (single-file preferred)
+  // 1. We can identify the target file(s) OR error type is actionable
+  // 2. Max 3 files affected
   // 3. Error type is recognizable
   // 4. Error is not a fundamental architecture issue
   const isSimpleError = errorType !== 'unknown'
-  const isFewFiles = targetFiles.length >= 1 && targetFiles.length <= 2
+  const hasTargets = targetFiles.length >= 1 && targetFiles.length <= 3
   const isNotArchitectural = !errorLower.includes('circular dependency') &&
     !errorLower.includes('out of memory') &&
     !errorLower.includes('heap') &&
     !errorLower.includes('maximum call stack')
 
   return {
-    fixable: isSimpleError && isFewFiles && isNotArchitectural,
+    fixable: isSimpleError && hasTargets && isNotArchitectural,
     targetFiles,
     errorType,
     errorSummary: lines.slice(0, 15).join('\n'),
