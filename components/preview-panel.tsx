@@ -300,6 +300,7 @@ export function PreviewPanel({ files, projectId, onFixErrors, onCapturePreview, 
   const errorAutoFeedRef = useRef<Map<string, number>>(new Map()) // error → attempt count (cap at 3)
   const errorFeedTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const [iframeError, setIframeError] = useState<string | null>(null)
+  const [errorPopupDismissed, setErrorPopupDismissed] = useState(false)
   const lastAutoFeedRef = useRef(0) // global cooldown for error auto-feed
   const consoleLogsRef = useRef(consoleLogs) // stable ref for message listener
   const onFixErrorsRef = useRef(onFixErrors) // stable ref to avoid stale closure in setTimeout
@@ -307,6 +308,12 @@ export function PreviewPanel({ files, projectId, onFixErrors, onCapturePreview, 
   // Keep refs in sync without causing re-renders in message listener
   useEffect(() => { consoleLogsRef.current = consoleLogs }, [consoleLogs])
   useEffect(() => { onFixErrorsRef.current = onFixErrors }, [onFixErrors])
+
+  // Reset error popup when all errors are cleared (e.g., after AI fix)
+  const errorCount = consoleLogs.filter(e => e.level === 'error').length
+  useEffect(() => {
+    if (errorCount === 0) setErrorPopupDismissed(false)
+  }, [errorCount])
 
   // Missing imports detected in project files
   const [missingImports, setMissingImports] = useState<string[]>([])
@@ -1307,8 +1314,61 @@ export function PreviewPanel({ files, projectId, onFixErrors, onCapturePreview, 
             </div>
           )}
 
-          {/* Floating Fix with AI button — visible when console has errors, regardless of console panel state */}
-          {!showConsole && consoleLogs.some(e => e.level === 'error') && onFixErrors && (
+          {/* Centered error popup — shown on first error detection, dismissable */}
+          {!errorPopupDismissed && errorCount > 0 && !showConsole && onFixErrors && (
+            <div className="absolute inset-0 z-20 flex items-center justify-center bg-forge-bg/60 backdrop-blur-sm animate-fade-in">
+              <div className="bg-forge-bg border border-forge-danger/20 rounded-xl p-5 shadow-xl max-w-sm mx-4 animate-scale-in">
+                <div className="flex items-center gap-2 mb-2">
+                  <div className="w-8 h-8 rounded-full bg-red-500/10 flex items-center justify-center">
+                    <AlertTriangle className="w-4 h-4 text-red-500" />
+                  </div>
+                  <div>
+                    <p className="text-sm font-medium text-forge-text">Preview Error</p>
+                    <p className="text-xs text-forge-text-dim">{errorCount} error{errorCount !== 1 ? 's' : ''} detected</p>
+                  </div>
+                </div>
+                <div className="mb-3 max-h-24 overflow-y-auto">
+                  {consoleLogs.filter(e => e.level === 'error').slice(0, 3).map((e, i) => (
+                    <p key={i} className="text-[11px] font-mono text-red-400 truncate leading-relaxed">{e.message.slice(0, 120)}</p>
+                  ))}
+                  {errorCount > 3 && (
+                    <p className="text-[10px] text-forge-text-dim mt-1">+{errorCount - 3} more</p>
+                  )}
+                </div>
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => {
+                      const errors = consoleLogs
+                        .filter(e => e.level === 'error')
+                        .map(e => e.message)
+                        .join('\n')
+                      onFixErrors(`The preview has runtime errors. Please fix them:\n\n\`\`\`\n${errors}\n\`\`\``)
+                      setErrorPopupDismissed(true)
+                    }}
+                    className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2 bg-forge-accent hover:bg-forge-accent-hover text-white text-xs font-medium rounded-lg transition-colors"
+                  >
+                    <Zap className="w-3 h-3" />
+                    Fix with AI
+                  </button>
+                  <button
+                    onClick={() => setErrorPopupDismissed(true)}
+                    className="px-3 py-2 text-xs text-forge-text-dim hover:text-forge-text bg-forge-surface hover:bg-forge-surface-hover rounded-lg transition-colors"
+                  >
+                    Dismiss
+                  </button>
+                  <button
+                    onClick={() => { setErrorPopupDismissed(true); setShowConsole(true) }}
+                    className="px-3 py-2 text-xs text-forge-text-dim hover:text-forge-text bg-forge-surface hover:bg-forge-surface-hover rounded-lg transition-colors"
+                  >
+                    Console
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Floating Fix with AI button — visible when console has errors and popup was dismissed */}
+          {errorPopupDismissed && !showConsole && consoleLogs.some(e => e.level === 'error') && onFixErrors && (
             <div className="absolute top-3 right-3 z-20 animate-fade-in">
               <button
                 onClick={() => {
@@ -1321,7 +1381,7 @@ export function PreviewPanel({ files, projectId, onFixErrors, onCapturePreview, 
                 className="flex items-center gap-2 px-3 py-2 bg-red-500 hover:bg-red-600 text-white text-xs font-medium rounded-lg shadow-lg transition-colors"
               >
                 <AlertTriangle className="w-3.5 h-3.5" />
-                <span>Fix {Math.min(consoleLogs.filter(e => e.level === 'error').length, 9)} error{consoleLogs.filter(e => e.level === 'error').length !== 1 ? 's' : ''} with AI</span>
+                <span>Fix {Math.min(errorCount, 9)} error{errorCount !== 1 ? 's' : ''} with AI</span>
               </button>
             </div>
           )}

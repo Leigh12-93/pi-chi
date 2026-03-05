@@ -81,13 +81,8 @@ export function Workspace({
   const [consoleOpen, setConsoleOpen] = useState(false)
   const [consoleEntries, setConsoleEntries] = useState<ConsoleEntry[]>([])
   const [notifications, setNotifications] = useState<Notification[]>([])
-  const [snapshots, setSnapshots] = useState<Snapshot[]>(() => {
-    if (!projectId) return []
-    try {
-      const stored = sessionStorage.getItem(`forge-snapshots-${projectId}`)
-      return stored ? JSON.parse(stored) : []
-    } catch { return [] }
-  })
+  const [snapshots, setSnapshots] = useState<Snapshot[]>([])
+  const [snapshotsLoaded, setSnapshotsLoaded] = useState(false)
   const [showVersionHistory, setShowVersionHistory] = useState(false)
   const [showFindReplace, setShowFindReplace] = useState(false)
   const [showEditorSettings, setShowEditorSettings] = useState(false)
@@ -100,9 +95,15 @@ export function Workspace({
   const dragCounterRef = useRef(0)
   const chatSendRef = useRef<((message: string) => void) | null>(null)
   const [sidebarTab, setSidebarTab] = useState<SidebarTab | null>('files')
+  const [vercelProjectId, setVercelProjectId] = useState<string | null>(null)
   const initialFilesRef = useRef<Record<string, string>>({})
   const filesRef = useRef(files)
   filesRef.current = files
+
+  // ─── AI edit highlight + diff tracking ──────────────────────
+  const [aiEditingFiles, setAiEditingFiles] = useState<Set<string>>(new Set())
+  const [fileDiffs, setFileDiffs] = useState<Map<string, { added: number; removed: number }>>(new Map())
+  const aiEditTimersRef = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map())
 
   // ─── WebContainer integration ──────────────────────────────
   const hasPackageJson = 'package.json' in files
@@ -163,6 +164,63 @@ export function Workspace({
     }
   }, [wc.status]) // eslint-disable-line react-hooks/exhaustive-deps
 
+  // ─── AI file-edit highlight + diff tracking ──────────────────
+  useEffect(() => {
+    const handleFileEdited = (e: Event) => {
+      const detail = (e as CustomEvent).detail
+      if (!detail?.paths) return
+      const paths = detail.paths as string[]
+
+      // Add paths to aiEditingFiles set (triggers pulse animation)
+      setAiEditingFiles(prev => {
+        const next = new Set(prev)
+        paths.forEach(p => next.add(p))
+        return next
+      })
+
+      // Compute line diffs for each edited file
+      setFileDiffs(prev => {
+        const next = new Map(prev)
+        for (const path of paths) {
+          const oldContent = initialFilesRef.current[path] || ''
+          const newContent = filesRef.current[path] || ''
+          const oldLines = oldContent.split('\n')
+          const newLines = newContent.split('\n')
+          const oldSet = new Set(oldLines)
+          const newSet = new Set(newLines)
+          const added = newLines.filter(l => !oldSet.has(l)).length
+          const removed = oldLines.filter(l => !newSet.has(l)).length
+          if (added > 0 || removed > 0) {
+            next.set(path, { added, removed })
+          }
+        }
+        return next
+      })
+
+      // Remove from aiEditingFiles after animation completes (1.5s)
+      for (const path of paths) {
+        const existing = aiEditTimersRef.current.get(path)
+        if (existing) clearTimeout(existing)
+        aiEditTimersRef.current.set(path, setTimeout(() => {
+          setAiEditingFiles(prev => {
+            const next = new Set(prev)
+            next.delete(path)
+            return next
+          })
+          aiEditTimersRef.current.delete(path)
+        }, 1500))
+      }
+    }
+
+    window.addEventListener('forge:file-edited', handleFileEdited)
+    return () => {
+      window.removeEventListener('forge:file-edited', handleFileEdited)
+      // Clean up timers
+      aiEditTimersRef.current.forEach(t => clearTimeout(t))
+      aiEditTimersRef.current.clear()
+    }
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
+
   // ─── Smart panel auto-switching state ──────────────────────
   const [aiLoading, setAiLoading] = useState(false)
   const userManualSwitchRef = useRef(false)  // true when user manually clicked a tab
@@ -170,11 +228,26 @@ export function Workspace({
   const prevAiLoadingRef = useRef(false)
   const fileCountAtStartRef = useRef(0)  // file count when AI started
 
-  // Persist snapshots to sessionStorage (survive page refresh)
+  // Load snapshots from API on mount
   useEffect(() => {
-    if (!projectId || snapshots.length === 0) return
-    try { sessionStorage.setItem(`forge-snapshots-${projectId}`, JSON.stringify(snapshots.slice(-50))) } catch {}
-  }, [snapshots, projectId])
+    if (!projectId) return
+    setSnapshotsLoaded(false)
+    fetch(`/api/projects/${projectId}/snapshots`)
+      .then(r => r.json())
+      .then(data => {
+        if (Array.isArray(data)) {
+          setSnapshots(data.map((s: any) => ({
+            id: s.id,
+            label: s.description || 'Snapshot',
+            timestamp: new Date(s.created_at).getTime(),
+            files: {}, // Files loaded on demand when restoring
+            fileCount: s.file_count,
+          })))
+        }
+      })
+      .catch(() => {})
+      .finally(() => setSnapshotsLoaded(true))
+  }, [projectId])
 
   // Forward initial pending message from parent (e.g., Quick Start query)
   useEffect(() => {
@@ -438,13 +511,21 @@ export function Workspace({
       })
       if (res.ok) {
         setSaveStatus('saved')
-        // Create a snapshot for version history
-        setSnapshots(prev => [{
-          id: `snap-${Date.now()}`,
-          label: `Save ${prev.length + 1}`,
-          timestamp: Date.now(),
-          files: { ...files },
-        }, ...prev].slice(0, 50))
+        // Create a snapshot via API for version history
+        fetch(`/api/projects/${projectId}/snapshots`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ description: `Save ${snapshots.length + 1}`, files }),
+        }).then(r => r.json()).then(data => {
+          if (data.id) {
+            setSnapshots(prev => [{
+              id: data.id,
+              label: data.description || `Save ${prev.length + 1}`,
+              timestamp: new Date(data.created_at || Date.now()).getTime(),
+              files: { ...files },
+            }, ...prev].slice(0, 50))
+          }
+        }).catch(() => {})
         toast.success('Project saved', { description: `${Object.keys(files).length} files saved` })
       } else {
         console.error(`Auto-save failed: ${res.status}`)
@@ -477,6 +558,23 @@ export function Workspace({
         }
         break
       case 'deploy':
+        // Auto-snapshot before deploy (non-blocking)
+        if (projectId && Object.keys(files).length > 0) {
+          fetch(`/api/projects/${projectId}/snapshots`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ description: 'Pre-deploy snapshot', files }),
+          }).then(r => r.json()).then(data => {
+            if (data.id) {
+              setSnapshots(prev => [{
+                id: data.id,
+                label: 'Pre-deploy snapshot',
+                timestamp: new Date(data.created_at || Date.now()).getTime(),
+                files: { ...files },
+              }, ...prev].slice(0, 50))
+            }
+          }).catch(() => {})
+        }
         setShowDeployPanel(true)
         break
       case 'push':
@@ -690,6 +788,8 @@ export function Workspace({
       onFileCreate={handleFileCreate}
       fileContents={files}
       modifiedFiles={modifiedFiles}
+      aiEditingFiles={aiEditingFiles}
+      fileDiffs={fileDiffs}
     />
   )
 
@@ -839,52 +939,92 @@ export function Workspace({
         githubRepoUrl={githubRepoUrl}
       />
 
-      {/* Desktop layout: ActivityBar | Chat | SidebarContent? | Editor */}
-      <div className="flex-1 hidden md:flex overflow-hidden">
+      {/* Desktop layout: ActivityBar | Chat | Editor — Sidebar overlays chat */}
+      <div className="flex-1 hidden md:flex overflow-hidden relative">
         <ActivityBar activeTab={sidebarTab} onTabChange={setSidebarTab} />
-        <PanelGroup direction="horizontal" autoSaveId="forge-workspace-panels">
+
+        {/* Sidebar overlay — absolutely positioned over chat panel */}
+        {sidebarTab && (
+          <div className="absolute left-[44px] top-0 bottom-0 w-[280px] z-30 bg-forge-panel border-r border-forge-border shadow-xl sidebar-overlay">
+            <SidebarContent
+              activeTab={sidebarTab}
+              fileTree={fileTree}
+              activeFile={activeFile}
+              onFileSelect={handleFileSelect}
+              onFileDelete={onFileDelete}
+              onFileRename={handleFileRename}
+              onFileCreate={handleFileCreate}
+              fileContents={files}
+              modifiedFiles={modifiedFiles}
+              aiEditingFiles={aiEditingFiles}
+              fileDiffs={fileDiffs}
+              githubRepoUrl={githubRepoUrl || null}
+              projectId={projectId}
+              vercelProjectId={vercelProjectId}
+              onAction={handleAction}
+              onFileChange={onFileChange}
+              onOpenDbExplorer={() => setShowDbExplorer(true)}
+              onRepoConnected={(url) => toast.success('Repository connected', { description: url.replace('https://github.com/', '') })}
+              onVercelConnected={(id) => { setVercelProjectId(id); toast.success('Vercel project connected') }}
+              snapshots={snapshots}
+              onOpenVersionHistory={() => setShowVersionHistory(true)}
+              onRestoreSnapshot={async (snap) => {
+                // If snapshot has files loaded, use them directly; otherwise fetch from API
+                if (Object.keys(snap.files).length > 0) {
+                  onBulkFileUpdate(snap.files, { replace: true })
+                  toast.success('Snapshot restored', { description: snap.label })
+                } else if (projectId) {
+                  try {
+                    const res = await fetch(`/api/projects/${projectId}/snapshots/${snap.id}`)
+                    const data = await res.json()
+                    if (data.files) {
+                      onBulkFileUpdate(data.files, { replace: true })
+                      toast.success('Snapshot restored', { description: snap.label })
+                    } else {
+                      toast.error('Failed to load snapshot files')
+                    }
+                  } catch {
+                    toast.error('Failed to restore snapshot')
+                  }
+                }
+              }}
+              onCreateSnapshot={async () => {
+                if (!projectId) return
+                try {
+                  const res = await fetch(`/api/projects/${projectId}/snapshots`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                      description: `Snapshot ${snapshots.length + 1}`,
+                      files,
+                    }),
+                  })
+                  const data = await res.json()
+                  if (res.ok) {
+                    setSnapshots(prev => [{
+                      id: data.id || `snap-${Date.now()}`,
+                      label: data.description || `Snapshot ${prev.length + 1}`,
+                      timestamp: new Date(data.created_at || Date.now()).getTime(),
+                      files: { ...files },
+                    }, ...prev].slice(0, 50))
+                    toast.success('Snapshot created')
+                  } else {
+                    toast.error('Failed to create snapshot')
+                  }
+                } catch {
+                  toast.error('Failed to create snapshot')
+                }
+              }}
+            />
+          </div>
+        )}
+
+        <PanelGroup direction="horizontal" autoSaveId="forge-workspace-v2">
           <Panel defaultSize={30} minSize={20} maxSize={50}>
             {chatPanel}
           </Panel>
           <PanelResizeHandle />
-          {sidebarTab && (
-            <>
-              <Panel defaultSize={20} minSize={12} maxSize={35}>
-                <SidebarContent
-                  activeTab={sidebarTab}
-                  fileTree={fileTree}
-                  activeFile={activeFile}
-                  onFileSelect={handleFileSelect}
-                  onFileDelete={onFileDelete}
-                  onFileRename={handleFileRename}
-                  onFileCreate={handleFileCreate}
-                  fileContents={files}
-                  modifiedFiles={modifiedFiles}
-                  githubRepoUrl={githubRepoUrl || null}
-                  onAction={handleAction}
-                  onFileChange={onFileChange}
-                  onOpenDbExplorer={() => setShowDbExplorer(true)}
-                  snapshots={snapshots}
-                  onOpenVersionHistory={() => setShowVersionHistory(true)}
-                  onRestoreSnapshot={(snap) => {
-                    onBulkFileUpdate(snap.files, { replace: true })
-                    toast.success('Snapshot restored', { description: snap.label })
-                  }}
-                  onCreateSnapshot={() => {
-                    setSnapshots(prev => [{
-                      id: `snap-${Date.now()}`,
-                      label: `Snapshot ${prev.length + 1}`,
-                      timestamp: Date.now(),
-                      files: { ...files },
-                    }, ...prev].slice(0, 50))
-                    toast.success('Snapshot created')
-                  }}
-                />
-              </Panel>
-              <PanelResizeHandle />
-            </>
-          )}
-          <Panel defaultSize={sidebarTab ? 50 : 70} minSize={30}>
+          <Panel defaultSize={70} minSize={30}>
             <div className="h-full flex flex-col overflow-hidden">
               <div className="flex-1 overflow-hidden">
                 {editorPanel}
@@ -959,6 +1099,11 @@ export function Workspace({
           onClose={() => setShowDeployPanel(false)}
           onSuccess={handleDialogSuccess}
           onFix={handleDialogFix}
+          onFilesFixed={(fixedFiles) => {
+            // Sync auto-fixed files back into the workspace
+            const updated = { ...files, ...fixedFiles }
+            onBulkFileUpdate(updated)
+          }}
         />
       )}
 

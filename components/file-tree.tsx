@@ -63,6 +63,8 @@ interface FileTreeProps {
   onFileCreate?: (path: string) => void
   fileContents?: Record<string, string>
   modifiedFiles?: Set<string>
+  aiEditingFiles?: Set<string>
+  fileDiffs?: Map<string, { added: number; removed: number }>
 }
 
 /** Recursively filter nodes matching search query */
@@ -85,6 +87,7 @@ function filterNodes(nodes: FileNode[], query: string): FileNode[] {
 // ─── FileTree ──────────────────────────────────────────────────
 export function FileTree({
   files, activeFile, onFileSelect, onFileDelete, onFileRename, onFileCreate, fileContents, modifiedFiles,
+  aiEditingFiles, fileDiffs,
 }: FileTreeProps) {
   const [searchQuery, setSearchQuery] = useState('')
   const [showSearch, setShowSearch] = useState(false)
@@ -254,6 +257,8 @@ export function FileTree({
             onFileRename={onFileRename}
             fileContents={fileContents}
             modifiedFiles={modifiedFiles}
+            aiEditingFiles={aiEditingFiles}
+            fileDiffs={fileDiffs}
             depth={0}
             forceExpand={!!searchQuery}
           />
@@ -265,7 +270,8 @@ export function FileTree({
 
 // ─── Tree node list ────────────────────────────────────────────
 function TreeNodes({
-  nodes, activeFile, onFileSelect, onFileDelete, onFileRename, fileContents, modifiedFiles, depth, forceExpand,
+  nodes, activeFile, onFileSelect, onFileDelete, onFileRename, fileContents, modifiedFiles,
+  aiEditingFiles, fileDiffs, depth, forceExpand,
 }: {
   nodes: FileNode[]
   activeFile: string | null
@@ -274,6 +280,8 @@ function TreeNodes({
   onFileRename?: (oldPath: string, newPath: string) => void
   fileContents?: Record<string, string>
   modifiedFiles?: Set<string>
+  aiEditingFiles?: Set<string>
+  fileDiffs?: Map<string, { added: number; removed: number }>
   depth: number
   forceExpand?: boolean
 }) {
@@ -289,6 +297,8 @@ function TreeNodes({
           onFileRename={onFileRename}
           fileContents={fileContents}
           modifiedFiles={modifiedFiles}
+          aiEditingFiles={aiEditingFiles}
+          fileDiffs={fileDiffs}
           depth={depth}
           forceExpand={forceExpand}
         />
@@ -299,7 +309,8 @@ function TreeNodes({
 
 // ─── Single tree item ──────────────────────────────────────────
 function TreeItem({
-  node, activeFile, onFileSelect, onFileDelete, onFileRename, fileContents, modifiedFiles, depth, forceExpand,
+  node, activeFile, onFileSelect, onFileDelete, onFileRename, fileContents, modifiedFiles,
+  aiEditingFiles, fileDiffs, depth, forceExpand,
 }: {
   node: FileNode
   activeFile: string | null
@@ -308,6 +319,8 @@ function TreeItem({
   onFileRename?: (oldPath: string, newPath: string) => void
   fileContents?: Record<string, string>
   modifiedFiles?: Set<string>
+  aiEditingFiles?: Set<string>
+  fileDiffs?: Map<string, { added: number; removed: number }>
   depth: number
   forceExpand?: boolean
 }) {
@@ -394,6 +407,7 @@ function TreeItem({
             'flex items-center gap-1.5 sm:gap-1 flex-1 text-left px-2 py-2 sm:py-[5px] text-xs sm:text-[12px] hover:bg-forge-surface-hover transition-all min-h-[36px] sm:min-h-0 border-l-2',
             isActive && !isDir && 'bg-forge-accent/10 text-forge-accent border-l-forge-accent',
             !isActive && 'text-forge-text-dim hover:text-forge-text border-l-transparent',
+            !isDir && aiEditingFiles?.has(node.path) && 'animate-ai-edit-pulse',
           )}
           style={{ paddingLeft: `${depth * 12 + 8}px` }}
         >
@@ -427,7 +441,16 @@ function TreeItem({
               <span className={cn('truncate ml-1', isModified && 'text-amber-500 dark:text-amber-400')} title={node.path}>
                 {node.name}
               </span>
-              {isModified && (
+              {!isDir && fileDiffs?.get(node.path) && (() => {
+                const diff = fileDiffs.get(node.path)!
+                return (
+                  <span className="text-[9px] font-mono ml-auto mr-1 shrink-0 flex gap-0.5">
+                    {diff.added > 0 && <span className="text-emerald-500">+{diff.added}</span>}
+                    {diff.removed > 0 && <span className="text-forge-danger">-{diff.removed}</span>}
+                  </span>
+                )
+              })()}
+              {isModified && !fileDiffs?.get(node.path) && (
                 <span className="w-1.5 h-1.5 rounded-full bg-amber-500 shrink-0 ml-auto mr-1" title="Modified" />
               )}
             </>
@@ -515,6 +538,8 @@ function TreeItem({
           onFileRename={onFileRename}
           fileContents={fileContents}
           modifiedFiles={modifiedFiles}
+          aiEditingFiles={aiEditingFiles}
+          fileDiffs={fileDiffs}
           depth={depth + 1}
           forceExpand={forceExpand}
         />

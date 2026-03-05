@@ -6,6 +6,7 @@ export interface Project {
   github_username: string
   github_repo_url?: string
   vercel_url?: string
+  vercel_project_id?: string
   last_deploy_at?: string
   created_at: string
   updated_at: string

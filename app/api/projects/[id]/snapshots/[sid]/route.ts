@@ -2,6 +2,33 @@ import { NextResponse } from 'next/server'
 import { getSession } from '@/lib/auth'
 import { supabaseFetch } from '@/lib/supabase-fetch'
 
+/** GET /api/projects/[id]/snapshots/[sid] — fetch a snapshot's files */
+export async function GET(
+  _req: Request,
+  { params }: { params: Promise<{ id: string; sid: string }> },
+) {
+  const session = await getSession()
+  if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+
+  const { id: projectId, sid: snapshotId } = await params
+
+  const check = await supabaseFetch(
+    `/forge_projects?id=eq.${projectId}&github_username=eq.${encodeURIComponent(session.githubUsername)}&select=id`,
+  )
+  if (!check.ok || !Array.isArray(check.data) || check.data.length === 0) {
+    return NextResponse.json({ error: 'Not found' }, { status: 404 })
+  }
+
+  const { data, ok } = await supabaseFetch(
+    `/forge_project_snapshots?id=eq.${snapshotId}&project_id=eq.${projectId}&select=id,description,files,file_count,created_at`,
+  )
+  if (!ok || !Array.isArray(data) || data.length === 0) {
+    return NextResponse.json({ error: 'Snapshot not found' }, { status: 404 })
+  }
+
+  return NextResponse.json(data[0])
+}
+
 /** PUT /api/projects/[id]/snapshots/[sid] — restore a snapshot */
 export async function PUT(
   req: Request,

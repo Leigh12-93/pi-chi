@@ -70,10 +70,16 @@ interface SidebarContentProps {
   onFileCreate?: (path: string) => void
   fileContents: Record<string, string>
   modifiedFiles: Set<string>
+  aiEditingFiles?: Set<string>
+  fileDiffs?: Map<string, { added: number; removed: number }>
   githubRepoUrl: string | null
+  projectId: string | null
+  vercelProjectId?: string | null
   onAction: (action: string) => void
   onFileChange: (path: string, content: string) => void
   onOpenDbExplorer: () => void
+  onRepoConnected?: (url: string) => void
+  onVercelConnected?: (id: string) => void
   snapshots: Snapshot[]
   onOpenVersionHistory: () => void
   onRestoreSnapshot: (snap: Snapshot) => void
@@ -82,9 +88,10 @@ interface SidebarContentProps {
 
 export function SidebarContent({
   activeTab, fileTree, activeFile, onFileSelect, onFileDelete, onFileRename,
-  onFileCreate, fileContents, modifiedFiles, githubRepoUrl, onAction,
-  onFileChange, onOpenDbExplorer, snapshots, onOpenVersionHistory,
-  onRestoreSnapshot, onCreateSnapshot,
+  onFileCreate, fileContents, modifiedFiles, aiEditingFiles, fileDiffs,
+  githubRepoUrl, projectId, vercelProjectId, onAction, onFileChange,
+  onOpenDbExplorer, onRepoConnected, onVercelConnected, snapshots,
+  onOpenVersionHistory, onRestoreSnapshot, onCreateSnapshot,
 }: SidebarContentProps) {
   return (
     <div className="h-full overflow-y-auto bg-forge-panel animate-sidebar-in">
@@ -98,16 +105,18 @@ export function SidebarContent({
           onFileCreate={onFileCreate}
           fileContents={fileContents}
           modifiedFiles={modifiedFiles}
+          aiEditingFiles={aiEditingFiles}
+          fileDiffs={fileDiffs}
         />
       )}
       {activeTab === 'git' && (
-        <GitPanel githubRepoUrl={githubRepoUrl} onAction={onAction} />
+        <GitPanel githubRepoUrl={githubRepoUrl} projectId={projectId} onAction={onAction} onRepoConnected={onRepoConnected} />
       )}
       {activeTab === 'deploy' && (
-        <DeployPanel onAction={onAction} />
+        <DeployPanel onAction={onAction} projectId={projectId} vercelProjectId={vercelProjectId} onVercelConnected={onVercelConnected} />
       )}
       {activeTab === 'env' && (
-        <EnvPanel fileContents={fileContents} onFileChange={onFileChange} />
+        <EnvPanel fileContents={fileContents} onFileChange={onFileChange} vercelProjectId={vercelProjectId} />
       )}
       {activeTab === 'db' && (
         <DbPanel onOpenDbExplorer={onOpenDbExplorer} />

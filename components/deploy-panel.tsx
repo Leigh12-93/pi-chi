@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect, useRef, useMemo, useCallback, Fragment } from 'react'
-import { Loader2, CheckCircle, XCircle, ExternalLink, Copy, Check, ChevronDown, ChevronUp, X, RefreshCw, Rocket } from 'lucide-react'
+import { Loader2, CheckCircle, XCircle, ExternalLink, Copy, Check, ChevronDown, X, RefreshCw, Rocket, Globe, Clock, FileCode, Zap, ArrowUpRight, Minus } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
 interface DeployProgress {
@@ -12,6 +12,12 @@ interface DeployProgress {
   url?: string
   framework?: string
   fileCount?: number
+  autoFixAttempt?: number
+  autoFixMax?: number
+  fixExplanation?: string
+  fixedFiles?: Record<string, string>
+  errorType?: string
+  targetFiles?: string[]
 }
 
 interface DeployPanelProps {
@@ -21,15 +27,23 @@ interface DeployPanelProps {
   onClose: () => void
   onSuccess?: (result: Record<string, unknown>) => void
   onFix?: (error: string) => void
+  onFilesFixed?: (fixedFiles: Record<string, string>) => void
 }
 
 const STAGES = [
-  { key: 'upload', label: 'Upload' },
-  { key: 'build', label: 'Build' },
-  { key: 'ready', label: 'Deploy' },
+  { key: 'upload', label: 'Uploading', icon: Zap, doneLabel: 'Uploaded' },
+  { key: 'build', label: 'Building', icon: FileCode, doneLabel: 'Built' },
+  { key: 'autofix', label: 'Auto-fixing', icon: Zap, doneLabel: 'Fixed' },
+  { key: 'ready', label: 'Deploying', icon: Globe, doneLabel: 'Live' },
 ]
 
-export function DeployPanel({ projectId, files, projectName, onClose, onSuccess, onFix }: DeployPanelProps) {
+function formatElapsed(s: number) {
+  const m = Math.floor(s / 60)
+  const sec = s % 60
+  return m > 0 ? `${m}m ${sec}s` : `${sec}s`
+}
+
+export function DeployPanel({ projectId, files, projectName, onClose, onSuccess, onFix, onFilesFixed }: DeployPanelProps) {
   const [status, setStatus] = useState<'deploying' | 'success' | 'error'>('deploying')
   const [progressText, setProgressText] = useState('')
   const [error, setError] = useState('')
@@ -39,13 +53,18 @@ export function DeployPanel({ projectId, files, projectName, onClose, onSuccess,
   const [copied, setCopied] = useState(false)
   const [isBuildError, setIsBuildError] = useState(false)
   const [retryCount, setRetryCount] = useState(0)
+  const [showLogs, setShowLogs] = useState(false)
+  const [exiting, setExiting] = useState(false)
+  const [fixedFilesApplied, setFixedFilesApplied] = useState(false)
   const logsRef = useRef<HTMLDivElement>(null)
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null)
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null)
   const filesRef = useRef(files)
   const onSuccessRef = useRef(onSuccess)
+  const onFilesFixedRef = useRef(onFilesFixed)
   filesRef.current = files
   onSuccessRef.current = onSuccess
+  onFilesFixedRef.current = onFilesFixed
 
   const deployProgress = useMemo<DeployProgress | null>(() => {
     if (!progressText) return null
@@ -69,6 +88,14 @@ export function DeployPanel({ projectId, files, projectName, onClose, onSuccess,
       logsRef.current.scrollTop = logsRef.current.scrollHeight
     }
   }, [progressText])
+
+  // Sync fixed files back to workspace when auto-fix succeeds
+  useEffect(() => {
+    if (deployProgress?.fixedFiles && !fixedFilesApplied && Object.keys(deployProgress.fixedFiles).length > 0) {
+      setFixedFilesApplied(true)
+      onFilesFixedRef.current?.(deployProgress.fixedFiles)
+    }
+  }, [deployProgress?.fixedFiles, fixedFilesApplied])
 
   // Start deploy on mount or retry
   useEffect(() => {
@@ -148,60 +175,122 @@ export function DeployPanel({ projectId, files, projectName, onClose, onSuccess,
     setResult(null)
     setIsBuildError(false)
     setCopied(false)
+    setShowLogs(false)
     setRetryCount(c => c + 1)
   }, [])
 
-  const currentStage = deployProgress?.stage || 'upload'
-  const stageIndex = STAGES.findIndex(s => s.key === currentStage)
-  const logs = deployProgress?.logs || []
+  const handleClose = useCallback(() => {
+    setExiting(true)
+    setTimeout(onClose, 200)
+  }, [onClose])
 
-  // Collapsed indicator
+  const currentStage = deployProgress?.stage || 'upload'
+  const hasAutoFix = deployProgress?.autoFixAttempt != null || currentStage === 'autofix'
+  // Only show autofix stage if it was triggered
+  const visibleStages = hasAutoFix ? STAGES : STAGES.filter(s => s.key !== 'autofix')
+  const stageIndex = visibleStages.findIndex(s => s.key === currentStage)
+  const logs = deployProgress?.logs || []
+  const stageCount = visibleStages.length
+  const progressPercent = status === 'success' ? 100 : status === 'error' ? (stageIndex / stageCount) * 100 : Math.min(95, ((stageIndex / stageCount) * 100) + (elapsed % 20))
+
+  // Collapsed mini indicator
   if (collapsed) {
     return (
-      <div className="fixed bottom-4 right-4 z-40">
+      <div className={cn('fixed bottom-4 right-4 z-40', exiting ? 'deploy-exit' : 'deploy-enter')}>
         <button
           onClick={() => setCollapsed(false)}
           className={cn(
-            'flex items-center gap-2 px-3 py-2 rounded-lg border shadow-lg text-xs font-medium transition-all',
-            status === 'deploying' && 'bg-forge-bg border-forge-accent/30 text-forge-text hover:border-forge-accent/50',
-            status === 'success' && 'bg-forge-bg border-emerald-500/30 text-emerald-500 hover:border-emerald-500/50',
-            status === 'error' && 'bg-forge-bg border-forge-danger/30 text-forge-danger hover:border-forge-danger/50',
+            'group flex items-center gap-2.5 pl-3 pr-3.5 py-2 rounded-full border backdrop-blur-xl shadow-lg transition-all duration-200',
+            'hover:scale-[1.02] active:scale-[0.98]',
+            status === 'deploying' && 'bg-forge-bg/90 border-forge-accent/20 hover:border-forge-accent/40 deploy-pill-glow',
+            status === 'success' && 'bg-forge-bg/90 border-emerald-500/20 hover:border-emerald-500/40',
+            status === 'error' && 'bg-forge-bg/90 border-forge-danger/20 hover:border-forge-danger/40',
           )}
         >
-          {status === 'deploying' && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
-          {status === 'success' && <CheckCircle className="w-3.5 h-3.5" />}
-          {status === 'error' && <XCircle className="w-3.5 h-3.5" />}
-          <span>
-            {status === 'deploying' ? `Deploying... ${elapsed}s` : status === 'success' ? 'Deployed!' : 'Deploy failed'}
+          {status === 'deploying' && (
+            <div className="relative">
+              <Loader2 className="w-3.5 h-3.5 text-forge-accent animate-spin" />
+              <div className="absolute inset-0 w-3.5 h-3.5 rounded-full bg-forge-accent/20 animate-ping" />
+            </div>
+          )}
+          {status === 'success' && <CheckCircle className="w-3.5 h-3.5 text-emerald-500" />}
+          {status === 'error' && <XCircle className="w-3.5 h-3.5 text-forge-danger" />}
+          <span className={cn(
+            'text-xs font-medium',
+            status === 'deploying' && 'text-forge-text',
+            status === 'success' && 'text-emerald-500',
+            status === 'error' && 'text-forge-danger',
+          )}>
+            {status === 'deploying' ? `Deploying ${formatElapsed(elapsed)}` : status === 'success' ? 'Deployed' : 'Failed'}
           </span>
-          <ChevronUp className="w-3 h-3 text-forge-text-dim" />
+          <ChevronDown className="w-3 h-3 text-forge-text-dim group-hover:text-forge-text transition-colors rotate-180" />
         </button>
       </div>
     )
   }
 
   return (
-    <div className="fixed bottom-4 right-4 z-40 w-[420px] max-h-[70vh] rounded-xl border border-forge-border bg-forge-bg shadow-2xl flex flex-col animate-fade-in-up">
-      {/* Header */}
-      <div className="flex items-center justify-between px-3 py-2 border-b border-forge-border shrink-0">
-        <div className="flex items-center gap-2">
-          <Rocket className="w-3.5 h-3.5 text-forge-accent" />
-          <span className="text-xs font-semibold text-forge-text">Deploy to Vercel</span>
-          {status === 'deploying' && (
-            <span className="text-[10px] text-forge-text-dim tabular-nums">{elapsed}s</span>
+    <div className={cn(
+      'fixed bottom-4 right-4 z-40 w-[440px] rounded-2xl border backdrop-blur-xl shadow-2xl flex flex-col overflow-hidden',
+      'bg-forge-bg/95 border-forge-border/60',
+      exiting ? 'deploy-exit' : 'deploy-enter',
+      status === 'deploying' && 'deploy-glow-accent',
+      status === 'success' && 'deploy-glow-success',
+      status === 'error' && 'deploy-glow-error',
+    )}>
+      {/* Animated gradient bar at top */}
+      <div className="h-[2px] w-full relative overflow-hidden bg-forge-border/30">
+        <div
+          className={cn(
+            'absolute inset-y-0 left-0 transition-all duration-1000 ease-out rounded-full',
+            status === 'deploying' && 'deploy-progress-bar',
+            status === 'success' && 'bg-emerald-500',
+            status === 'error' && 'bg-forge-danger',
           )}
+          style={{ width: `${progressPercent}%` }}
+        />
+      </div>
+
+      {/* Header */}
+      <div className="flex items-center justify-between px-4 py-2.5 shrink-0">
+        <div className="flex items-center gap-2.5">
+          <div className={cn(
+            'flex items-center justify-center w-6 h-6 rounded-lg transition-colors duration-300',
+            status === 'deploying' && 'bg-forge-accent/10',
+            status === 'success' && 'bg-emerald-500/10',
+            status === 'error' && 'bg-forge-danger/10',
+          )}>
+            {status === 'deploying' && <Rocket className="w-3.5 h-3.5 text-forge-accent deploy-rocket" />}
+            {status === 'success' && <CheckCircle className="w-3.5 h-3.5 text-emerald-500 deploy-success-pop" />}
+            {status === 'error' && <XCircle className="w-3.5 h-3.5 text-forge-danger" />}
+          </div>
+          <div className="flex flex-col">
+            <span className="text-xs font-semibold text-forge-text leading-none">
+              {status === 'deploying' ? 'Deploying' : status === 'success' ? 'Deployment Complete' : 'Deployment Failed'}
+            </span>
+            <span className="text-[10px] text-forge-text-dim mt-0.5 leading-none">
+              {status === 'deploying'
+                ? deployProgress?.message || 'Starting...'
+                : status === 'success'
+                ? projectName
+                : 'Build error encountered'}
+            </span>
+          </div>
         </div>
-        <div className="flex items-center gap-0.5">
+        <div className="flex items-center gap-1">
+          {status === 'deploying' && (
+            <span className="text-[10px] text-forge-text-dim tabular-nums font-mono mr-1">{formatElapsed(elapsed)}</span>
+          )}
           <button
             onClick={() => setCollapsed(true)}
-            className="p-1 rounded text-forge-text-dim hover:text-forge-text hover:bg-forge-surface transition-colors"
+            className="p-1.5 rounded-lg text-forge-text-dim hover:text-forge-text hover:bg-forge-surface transition-all duration-150"
             title="Minimize"
           >
-            <ChevronDown className="w-3.5 h-3.5" />
+            <Minus className="w-3.5 h-3.5" />
           </button>
           <button
-            onClick={onClose}
-            className="p-1 rounded text-forge-text-dim hover:text-forge-text hover:bg-forge-surface transition-colors"
+            onClick={handleClose}
+            className="p-1.5 rounded-lg text-forge-text-dim hover:text-forge-text hover:bg-forge-surface transition-all duration-150"
             title="Close"
           >
             <X className="w-3.5 h-3.5" />
@@ -209,144 +298,236 @@ export function DeployPanel({ projectId, files, projectName, onClose, onSuccess,
         </div>
       </div>
 
-      {/* Body */}
-      <div className="p-3 overflow-y-auto flex-1 min-h-0">
-        {/* Pipeline stages */}
-        <div className="flex items-center gap-1 mb-3">
-          {STAGES.map((s, i) => {
-            const isDone = (status === 'success') || i < stageIndex || currentStage === 'ready'
-            const isCurrent = i === stageIndex && currentStage !== 'ready' && status === 'deploying'
+      {/* Pipeline stages */}
+      <div className="px-4 pb-3">
+        <div className="flex items-center gap-0">
+          {visibleStages.map((s, i) => {
+            const isDone = (status === 'success') || i < stageIndex || (currentStage === 'ready' && status !== 'error')
+            const isCurrent = i === stageIndex && status === 'deploying'
             const isError = status === 'error' && i === stageIndex
+            const isAutoFix = s.key === 'autofix'
+            const Icon = s.icon
             return (
               <Fragment key={s.key}>
-                <div className="flex items-center gap-1">
-                  {isDone ? (
-                    <CheckCircle className="w-3.5 h-3.5 text-emerald-500" />
-                  ) : isError ? (
-                    <XCircle className="w-3.5 h-3.5 text-forge-danger" />
-                  ) : isCurrent ? (
-                    <Loader2 className="w-3.5 h-3.5 text-forge-accent animate-spin" />
-                  ) : (
-                    <div className="w-3.5 h-3.5 rounded-full border border-forge-border" />
-                  )}
-                  <span className={cn(
-                    'text-[11px] font-medium',
-                    isDone ? 'text-emerald-500' : (isCurrent || isError) ? 'text-forge-text' : 'text-forge-text-dim'
+                <div className={cn(
+                  'flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg transition-all duration-300',
+                  isDone && !isAutoFix && 'bg-emerald-500/8',
+                  isDone && isAutoFix && 'bg-amber-500/8',
+                  isCurrent && !isAutoFix && 'bg-forge-accent/8',
+                  isCurrent && isAutoFix && 'bg-amber-500/8',
+                  isError && 'bg-forge-danger/8',
+                )}>
+                  <div className={cn(
+                    'flex items-center justify-center w-4.5 h-4.5 rounded-md transition-all duration-300',
+                    isDone && !isAutoFix && 'text-emerald-500',
+                    isDone && isAutoFix && 'text-amber-500',
+                    isCurrent && !isAutoFix && 'text-forge-accent',
+                    isCurrent && isAutoFix && 'text-amber-500',
+                    isError && 'text-forge-danger',
+                    !isDone && !isCurrent && !isError && 'text-forge-text-dim/40',
                   )}>
-                    {s.label}
+                    {isDone ? (
+                      <CheckCircle className="w-3.5 h-3.5" />
+                    ) : isError ? (
+                      <XCircle className="w-3.5 h-3.5" />
+                    ) : isCurrent ? (
+                      <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                    ) : (
+                      <Icon className="w-3.5 h-3.5" />
+                    )}
+                  </div>
+                  <span className={cn(
+                    'text-[11px] font-medium transition-colors duration-300',
+                    isDone && !isAutoFix ? 'text-emerald-500' : isDone && isAutoFix ? 'text-amber-500' : (isCurrent || isError) ? 'text-forge-text' : 'text-forge-text-dim/50'
+                  )}>
+                    {isDone ? s.doneLabel : s.label}
                   </span>
                 </div>
-                {i < STAGES.length - 1 && (
-                  <div className={cn('flex-1 h-px', isDone ? 'bg-emerald-500/40' : 'bg-forge-border')} />
+                {i < visibleStages.length - 1 && (
+                  <div className="flex-1 mx-0.5">
+                    <div className={cn(
+                      'h-px transition-colors duration-500',
+                      isDone ? 'bg-emerald-500/30' : 'bg-forge-border/50'
+                    )} />
+                  </div>
                 )}
               </Fragment>
             )
           })}
         </div>
+      </div>
 
-        {/* Build logs terminal */}
-        {logs.length > 0 && (
-          <div
-            ref={logsRef}
-            className="bg-[#0d1117] rounded-lg p-2.5 max-h-[200px] overflow-y-auto font-mono text-[10px] leading-4 border border-white/5 mb-2"
+      {/* Auto-fix info banner */}
+      {currentStage === 'autofix' && status === 'deploying' && (
+        <div className="px-4 pb-2 deploy-slide-up">
+          <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-amber-500/[0.06] border border-amber-500/15">
+            <Zap className="w-3.5 h-3.5 text-amber-500 shrink-0" />
+            <div className="flex-1 min-w-0">
+              <p className="text-[11px] font-medium text-amber-500/90">
+                Auto-fixing build error
+                {deployProgress?.autoFixAttempt && deployProgress?.autoFixMax && (
+                  <span className="text-amber-500/60 ml-1">({deployProgress.autoFixAttempt}/{deployProgress.autoFixMax})</span>
+                )}
+              </p>
+              {deployProgress?.fixExplanation && (
+                <p className="text-[10px] text-amber-500/60 truncate">{deployProgress.fixExplanation}</p>
+              )}
+              {deployProgress?.targetFiles && deployProgress.targetFiles.length > 0 && !deployProgress?.fixExplanation && (
+                <p className="text-[10px] text-amber-500/60 truncate font-mono">{deployProgress.targetFiles.join(', ')}</p>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Build logs terminal */}
+      {(logs.length > 0 || status === 'error') && (
+        <div className="px-4 pb-3">
+          <button
+            onClick={() => setShowLogs(!showLogs)}
+            className="flex items-center gap-1.5 text-[10px] text-forge-text-dim hover:text-forge-text transition-colors mb-1.5 group"
           >
-            {logs.map((line, i) => (
-              <div key={i} className={cn(
-                'whitespace-pre-wrap break-all',
-                (line.includes('Error') || line.includes('error') || line.includes('FAIL') || line.includes('failed'))
-                  ? 'text-red-400'
-                  : line.startsWith('▸')
-                  ? 'text-blue-400'
-                  : (line.includes('warn') || line.includes('Warning'))
-                  ? 'text-yellow-400'
-                  : 'text-gray-400'
-              )}>
-                {line || '\u00A0'}
+            <ChevronDown className={cn('w-3 h-3 transition-transform duration-200', showLogs && 'rotate-180')} />
+            <span>Build Output</span>
+            {logs.length > 0 && <span className="text-forge-text-dim/50">{logs.length} lines</span>}
+          </button>
+
+          {showLogs && (
+            <div
+              ref={logsRef}
+              className="deploy-terminal rounded-xl p-3 max-h-[180px] overflow-y-auto font-mono text-[10px] leading-[18px] deploy-slide-down"
+            >
+              {logs.map((line, i) => (
+                <div key={i} className={cn(
+                  'whitespace-pre-wrap break-all',
+                  (line.includes('Error') || line.includes('error') || line.includes('FAIL') || line.includes('failed'))
+                    ? 'text-red-400'
+                    : line.startsWith('▸')
+                    ? 'text-sky-400'
+                    : (line.includes('warn') || line.includes('Warning'))
+                    ? 'text-amber-400'
+                    : line.includes('Ready') || line.includes('success') || line.includes('Complete')
+                    ? 'text-emerald-400'
+                    : 'text-zinc-400'
+                )}>
+                  {line || '\u00A0'}
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Deploying — waiting state */}
+      {logs.length === 0 && status === 'deploying' && (
+        <div className="px-4 pb-4">
+          <div className="flex items-center gap-3 py-3 justify-center">
+            <div className="flex gap-1">
+              <div className="w-1.5 h-1.5 rounded-full bg-forge-accent deploy-dot" style={{ animationDelay: '0ms' }} />
+              <div className="w-1.5 h-1.5 rounded-full bg-forge-accent deploy-dot" style={{ animationDelay: '150ms' }} />
+              <div className="w-1.5 h-1.5 rounded-full bg-forge-accent deploy-dot" style={{ animationDelay: '300ms' }} />
+            </div>
+            <span className="text-xs text-forge-text-dim">{deployProgress?.message || 'Preparing deployment...'}</span>
+          </div>
+        </div>
+      )}
+
+      {/* Success result */}
+      {status === 'success' && result && (
+        <div className="px-4 pb-4 deploy-slide-up">
+          {typeof result.url === 'string' && (
+            <div className="group relative rounded-xl border border-emerald-500/15 bg-emerald-500/[0.03] p-3 mb-2.5 hover:border-emerald-500/25 transition-all duration-200">
+              <div className="flex items-center gap-2 mb-1.5">
+                <Globe className="w-3.5 h-3.5 text-emerald-500" />
+                <span className="text-[10px] font-medium text-emerald-500/80 uppercase tracking-wider">Production URL</span>
               </div>
-            ))}
-          </div>
-        )}
-
-        {/* No logs yet */}
-        {logs.length === 0 && status === 'deploying' && (
-          <div className="flex items-center gap-2 py-6 justify-center">
-            <Loader2 className="w-4 h-4 text-forge-accent animate-spin" />
-            <span className="text-xs text-forge-text-dim">{deployProgress?.message || 'Starting deployment...'}</span>
-          </div>
-        )}
-
-        {/* Status message under logs */}
-        {logs.length > 0 && status === 'deploying' && deployProgress?.message && (
-          <p className="text-[10px] text-forge-text-dim mb-2">{deployProgress.message}</p>
-        )}
-
-        {/* Success result */}
-        {status === 'success' && result && (
-          <div className="space-y-2 mt-1">
-            {typeof result.url === 'string' && (
-              <div className="flex items-center gap-1.5 px-2.5 py-2 bg-forge-surface rounded-lg border border-forge-border">
-                <span className="text-[11px] text-forge-text font-mono truncate flex-1">{result.url}</span>
+              <div className="flex items-center gap-2">
+                <span className="text-sm text-forge-text font-mono truncate flex-1">{result.url}</span>
                 <button
                   onClick={() => {
                     navigator.clipboard.writeText(String(result.url))
                     setCopied(true)
                     setTimeout(() => setCopied(false), 2000)
                   }}
-                  className="p-1 text-forge-text-dim hover:text-forge-text rounded transition-colors shrink-0"
+                  className={cn(
+                    'p-1.5 rounded-lg transition-all duration-150 shrink-0',
+                    copied
+                      ? 'bg-emerald-500/10 text-emerald-500'
+                      : 'text-forge-text-dim hover:text-forge-text hover:bg-forge-surface'
+                  )}
                 >
-                  {copied ? <Check className="w-3 h-3 text-emerald-500" /> : <Copy className="w-3 h-3" />}
+                  {copied ? <Check className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />}
                 </button>
                 <a
                   href={String(result.url)}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="p-1 text-forge-text-dim hover:text-forge-accent rounded transition-colors shrink-0"
+                  className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-emerald-500 text-white text-[11px] font-medium hover:bg-emerald-600 transition-all duration-150 shrink-0"
                 >
-                  <ExternalLink className="w-3 h-3" />
+                  Visit
+                  <ArrowUpRight className="w-3 h-3" />
                 </a>
               </div>
+            </div>
+          )}
+          {typeof result.autoFixed === 'boolean' && result.autoFixed && (
+            <div className="flex items-center gap-2 px-2.5 py-1.5 rounded-lg bg-amber-500/[0.06] border border-amber-500/15 mb-2">
+              <Zap className="w-3 h-3 text-amber-500" />
+              <span className="text-[10px] text-amber-500/80">
+                {typeof result.fixExplanation === 'string' ? result.fixExplanation : 'Build errors auto-fixed'}
+              </span>
+            </div>
+          )}
+          <div className="flex items-center gap-4 text-[10px] text-forge-text-dim">
+            {typeof result.framework === 'string' && (
+              <div className="flex items-center gap-1">
+                <FileCode className="w-3 h-3" />
+                <span>{result.framework}</span>
+              </div>
             )}
-            <div className="flex items-center gap-3 text-[10px] text-forge-text-dim">
-              {typeof result.framework === 'string' && <span>{result.framework}</span>}
-              {typeof result.fileCount === 'number' && <span>{result.fileCount} files</span>}
-              {typeof result.duration === 'number' && <span>{result.duration}s</span>}
-            </div>
+            {typeof result.fileCount === 'number' && (
+              <div className="flex items-center gap-1">
+                <span>{result.fileCount} files</span>
+              </div>
+            )}
+            {typeof result.duration === 'number' && (
+              <div className="flex items-center gap-1">
+                <Clock className="w-3 h-3" />
+                <span>{result.duration}s</span>
+              </div>
+            )}
           </div>
-        )}
+        </div>
+      )}
 
-        {/* Error */}
-        {status === 'error' && (
-          <div className="space-y-2 mt-1">
-            <div className="bg-forge-surface rounded-lg p-2.5 max-h-[120px] overflow-y-auto border border-forge-border">
-              <pre className="text-[10px] text-forge-danger font-mono whitespace-pre-wrap break-words leading-relaxed">
-                {error}
-              </pre>
-            </div>
-            <div className="flex justify-end gap-2">
+      {/* Error */}
+      {status === 'error' && (
+        <div className="px-4 pb-4 deploy-slide-up">
+          <div className="rounded-xl border border-forge-danger/15 bg-forge-danger/[0.03] p-3 mb-3">
+            <pre className="text-[10px] text-forge-danger font-mono whitespace-pre-wrap break-words leading-relaxed max-h-[100px] overflow-y-auto">
+              {error}
+            </pre>
+          </div>
+          <div className="flex justify-end gap-2">
+            <button
+              onClick={handleRetry}
+              className="flex items-center gap-1.5 px-3 py-1.5 text-[11px] font-medium text-forge-text-dim hover:text-forge-text rounded-lg border border-forge-border hover:border-forge-border-bright transition-all duration-150"
+            >
+              <RefreshCw className="w-3 h-3" />
+              Retry
+            </button>
+            {onFix && isBuildError && (
               <button
-                onClick={handleRetry}
-                className="flex items-center gap-1.5 px-3 py-1.5 text-[11px] text-forge-text-dim hover:text-forge-text hover:bg-forge-surface rounded-lg transition-colors"
+                onClick={() => { onFix(error); handleClose() }}
+                className="flex items-center gap-1.5 px-3 py-1.5 text-[11px] font-medium bg-forge-accent text-white rounded-lg hover:bg-forge-accent-hover transition-all duration-150"
               >
-                <RefreshCw className="w-3 h-3" />
-                Retry
+                <Zap className="w-3 h-3" />
+                Fix with AI
               </button>
-              {onFix && isBuildError && (
-                <button
-                  onClick={() => { onFix(error); onClose() }}
-                  className="px-3 py-1.5 text-[11px] font-medium bg-forge-accent text-white rounded-lg hover:bg-forge-accent-hover transition-colors"
-                >
-                  Fix with AI
-                </button>
-              )}
-            </div>
+            )}
           </div>
-        )}
-
-        {/* URL preview during build */}
-        {deployProgress?.url && status === 'deploying' && (
-          <p className="text-[10px] text-forge-accent/60 font-mono truncate mt-1">{deployProgress.url}</p>
-        )}
-      </div>
+        </div>
+      )}
     </div>
   )
 }

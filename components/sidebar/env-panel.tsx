@@ -1,11 +1,13 @@
 'use client'
 
 import { useState, useMemo } from 'react'
-import { Plus, Trash2, Eye, EyeOff } from 'lucide-react'
+import { Plus, Trash2, Eye, EyeOff, CloudDownload, CloudUpload, Loader2, Check } from 'lucide-react'
+import { toast } from 'sonner'
 
 interface EnvPanelProps {
   fileContents: Record<string, string>
   onFileChange: (path: string, content: string) => void
+  vercelProjectId?: string | null
 }
 
 function parseEnvFile(content: string): { key: string; value: string }[] {
@@ -25,12 +27,13 @@ function serializeEnv(entries: { key: string; value: string }[]): string {
   return entries.map(e => `${e.key}=${e.value}`).join('\n') + '\n'
 }
 
-export function EnvPanel({ fileContents, onFileChange }: EnvPanelProps) {
+export function EnvPanel({ fileContents, onFileChange, vercelProjectId }: EnvPanelProps) {
   const envContent = fileContents['.env.local'] || fileContents['/.env.local'] || ''
   const entries = useMemo(() => parseEnvFile(envContent), [envContent])
   const [visibleKeys, setVisibleKeys] = useState<Set<string>>(new Set())
   const [newKey, setNewKey] = useState('')
   const [newValue, setNewValue] = useState('')
+  const [syncing, setSyncing] = useState<'pull' | 'push' | null>(null)
 
   const toggleVisibility = (key: string) => {
     setVisibleKeys(prev => {
@@ -53,9 +56,96 @@ export function EnvPanel({ fileContents, onFileChange }: EnvPanelProps) {
     onFileChange('.env.local', serializeEnv(updated))
   }
 
+  const handlePullFromVercel = async () => {
+    if (!vercelProjectId) return
+    setSyncing('pull')
+    try {
+      const res = await fetch(`/api/vercel/env?projectId=${encodeURIComponent(vercelProjectId)}`)
+      const data = await res.json()
+      if (!res.ok) {
+        toast.error('Failed to pull env vars', { description: data.error })
+        return
+      }
+      if (!Array.isArray(data) || data.length === 0) {
+        toast.info('No env vars found on Vercel')
+        return
+      }
+      // Merge: Vercel vars added, existing local-only vars preserved
+      const existing = new Map(entries.map(e => [e.key, e.value]))
+      for (const v of data) {
+        if (v.key && v.value) existing.set(v.key, v.value)
+      }
+      const merged = Array.from(existing.entries()).map(([key, value]) => ({ key, value }))
+      onFileChange('.env.local', serializeEnv(merged))
+      toast.success(`Pulled ${data.length} env vars from Vercel`)
+    } catch {
+      toast.error('Network error pulling env vars')
+    } finally {
+      setSyncing(null)
+    }
+  }
+
+  const handlePushToVercel = async () => {
+    if (!vercelProjectId || entries.length === 0) return
+    setSyncing('push')
+    try {
+      const res = await fetch('/api/vercel/env', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ projectId: vercelProjectId, envVars: entries }),
+      })
+      const data = await res.json()
+      if (!res.ok) {
+        toast.error('Failed to push env vars', { description: data.error })
+        return
+      }
+      const ok = (data.results || []).filter((r: any) => r.ok).length
+      const failed = (data.results || []).filter((r: any) => !r.ok).length
+      if (failed > 0) {
+        toast.warning(`Pushed ${ok} vars, ${failed} failed`)
+      } else {
+        toast.success(`Pushed ${ok} env vars to Vercel`)
+      }
+    } catch {
+      toast.error('Network error pushing env vars')
+    } finally {
+      setSyncing(null)
+    }
+  }
+
   return (
     <div className="p-3 space-y-3">
-      <p className="text-[10px] uppercase tracking-wider text-forge-text-dim font-medium">.env.local</p>
+      <div className="flex items-center justify-between">
+        <p className="text-[10px] uppercase tracking-wider text-forge-text-dim font-medium">.env.local</p>
+        {vercelProjectId && (
+          <span className="text-[9px] text-forge-success flex items-center gap-0.5">
+            <Check className="w-2.5 h-2.5" />
+            Vercel
+          </span>
+        )}
+      </div>
+
+      {/* Vercel sync buttons */}
+      {vercelProjectId && (
+        <div className="flex gap-1.5">
+          <button
+            onClick={handlePullFromVercel}
+            disabled={syncing !== null}
+            className="flex-1 flex items-center justify-center gap-1.5 px-2 py-1.5 text-[11px] rounded-md border border-forge-border hover:bg-forge-surface disabled:opacity-40 transition-colors"
+          >
+            {syncing === 'pull' ? <Loader2 className="w-3 h-3 animate-spin" /> : <CloudDownload className="w-3 h-3" />}
+            Pull
+          </button>
+          <button
+            onClick={handlePushToVercel}
+            disabled={syncing !== null || entries.length === 0}
+            className="flex-1 flex items-center justify-center gap-1.5 px-2 py-1.5 text-[11px] rounded-md border border-forge-border hover:bg-forge-surface disabled:opacity-40 transition-colors"
+          >
+            {syncing === 'push' ? <Loader2 className="w-3 h-3 animate-spin" /> : <CloudUpload className="w-3 h-3" />}
+            Push
+          </button>
+        </div>
+      )}
 
       {entries.length === 0 && (
         <p className="text-xs text-forge-text-dim">No environment variables</p>

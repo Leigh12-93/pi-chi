@@ -539,6 +539,10 @@ export function useForgeChat(props: UseForgeChatProps) {
             localFiles.current[path] = content
           }
           onBulkFileUpdate(changes.updates)
+          // Signal workspace that AI edited these files (for highlight animation + diff badges)
+          window.dispatchEvent(new CustomEvent('forge:file-edited', {
+            detail: { paths: Object.keys(changes.updates) }
+          }))
         }
         if (changes.deletes) {
           for (const path of changes.deletes) {
