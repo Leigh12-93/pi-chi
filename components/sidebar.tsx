@@ -104,7 +104,7 @@ export function SidebarContent({
         <EnvPanel fileContents={fileContents} onFileChange={onFileChange} vercelProjectId={vercelProjectId} />
       )}
       {activeTab === 'db' && (
-        <DbPanel onOpenDbExplorer={onOpenDbExplorer} />
+        <DbPanel fileContents={fileContents} onOpenDbExplorer={onOpenDbExplorer} />
       )}
       {activeTab === 'snapshots' && (
         <SnapshotsPanel
