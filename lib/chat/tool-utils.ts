@@ -111,97 +111,129 @@ export function getPhaseLabel(lastToolName: string | null): string {
   if (!lastToolName) return 'Thinking'
 
   switch (lastToolName) {
-    // Reading / analysis tools
+    // Reading files
     case 'read_file':
-    case 'get_all_files':
-    case 'list_files':
     case 'forge_read_own_source':
     case 'github_read_file':
+      return 'Reading file'
+    case 'get_all_files':
+    case 'list_files':
     case 'github_list_repo_files':
-      return 'Reviewing code'
+      return 'Listing files'
 
+    // Searching
     case 'search_files':
-    case 'grep_files':
     case 'github_search_code':
     case 'search_references':
+      return 'Searching files'
+    case 'grep_files':
+      return 'Searching file contents'
     case 'get_reference_code':
+      return 'Looking up references'
     case 'forge_check_npm_package':
     case 'check_dependency_health':
-      return 'Analyzing results'
+      return 'Checking dependencies'
 
-    // Writing / editing tools
+    // Writing / editing
     case 'write_file':
+      return 'Writing file'
     case 'edit_file':
+      return 'Editing file'
     case 'rename_file':
+      return 'Renaming file'
     case 'delete_file':
+      return 'Deleting file'
     case 'forge_modify_own_source':
     case 'github_modify_external_file':
+      return 'Modifying source'
     case 'scaffold_component':
-      return 'Applying changes'
+      return 'Scaffolding component'
 
     // Planning / thinking
     case 'think':
-      return 'Forming a plan'
+      return 'Planning next steps'
     case 'suggest_improvement':
-      return 'Considering improvements'
+      return 'Suggesting improvements'
     case 'check_coherence':
     case 'validate_file':
-      return 'Verifying changes'
+      return 'Validating changes'
 
     // Project / scaffolding
     case 'create_project':
+      return 'Creating project'
     case 'add_dependency':
+      return 'Adding dependency'
     case 'generate_env_file':
+      return 'Generating config'
     case 'generate_tests':
-      return 'Setting things up'
+      return 'Generating tests'
 
-    // Deployment / git
+    // Deployment
     case 'deploy_to_vercel':
+      return 'Deploying to Vercel'
     case 'forge_redeploy':
+      return 'Redeploying'
     case 'forge_deployment_status':
     case 'forge_check_build':
     case 'forge_read_deploy_log':
-      return 'Finalizing deployment'
+      return 'Checking deployment'
+
+    // Git
     case 'github_create_repo':
+      return 'Creating repository'
     case 'github_push_update':
     case 'github_push_files':
+      return 'Pushing to GitHub'
     case 'github_pull_latest':
+      return 'Pulling latest'
     case 'forge_create_branch':
+      return 'Creating branch'
     case 'forge_create_pr':
+      return 'Creating pull request'
     case 'forge_merge_pr':
+      return 'Merging pull request'
     case 'forge_revert_commit':
+      return 'Reverting commit'
     case 'forge_list_branches':
     case 'forge_delete_branch':
-      return 'Working with Git'
+      return 'Managing branches'
 
     // Database
     case 'db_query':
-    case 'db_mutate':
-    case 'db_introspect':
       return 'Querying database'
+    case 'db_mutate':
+      return 'Updating database'
+    case 'db_introspect':
+      return 'Inspecting schema'
 
     // Terminal / commands
     case 'run_command':
+      return 'Running command'
     case 'install_package':
+      return 'Installing packages'
     case 'run_dev_server':
-      return 'Running terminal'
+      return 'Starting dev server'
 
     // Build / test / verify
     case 'run_build':
+      return 'Running build'
     case 'run_tests':
+      return 'Running tests'
     case 'check_types':
+      return 'Checking types'
     case 'verify_build':
-      return 'Verifying changes'
+      return 'Verifying build'
 
     // Audit
     case 'audit_codebase':
     case 'create_audit_plan':
-    case 'execute_audit_task':
       return 'Auditing code'
+    case 'execute_audit_task':
+      return 'Fixing issue'
 
     // Tasks
     case 'manage_tasks':
-      return 'Working through tasks'
+      return 'Updating task list'
 
     // Sandbox / environment
     case 'start_sandbox':

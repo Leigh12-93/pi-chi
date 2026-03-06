@@ -5,7 +5,7 @@ import {
   RefreshCw, Monitor, Smartphone, Tablet, AlertTriangle,
   Square, Loader2, Zap, ExternalLink, Maximize2, Minimize2,
   Globe, Terminal, X, ArrowUpFromLine, Camera, Copy, Check,
-  ChevronLeft, ChevronRight, Home,
+  ChevronLeft, ChevronRight, Home, Search,
 } from 'lucide-react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { cn, hashFileMapDeep } from '@/lib/utils'
@@ -984,18 +984,25 @@ export const PreviewPanel = memo(function PreviewPanel({ files, projectId, onFix
     setTimeout(() => setCaptureFlash(false), 800)
   }, [capturePreviewContent, onCapturePreview, addLog])
 
-  // Reset auto-feed attempts when files change (user or AI made fixes)
+  // Track file changes — reset scan state so user can re-scan if needed
   const prevFileHashRef = useRef<string>('')
+  const [showScanPrompt, setShowScanPrompt] = useState(false)
   useEffect(() => {
     if (prevFileHashRef.current && filesHash !== prevFileHashRef.current) {
-      // Files changed — re-scan for missing imports
+      // Files changed — allow re-scan but don't auto-run
       missingImportsFedRef.current = false
+      setMissingImports([])
+      setShowScanPrompt(false)
     }
     prevFileHashRef.current = filesHash
+    // Do NOT auto-scan — user must trigger via "Scan" button
+  }, [files])
 
-    // Scan for missing imports (shown in console, not auto-fed to AI)
+  // User-triggered scan handler
+  const handleRunScan = useCallback(() => {
     const missing = detectMissingImports(files)
     setMissingImports(missing)
+    setShowScanPrompt(false)
     if (missing.length === 0) {
       setMissingImports([])
     }
@@ -1226,6 +1233,16 @@ export const PreviewPanel = memo(function PreviewPanel({ files, projectId, onFix
 
           {/* Right: action buttons */}
           <div className="flex items-center gap-0.5 shrink-0">
+            {/* Scan for issues */}
+            <button
+              onClick={() => setShowScanPrompt(true)}
+              className="p-2.5 sm:p-1.5 rounded-md text-forge-text-dim hover:text-forge-text hover:bg-forge-surface transition-colors"
+              title="Scan for missing imports"
+              aria-label="Scan for missing imports"
+            >
+              <Search className="w-4 h-4 sm:w-3.5 sm:h-3.5" />
+            </button>
+
             {/* Capture preview for AI */}
             <button
               onClick={handleCaptureClick}
@@ -1509,7 +1526,49 @@ export const PreviewPanel = memo(function PreviewPanel({ files, projectId, onFix
             </div>
           )}
 
-          {/* Missing imports prompt — non-blocking card, user chooses to fix or dismiss */}
+          {/* Phase 1: Scan prompt — ask user before running scan */}
+          <AnimatePresence>
+          {showScanPrompt && missingImports.length === 0 && !missingImportsFedRef.current && (isSandboxActive || isSandboxLoading) && (
+            <motion.div
+              initial={{ opacity: 0, y: 12 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: 8, scale: 0.95 }}
+              transition={{ type: 'spring', stiffness: 400, damping: 30 }}
+              className="absolute bottom-3 left-3 z-20 max-w-xs"
+            >
+              <div className="bg-forge-bg/95 backdrop-blur border border-forge-border rounded-xl p-3 shadow-2xl space-y-2">
+                <div className="flex items-center gap-2">
+                  <div className="w-6 h-6 rounded-lg bg-forge-accent/10 flex items-center justify-center shrink-0">
+                    <Search className="w-3 h-3 text-forge-accent" />
+                  </div>
+                  <p className="text-xs font-medium text-forge-text">Scan for missing imports?</p>
+                  <button
+                    onClick={() => setShowScanPrompt(false)}
+                    className="p-0.5 text-forge-text-dim hover:text-forge-text transition-colors shrink-0 ml-auto"
+                  >
+                    <X className="w-3 h-3" />
+                  </button>
+                </div>
+                <div className="flex gap-1.5">
+                  <button
+                    onClick={handleRunScan}
+                    className="flex-1 flex items-center justify-center gap-1.5 px-2.5 py-1.5 bg-forge-accent hover:bg-forge-accent-hover text-white text-[10px] font-medium rounded-lg transition-colors"
+                  >
+                    Scan
+                  </button>
+                  <button
+                    onClick={() => setShowScanPrompt(false)}
+                    className="px-2.5 py-1.5 text-[10px] font-medium text-forge-text-dim hover:text-forge-text bg-forge-surface hover:bg-forge-surface-hover rounded-lg transition-colors"
+                  >
+                    No thanks
+                  </button>
+                </div>
+              </div>
+            </motion.div>
+          )}
+          </AnimatePresence>
+
+          {/* Phase 2: Scan results — shown only after user triggered scan */}
           <AnimatePresence>
           {missingImports.length > 0 && !missingImportsFedRef.current && (isSandboxActive || isSandboxLoading) && (
             <motion.div
@@ -1517,7 +1576,7 @@ export const PreviewPanel = memo(function PreviewPanel({ files, projectId, onFix
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: 8, scale: 0.95 }}
               transition={{ type: 'spring', stiffness: 400, damping: 30 }}
-              className="absolute top-3 left-3 z-20 max-w-xs"
+              className="absolute bottom-3 left-3 z-20 max-w-xs"
             >
               <div className="bg-forge-bg/95 backdrop-blur border border-amber-500/30 rounded-xl p-3 shadow-2xl space-y-2">
                 <div className="flex items-start gap-2">
