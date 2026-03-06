@@ -73,11 +73,26 @@ const PREVIEW_ERROR_SCRIPT = `<script>
       o.apply(console,arguments);
     };
   });
-  // Track navigation — intercept link clicks, pushState, popstate, hashchange
+  // Track navigation — intercept link clicks and keep them inside the preview
   document.addEventListener('click',function(e){
     var a=e.target;while(a&&a.tagName!=='A')a=a.parentElement;
     if(a&&a.href&&!a.href.startsWith('javascript:')){
+      e.preventDefault();
       var h=a.getAttribute('href')||'';
+      // Handle hash links within the page
+      if(h.startsWith('#')){var el=document.querySelector(h);if(el)el.scrollIntoView({behavior:'smooth'});return;}
+      // Handle relative paths — navigate within the iframe
+      if(h.startsWith('/')&&window.location.protocol==='about:'){
+        window.parent.postMessage({type:'forge-navigate',href:h,pathname:h},'*');
+        return;
+      }
+      // For other relative links, try to navigate within iframe
+      if(!h.startsWith('http')){
+        try{window.location.href=h;}catch(ex){}
+        window.parent.postMessage({type:'forge-navigate',href:h,pathname:h},'*');
+        return;
+      }
+      // External links — just notify parent, don't navigate
       window.parent.postMessage({type:'forge-navigate',href:h,pathname:h},'*');
     }
   });
