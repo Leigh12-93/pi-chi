@@ -723,23 +723,62 @@ export function PreviewPanel({ files, projectId, onFixErrors, onCapturePreview, 
     }
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Listen for console/error messages from preview iframe
+  // Listen for console/error messages from preview iframe (static + v0 sandbox)
   useEffect(() => {
     const handler = (event: MessageEvent) => {
       const d = event.data
-      if (!d || typeof d !== 'object' || d.type !== 'forge-preview') return
-      const level = (['log', 'warn', 'error', 'info'].includes(d.level) ? d.level : 'log') as ConsoleEntry['level']
-      const message = typeof d.message === 'string' ? d.message.slice(0, 1000) : String(d.message)
+      if (!d || typeof d !== 'object') return
+
+      let level: ConsoleEntry['level'] = 'log'
+      let message = ''
+      let source: ConsoleEntry['source'] = 'preview'
+
+      // Format 1: Our injected PREVIEW_ERROR_SCRIPT (static preview)
+      if (d.type === 'forge-preview') {
+        level = (['log', 'warn', 'error', 'info'].includes(d.level) ? d.level : 'log') as ConsoleEntry['level']
+        message = typeof d.message === 'string' ? d.message : String(d.message)
+      }
+      // Format 2: v0 sandbox console messages (type: 'console')
+      else if (d.type === 'console' && d.method && d.args) {
+        level = (['log', 'warn', 'error', 'info'].includes(d.method) ? d.method : 'log') as ConsoleEntry['level']
+        const args = Array.isArray(d.args) ? d.args : [d.args]
+        message = args.map((a: unknown) => typeof a === 'string' ? a : JSON.stringify(a)).join(' ')
+        source = 'sandbox'
+      }
+      // Format 3: v0 sandbox errors (type: 'error')
+      else if (d.type === 'error' && (d.message || d.error)) {
+        level = 'error'
+        message = d.message || d.error?.message || String(d.error)
+        if (d.stack || d.error?.stack) message += '\n' + (d.stack || d.error.stack)
+        source = 'sandbox'
+      }
+      // Format 4: v0 runtime errors (type: 'runtime-error' or 'unhandled-error')
+      else if ((d.type === 'runtime-error' || d.type === 'unhandled-error') && d.message) {
+        level = 'error'
+        message = typeof d.message === 'string' ? d.message : String(d.message)
+        source = 'sandbox'
+      }
+      // Format 5: Generic message with level/message shape from sandbox
+      else if (d.level && d.message && (event.origin || '').includes('vusercontent.net')) {
+        level = (['log', 'warn', 'error', 'info'].includes(d.level) ? d.level : 'log') as ConsoleEntry['level']
+        message = typeof d.message === 'string' ? d.message : String(d.message)
+        source = 'sandbox'
+      }
+      else {
+        return // Unknown message format — ignore
+      }
+
+      message = message.slice(0, 1000)
       if (!message) return
+
       // Filter known sandbox/browser noise — log dimmed but don't auto-feed to AI
       const isNoise = isSandboxNoise(message)
       if (isNoise) {
-        // Still log it (as info, not error) so devs can see it, but don't alarm users
         addLog(`[sandbox] ${message}`, 'info', 'sandbox')
         return
       }
 
-      addLog(message, level, 'preview')
+      addLog(message, level, source)
       // Auto-open console on errors (but do NOT auto-feed to AI — user must click fix)
       if (level === 'error') {
         setShowConsole(true)
