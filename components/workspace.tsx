@@ -180,6 +180,13 @@ export function Workspace({
       if (!detail?.paths) return
       const paths = detail.paths as string[]
 
+      // Auto-navigate to the edited file so user sees changes live
+      if (paths.length > 0 && !userManualSwitchRef.current) {
+        const targetPath = paths[0]
+        onFileSelect(targetPath)
+        setOpenFiles(prev => prev.includes(targetPath) ? prev : [...prev, targetPath])
+      }
+
       // Add paths to aiEditingFiles set (triggers pulse animation)
       setAiEditingFiles(prev => {
         const next = new Set(prev)
@@ -887,6 +894,7 @@ export function Workspace({
             <CodeEditor
               path={activeFile}
               content={activeFile ? files[activeFile] || '' : ''}
+              previousContent={activeFile ? initialFilesRef.current[activeFile] : undefined}
               onSave={(path, content) => onFileChange(path, content)}
               onChange={(content) => activeFile && onFileChange(activeFile, content)}
             />
@@ -898,6 +906,7 @@ export function Workspace({
                 <CodeEditor
                   path={activeFile}
                   content={activeFile ? files[activeFile] || '' : ''}
+                  previousContent={activeFile ? initialFilesRef.current[activeFile] : undefined}
                   onSave={(path, content) => onFileChange(path, content)}
                   onChange={(content) => activeFile && onFileChange(activeFile, content)}
                 />
@@ -1178,6 +1187,7 @@ export function Workspace({
                 <CodeEditor
                   path={activeFile}
                   content={activeFile ? files[activeFile] || '' : ''}
+                  previousContent={activeFile ? initialFilesRef.current[activeFile] : undefined}
                   onSave={(path, content) => onFileChange(path, content)}
                   onChange={(content) => activeFile && onFileChange(activeFile, content)}
                 />

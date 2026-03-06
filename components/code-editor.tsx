@@ -25,16 +25,19 @@ import { FileText, Save, ChevronRight } from 'lucide-react'
 interface CodeEditorProps {
   path: string | null
   content: string
+  previousContent?: string
   onSave: (path: string, content: string) => void
   onChange: (content: string) => void
   readOnly?: boolean
 }
 
-export const CodeEditor = memo(function CodeEditor({ path, content, onSave, onChange, readOnly }: CodeEditorProps) {
+export const CodeEditor = memo(function CodeEditor({ path, content, previousContent, onSave, onChange, readOnly }: CodeEditorProps) {
   const editorRef = useRef<Parameters<OnMount>[0] | null>(null)
   const pathRef = useRef(path)
   const onSaveRef = useRef(onSave)
   const [modified, setModified] = useState(false)
+  const prevDecorationsRef = useRef<string[]>([])
+  const diffClearTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const { theme } = useTheme()
 
   // Keep refs current so Ctrl+S handler always uses latest values
@@ -103,6 +106,62 @@ export const CodeEditor = memo(function CodeEditor({ path, content, onSave, onCh
     }
   }, [content, path])
 
+  // Diff decorations: highlight lines that changed from previousContent
+  useEffect(() => {
+    if (!editorRef.current || !previousContent || previousContent === content) {
+      // Clear decorations when no diff
+      if (editorRef.current && prevDecorationsRef.current.length > 0) {
+        editorRef.current.deltaDecorations(prevDecorationsRef.current, [])
+        prevDecorationsRef.current = []
+      }
+      return
+    }
+    const editor = editorRef.current
+    const monaco = (window as any).monaco
+    if (!monaco) return
+
+    const oldLines = previousContent.split('\n')
+    const newLines = content.split('\n')
+    const decorations: any[] = []
+
+    const maxLines = Math.max(oldLines.length, newLines.length)
+    for (let i = 0; i < newLines.length; i++) {
+      if (i >= oldLines.length) {
+        // Added line
+        decorations.push({
+          range: new monaco.Range(i + 1, 1, i + 1, 1),
+          options: {
+            isWholeLine: true,
+            className: 'ai-diff-added-line',
+            glyphMarginClassName: 'ai-diff-added-glyph',
+          }
+        })
+      } else if (oldLines[i] !== newLines[i]) {
+        // Modified line
+        decorations.push({
+          range: new monaco.Range(i + 1, 1, i + 1, 1),
+          options: {
+            isWholeLine: true,
+            className: 'ai-diff-modified-line',
+            glyphMarginClassName: 'ai-diff-modified-glyph',
+          }
+        })
+      }
+    }
+
+    const ids = editor.deltaDecorations(prevDecorationsRef.current, decorations)
+    prevDecorationsRef.current = ids
+
+    // Auto-clear decorations after 5 seconds
+    if (diffClearTimerRef.current) clearTimeout(diffClearTimerRef.current)
+    diffClearTimerRef.current = setTimeout(() => {
+      if (editorRef.current) {
+        editorRef.current.deltaDecorations(prevDecorationsRef.current, [])
+        prevDecorationsRef.current = []
+      }
+    }, 5000)
+  }, [previousContent, content])
+
   if (!path) {
     return (
       <div className="h-full flex items-center justify-center text-forge-text-dim">
@@ -167,6 +226,7 @@ export const CodeEditor = memo(function CodeEditor({ path, content, onSave, onCh
           onChange={handleChange}
           options={{
             readOnly: readOnly ?? false,
+            glyphMargin: true,
             fontSize: 13,
             fontFamily: "'Cascadia Code', 'Fira Code', 'JetBrains Mono', monospace",
             fontLigatures: true,

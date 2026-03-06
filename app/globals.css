@@ -108,6 +108,12 @@ button:active:not(:disabled), [role="button"]:active:not(:disabled) {
   background-color: var(--color-forge-surface) !important;
 }
 
+/* AI diff decorations in Monaco editor */
+.ai-diff-added-line { background: rgba(16, 185, 129, 0.1); }
+.ai-diff-modified-line { background: rgba(99, 102, 241, 0.08); }
+.ai-diff-added-glyph { background: rgb(16, 185, 129); width: 3px !important; margin-left: 3px; }
+.ai-diff-modified-glyph { background: rgb(99, 102, 241); width: 3px !important; margin-left: 3px; }
+
 /* Dark toast overrides (sonner) */
 html.dark [data-sonner-toast] {
   background: #1a1d27 !important;

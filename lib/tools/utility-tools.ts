@@ -187,7 +187,7 @@ export function createUtilityTools(ctx: ToolContext) {
 
           if (xFrameOptions?.toLowerCase() === 'deny' || xFrameOptions?.toLowerCase() === 'sameorigin') {
             diagnosis.push(`X-Frame-Options: ${xFrameOptions} — blocks iframe embedding`)
-            fixes.push('Remove or modify X-Frame-Options header in next.config.ts or middleware.ts')
+            fixes.push('Remove or modify X-Frame-Options header in next.config.mjs or middleware.ts')
           }
 
           if (frameAncestors && !frameAncestors.includes('*')) {

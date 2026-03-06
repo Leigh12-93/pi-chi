@@ -487,11 +487,11 @@ export const ChatPanel = memo(function ChatPanel({ onLoadingChange, ...props }: 
       <AnimatePresence>
         {chat.tasks.length > 0 && (
           <motion.div
-            initial={{ opacity: 0, height: 0 }}
-            animate={{ opacity: 1, height: 'auto' }}
-            exit={{ opacity: 0, height: 0 }}
-            transition={{ duration: 0.2, ease: [0.16, 1, 0.3, 1] }}
-            className="border-t border-forge-border px-3 py-2 shrink-0 overflow-hidden"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.15 }}
+            className="border-t border-forge-border px-3 py-2 shrink-0"
           >
             <TaskListPanel tasks={chat.tasks} />
           </motion.div>

@@ -249,6 +249,8 @@ export function useForgeChat(props: UseForgeChatProps) {
   const [clearConfirm, setClearConfirm] = useState(false)
   const [attachments, setAttachments] = useState<FileUIPart[]>([])
   const [tasks, setTasks] = useState<Array<{ id: string; label: string; status: string; description?: string; blockedBy?: string[]; phase?: string }>>([])
+  const taskDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const latestTasksRef = useRef<Array<{ id: string; label: string; status: string; description?: string; blockedBy?: string[]; phase?: string }>>([])
   const [showNewMessageIndicator, setShowNewMessageIndicator] = useState(false)
   const stoppedByUserRef = useRef(false)
 
@@ -556,10 +558,17 @@ export function useForgeChat(props: UseForgeChatProps) {
         }
 
         // Task list — extract tasks from manage_tasks tool (with deps/phases)
+        // Debounced to prevent rapid re-renders during AI streaming
         if (inv.toolName === 'manage_tasks' && (isCall || isResult)) {
           const taskArgs = inv.args as { tasks?: Array<{ id: string; label: string; status: string; description?: string; blockedBy?: string[]; phase?: string }> }
           if (Array.isArray(taskArgs?.tasks)) {
-            setTasks(taskArgs.tasks)
+            latestTasksRef.current = taskArgs.tasks
+            if (!taskDebounceRef.current) {
+              taskDebounceRef.current = setTimeout(() => {
+                setTasks(latestTasksRef.current)
+                taskDebounceRef.current = null
+              }, 500)
+            }
           }
           processedInvs.current.add(key)
           continue

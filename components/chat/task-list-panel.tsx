@@ -65,7 +65,7 @@ export const TaskListPanel = memo(function TaskListPanel({ tasks }: TaskListPane
 
       {/* Task items */}
       <div className="px-2 py-1.5">
-        <AnimatePresence mode="popLayout">
+        <AnimatePresence>
           {(() => {
             // Group by phase if phases are present
             const phases = ['explore', 'plan', 'build', 'verify', 'deploy'] as const
@@ -78,7 +78,6 @@ export const TaskListPanel = memo(function TaskListPanel({ tasks }: TaskListPane
               return (
                 <motion.div
                   key={task.id}
-                  layout
                   initial={{ opacity: 0, x: -4 }}
                   animate={{ opacity: 1, x: 0 }}
                   transition={{ duration: 0.2, ease: [0.16, 1, 0.3, 1] }}
