@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useRef, useEffect, useMemo } from 'react'
+import { useState, useRef, useEffect, useMemo, memo } from 'react'
 import {
   Loader2, Check, Trash2, Brain,
   Sparkles, ArrowUp, StopCircle,
@@ -232,7 +232,7 @@ function CompletionSignal({ stepCount, elapsed, formatElapsed }: {
   )
 }
 
-export function ChatPanel({ onLoadingChange, ...props }: ChatPanelProps) {
+export const ChatPanel = memo(function ChatPanel({ onLoadingChange, ...props }: ChatPanelProps) {
   const chat = useForgeChat(props)
   const [isDraggingChat, setIsDraggingChat] = useState(false)
   const [dismissedError, setDismissedError] = useState<string | null>(null)
@@ -316,7 +316,7 @@ export function ChatPanel({ onLoadingChange, ...props }: ChatPanelProps) {
             </div>
           </div>
         ) : (
-          <div className="px-4 py-4 space-y-4">
+          <div className="px-4 py-4 space-y-4" role="log" aria-label="Chat messages" aria-live="polite">
             {chat.messages.map((message, idx) => (
               <MessageItem
                 key={message.id}
@@ -670,4 +670,4 @@ export function ChatPanel({ onLoadingChange, ...props }: ChatPanelProps) {
     </div>
     </ErrorBoundary>
   )
-}
+})

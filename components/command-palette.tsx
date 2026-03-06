@@ -98,7 +98,7 @@ export function CommandPalette({ open, onClose, commands }: CommandPaletteProps)
   }
 
   return (
-    <div className="fixed inset-0 z-[100] flex items-start justify-center pt-[10vh] sm:pt-[20vh]" onClick={onClose}>
+    <div className="fixed inset-0 z-[100] flex items-start justify-center pt-[10vh] sm:pt-[20vh]" onClick={onClose} role="dialog" aria-modal="true" aria-label="Command palette">
       {/* Backdrop */}
       <div className="absolute inset-0 bg-forge-overlay backdrop-blur-md animate-fade-in" />
 

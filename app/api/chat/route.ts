@@ -11,7 +11,7 @@ import { chatLimiter } from '@/lib/rate-limit'
 import { TaskStore } from '@/lib/background-tasks'
 import { getSession, decryptToken } from '@/lib/auth'
 import { supabaseFetch as supabaseFetchDirect } from '@/lib/supabase-fetch'
-import { SYSTEM_PROMPT, MEMORY_MARKER } from '@/lib/system-prompt'
+import { MEMORY_MARKER, buildSystemPrompt } from '@/lib/system-prompt'
 import { getPromptExample } from '@/lib/prompt-examples'
 import { VirtualFS } from '@/lib/virtual-fs'
 import { compactMessages } from '@/lib/compaction'
@@ -44,6 +44,10 @@ const usageTracker = new Map<string, { tokens: number; requests: number; ts: num
 const MAX_USAGE_ENTRIES = 500
 
 const editFailCache = new Map<string, { counts: Map<string, number>; ts: number }>()
+
+// Project memory cache — avoids DB round-trip on every message
+const memoryCache = new Map<string, { data: Record<string, string>; ts: number }>()
+const MEMORY_TTL = 60_000 // 1 minute
 function getEditFailCounts(projectId: string | null): Map<string, number> {
   const key = projectId || '_anon'
   const now = Date.now()
@@ -294,19 +298,25 @@ export async function POST(req: Request) {
   // Edit fail tracking
   const editFailCounts = getEditFailCounts(projectId)
 
-  // Load project memory for system prompt injection
+  // Load project memory for system prompt injection (cached per project, 1-min TTL)
   let projectMemory: Record<string, string> = {}
   if (projectId) {
-    try {
-      const memResult = await supabaseFetch(`/forge_projects?id=eq.${encodeURIComponent(projectId)}&select=memory`)
-      if (memResult.ok && Array.isArray(memResult.data) && memResult.data[0]?.memory) {
-        const mem = memResult.data[0].memory
-        if (typeof mem === 'object' && mem !== null) {
-          projectMemory = mem as Record<string, string>
+    const cached = memoryCache.get(projectId)
+    if (cached && Date.now() - cached.ts < MEMORY_TTL) {
+      projectMemory = cached.data
+    } else {
+      try {
+        const memResult = await supabaseFetch(`/forge_projects?id=eq.${encodeURIComponent(projectId)}&select=memory`)
+        if (memResult.ok && Array.isArray(memResult.data) && memResult.data[0]?.memory) {
+          const mem = memResult.data[0].memory
+          if (typeof mem === 'object' && mem !== null) {
+            projectMemory = mem as Record<string, string>
+            memoryCache.set(projectId, { data: projectMemory, ts: Date.now() })
+          }
         }
+      } catch {
+        // Non-critical — continue without memory
       }
-    } catch {
-      // Non-critical — continue without memory
     }
   }
 
@@ -340,6 +350,20 @@ export async function POST(req: Request) {
       }
     }
     manifestStr = lines.join('\n')
+  }
+
+  // ── Extract last user message text for system prompt tiering ──
+  const lastUserMessage = (body.messages || []).findLast((m: any) => m.role === 'user') as any
+  let lastUserText = ''
+  if (lastUserMessage) {
+    if (typeof lastUserMessage.content === 'string') {
+      lastUserText = lastUserMessage.content
+    } else if (Array.isArray(lastUserMessage.parts)) {
+      lastUserText = lastUserMessage.parts
+        .filter((p: any) => p.type === 'text')
+        .map((p: any) => p.text || '')
+        .join(' ')
+    }
   }
 
   // ── Cost optimization: trim conversation history ──────────────
@@ -408,12 +432,12 @@ export async function POST(req: Request) {
   })
 
   // ── Estimate FULL context size (system + tools + messages) ───
-  // Build the system prompt string early so we can measure it
+  // Build the tiered system prompt — only includes tool/DB/self-mod docs when relevant
   // Inject project memory into the MEMORY_MARKER placeholder
   const memorySection = Object.keys(projectMemory).length > 0
     ? `\n\n## Project Memory (persisted across sessions)\n\`\`\`json\n${JSON.stringify(projectMemory, null, 2)}\n\`\`\``
     : '\n\n(No project memory saved yet — use save_memory to persist insights.)'
-  const systemPromptStr = SYSTEM_PROMPT.replace(MEMORY_MARKER, memorySection)
+  const systemPromptStr = buildSystemPrompt(lastUserText).replace(MEMORY_MARKER, memorySection)
     + (activeFile && activeFileContent
       ? `\n\nUser is currently viewing: ${activeFile}\n\`\`\`\n${activeFileContent}\n\`\`\``
       : '')

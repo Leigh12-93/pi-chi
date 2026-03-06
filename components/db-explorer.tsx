@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useCallback } from 'react'
-import { Database, Play, Table, Loader2, AlertCircle, ChevronRight } from 'lucide-react'
+import { Database, Play, Table, Loader2, AlertCircle, ChevronRight, Columns } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
 const FORGE_TABLES = [
@@ -19,14 +19,22 @@ interface DbExplorerProps {
   className?: string
 }
 
+interface ColumnInfo {
+  column_name: string
+  data_type: string
+  is_nullable: string
+  column_default: string | null
+}
+
 export function DbExplorer({ className }: DbExplorerProps) {
   const [selectedTable, setSelectedTable] = useState<string | null>(null)
   const [query, setQuery] = useState('')
-  const [results, setResults] = useState<any[] | null>(null)
+  const [results, setResults] = useState<Record<string, unknown>[] | null>(null)
   const [columns, setColumns] = useState<string[]>([])
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const [tableSchemas, setTableSchemas] = useState<Record<string, { column: string; type: string }[]>>({})
+  const [tableSchemas, setTableSchemas] = useState<Record<string, ColumnInfo[]>>({})
+  const [showSchema, setShowSchema] = useState(false)
 
   const runQuery = useCallback(async (sql?: string) => {
     const q = sql || query
@@ -36,7 +44,6 @@ export function DbExplorer({ className }: DbExplorerProps) {
     setError(null)
 
     try {
-      // Use the chat API's db tools through a direct fetch
       const res = await fetch('/api/db/query', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -57,50 +64,66 @@ export function DbExplorer({ className }: DbExplorerProps) {
         setResults([])
         setColumns([])
       }
-    } catch (err: any) {
-      setError(err.message || 'Query failed')
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : 'Query failed')
     } finally {
       setLoading(false)
     }
   }, [query])
 
+  const fetchSchema = async (table: string) => {
+    if (tableSchemas[table]) return tableSchemas[table]
+
+    try {
+      const schemaQuery = `SELECT column_name, data_type, is_nullable, column_default FROM information_schema.columns WHERE table_name = '${table}' ORDER BY ordinal_position`
+      const res = await fetch('/api/db/query', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ query: schemaQuery }),
+      })
+      if (res.ok) {
+        const data = await res.json()
+        if (Array.isArray(data)) {
+          setTableSchemas(prev => ({ ...prev, [table]: data as ColumnInfo[] }))
+          return data as ColumnInfo[]
+        }
+      }
+    } catch {}
+    return []
+  }
+
   const handleTableClick = async (table: string) => {
     setSelectedTable(table)
-    setQuery(`SELECT * FROM ${table} LIMIT 20`)
-
-    // Load schema if not cached
-    if (!tableSchemas[table]) {
-      try {
-        const schemaQuery = `SELECT column_name, data_type FROM information_schema.columns WHERE table_name = '${table}' ORDER BY ordinal_position`
-        // For now just run the main query
-      } catch {}
-    }
-
-    // Run the query
     const q = `SELECT * FROM ${table} LIMIT 20`
     setQuery(q)
     setLoading(true)
     setError(null)
+    setShowSchema(false)
 
-    try {
-      const res = await fetch('/api/db/query', {
+    // Fetch schema and data in parallel
+    const [, dataRes] = await Promise.all([
+      fetchSchema(table),
+      fetch('/api/db/query', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ query: q }),
-      })
-      if (res.ok) {
-        const data = await res.json()
-        if (Array.isArray(data) && data.length > 0) {
-          setColumns(Object.keys(data[0]))
-          setResults(data)
-        } else {
-          setResults([])
-          setColumns([])
-        }
+      }).catch(() => null),
+    ])
+
+    if (dataRes?.ok) {
+      const data = await dataRes.json()
+      if (Array.isArray(data) && data.length > 0) {
+        setColumns(Object.keys(data[0]))
+        setResults(data)
+      } else {
+        setResults([])
+        setColumns([])
       }
-    } catch {}
+    }
     setLoading(false)
   }
+
+  const schema = selectedTable ? tableSchemas[selectedTable] : null
 
   return (
     <div className={cn('h-full flex flex-col bg-forge-bg', className)}>
@@ -143,15 +166,51 @@ export function DbExplorer({ className }: DbExplorerProps) {
                   if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') runQuery()
                 }}
               />
-              <button
-                onClick={() => runQuery()}
-                disabled={loading || !query.trim()}
-                className="px-3 py-2 bg-forge-accent text-white rounded-lg hover:bg-forge-accent-hover disabled:opacity-50 transition-colors self-end"
-              >
-                {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Play className="w-4 h-4" />}
-              </button>
+              <div className="flex flex-col gap-1 self-end">
+                <button
+                  onClick={() => runQuery()}
+                  disabled={loading || !query.trim()}
+                  className="px-3 py-2 bg-forge-accent text-white rounded-lg hover:bg-forge-accent-hover disabled:opacity-50 transition-colors"
+                  aria-label="Run query"
+                >
+                  {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Play className="w-4 h-4" />}
+                </button>
+                {selectedTable && schema && (
+                  <button
+                    onClick={() => setShowSchema(!showSchema)}
+                    className={cn(
+                      'px-3 py-2 rounded-lg transition-colors',
+                      showSchema ? 'bg-forge-accent/20 text-forge-accent' : 'bg-forge-surface text-forge-text-dim hover:text-forge-text',
+                    )}
+                    aria-label="Toggle schema view"
+                    title="Show column types"
+                  >
+                    <Columns className="w-4 h-4" />
+                  </button>
+                )}
+              </div>
             </div>
           </div>
+
+          {/* Schema panel */}
+          {showSchema && schema && schema.length > 0 && (
+            <div className="border-b border-forge-border bg-forge-panel/50 p-2 max-h-40 overflow-y-auto">
+              <p className="text-[10px] text-forge-text-dim/70 uppercase tracking-wider mb-1.5">
+                Schema: {selectedTable?.replace('forge_', '')}
+              </p>
+              <div className="grid grid-cols-[1fr_auto_auto] gap-x-3 gap-y-0.5">
+                {schema.map(col => (
+                  <div key={col.column_name} className="contents text-xs">
+                    <span className="font-mono text-forge-text">{col.column_name}</span>
+                    <span className="text-forge-accent font-mono">{col.data_type}</span>
+                    <span className="text-forge-text-dim/50">
+                      {col.is_nullable === 'YES' ? 'null' : 'not null'}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
 
           {/* Error */}
           {error && (
@@ -207,6 +266,7 @@ export function DbExplorer({ className }: DbExplorerProps) {
           {results && results.length > 0 && (
             <div className="px-3 py-1 border-t border-forge-border bg-forge-panel text-[10px] text-forge-text-dim">
               {results.length} rows
+              {schema && <span className="ml-2">{schema.length} columns</span>}
             </div>
           )}
         </div>

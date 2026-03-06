@@ -23,6 +23,7 @@ import { VersionHistory, type Snapshot } from './version-history'
 import { DiffViewer } from './diff-viewer'
 import { NotificationCenter, type Notification } from './notification-center'
 import { FindReplacePanel } from './find-replace-panel'
+import { PanelErrorBoundary } from './panel-error-boundary'
 import { SettingsDialog } from './settings-dialog'
 import { AuditPanel, type AuditPlan } from './audit-panel'
 import { DbExplorer } from './db-explorer'
@@ -767,20 +768,22 @@ export function Workspace({
   ], [handleSave, handleDownload, activeFile, onSwitchProject]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const chatPanel = (
-    <ChatPanel
-      projectName={projectName}
-      projectId={projectId}
-      files={files}
-      onFileChange={onFileChange}
-      onFileDelete={onFileDelete}
-      onBulkFileUpdate={onBulkFileUpdate}
-      githubToken={githubToken}
-      onRegisterSend={handleRegisterSend}
-      pendingMessage={pendingChatMessage}
-      onPendingMessageSent={() => setPendingChatMessage(null)}
-      activeFile={activeFile}
-      onLoadingChange={handleAiLoadingChange}
-    />
+    <PanelErrorBoundary name="Chat">
+      <ChatPanel
+        projectName={projectName}
+        projectId={projectId}
+        files={files}
+        onFileChange={onFileChange}
+        onFileDelete={onFileDelete}
+        onBulkFileUpdate={onBulkFileUpdate}
+        githubToken={githubToken}
+        onRegisterSend={handleRegisterSend}
+        pendingMessage={pendingChatMessage}
+        onPendingMessageSent={() => setPendingChatMessage(null)}
+        activeFile={activeFile}
+        onLoadingChange={handleAiLoadingChange}
+      />
+    </PanelErrorBoundary>
   )
 
   const fileTreePanel = (
@@ -869,34 +872,44 @@ export function Workspace({
       </div>
       <div className="flex-1 overflow-hidden">
         {rightTab === 'code' ? (
-          <CodeEditor
-            path={activeFile}
-            content={activeFile ? files[activeFile] || '' : ''}
-            onSave={(path, content) => onFileChange(path, content)}
-            onChange={(content) => activeFile && onFileChange(activeFile, content)}
-          />
+          <PanelErrorBoundary name="Code Editor">
+            <CodeEditor
+              path={activeFile}
+              content={activeFile ? files[activeFile] || '' : ''}
+              onSave={(path, content) => onFileChange(path, content)}
+              onChange={(content) => activeFile && onFileChange(activeFile, content)}
+            />
+          </PanelErrorBoundary>
         ) : rightTab === 'split' ? (
           <PanelGroup direction="horizontal">
             <Panel defaultSize={50} minSize={30}>
-              <CodeEditor
-                path={activeFile}
-                content={activeFile ? files[activeFile] || '' : ''}
-                onSave={(path, content) => onFileChange(path, content)}
-                onChange={(content) => activeFile && onFileChange(activeFile, content)}
-              />
+              <PanelErrorBoundary name="Code Editor">
+                <CodeEditor
+                  path={activeFile}
+                  content={activeFile ? files[activeFile] || '' : ''}
+                  onSave={(path, content) => onFileChange(path, content)}
+                  onChange={(content) => activeFile && onFileChange(activeFile, content)}
+                />
+              </PanelErrorBoundary>
             </Panel>
             <PanelResizeHandle />
             <Panel defaultSize={50} minSize={30}>
-              <PreviewPanel files={files} projectId={projectId} onFixErrors={(msg) => setPendingChatMessage(msg)} onCapturePreview={(msg) => setPendingChatMessage(msg)} onPreviewReady={handlePreviewReady} wcPreviewUrl={wc.previewUrl} />
+              <PanelErrorBoundary name="Preview">
+                <PreviewPanel files={files} projectId={projectId} onFixErrors={(msg) => setPendingChatMessage(msg)} onCapturePreview={(msg) => setPendingChatMessage(msg)} onPreviewReady={handlePreviewReady} wcPreviewUrl={wc.previewUrl} />
+              </PanelErrorBoundary>
             </Panel>
           </PanelGroup>
         ) : rightTab === 'terminal' ? (
-          <TerminalPanel
-            getShellProcess={wc.getShellProcess}
-            wcReady={wc.status === 'ready'}
-          />
+          <PanelErrorBoundary name="Terminal">
+            <TerminalPanel
+              getShellProcess={wc.getShellProcess}
+              wcReady={wc.status === 'ready'}
+            />
+          </PanelErrorBoundary>
         ) : (
-          <PreviewPanel files={files} projectId={projectId} onFixErrors={(msg) => setPendingChatMessage(msg)} onCapturePreview={(msg) => setPendingChatMessage(msg)} onPreviewReady={handlePreviewReady} wcPreviewUrl={wc.previewUrl} />
+          <PanelErrorBoundary name="Preview">
+            <PreviewPanel files={files} projectId={projectId} onFixErrors={(msg) => setPendingChatMessage(msg)} onCapturePreview={(msg) => setPendingChatMessage(msg)} onPreviewReady={handlePreviewReady} wcPreviewUrl={wc.previewUrl} />
+          </PanelErrorBoundary>
         )}
       </div>
     </div>
@@ -976,9 +989,15 @@ export function Workspace({
             }}
           >
             <ActivityBar activeTab={sidebarTab} onTabChange={(tab) => {
-              setSidebarTab(tab)
-              // Clicking a tab pins the sidebar open
-              if (tab) setSidebarPinned(true)
+              if (tab === sidebarTab) {
+                // Clicking active tab: close sidebar
+                setSidebarTab(null)
+                setSidebarPinned(false)
+                setSidebarHovered(false)
+              } else {
+                // Clicking different tab: show content, don't auto-pin
+                setSidebarTab(tab)
+              }
             }} />
 
             {sidebarTab && (

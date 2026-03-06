@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useRef, useEffect, useMemo, useCallback } from 'react'
+import { useState, useRef, useEffect, useMemo, useCallback, memo } from 'react'
 import {
   ChevronRight, ChevronDown, FolderOpen, Folder,
   MoreHorizontal, Trash2, Edit3, Copy, FileText,
@@ -85,7 +85,7 @@ function filterNodes(nodes: FileNode[], query: string): FileNode[] {
 }
 
 // ─── FileTree ──────────────────────────────────────────────────
-export function FileTree({
+export const FileTree = memo(function FileTree({
   files, activeFile, onFileSelect, onFileDelete, onFileRename, onFileCreate, fileContents, modifiedFiles,
   aiEditingFiles, fileDiffs,
 }: FileTreeProps) {
@@ -134,7 +134,7 @@ export function FileTree({
   }, [newFilePath, onFileCreate])
 
   return (
-    <div className="h-full bg-forge-panel border-r border-forge-border flex flex-col" data-file-tree>
+    <div className="h-full bg-forge-panel border-r border-forge-border flex flex-col" data-file-tree role="tree" aria-label="File explorer">
       {/* Header */}
       <div className="flex items-center justify-between px-3 py-2.5 sm:py-2 border-b border-forge-border shrink-0">
         <span className="text-xs sm:text-[10px] uppercase tracking-wider text-forge-text-dim font-semibold">
@@ -266,7 +266,7 @@ export function FileTree({
       </div>
     </div>
   )
-}
+})
 
 // ─── Tree node list ────────────────────────────────────────────
 function TreeNodes({

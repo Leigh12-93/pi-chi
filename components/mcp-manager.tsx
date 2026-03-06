@@ -1,13 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
-import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
-import { Badge } from '@/components/ui/badge'
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
-import { AlertCircle, CheckCircle2, Plug, Plus, Trash2, ExternalLink } from 'lucide-react'
+import { AlertCircle, CheckCircle2, Plug, Plus, Trash2, ExternalLink, X } from 'lucide-react'
 import { MCP_SERVER_TEMPLATES } from '@/lib/mcp-registry'
 import { toast } from 'sonner'
 
@@ -62,7 +56,7 @@ export function MCPManager({ isOpen, onClose }: MCPManagerProps) {
       })
       const data = await res.json()
       if (!res.ok) throw new Error(data.error)
-      
+
       toast.success(`Connected to ${config.name}`)
       await loadServers()
     } catch (err) {
@@ -81,7 +75,7 @@ export function MCPManager({ isOpen, onClose }: MCPManagerProps) {
         body: JSON.stringify({ serverId, action: 'disconnect' }),
       })
       if (!res.ok) throw new Error('Disconnect failed')
-      
+
       toast.success('Server disconnected')
       await loadServers()
     } catch (err) {
@@ -97,7 +91,7 @@ export function MCPManager({ isOpen, onClose }: MCPManagerProps) {
         body: JSON.stringify({ serverId }),
       })
       if (!res.ok) throw new Error('Remove failed')
-      
+
       toast.success('Server removed')
       await loadServers()
     } catch (err) {
@@ -110,12 +104,12 @@ export function MCPManager({ isOpen, onClose }: MCPManagerProps) {
       toast.error('Please enter both URL and name')
       return
     }
-    
+
     await connectServer({
       name: customName.trim(),
       url: customUrl.trim(),
     })
-    
+
     setCustomUrl('')
     setCustomName('')
   }
@@ -123,7 +117,7 @@ export function MCPManager({ isOpen, onClose }: MCPManagerProps) {
   const connectPresetServer = async (preset: typeof MCP_SERVER_TEMPLATES[0]) => {
     const token = preset.authType !== 'none' ? prompt(`Enter ${preset.name} API key or token:`) ?? undefined : undefined
     if (preset.authType !== 'none' && !token) return
-    
+
     await connectServer({
       name: preset.name,
       url: preset.urlPlaceholder,
@@ -131,90 +125,95 @@ export function MCPManager({ isOpen, onClose }: MCPManagerProps) {
     })
   }
 
-  return (
-    <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="max-w-4xl max-h-[80vh] overflow-y-auto">
-        <DialogHeader>
-          <DialogTitle className="flex items-center gap-2">
-            <Plug className="w-5 h-5" />
-            MCP Server Manager
-          </DialogTitle>
-        </DialogHeader>
+  if (!isOpen) return null
 
-        <div className="grid gap-6">
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm" onClick={onClose}>
+      <div
+        className="w-full max-w-4xl max-h-[80vh] bg-forge-bg border border-forge-border rounded-xl shadow-2xl overflow-hidden flex flex-col"
+        onClick={e => e.stopPropagation()}
+      >
+        {/* Header */}
+        <div className="flex items-center justify-between px-4 py-3 border-b border-forge-border shrink-0">
+          <div className="flex items-center gap-2">
+            <Plug className="w-4 h-4 text-forge-accent" />
+            <h2 className="text-sm font-medium text-forge-text">MCP Server Manager</h2>
+          </div>
+          <button onClick={onClose} className="p-1 text-forge-text-dim hover:text-forge-text rounded transition-colors">
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+
+        {/* Scrollable content */}
+        <div className="flex-1 overflow-y-auto p-4 space-y-6">
           {/* Connected Servers */}
           <div>
-            <h3 className="text-lg font-semibold mb-3">Connected Servers</h3>
+            <p className="text-[10px] uppercase tracking-wider text-forge-text-dim font-medium mb-3">Connected Servers</p>
             {servers.length === 0 ? (
-              <div className="text-center text-muted-foreground py-8">
-                <Plug className="w-12 h-12 mx-auto mb-4 opacity-50" />
-                <p>No MCP servers connected</p>
-                <p className="text-sm">Connect to external services below</p>
+              <div className="text-center py-8">
+                <Plug className="w-10 h-10 mx-auto mb-3 text-forge-text-dim/30" />
+                <p className="text-xs text-forge-text-dim">No MCP servers connected</p>
+                <p className="text-[10px] text-forge-text-dim/70 mt-1">Connect to external services below</p>
               </div>
             ) : (
               <div className="space-y-3">
                 {servers.map((server) => (
-                  <Card key={server.id} className="relative">
-                    <CardHeader className="pb-3">
-                      <div className="flex items-center justify-between">
-                        <CardTitle className="text-base">{server.name}</CardTitle>
-                        <div className="flex items-center gap-2">
-                          {server.status === 'connected' && (
-                            <Badge variant="secondary" className="bg-green-100 text-green-700">
-                              <CheckCircle2 className="w-3 h-3 mr-1" />
-                              Connected
-                            </Badge>
-                          )}
-                          {server.status === 'error' && (
-                            <Badge variant="destructive">
-                              <AlertCircle className="w-3 h-3 mr-1" />
-                              Error
-                            </Badge>
-                          )}
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            onClick={() => disconnectServer(server.id)}
-                          >
-                            Disconnect
-                          </Button>
-                          <Button
-                            size="sm"
-                            variant="destructive"
-                            onClick={() => removeServer(server.id)}
-                          >
-                            <Trash2 className="w-3 h-3" />
-                          </Button>
-                        </div>
+                  <div key={server.id} className="p-4 rounded-xl bg-forge-surface border border-forge-border">
+                    {/* Server header */}
+                    <div className="flex items-center justify-between mb-1">
+                      <span className="text-xs font-medium text-forge-text">{server.name}</span>
+                      <div className="flex items-center gap-2">
+                        {server.status === 'connected' && (
+                          <span className="inline-flex items-center gap-1 px-2 py-0.5 text-[10px] rounded-full bg-green-500/10 text-green-400">
+                            <CheckCircle2 className="w-3 h-3" />
+                            Connected
+                          </span>
+                        )}
+                        {server.status === 'error' && (
+                          <span className="inline-flex items-center gap-1 px-2 py-0.5 text-[10px] rounded-full bg-red-500/10 text-red-400">
+                            <AlertCircle className="w-3 h-3" />
+                            Error
+                          </span>
+                        )}
+                        <button
+                          onClick={() => disconnectServer(server.id)}
+                          className="px-2.5 py-1 text-[10px] text-forge-text-dim border border-forge-border rounded-lg hover:text-forge-text hover:bg-forge-surface/80 transition-colors"
+                        >
+                          Disconnect
+                        </button>
+                        <button
+                          onClick={() => removeServer(server.id)}
+                          className="p-1 text-red-400 hover:text-red-300 hover:bg-red-500/10 rounded-lg transition-colors"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
                       </div>
-                      <CardDescription className="text-xs font-mono truncate">
-                        {server.url}
-                      </CardDescription>
-                    </CardHeader>
+                    </div>
+                    <p className="text-[10px] font-mono text-forge-text-dim truncate">{server.url}</p>
+
+                    {/* Tool badges */}
                     {server.tools && server.tools.length > 0 && (
-                      <CardContent className="pt-0">
-                        <div className="flex flex-wrap gap-1">
-                          {server.tools.slice(0, 5).map((tool) => (
-                            <Badge key={tool} variant="outline" className="text-xs">
-                              {tool}
-                            </Badge>
-                          ))}
-                          {server.tools.length > 5 && (
-                            <Badge variant="outline" className="text-xs">
-                              +{server.tools.length - 5} more
-                            </Badge>
-                          )}
-                        </div>
-                      </CardContent>
+                      <div className="flex flex-wrap gap-1 mt-3">
+                        {server.tools.slice(0, 5).map((tool) => (
+                          <span key={tool} className="px-2 py-0.5 text-[10px] rounded-full bg-forge-accent/10 text-forge-accent border border-forge-accent/20">
+                            {tool}
+                          </span>
+                        ))}
+                        {server.tools.length > 5 && (
+                          <span className="px-2 py-0.5 text-[10px] rounded-full bg-forge-accent/10 text-forge-accent border border-forge-accent/20">
+                            +{server.tools.length - 5} more
+                          </span>
+                        )}
+                      </div>
                     )}
+
+                    {/* Error message */}
                     {server.error && (
-                      <CardContent className="pt-0">
-                        <div className="text-sm text-red-600 bg-red-50 p-2 rounded">
-                          {server.error}
-                        </div>
-                      </CardContent>
+                      <div className="mt-3 px-3 py-2 text-xs text-red-400 bg-red-500/10 border border-red-500/20 rounded-lg">
+                        {server.error}
+                      </div>
                     )}
-                  </Card>
+                  </div>
                 ))}
               </div>
             )}
@@ -222,87 +221,85 @@ export function MCPManager({ isOpen, onClose }: MCPManagerProps) {
 
           {/* Custom Server Connection */}
           <div>
-            <h3 className="text-lg font-semibold mb-3">Connect Custom Server</h3>
-            <Card>
-              <CardContent className="pt-6">
-                <div className="grid gap-4">
-                  <div className="grid grid-cols-2 gap-4">
-                    <div className="space-y-2">
-                      <Label htmlFor="custom-name">Server Name</Label>
-                      <Input
-                        id="custom-name"
-                        placeholder="My MCP Server"
-                        value={customName}
-                        onChange={(e) => setCustomName(e.target.value)}
-                      />
-                    </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="custom-url">Server URL</Label>
-                      <Input
-                        id="custom-url"
-                        placeholder="https://api.example.com/mcp"
-                        value={customUrl}
-                        onChange={(e) => setCustomUrl(e.target.value)}
-                      />
-                    </div>
-                  </div>
-                  <Button onClick={connectCustomServer} disabled={isLoading}>
-                    <Plus className="w-4 h-4 mr-2" />
-                    Connect Server
-                  </Button>
+            <p className="text-[10px] uppercase tracking-wider text-forge-text-dim font-medium mb-3">Connect Custom Server</p>
+            <div className="p-4 rounded-xl bg-forge-surface border border-forge-border space-y-4">
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-1.5">
+                  <label htmlFor="custom-name" className="text-xs text-forge-text-dim">Server Name</label>
+                  <input
+                    id="custom-name"
+                    placeholder="My MCP Server"
+                    value={customName}
+                    onChange={(e) => setCustomName(e.target.value)}
+                    className="w-full px-3 py-2 text-xs bg-forge-bg border border-forge-border rounded-lg text-forge-text placeholder:text-forge-text-dim/50 focus:outline-none focus:border-forge-accent"
+                  />
                 </div>
-              </CardContent>
-            </Card>
+                <div className="space-y-1.5">
+                  <label htmlFor="custom-url" className="text-xs text-forge-text-dim">Server URL</label>
+                  <input
+                    id="custom-url"
+                    placeholder="https://api.example.com/mcp"
+                    value={customUrl}
+                    onChange={(e) => setCustomUrl(e.target.value)}
+                    className="w-full px-3 py-2 text-xs bg-forge-bg border border-forge-border rounded-lg text-forge-text placeholder:text-forge-text-dim/50 focus:outline-none focus:border-forge-accent"
+                  />
+                </div>
+              </div>
+              <button
+                onClick={connectCustomServer}
+                disabled={isLoading}
+                className="inline-flex items-center gap-1.5 px-4 py-2 text-xs font-medium bg-forge-accent text-white rounded-lg hover:bg-forge-accent-hover disabled:opacity-50 transition-colors"
+              >
+                <Plus className="w-3.5 h-3.5" />
+                Connect Server
+              </button>
+            </div>
           </div>
 
           {/* Preset Servers */}
           <div>
-            <div>
-              <h3 className="text-lg font-semibold mb-3">Popular MCP Servers</h3>
-              <div className="grid gap-3 sm:grid-cols-2">
-                {MCP_SERVER_TEMPLATES.map((preset) => (
-                  <Card key={preset.name} className="cursor-pointer hover:bg-muted/50 transition-colors">
-                    <CardHeader className="pb-2">
-                      <div className="flex items-center justify-between">
-                        <CardTitle className="text-sm font-medium">{preset.name}</CardTitle>
-                        <Button
-                          size="sm"
-                          variant="ghost"
-                          onClick={() => connectPresetServer(preset)}
-                          disabled={isLoading}
-                        >
-                          <Plus className="w-3 h-3" />
-                        </Button>
-                      </div>
-                      <CardDescription className="text-xs">{preset.description}</CardDescription>
-                    </CardHeader>
-                    <CardContent className="pt-0">
-                      <div className="flex flex-wrap gap-1">
-                        {preset.tags.map((tag) => (
-                          <Badge key={tag} variant="secondary" className="text-xs">
-                            {tag}
-                          </Badge>
-                        ))}
-                      </div>
-                      {preset.docsUrl && (
-                        <a
-                          href={preset.docsUrl}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="inline-flex items-center text-xs text-blue-600 hover:underline mt-2"
-                        >
-                          <ExternalLink className="w-3 h-3 mr-1" />
-                          Documentation
-                        </a>
-                      )}
-                    </CardContent>
-                  </Card>
-                ))}
-              </div>
+            <p className="text-[10px] uppercase tracking-wider text-forge-text-dim font-medium mb-3">Popular MCP Servers</p>
+            <div className="grid gap-3 sm:grid-cols-2">
+              {MCP_SERVER_TEMPLATES.map((preset) => (
+                <div
+                  key={preset.name}
+                  className="p-4 rounded-xl bg-forge-surface border border-forge-border hover:border-forge-accent/30 transition-colors"
+                >
+                  <div className="flex items-center justify-between mb-1">
+                    <span className="text-xs font-medium text-forge-text">{preset.name}</span>
+                    <button
+                      onClick={() => connectPresetServer(preset)}
+                      disabled={isLoading}
+                      className="p-1.5 text-forge-text-dim hover:text-forge-accent hover:bg-forge-accent/10 rounded-lg transition-colors disabled:opacity-50"
+                    >
+                      <Plus className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+                  <p className="text-[10px] text-forge-text-dim mb-3">{preset.description}</p>
+                  <div className="flex flex-wrap gap-1">
+                    {preset.tags.map((tag) => (
+                      <span key={tag} className="px-2 py-0.5 text-[10px] rounded-full bg-forge-accent/10 text-forge-accent">
+                        {tag}
+                      </span>
+                    ))}
+                  </div>
+                  {preset.docsUrl && (
+                    <a
+                      href={preset.docsUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex items-center gap-1 text-[10px] text-forge-accent hover:underline mt-2"
+                    >
+                      <ExternalLink className="w-3 h-3" />
+                      Documentation
+                    </a>
+                  )}
+                </div>
+              ))}
             </div>
           </div>
         </div>
-      </DialogContent>
-    </Dialog>
+      </div>
+    </div>
   )
 }

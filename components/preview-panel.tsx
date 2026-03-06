@@ -1,6 +1,6 @@
 'use client'
 
-import { useMemo, useState, useCallback, useRef, useEffect } from 'react'
+import { useMemo, useState, useCallback, useRef, useEffect, memo } from 'react'
 import {
   RefreshCw, Monitor, Smartphone, Tablet, AlertTriangle,
   Square, Loader2, Zap, ExternalLink, Maximize2, Minimize2,
@@ -268,7 +268,7 @@ function normalizeError(msg: string): string {
     .slice(0, 200)                // cap length
 }
 
-export function PreviewPanel({ files, projectId, onFixErrors, onCapturePreview, onPreviewReady, wcPreviewUrl }: PreviewPanelProps) {
+export const PreviewPanel = memo(function PreviewPanel({ files, projectId, onFixErrors, onCapturePreview, onPreviewReady, wcPreviewUrl }: PreviewPanelProps) {
   const [viewMode, setViewMode] = useState<ViewMode>('desktop')
   const [refreshKey, setRefreshKey] = useState(0)
   const [previewError, setPreviewError] = useState<string | null>(null)
@@ -304,6 +304,9 @@ export function PreviewPanel({ files, projectId, onFixErrors, onCapturePreview, 
   const lastAutoFeedRef = useRef(0) // global cooldown for error auto-feed
   const consoleLogsRef = useRef(consoleLogs) // stable ref for message listener
   const onFixErrorsRef = useRef(onFixErrors) // stable ref to avoid stale closure in setTimeout
+
+  // Memoized file hash — avoids O(n) hashing on every render/effect
+  const filesHash = useMemo(() => hashFileMapDeep(files), [files])
 
   // Keep refs in sync without causing re-renders in message listener
   useEffect(() => { consoleLogsRef.current = consoleLogs }, [consoleLogs])
@@ -667,8 +670,7 @@ export function PreviewPanel({ files, projectId, onFixErrors, onCapturePreview, 
   useEffect(() => {
     if (sandboxStatus !== 'running' || !projectId) return
 
-    const currentHash = hashFileMapDeep(files)
-    if (currentHash === lastSyncedFilesRef.current) return
+    if (filesHash === lastSyncedFilesRef.current) return
 
     if (syncTimeoutRef.current) clearTimeout(syncTimeoutRef.current)
 
@@ -681,7 +683,7 @@ export function PreviewPanel({ files, projectId, onFixErrors, onCapturePreview, 
           body: JSON.stringify({ projectId, files }),
         })
         const data = await res.json()
-        lastSyncedFilesRef.current = currentHash
+        lastSyncedFilesRef.current = filesHash
         // Update sandbox URL if sync returned a new one (e.g. from re-init)
         if (data.demoUrl && data.demoUrl !== sandboxUrlRef.current) {
           setSandboxUrl(data.demoUrl)
@@ -872,12 +874,11 @@ export function PreviewPanel({ files, projectId, onFixErrors, onCapturePreview, 
   // Reset auto-feed attempts when files change (user or AI made fixes)
   const prevFileHashRef = useRef<string>('')
   useEffect(() => {
-    const h = hashFileMapDeep(files)
-    if (prevFileHashRef.current && h !== prevFileHashRef.current) {
+    if (prevFileHashRef.current && filesHash !== prevFileHashRef.current) {
       // Files changed — re-scan for missing imports
       missingImportsFedRef.current = false
     }
-    prevFileHashRef.current = h
+    prevFileHashRef.current = filesHash
 
     // Scan for missing imports (shown in console, not auto-fed to AI)
     const missing = detectMissingImports(files)
@@ -1557,8 +1558,8 @@ export function PreviewPanel({ files, projectId, onFixErrors, onCapturePreview, 
               <div className="text-forge-text-dim/50 text-center py-4">No logs yet</div>
             ) : (
               <>
-                {consoleLogs.map((entry, i) => (
-                  <div key={i} className={cn(
+                {consoleLogs.slice(-50).map((entry, i) => (
+                  <div key={consoleLogs.length - 50 + i} className={cn(
                     'flex items-start py-0.5 px-1 rounded',
                     entry.level === 'error' ? 'text-red-500 dark:text-red-400 bg-red-500/5'
                       : entry.level === 'warn' ? 'text-amber-600 dark:text-yellow-400 bg-amber-500/5'
@@ -1588,4 +1589,4 @@ export function PreviewPanel({ files, projectId, onFixErrors, onCapturePreview, 
   )
 
   return content
-}
+})

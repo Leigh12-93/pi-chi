@@ -1,7 +1,13 @@
 'use client'
 
-import { useRef, useCallback, useEffect, useState } from 'react'
-import Editor, { type OnMount, type BeforeMount } from '@monaco-editor/react'
+import { useRef, useCallback, useEffect, useState, memo } from 'react'
+import dynamic from 'next/dynamic'
+import { type OnMount, type BeforeMount } from '@monaco-editor/react'
+
+const Editor = dynamic(() => import('@monaco-editor/react').then(m => m.default), {
+  ssr: false,
+  loading: () => <div className="flex-1 bg-forge-bg animate-pulse" />,
+})
 import { getLanguageFromPath, cn } from '@/lib/utils'
 import { setupMonacoTypes } from '@/lib/monaco-types'
 import { useTheme } from '@/components/theme-provider'
@@ -15,7 +21,7 @@ interface CodeEditorProps {
   readOnly?: boolean
 }
 
-export function CodeEditor({ path, content, onSave, onChange, readOnly }: CodeEditorProps) {
+export const CodeEditor = memo(function CodeEditor({ path, content, onSave, onChange, readOnly }: CodeEditorProps) {
   const editorRef = useRef<Parameters<OnMount>[0] | null>(null)
   const [modified, setModified] = useState(false)
   const { theme } = useTheme()
@@ -172,4 +178,4 @@ export function CodeEditor({ path, content, onSave, onChange, readOnly }: CodeEd
       </div>
     </div>
   )
-}
+})

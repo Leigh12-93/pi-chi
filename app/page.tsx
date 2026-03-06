@@ -36,6 +36,7 @@ export default function ForgePage() {
   const lastSavedHash = useRef<string>('')
   const restoredRef = useRef(false)
   const savingRef = useRef(false)
+  const saveRetriesRef = useRef(0)
   const loadingProjectsRef = useRef(false)
   const [autoSaveError, setAutoSaveError] = useState(false)
   const [projectsLoadError, setProjectsLoadError] = useState(false)
@@ -206,11 +207,41 @@ export default function ForgePage() {
         if (res.ok) {
           lastSavedHash.current = hash
           setAutoSaveError(false)
+          saveRetriesRef.current = 0
         } else {
-          setAutoSaveError(true)
+          throw new Error(`HTTP ${res.status}`)
         }
       } catch {
+        if (saveRetriesRef.current < 3) {
+          saveRetriesRef.current++
+          // Exponential backoff retry
+          savingRef.current = false
+          autoSaveTimer.current = setTimeout(async () => {
+            savingRef.current = true
+            try {
+              const retryRes = await fetch(`/api/projects/${projectId}`, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ files }),
+              })
+              if (retryRes.ok) {
+                lastSavedHash.current = hash
+                setAutoSaveError(false)
+                saveRetriesRef.current = 0
+              } else {
+                setAutoSaveError(true)
+              }
+            } catch {
+              setAutoSaveError(true)
+            } finally {
+              savingRef.current = false
+            }
+          }, 2000 * saveRetriesRef.current)
+          return
+        }
         setAutoSaveError(true)
+        // Backup to localStorage as safety net
+        try { localStorage.setItem(`forge-unsaved-${projectId}`, JSON.stringify(files)) } catch {}
       } finally {
         savingRef.current = false
       }

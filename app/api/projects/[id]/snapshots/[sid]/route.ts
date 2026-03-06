@@ -58,3 +58,30 @@ export async function PUT(
   const files = (data[0] as any).files
   return NextResponse.json({ files })
 }
+
+/** DELETE /api/projects/[id]/snapshots/[sid] — delete a snapshot */
+export async function DELETE(
+  _req: Request,
+  { params }: { params: Promise<{ id: string; sid: string }> },
+) {
+  const session = await getSession()
+  if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+
+  const { id: projectId, sid: snapshotId } = await params
+
+  // Verify project ownership
+  const check = await supabaseFetch(
+    `/forge_projects?id=eq.${projectId}&github_username=eq.${encodeURIComponent(session.githubUsername)}&select=id`,
+  )
+  if (!check.ok || !Array.isArray(check.data) || check.data.length === 0) {
+    return NextResponse.json({ error: 'Not found' }, { status: 404 })
+  }
+
+  const { ok } = await supabaseFetch(
+    `/forge_project_snapshots?id=eq.${snapshotId}&project_id=eq.${projectId}`,
+    { method: 'DELETE' },
+  )
+
+  if (!ok) return NextResponse.json({ error: 'Delete failed' }, { status: 500 })
+  return NextResponse.json({ ok: true })
+}

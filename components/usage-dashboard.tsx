@@ -18,10 +18,8 @@ export function UsageDashboard({ projects }: UsageDashboardProps) {
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    // Compute stats from projects
     const total = projects.length
     const now = new Date()
-    const thirtyDaysAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000)
 
     // Activity by day (last 7 days)
     const days: Record<string, number> = {}
@@ -29,19 +27,47 @@ export function UsageDashboard({ projects }: UsageDashboardProps) {
       const date = new Date(now.getTime() - i * 24 * 60 * 60 * 1000)
       days[date.toISOString().split('T')[0]] = 0
     }
-
     for (const p of projects) {
       const date = new Date(p.updated_at).toISOString().split('T')[0]
       if (date in days) days[date]++
     }
 
-    setStats({
-      totalProjects: total,
-      totalMessages: 0, // Would need separate query
-      totalDeployments: 0, // Would need separate query
-      recentActivity: Object.entries(days).map(([date, count]) => ({ date, count })),
-    })
-    setLoading(false)
+    // Fetch real message + deployment counts
+    const fetchCounts = async () => {
+      let messages = 0
+      let deployments = 0
+
+      try {
+        const res = await fetch('/api/db/query', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            query: `SELECT
+              (SELECT count(*) FROM forge_chat_messages WHERE role = 'user') as message_count,
+              (SELECT count(*) FROM forge_deployments) as deployment_count`,
+          }),
+        })
+        if (res.ok) {
+          const data = await res.json()
+          if (Array.isArray(data) && data.length > 0) {
+            messages = parseInt(data[0].message_count) || 0
+            deployments = parseInt(data[0].deployment_count) || 0
+          }
+        }
+      } catch {
+        // Fall back to 0 if query fails
+      }
+
+      setStats({
+        totalProjects: total,
+        totalMessages: messages,
+        totalDeployments: deployments,
+        recentActivity: Object.entries(days).map(([date, count]) => ({ date, count })),
+      })
+      setLoading(false)
+    }
+
+    fetchCounts()
   }, [projects])
 
   if (loading) {
@@ -54,6 +80,8 @@ export function UsageDashboard({ projects }: UsageDashboardProps) {
 
   const cards = [
     { label: 'Projects', value: stats.totalProjects, icon: FolderGit2, color: 'text-blue-400' },
+    { label: 'Messages', value: stats.totalMessages, icon: MessageSquare, color: 'text-purple-400' },
+    { label: 'Deploys', value: stats.totalDeployments, icon: Rocket, color: 'text-orange-400' },
     { label: 'Recent', value: projects.filter(p => {
       const d = new Date(p.updated_at)
       return d.getTime() > Date.now() - 7 * 24 * 60 * 60 * 1000

@@ -288,11 +288,11 @@ export function SettingsDialog({ open, onClose, defaultTab }: SettingsDialogProp
   ]
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm" onClick={onClose}>
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm" onClick={onClose} role="dialog" aria-modal="true" aria-labelledby="settings-dialog-title">
       <div className="w-full max-w-lg bg-forge-bg border border-forge-border rounded-xl shadow-2xl overflow-hidden" onClick={e => e.stopPropagation()}>
         {/* Header */}
         <div className="flex items-center justify-between px-4 py-3 border-b border-forge-border">
-          <h2 className="text-sm font-medium text-forge-text">Settings</h2>
+          <h2 id="settings-dialog-title" className="text-sm font-medium text-forge-text">Settings</h2>
           <button onClick={onClose} className="p-1 text-forge-text-dim hover:text-forge-text rounded transition-colors">
             <X className="w-4 h-4" />
           </button>

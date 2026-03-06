@@ -215,12 +215,14 @@ export function useWebcontainer({ files, enabled = true, onTerminalOutput }: Use
     })
   }, [])
 
-  // Cleanup on unmount
+  // Cleanup on unmount — kill server process AND tear down WebContainer to prevent memory leaks
   useEffect(() => {
     return () => {
       if (serverProcessRef.current) {
         serverProcessRef.current.kill()
+        serverProcessRef.current = null
       }
+      teardownWebContainer()
     }
   }, [])
 

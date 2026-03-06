@@ -72,10 +72,13 @@ export function ActivityBar({ activeTab, onTabChange }: ActivityBarProps) {
   }
 
   return (
-    <div className="w-11 shrink-0 h-full bg-forge-panel border-r border-forge-border flex flex-col items-center pt-2 gap-0.5">
+    <div className="w-11 shrink-0 h-full bg-forge-panel border-r border-forge-border flex flex-col items-center pt-2 gap-0.5" role="tablist" aria-label="Sidebar panels" aria-orientation="vertical">
       {TABS.map(tab => (
         <button
           key={tab.id}
+          role="tab"
+          aria-selected={activeTab === tab.id}
+          aria-label={tab.label}
           onClick={() => handleClick(tab.id)}
           title={tab.label}
           className={cn(

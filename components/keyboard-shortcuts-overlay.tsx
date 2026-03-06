@@ -78,7 +78,7 @@ export function KeyboardShortcutsOverlay({ open, onClose }: KeyboardShortcutsOve
   if (!open) return null
 
   return (
-    <div className="fixed inset-0 z-[100] flex items-center justify-center" onClick={onClose} onKeyDown={handleKeyDown}>
+    <div className="fixed inset-0 z-[100] flex items-center justify-center" onClick={onClose} onKeyDown={handleKeyDown} role="dialog" aria-modal="true" aria-label="Keyboard shortcuts">
       <div className="absolute inset-0 bg-forge-overlay backdrop-blur-md animate-fade-in" />
       <div
         className="relative w-full max-w-md mx-4 bg-forge-bg rounded-2xl shadow-2xl border border-forge-border overflow-hidden animate-scale-in"

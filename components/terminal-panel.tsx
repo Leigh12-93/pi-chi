@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useRef, useState, useCallback } from 'react'
+import { useEffect, useRef, useState, useCallback, memo } from 'react'
 import { Terminal as TerminalIcon, X, Maximize2, Minimize2 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import '@xterm/xterm/css/xterm.css'
@@ -11,7 +11,7 @@ interface TerminalPanelProps {
   className?: string
 }
 
-export function TerminalPanel({ getShellProcess, wcReady, className }: TerminalPanelProps) {
+export const TerminalPanel = memo(function TerminalPanel({ getShellProcess, wcReady, className }: TerminalPanelProps) {
   const terminalRef = useRef<HTMLDivElement>(null)
   const xtermRef = useRef<any>(null)
   const fitAddonRef = useRef<any>(null)
@@ -156,4 +156,4 @@ export function TerminalPanel({ getShellProcess, wcReady, className }: TerminalP
       <div ref={terminalRef} className="flex-1 p-1" />
     </div>
   )
-}
+})
