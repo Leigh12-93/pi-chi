@@ -11,14 +11,14 @@
   --color-forge-panel: #f1f3f4;
   --color-forge-border: #e1e5e9;
   --color-forge-border-bright: #d1d5db;
-  --color-forge-accent: #6366f1;
-  --color-forge-accent-hover: #4f46e5;
+  --color-forge-accent: #dc2626;
+  --color-forge-accent-hover: #b91c1c;
   --color-forge-text: #1f2937;
   --color-forge-text-dim: #6b7280;
   --color-forge-success: #059669;
   --color-forge-warning: #d97706;
   --color-forge-danger: #dc2626;
-  --color-forge-ring: rgba(99, 102, 241, 0.15);
+  --color-forge-ring: rgba(220, 38, 38, 0.15);
   --color-forge-overlay: rgba(0, 0, 0, 0.5);
 }
 
@@ -30,20 +30,20 @@ html.dark {
   --color-forge-panel: #141620;
   --color-forge-border: #2a2d3a;
   --color-forge-border-bright: #3a3d4a;
-  --color-forge-accent: #818cf8;
-  --color-forge-accent-hover: #6366f1;
+  --color-forge-accent: #f87171;
+  --color-forge-accent-hover: #dc2626;
   --color-forge-text: #e5e7eb;
   --color-forge-text-dim: #9ca3af;
   --color-forge-success: #34d399;
   --color-forge-warning: #fbbf24;
   --color-forge-danger: #f87171;
-  --color-forge-ring: rgba(129, 140, 248, 0.2);
+  --color-forge-ring: rgba(248, 113, 113, 0.2);
   --color-forge-overlay: rgba(0, 0, 0, 0.65);
 }
 
 html.dark ::-webkit-scrollbar-thumb { background: #3a3d4a; }
 html.dark ::-webkit-scrollbar-thumb:hover { background: #4a4d5a; }
-html.dark ::selection { background: rgba(129, 140, 248, 0.3); }
+html.dark ::selection { background: rgba(248, 113, 113, 0.3); }
 
 /* Scrollbar */
 ::-webkit-scrollbar { width: 6px; height: 6px; }
@@ -66,7 +66,7 @@ html.dark ::selection { background: rgba(129, 140, 248, 0.3); }
 }
 
 /* Selection */
-::selection { background: rgba(99, 102, 241, 0.2); }
+::selection { background: rgba(220, 38, 38, 0.2); }
 
 /* ─── Spring easing variable ──────────────────────────────── */
 :root { --ease-spring: cubic-bezier(0.16, 1, 0.3, 1); }
@@ -89,6 +89,10 @@ button:active:not(:disabled), [role="button"]:active:not(:disabled) {
 /* iOS safe area for bottom tab bar */
 .safe-bottom { padding-bottom: env(safe-area-inset-bottom, 0); }
 
+/* Dynamic viewport height — uses dvh where supported, falls back to --app-height (set by JS) or 100vh */
+.h-screen-dynamic { height: 100vh; height: var(--app-height, 100vh); height: 100dvh; }
+.min-h-screen-dynamic { min-height: 100vh; min-height: var(--app-height, 100vh); min-height: 100dvh; }
+
 /* Panel resize handle */
 [data-panel-group-direction="horizontal"] > [data-resize-handle] {
   width: 2px !important;
@@ -110,9 +114,9 @@ button:active:not(:disabled), [role="button"]:active:not(:disabled) {
 
 /* AI diff decorations in Monaco editor */
 .ai-diff-added-line { background: rgba(16, 185, 129, 0.1); }
-.ai-diff-modified-line { background: rgba(99, 102, 241, 0.08); }
+.ai-diff-modified-line { background: rgba(220, 38, 38, 0.08); }
 .ai-diff-added-glyph { background: rgb(16, 185, 129); width: 3px !important; margin-left: 3px; }
-.ai-diff-modified-glyph { background: rgb(99, 102, 241); width: 3px !important; margin-left: 3px; }
+.ai-diff-modified-glyph { background: rgb(220, 38, 38); width: 3px !important; margin-left: 3px; }
 
 /* Dark toast overrides (sonner) */
 html.dark [data-sonner-toast] {
@@ -203,7 +207,7 @@ html.dark [data-sonner-toast] [data-description] {
   100% { background-position: 200% 0; }
 }
 .animate-shimmer {
-  background: linear-gradient(90deg, transparent 25%, rgba(99,102,241,0.08) 50%, transparent 75%);
+  background: linear-gradient(90deg, transparent 25%, rgba(220,38,38,0.08) 50%, transparent 75%);
   background-size: 200% 100%;
   animation: shimmer 2s infinite;
 }
@@ -315,8 +319,8 @@ html.dark [data-sonner-toast] [data-description] {
 
 /* ─── Breathing glow ──────────────────────────────────────── */
 @keyframes breatheGlow {
-  0%, 100% { box-shadow: 0 0 0 0 rgba(99, 102, 241, 0.2); }
-  50% { box-shadow: 0 0 12px 2px rgba(99, 102, 241, 0.15); }
+  0%, 100% { box-shadow: 0 0 0 0 rgba(220, 38, 38, 0.2); }
+  50% { box-shadow: 0 0 12px 2px rgba(220, 38, 38, 0.15); }
 }
 .animate-breathe { animation: breatheGlow 2.5s ease-in-out infinite; }
 
@@ -326,7 +330,7 @@ html.dark [data-sonner-toast] [data-description] {
   100% { background-position: 200% 0; }
 }
 .animate-gradient-sweep {
-  background: linear-gradient(90deg, transparent 0%, rgba(99, 102, 241, 0.06) 25%, rgba(99, 102, 241, 0.1) 50%, rgba(99, 102, 241, 0.06) 75%, transparent 100%);
+  background: linear-gradient(90deg, transparent 0%, rgba(220, 38, 38, 0.06) 25%, rgba(220, 38, 38, 0.1) 50%, rgba(220, 38, 38, 0.06) 75%, transparent 100%);
   background-size: 200% 100%;
   animation: gradientSweep 2s ease-in-out infinite;
 }
@@ -342,13 +346,11 @@ html.dark [data-sonner-toast] [data-description] {
   background-color: var(--color-forge-surface-hover);
 }
 
-/* ─── Forge Building Animation ─────────────────────────────────── */
-/* Shows a miniature webpage being "painted" — navbar, hero, cards materialize */
+/* ─── Six-Chi Branded Loading Animation ───────────────────────── */
 
-.forge-building-scene {
+.sixchi-loader-scene {
   position: absolute;
   inset: 0;
-  background: var(--color-forge-bg, #f8fafc);
   overflow: hidden;
   z-index: 5;
   display: flex;
@@ -357,281 +359,132 @@ html.dark [data-sonner-toast] [data-description] {
   justify-content: center;
 }
 
-/* Subtle dot pattern background */
-.forge-dots {
+/* Radial gradient mesh background */
+.sixchi-bg-mesh {
   position: absolute;
   inset: 0;
-  background-image: radial-gradient(circle, rgba(99,102,241,0.07) 1px, transparent 1px);
-  background-size: 20px 20px;
+  background: radial-gradient(ellipse at center, #1a1040 0%, #0c0a1a 50%, #050510 100%);
 }
 
-:is(.dark) .forge-dots {
-  background-image: radial-gradient(circle, rgba(129,140,248,0.06) 1px, transparent 1px);
+:is(:not(.dark)) .sixchi-bg-mesh {
+  background: radial-gradient(ellipse at center, #eef0ff 0%, #f0f0f8 50%, #f8f9fb 100%);
 }
 
-/* Ambient glow behind the browser frame */
-.forge-glow {
+/* Subtle animated dot grid */
+.sixchi-dot-grid {
   position: absolute;
+  inset: 0;
+  background-image: radial-gradient(circle, rgba(248,113,113,0.08) 1px, transparent 1px);
+  background-size: 24px 24px;
+  animation: dotGridDrift 20s linear infinite;
+}
+
+:is(:not(.dark)) .sixchi-dot-grid {
+  background-image: radial-gradient(circle, rgba(220,38,38,0.06) 1px, transparent 1px);
+}
+
+@keyframes dotGridDrift {
+  0% { transform: translate(0, 0); }
+  100% { transform: translate(24px, 24px); }
+}
+
+/* Logo container — positions logo + glow + orbits */
+.sixchi-logo-container {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 160px;
+  height: 160px;
+  z-index: 10;
+}
+
+/* Ambient glow behind logo */
+.sixchi-logo-glow {
+  position: absolute;
+  inset: -20px;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(220,38,38,0.25) 0%, rgba(220,38,38,0.1) 40%, transparent 70%);
+  filter: blur(20px);
+  animation: glowBreath 3s ease-in-out infinite;
+}
+
+:is(:not(.dark)) .sixchi-logo-glow {
+  background: radial-gradient(circle, rgba(220,38,38,0.15) 0%, rgba(220,38,38,0.05) 40%, transparent 70%);
+}
+
+@keyframes glowBreath {
+  0%, 100% { opacity: 0.3; transform: scale(0.95); }
+  50% { opacity: 0.7; transform: scale(1.05); }
+}
+
+/* Logo reveal — blur to sharp + scale */
+.sixchi-logo-reveal {
+  animation: logoReveal 0.8s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  opacity: 0;
+  z-index: 2;
+}
+
+.sixchi-logo-ready .sixchi-logo-glow {
+  background: radial-gradient(circle, rgba(16,185,129,0.3) 0%, rgba(16,185,129,0.1) 40%, transparent 70%);
+}
+
+@keyframes logoReveal {
+  0% { opacity: 0; filter: blur(12px); transform: scale(0.85); }
+  100% { opacity: 1; filter: blur(0); transform: scale(1); }
+}
+
+/* Orbital rings */
+.sixchi-orbit {
+  position: absolute;
+  border-radius: 50%;
+  border: 1px dashed rgba(248,113,113,0.2);
+  z-index: 5;
+  pointer-events: none;
+}
+
+:is(:not(.dark)) .sixchi-orbit {
+  border-color: rgba(220,38,38,0.15);
+}
+
+.sixchi-orbit-outer {
+  width: 220px;
+  height: 220px;
   top: 50%;
   left: 50%;
   transform: translate(-50%, -50%);
-  width: 340px;
-  height: 260px;
-  border-radius: 50%;
-  background: radial-gradient(ellipse, rgba(99,102,241,0.1) 0%, rgba(139,92,246,0.05) 40%, transparent 70%);
-  animation: glowPulse 4s ease-in-out infinite;
-  filter: blur(20px);
+  animation: ringOrbit 12s linear infinite;
 }
 
-:is(.dark) .forge-glow {
-  background: radial-gradient(ellipse, rgba(99,102,241,0.15) 0%, rgba(139,92,246,0.08) 40%, transparent 70%);
+.sixchi-orbit-inner {
+  width: 140px;
+  height: 140px;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  animation: ringOrbitReverse 8s linear infinite;
 }
 
-@keyframes glowPulse {
-  0%, 100% { opacity: 0.6; transform: translate(-50%, -50%) scale(0.9); }
-  50% { opacity: 1; transform: translate(-50%, -50%) scale(1.1); }
+@keyframes ringOrbit {
+  0% { transform: translate(-50%, -50%) rotate(0deg); }
+  100% { transform: translate(-50%, -50%) rotate(360deg); }
 }
 
-/* Mini browser frame */
-.forge-browser {
+@keyframes ringOrbitReverse {
+  0% { transform: translate(-50%, -50%) rotate(360deg); }
+  100% { transform: translate(-50%, -50%) rotate(0deg); }
+}
+
+/* Status text below logo */
+.sixchi-status-text {
   position: relative;
-  width: min(80%, 360px);
-  border-radius: 12px;
-  background: white;
-  border: 1px solid #e2e8f0;
-  box-shadow: 0 4px 24px rgba(0,0,0,0.06), 0 1px 3px rgba(0,0,0,0.04);
-  overflow: hidden;
-  animation: browserAppear 0.6s cubic-bezier(0.16, 1, 0.3, 1) forwards;
-  opacity: 0;
-}
-
-:is(.dark) .forge-browser {
-  background: #1e1e2e;
-  border-color: #313244;
-  box-shadow: 0 4px 24px rgba(0,0,0,0.3), 0 1px 3px rgba(0,0,0,0.2);
-}
-
-@keyframes browserAppear {
-  0% { opacity: 0; transform: translateY(20px) scale(0.95); }
-  100% { opacity: 1; transform: translateY(0) scale(1); }
-}
-
-/* Browser title bar with traffic lights */
-.forge-browser-bar {
+  margin-top: 32px;
   display: flex;
+  flex-direction: column;
   align-items: center;
-  gap: 6px;
-  padding: 8px 12px;
-  background: #f8fafc;
-  border-bottom: 1px solid #e2e8f0;
-}
-
-:is(.dark) .forge-browser-bar {
-  background: #181825;
-  border-bottom-color: #313244;
-}
-
-.forge-traffic-dot {
-  width: 7px;
-  height: 7px;
-  border-radius: 50%;
-}
-
-.forge-browser-url {
-  flex: 1;
-  margin-left: 8px;
-  height: 18px;
-  border-radius: 4px;
-  background: #f1f5f9;
-  position: relative;
-  overflow: hidden;
-}
-
-:is(.dark) .forge-browser-url {
-  background: #313244;
-}
-
-.forge-browser-url::after {
-  content: '';
-  position: absolute;
-  inset: 0;
-  background: linear-gradient(90deg, transparent 0%, rgba(99,102,241,0.08) 50%, transparent 100%);
-  background-size: 200% 100%;
-  animation: shimmer 2s ease-in-out infinite;
-}
-
-@keyframes shimmerUrl {
-  0% { background-position: -200% 0; }
-  100% { background-position: 200% 0; }
-}
-
-/* UI component rows that paint in from top to bottom */
-.forge-ui-row {
-  padding: 0 12px;
-  opacity: 0;
-  animation: paintIn var(--duration, 0.5s) var(--delay, 0s) cubic-bezier(0.16, 1, 0.3, 1) forwards;
-}
-
-@keyframes paintIn {
-  0% {
-    opacity: 0;
-    transform: translateY(6px);
-    filter: blur(2px);
-  }
-  60% {
-    opacity: 1;
-    filter: blur(0);
-  }
-  100% {
-    opacity: 1;
-    transform: translateY(0);
-    filter: blur(0);
-  }
-}
-
-/* Navbar skeleton */
-.forge-navbar {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 8px 12px;
-  border-bottom: 1px solid #f1f5f9;
-}
-
-:is(.dark) .forge-navbar { border-bottom-color: #313244; }
-
-.forge-nav-logo {
-  width: 50px;
-  height: 10px;
-  border-radius: 3px;
-  background: linear-gradient(90deg, var(--color-forge-accent), #818cf8);
-  opacity: 0.7;
-}
-
-.forge-nav-links {
-  display: flex;
-  gap: 10px;
-}
-
-.forge-nav-link {
-  width: var(--w, 28px);
-  height: 6px;
-  border-radius: 3px;
-  background: #e2e8f0;
-}
-
-:is(.dark) .forge-nav-link { background: #45475a; }
-
-/* Hero section skeleton */
-.forge-hero {
-  padding: 16px 12px 12px;
-  text-align: center;
-}
-
-.forge-hero-title {
-  width: 65%;
-  height: 12px;
-  border-radius: 4px;
-  background: #1e293b;
-  opacity: 0.15;
-  margin: 0 auto 8px;
-}
-
-:is(.dark) .forge-hero-title { background: #cdd6f4; opacity: 0.15; }
-
-.forge-hero-sub {
-  width: 80%;
-  height: 6px;
-  border-radius: 3px;
-  background: #94a3b8;
-  opacity: 0.3;
-  margin: 0 auto 6px;
-}
-
-:is(.dark) .forge-hero-sub { background: #585b70; opacity: 0.4; }
-
-.forge-hero-btn {
-  display: inline-block;
-  width: 64px;
-  height: 20px;
-  border-radius: 6px;
-  background: linear-gradient(135deg, var(--color-forge-accent), #818cf8);
-  opacity: 0.8;
-  margin-top: 8px;
-  animation: btnPulse 2s ease-in-out infinite;
-}
-
-@keyframes btnPulse {
-  0%, 100% { box-shadow: 0 0 0 0 rgba(99,102,241,0.3); }
-  50% { box-shadow: 0 0 0 6px rgba(99,102,241,0); }
-}
-
-/* Card grid skeleton */
-.forge-cards {
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 8px;
-  padding: 8px 12px 12px;
-}
-
-.forge-card {
-  border-radius: 8px;
-  border: 1px solid #f1f5f9;
-  padding: 8px;
-  background: #fafbfc;
-  opacity: 0;
-  animation: cardSlide 0.4s var(--delay, 0s) cubic-bezier(0.16, 1, 0.3, 1) forwards;
-}
-
-:is(.dark) .forge-card { border-color: #313244; background: #1e1e2e; }
-
-@keyframes cardSlide {
-  0% { opacity: 0; transform: translateY(8px) scale(0.95); }
-  100% { opacity: 1; transform: translateY(0) scale(1); }
-}
-
-.forge-card-icon {
-  width: 20px;
-  height: 20px;
-  border-radius: 5px;
-  margin-bottom: 6px;
-}
-
-:is(.dark) .forge-card-icon { opacity: 0.3; }
-
-.forge-card-line {
-  height: 4px;
-  border-radius: 2px;
-  background: #e2e8f0;
-  margin-bottom: 4px;
-}
-
-:is(.dark) .forge-card-line { background: #45475a; }
-
-/* Typing cursor that moves across the page */
-.forge-cursor {
-  position: absolute;
-  width: 2px;
-  height: 14px;
-  background: var(--color-forge-accent);
-  border-radius: 1px;
-  opacity: 0;
-  animation: cursorBlink 1s step-end infinite, cursorMove 6s ease-in-out infinite;
-  z-index: 5;
-}
-
-@keyframes cursorBlink {
-  0%, 100% { opacity: 1; }
-  50% { opacity: 0; }
-}
-
-@keyframes cursorMove {
-  0% { top: 25%; left: 30%; }
-  20% { top: 25%; left: 60%; }
-  40% { top: 40%; left: 40%; }
-  60% { top: 55%; left: 35%; }
-  80% { top: 55%; left: 65%; }
-  100% { top: 25%; left: 30%; }
+  gap: 4px;
+  z-index: 10;
+  animation: fadeIn 0.4s 0.5s ease-out both;
 }
 
 /* Progress bar at bottom */
@@ -641,14 +494,14 @@ html.dark [data-sonner-toast] [data-description] {
   left: 0;
   right: 0;
   height: 3px;
-  background: rgba(99,102,241,0.06);
+  background: rgba(220,38,38,0.06);
 }
 
-:is(.dark) .forge-progress-track { background: rgba(99,102,241,0.12); }
+:is(.dark) .forge-progress-track { background: rgba(220,38,38,0.12); }
 
 .forge-progress-bar {
   height: 100%;
-  background: linear-gradient(90deg, var(--color-forge-accent), #818cf8, #a78bfa);
+  background: linear-gradient(90deg, var(--color-forge-accent), #f87171, #fca5a5);
   border-radius: 0 2px 2px 0;
   animation: buildProgress 8s ease-out forwards;
 }
@@ -901,8 +754,8 @@ html.dark [data-sonner-toast] [data-description] {
 
 /* Pulsing glow on running icon containers */
 @keyframes iconGlow {
-  0%, 100% { box-shadow: 0 0 0 0 rgba(99, 102, 241, 0.15); }
-  50% { box-shadow: 0 0 8px 2px rgba(99, 102, 241, 0.12); }
+  0%, 100% { box-shadow: 0 0 0 0 rgba(220, 38, 38, 0.15); }
+  50% { box-shadow: 0 0 8px 2px rgba(220, 38, 38, 0.12); }
 }
 .icon-glow-pulse {
   animation: iconGlow 2s ease-in-out infinite;
@@ -933,11 +786,11 @@ html.dark [data-sonner-toast] [data-description] {
 .shimmer-text-blue {
   background: linear-gradient(
     90deg,
-    #2563eb 0%,
-    #2563eb 35%,
-    #818cf8 50%,
-    #2563eb 65%,
-    #2563eb 100%
+    #dc2626 0%,
+    #dc2626 35%,
+    #f87171 50%,
+    #dc2626 65%,
+    #dc2626 100%
   );
   background-size: 200% auto;
   -webkit-background-clip: text;
@@ -948,11 +801,11 @@ html.dark [data-sonner-toast] [data-description] {
 :is(.dark) .shimmer-text-blue {
   background: linear-gradient(
     90deg,
-    #60a5fa 0%,
-    #60a5fa 35%,
-    #a5b4fc 50%,
-    #60a5fa 65%,
-    #60a5fa 100%
+    #f87171 0%,
+    #f87171 35%,
+    #fca5a5 50%,
+    #f87171 65%,
+    #f87171 100%
   );
   background-size: 200% auto;
   -webkit-background-clip: text;
@@ -1017,8 +870,8 @@ html.dark [data-sonner-toast] [data-description] {
 /* AI file edit pulse — highlights file tree row when AI writes to a file */
 @keyframes ai-edit-pulse {
   0% { background-color: transparent; }
-  15% { background-color: rgba(99, 102, 241, 0.15); }
-  70% { background-color: rgba(99, 102, 241, 0.10); }
+  15% { background-color: rgba(220, 38, 38, 0.15); }
+  70% { background-color: rgba(220, 38, 38, 0.10); }
   100% { background-color: transparent; }
 }
 .animate-ai-edit-pulse { animation: ai-edit-pulse 1.5s ease-out; }
@@ -1052,17 +905,17 @@ html.dark [data-sonner-toast] [data-description] {
 .deploy-slide-down { animation: deploySlideDown 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards; overflow: hidden; }
 
 /* Ambient glow around panel */
-.deploy-glow-accent { box-shadow: 0 8px 40px -12px rgba(99, 102, 241, 0.15), 0 4px 12px -4px rgba(0, 0, 0, 0.08); }
+.deploy-glow-accent { box-shadow: 0 8px 40px -12px rgba(220, 38, 38, 0.15), 0 4px 12px -4px rgba(0, 0, 0, 0.08); }
 .deploy-glow-success { box-shadow: 0 8px 40px -12px rgba(16, 185, 129, 0.2), 0 4px 12px -4px rgba(0, 0, 0, 0.08); }
 .deploy-glow-error { box-shadow: 0 8px 40px -12px rgba(239, 68, 68, 0.15), 0 4px 12px -4px rgba(0, 0, 0, 0.08); }
 
-:is(.dark) .deploy-glow-accent { box-shadow: 0 8px 40px -12px rgba(99, 102, 241, 0.25), 0 4px 12px -4px rgba(0, 0, 0, 0.3); }
+:is(.dark) .deploy-glow-accent { box-shadow: 0 8px 40px -12px rgba(220, 38, 38, 0.25), 0 4px 12px -4px rgba(0, 0, 0, 0.3); }
 :is(.dark) .deploy-glow-success { box-shadow: 0 8px 40px -12px rgba(16, 185, 129, 0.3), 0 4px 12px -4px rgba(0, 0, 0, 0.3); }
 :is(.dark) .deploy-glow-error { box-shadow: 0 8px 40px -12px rgba(239, 68, 68, 0.25), 0 4px 12px -4px rgba(0, 0, 0, 0.3); }
 
 /* Animated gradient progress bar at top */
 .deploy-progress-bar {
-  background: linear-gradient(90deg, var(--color-forge-accent), #818cf8, #a78bfa, var(--color-forge-accent));
+  background: linear-gradient(90deg, var(--color-forge-accent), #f87171, #fca5a5, var(--color-forge-accent));
   background-size: 300% 100%;
   animation: deployProgressSweep 2s linear infinite;
 }
@@ -1073,12 +926,12 @@ html.dark [data-sonner-toast] [data-description] {
 
 /* Collapsed pill glow */
 .deploy-pill-glow {
-  box-shadow: 0 0 0 0 rgba(99, 102, 241, 0.2);
+  box-shadow: 0 0 0 0 rgba(220, 38, 38, 0.2);
   animation: pillGlow 2.5s ease-in-out infinite;
 }
 @keyframes pillGlow {
-  0%, 100% { box-shadow: 0 2px 12px -2px rgba(99, 102, 241, 0.15); }
-  50% { box-shadow: 0 2px 20px -2px rgba(99, 102, 241, 0.3); }
+  0%, 100% { box-shadow: 0 2px 12px -2px rgba(220, 38, 38, 0.15); }
+  50% { box-shadow: 0 2px 20px -2px rgba(220, 38, 38, 0.3); }
 }
 
 /* Rocket subtle hover animation */
@@ -1213,21 +1066,7 @@ html.dark [data-sonner-toast] [data-description] {
   animation: uploadFloat 2s ease-in-out infinite;
 }
 
-/* ─── Forge Polish: Building Browser Pulse Border ────────── */
-.forge-browser-building {
-  animation: buildBorderPulse 3s ease-in-out infinite;
-}
-@keyframes buildBorderPulse {
-  0%, 100% { border-color: #e2e8f0; }
-  50% { border-color: var(--color-forge-accent); }
-}
-:is(.dark) .forge-browser-building {
-  animation: buildBorderPulseDark 3s ease-in-out infinite;
-}
-@keyframes buildBorderPulseDark {
-  0%, 100% { border-color: #313244; }
-  50% { border-color: var(--color-forge-accent); }
-}
+/* (Building browser pulse removed — replaced by Six-Chi loader) */
 
 /* ─── Forge Polish: Console Breathing Icon ───────────────── */
 @keyframes consoleBreathe {
@@ -1256,6 +1095,7 @@ html.dark [data-sonner-toast] [data-description] {
 .composer-focus-glow:focus-within {
   border-color: var(--color-forge-accent);
   box-shadow: 0 0 0 2px var(--color-forge-ring);
+  border-radius: 12px;
 }
 
 /* ─── Forge Polish: Approval Card Pulse ──────────────────── */
@@ -1327,7 +1167,9 @@ html.dark [data-sonner-toast] [data-description] {
   .fullscreen-hint,
   .drag-overlay-pulse,
   .upload-float,
-  .forge-browser-building,
+  .sixchi-orbit,
+  .sixchi-logo-glow,
+  .sixchi-dot-grid,
   .deploy-dot,
   .deploy-rocket,
   .deploy-success-pop,
@@ -1414,8 +1256,8 @@ html.dark [data-sonner-toast] [data-description] {
 
 /* ─── Extended Thinking Glow ───────────────────────────────── */
 @keyframes thinkingGlow {
-  0%, 100% { box-shadow: 0 0 0 0 rgba(99, 102, 241, 0); }
-  50% { box-shadow: 0 0 12px 3px rgba(99, 102, 241, 0.12); }
+  0%, 100% { box-shadow: 0 0 0 0 rgba(220, 38, 38, 0); }
+  50% { box-shadow: 0 0 12px 3px rgba(220, 38, 38, 0.12); }
 }
 .thinking-glow {
   animation: thinkingGlow 3s ease-in-out infinite;

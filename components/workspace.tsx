@@ -33,12 +33,14 @@ import { useKeyboardShortcuts } from '@/lib/keyboard-shortcuts'
 import { useSwipe } from '@/hooks/use-swipe'
 import { useWebcontainer } from '@/hooks/use-webcontainer'
 import { detectFramework } from '@/lib/vercel'
-import { motion } from 'framer-motion'
-import { MessageSquare, FolderTree, Code2, Eye, Loader2, Save, Rocket, Upload, GitBranch, Download, SidebarOpen, FolderInput, Keyboard, Settings2, Search, History, Terminal, Plug, Pin, PinOff } from 'lucide-react'
+import { motion, AnimatePresence } from 'framer-motion'
+import { MessageSquare, FolderTree, Code2, Eye, Loader2, Save, Rocket, Upload, GitBranch, Download, SidebarOpen, FolderInput, Keyboard, Settings2, Search, History, Terminal, Plug, Pin, PinOff, Menu } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { toast } from 'sonner'
 import type { FileNode } from '@/lib/types'
 import { buildTreeFromMap } from '@/lib/virtual-fs'
+import { PWAInstallPrompt } from './pwa-install-prompt'
+import { OfflineIndicator } from './offline-indicator'
 
 interface WorkspaceProps {
   projectName: string
@@ -60,7 +62,7 @@ interface WorkspaceProps {
   githubRepoUrl?: string | null
 }
 
-type MobileTab = 'chat' | 'files' | 'code' | 'preview'
+type MobileTab = 'chat' | 'editor' | 'preview' | 'menu'
 type DialogType = 'push' | 'create-repo' | 'import' | null
 
 export function Workspace({
@@ -71,6 +73,7 @@ export function Workspace({
 }: WorkspaceProps) {
   const [rightTab, setRightTab] = useState<'code' | 'preview' | 'split' | 'terminal'>('code')
   const [mobileTab, setMobileTab] = useState<MobileTab>('chat')
+  const [mobileEditorShowTree, setMobileEditorShowTree] = useState(false)
   const [openFiles, setOpenFiles] = useState<string[]>([])
 
   const [activeDialog, setActiveDialog] = useState<DialogType>(null)
@@ -388,9 +391,8 @@ export function Workspace({
   const handleFileSelect = useCallback((path: string) => {
     onFileSelect(path)
     setOpenFiles(prev => prev.includes(path) ? prev : [...prev, path])
-    // Only switch to code tab if user is on files tab (manual browsing)
-    // Don't switch if on chat or preview — let smart switching handle it
-    setMobileTab(prev => prev === 'files' ? 'code' : prev)
+    // Stay on editor tab (file tree + code are combined on mobile)
+    setMobileTab(prev => prev === 'editor' ? 'editor' : prev)
   }, [onFileSelect])
 
   handleFileSelectRef.current = handleFileSelect
@@ -692,7 +694,7 @@ export function Workspace({
   }, [])
 
   // Swipe gestures for mobile tab cycling
-  const MOBILE_TAB_ORDER: MobileTab[] = ['chat', 'files', 'code', 'preview']
+  const MOBILE_TAB_ORDER: MobileTab[] = ['chat', 'editor', 'preview']
   const mobileSwipe = useSwipe({
     onSwipeLeft: () => {
       setMobileTab(prev => {
@@ -966,16 +968,18 @@ export function Workspace({
     </div>
   )
 
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
+
   const MOBILE_TABS = [
     { id: 'chat' as MobileTab, label: 'Chat', Icon: MessageSquare },
-    { id: 'files' as MobileTab, label: 'Files', Icon: FolderTree },
-    { id: 'code' as MobileTab, label: 'Code', Icon: Code2 },
+    { id: 'editor' as MobileTab, label: 'Editor', Icon: Code2 },
     { id: 'preview' as MobileTab, label: 'Preview', Icon: Eye },
+    { id: 'menu' as MobileTab, label: 'Menu', Icon: Menu },
   ]
 
   return (
     <div
-      className="h-screen flex flex-col bg-forge-bg relative"
+      className="h-screen-dynamic flex flex-col bg-forge-bg relative"
       onDragEnter={handleDragEnter}
       onDragLeave={handleDragLeave}
       onDragOver={handleDragOver}
@@ -1202,38 +1206,197 @@ export function Workspace({
 
       {/* Mobile layout */}
       <div className="flex-1 flex flex-col md:hidden overflow-hidden">
+        <OfflineIndicator />
         <div className="flex-1 overflow-hidden" onTouchStart={mobileSwipe.onTouchStart} onTouchEnd={mobileSwipe.onTouchEnd}>
           {mobileTab === 'chat' && chatPanel}
-          {mobileTab === 'files' && fileTreePanel}
-          {mobileTab === 'code' && (
+          {mobileTab === 'editor' && (
             <div className="h-full flex flex-col bg-forge-surface">
+              {/* File tabs + tree toggle when files are open */}
               {openFiles.length > 0 && (
-                <div className="border-b border-forge-border bg-forge-panel px-2 shrink-0">
-                  {fileTabBar(openFiles)}
+                <div className="flex items-center border-b border-forge-border bg-forge-panel shrink-0">
+                  <button
+                    onClick={() => setMobileEditorShowTree(prev => !prev)}
+                    className={cn(
+                      'p-2.5 transition-colors shrink-0 border-r border-forge-border',
+                      mobileEditorShowTree ? 'text-forge-accent bg-forge-accent/10' : 'text-forge-text-dim',
+                    )}
+                    aria-label="Toggle file tree"
+                  >
+                    <FolderTree className="w-4 h-4" />
+                  </button>
+                  <div className="flex-1 overflow-x-auto px-1" data-swipe-ignore>
+                    {fileTabBar(openFiles)}
+                  </div>
                 </div>
               )}
-              <div className="flex-1 overflow-hidden">
-                <CodeEditor
-                  path={activeFile}
-                  content={activeFile ? files[activeFile] || '' : ''}
-                  previousContent={activeFile ? initialFilesRef.current[activeFile] : undefined}
-                  onSave={(path, content) => onFileChange(path, content)}
-                  onChange={(content) => activeFile && onFileChange(activeFile, content)}
-                />
+              <div className="flex-1 flex overflow-hidden">
+                {/* Inline file tree panel (toggled) */}
+                <AnimatePresence>
+                  {mobileEditorShowTree && (
+                    <motion.div
+                      initial={{ width: 0, opacity: 0 }}
+                      animate={{ width: 220, opacity: 1 }}
+                      exit={{ width: 0, opacity: 0 }}
+                      transition={{ duration: 0.2 }}
+                      className="shrink-0 border-r border-forge-border overflow-hidden bg-forge-panel"
+                    >
+                      <div className="w-[220px] h-full overflow-y-auto">
+                        {fileTreePanel}
+                      </div>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+                <div className="flex-1 overflow-hidden">
+                  {activeFile ? (
+                    <CodeEditor
+                      path={activeFile}
+                      content={activeFile ? files[activeFile] || '' : ''}
+                      previousContent={activeFile ? initialFilesRef.current[activeFile] : undefined}
+                      onSave={(path, content) => onFileChange(path, content)}
+                      onChange={(content) => activeFile && onFileChange(activeFile, content)}
+                    />
+                  ) : (
+                    <div className="h-full flex flex-col items-center justify-center text-forge-text-dim gap-2">
+                      <FolderTree className="w-8 h-8 opacity-40" />
+                      <span className="text-sm">Select a file to edit</span>
+                      <button
+                        onClick={() => setMobileEditorShowTree(true)}
+                        className="mt-1 px-3 py-1.5 text-xs bg-forge-surface border border-forge-border rounded-lg hover:bg-forge-surface-hover transition-colors"
+                      >
+                        Open file tree
+                      </button>
+                    </div>
+                  )}
+                </div>
               </div>
             </div>
           )}
           {mobileTab === 'preview' && <PreviewPanel files={files} projectId={projectId} onFixErrors={(msg) => { setPendingChatMessage(msg) }} onCapturePreview={(msg) => { setPendingChatMessage(msg) }} onPreviewReady={handlePreviewReady} wcPreviewUrl={wc.previewUrl} />}
+          {mobileTab === 'menu' && (
+            <div className="h-full flex flex-col bg-forge-panel overflow-y-auto">
+              <div className="px-4 py-3 border-b border-forge-border">
+                <h2 className="text-sm font-medium text-forge-text">Menu</h2>
+              </div>
+              {/* Quick actions */}
+              <div className="p-3 space-y-1">
+                <button onClick={() => { setShowSettings(true); handleMobileTabSwitch('chat') }} className="flex items-center gap-3 w-full px-3 py-2.5 text-sm text-forge-text rounded-lg hover:bg-forge-surface transition-colors">
+                  <Settings2 className="w-4 h-4 text-forge-text-dim" /> Project Settings
+                </button>
+                <button onClick={() => { setShowFileSearch(true); handleMobileTabSwitch('editor') }} className="flex items-center gap-3 w-full px-3 py-2.5 text-sm text-forge-text rounded-lg hover:bg-forge-surface transition-colors">
+                  <Search className="w-4 h-4 text-forge-text-dim" /> Search Files
+                </button>
+                <button onClick={() => { setShowVersionHistory(true) }} className="flex items-center gap-3 w-full px-3 py-2.5 text-sm text-forge-text rounded-lg hover:bg-forge-surface transition-colors">
+                  <History className="w-4 h-4 text-forge-text-dim" /> Version History
+                </button>
+                <button onClick={() => { setShowDeployPanel(true); handleMobileTabSwitch('chat') }} className="flex items-center gap-3 w-full px-3 py-2.5 text-sm text-forge-text rounded-lg hover:bg-forge-surface transition-colors">
+                  <Rocket className="w-4 h-4 text-forge-text-dim" /> Deploy
+                </button>
+                <button onClick={() => { setShowEditorSettings(true) }} className="flex items-center gap-3 w-full px-3 py-2.5 text-sm text-forge-text rounded-lg hover:bg-forge-surface transition-colors">
+                  <Keyboard className="w-4 h-4 text-forge-text-dim" /> Editor Settings
+                </button>
+                <button onClick={() => { setShowMcpManager(true) }} className="flex items-center gap-3 w-full px-3 py-2.5 text-sm text-forge-text rounded-lg hover:bg-forge-surface transition-colors">
+                  <Plug className="w-4 h-4 text-forge-text-dim" /> MCP Servers
+                </button>
+              </div>
+              {/* Sidebar integrations */}
+              <div className="px-4 py-2 border-t border-forge-border">
+                <span className="text-[10px] uppercase tracking-wider text-forge-text-dim font-medium">Integrations</span>
+              </div>
+              <div className="flex-1 overflow-y-auto">
+                <SidebarContent
+                  activeTab={sidebarTab || 'git'}
+                  fileTree={fileTree}
+                  activeFile={activeFile}
+                  onFileSelect={handleFileSelect}
+                  onFileDelete={onFileDelete}
+                  onFileRename={handleFileRename}
+                  onFileCreate={handleFileCreate}
+                  fileContents={files}
+                  modifiedFiles={modifiedFiles}
+                  aiEditingFiles={aiEditingFiles}
+                  fileDiffs={fileDiffs}
+                  githubRepoUrl={githubRepoUrl || null}
+                  projectId={projectId}
+                  vercelProjectId={vercelProjectId}
+                  onAction={handleAction}
+                  onFileChange={onFileChange}
+                  onOpenDbExplorer={() => setShowDbExplorer(true)}
+                  onOpenSettings={() => { setSettingsDefaultTab('supabase'); setShowEditorSettings(true) }}
+                  onRepoConnected={(url) => toast.success('Repository connected', { description: url.replace('https://github.com/', '') })}
+                  onVercelConnected={(id) => { setVercelProjectId(id); toast.success('Vercel project connected') }}
+                  snapshots={snapshots}
+                  onOpenVersionHistory={() => setShowVersionHistory(true)}
+                  onRestoreSnapshot={async (snap) => {
+                    if (Object.keys(snap.files).length > 0) {
+                      onBulkFileUpdate(snap.files, { replace: true })
+                      toast.success('Snapshot restored', { description: snap.label })
+                    } else if (projectId) {
+                      try {
+                        const res = await fetch(`/api/projects/${projectId}/snapshots/${snap.id}`)
+                        const data = await res.json()
+                        if (data.files) {
+                          onBulkFileUpdate(data.files, { replace: true })
+                          toast.success('Snapshot restored', { description: snap.label })
+                        } else {
+                          toast.error('Failed to load snapshot files')
+                        }
+                      } catch {
+                        toast.error('Failed to restore snapshot')
+                      }
+                    }
+                  }}
+                  onCreateSnapshot={async () => {
+                    if (!projectId) return
+                    try {
+                      const res = await fetch(`/api/projects/${projectId}/snapshots`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ description: `Snapshot ${snapshots.length + 1}`, files }),
+                      })
+                      const data = await res.json()
+                      if (res.ok) {
+                        setSnapshots(prev => [{ id: data.id || `snap-${Date.now()}`, label: data.description || `Snapshot ${prev.length + 1}`, timestamp: new Date(data.created_at || Date.now()).getTime(), files: { ...files } }, ...prev].slice(0, 50))
+                        toast.success('Snapshot created')
+                      } else {
+                        toast.error('Failed to create snapshot')
+                      }
+                    } catch {
+                      toast.error('Failed to create snapshot')
+                    }
+                  }}
+                />
+                {/* Sidebar tab switcher for integrations */}
+                <div className="flex items-center gap-1 p-3 border-t border-forge-border">
+                  {(['git', 'deploy', 'env', 'db', 'snapshots'] as SidebarTab[]).map(tab => (
+                    <button
+                      key={tab}
+                      onClick={() => setSidebarTab(tab)}
+                      className={cn(
+                        'px-2.5 py-1.5 text-[11px] rounded-lg transition-colors capitalize',
+                        (sidebarTab || 'git') === tab ? 'bg-forge-surface text-forge-text font-medium' : 'text-forge-text-dim hover:text-forge-text',
+                      )}
+                    >
+                      {tab}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </div>
+          )}
         </div>
 
-        <div className="flex items-center justify-around border-t border-forge-border bg-forge-panel py-1.5 shrink-0 safe-bottom">
+        {/* Tab bar with glass effect */}
+        <div className="flex items-center justify-around border-t border-forge-border/60 bg-forge-panel/80 backdrop-blur-md py-2 pb-3 shrink-0 safe-bottom">
           {MOBILE_TABS.map(tab => (
             <button
               key={tab.id}
-              onClick={() => handleMobileTabSwitch(tab.id)}
+              onClick={() => {
+                navigator.vibrate?.(5)
+                handleMobileTabSwitch(tab.id)
+              }}
               aria-label={tab.label}
               className={cn(
-                'relative flex flex-col items-center gap-0.5 px-4 py-2 rounded-xl transition-all min-w-[64px] min-h-[48px] focus:outline-none focus-visible:ring-2 focus-visible:ring-forge-accent/50 active:scale-95',
+                'relative flex flex-col items-center gap-0.5 px-5 py-2 rounded-xl transition-all min-w-[68px] min-h-[50px] focus:outline-none focus-visible:ring-2 focus-visible:ring-forge-accent/50 active:scale-95',
                 mobileTab === tab.id
                   ? 'text-forge-accent'
                   : 'text-forge-text-dim active:bg-forge-surface',
@@ -1256,6 +1419,7 @@ export function Workspace({
             </button>
           ))}
         </div>
+        <PWAInstallPrompt />
       </div>
 
       {/* Deploy Panel (non-blocking floating) */}

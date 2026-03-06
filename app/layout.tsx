@@ -4,19 +4,20 @@ import { Geist, Geist_Mono } from 'next/font/google'
 import { Toaster } from 'sonner'
 import { SessionProvider } from '@/components/session-provider'
 import { ThemeProvider } from '@/components/theme-provider'
+import { SWUpdateToast } from '@/components/sw-update-toast'
 import './globals.css'
 
 const geistSans = Geist({ subsets: ['latin'], variable: '--font-geist-sans' })
 const geistMono = Geist_Mono({ subsets: ['latin'], variable: '--font-geist-mono' })
 
 export const metadata: Metadata = {
-  title: 'Forge — AI React Builder',
-  description: 'Build React websites with AI. Describe what you want, watch it come to life.',
+  title: 'Six-Chi — AI Website Builder',
+  description: 'Build websites with AI. Describe what you want, watch it come to life.',
   manifest: '/manifest.json',
   appleWebApp: {
     capable: true,
     statusBarStyle: 'black-translucent',
-    title: 'Forge',
+    title: 'Six-Chi',
   },
   icons: {
     icon: '/icons/icon-192.png',
@@ -41,8 +42,10 @@ export default async function RootLayout({ children }: { children: React.ReactNo
   return (
     <html lang="en" suppressHydrationWarning>
       <head>
+        <meta name="mobile-web-app-capable" content="yes" />
         <script nonce={nonce} dangerouslySetInnerHTML={{ __html: `try{var t=localStorage.getItem('forge-theme');if(t==='dark'||(!t&&window.matchMedia('(prefers-color-scheme:dark)').matches))document.documentElement.classList.add('dark')}catch(e){}` }} />
-        <script nonce={nonce} dangerouslySetInnerHTML={{ __html: `if('serviceWorker' in navigator){navigator.serviceWorker.register('/sw.js')}` }} />
+        <script nonce={nonce} dangerouslySetInnerHTML={{ __html: `(function(){function setH(){document.documentElement.style.setProperty('--app-height',window.innerHeight+'px')}setH();window.addEventListener('resize',setH)})()` }} />
+        <script nonce={nonce} dangerouslySetInnerHTML={{ __html: `if('serviceWorker' in navigator){navigator.serviceWorker.register('/sw.js').then(function(reg){navigator.serviceWorker.addEventListener('message',function(e){if(e.data&&e.data.type==='SW_UPDATED'){if(window.__sixchiShowUpdateToast)window.__sixchiShowUpdateToast()}})})}` }} />
       </head>
       <body className={`${geistSans.variable} ${geistMono.variable} font-sans bg-forge-bg text-forge-text antialiased`}>
         <a href="#main-content" className="sr-only focus:not-sr-only focus:absolute focus:top-2 focus:left-2 focus:z-[200] focus:px-4 focus:py-2 focus:bg-forge-accent focus:text-white focus:rounded-lg focus:text-sm">Skip to main content</a>
@@ -51,6 +54,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
             {children}
           </SessionProvider>
         </ThemeProvider>
+        <SWUpdateToast />
         <Toaster
           position="top-center"
           richColors

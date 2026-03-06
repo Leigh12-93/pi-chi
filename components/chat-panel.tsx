@@ -183,6 +183,25 @@ export const ChatPanel = memo(function ChatPanel({ onLoadingChange, ...props }: 
     try { return localStorage.getItem('forge-hints-dismissed') === '1' } catch { return false }
   })
   const fileInputRef = useRef<HTMLInputElement>(null)
+  const composerRef = useRef<HTMLDivElement>(null)
+
+  // iOS keyboard fix: adjust composer position when virtual keyboard opens
+  useEffect(() => {
+    const vv = window.visualViewport
+    if (!vv) return
+    const handler = () => {
+      if (composerRef.current) {
+        const offset = window.innerHeight - vv.height - vv.offsetTop
+        composerRef.current.style.transform = offset > 0 ? `translateY(-${offset}px)` : ''
+      }
+    }
+    vv.addEventListener('resize', handler)
+    vv.addEventListener('scroll', handler)
+    return () => {
+      vv.removeEventListener('resize', handler)
+      vv.removeEventListener('scroll', handler)
+    }
+  }, [])
 
   const voice = useVoiceInput({
     onTranscript: (text) => {
@@ -255,7 +274,7 @@ export const ChatPanel = memo(function ChatPanel({ onLoadingChange, ...props }: 
                 <Sparkles className="w-7 h-7 text-forge-accent/70" />
               </div>
               <h2 className="text-xl font-semibold text-forge-text mb-1.5 text-balance text-center tracking-tight">What shall we build?</h2>
-              <p className="text-[13px] text-forge-text-dim text-center mb-8 text-pretty">Describe your idea and Forge will build it</p>
+              <p className="text-[13px] text-forge-text-dim text-center mb-8 text-pretty">Describe your idea and Six-Chi will build it</p>
               <div className="grid grid-cols-2 gap-2.5 w-full max-w-sm">
                 {QUICK_ACTIONS.map((action, i) => (
                   <motion.button
@@ -532,7 +551,8 @@ export const ChatPanel = memo(function ChatPanel({ onLoadingChange, ...props }: 
 
         {/* Composer */}
         <div
-          className="p-3"
+          ref={composerRef}
+          className="p-3 transition-transform duration-100"
           onDragOver={(e) => { e.preventDefault(); setIsDraggingChat(true) }}
           onDragLeave={() => setIsDraggingChat(false)}
           onDrop={async (e) => {

@@ -1,15 +1,25 @@
 {
-  "name": "Forge — AI React Builder",
-  "short_name": "Forge",
-  "description": "Build React websites with AI",
+  "id": "/",
+  "name": "Six-Chi — AI Website Builder",
+  "short_name": "Six-Chi",
+  "description": "Build websites with AI",
   "start_url": "/",
   "display": "standalone",
   "background_color": "#0f1117",
-  "theme_color": "#6366f1",
+  "theme_color": "#dc2626",
   "orientation": "any",
+  "categories": ["developer tools", "productivity"],
   "icons": [
     { "src": "/icons/icon-192.png", "sizes": "192x192", "type": "image/png" },
     { "src": "/icons/icon-512.png", "sizes": "512x512", "type": "image/png" },
     { "src": "/icons/icon-512-maskable.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ],
+  "shortcuts": [
+    {
+      "name": "New Project",
+      "short_name": "New",
+      "url": "/?new=1",
+      "icons": [{ "src": "/icons/icon-192.png", "sizes": "192x192" }]
+    }
   ]
 }
