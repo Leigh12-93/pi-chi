@@ -7,7 +7,7 @@ import { anthropic } from '@ai-sdk/anthropic'
 // ═══════════════════════════════════════════════════════════════════
 
 // Compaction model — fast + cheap for summarization
-const COMPACTION_MODEL = (process.env.COMPACTION_MODEL || 'claude-3-5-haiku-20241022').trim()
+const COMPACTION_MODEL = (process.env.COMPACTION_MODEL || 'claude-haiku-4-5-20251001').trim()
 
 // Constants
 const COMPACTION_THRESHOLD = 0.35        // Trigger at 35% of context limit — compact early to avoid 413 errors

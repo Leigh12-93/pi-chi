@@ -87,7 +87,7 @@ export const TOOL_LABELS: Record<string, { label: string; Icon: LucideIcon; colo
 
 export const MODEL_OPTIONS = [
   { id: 'claude-sonnet-4-20250514', label: 'Sonnet 4', description: 'Fast & capable' },
-  { id: 'claude-3-5-haiku-20241022', label: 'Haiku 3.5', description: 'Fastest' },
+  { id: 'claude-haiku-4-5-20251001', label: 'Haiku 4.5', description: 'Fastest' },
   { id: 'claude-opus-4-20250514', label: 'Opus 4', description: 'Most capable' },
   { id: 'claude-opus-4-6', label: 'Opus 4.6', description: 'Latest flagship' },
 ] as const
@@ -97,7 +97,7 @@ export const MODEL_PRICING: Record<string, { input: number; output: number }> = 
   'claude-sonnet-4-20250514': { input: 3, output: 15 },
   'claude-opus-4-20250514': { input: 15, output: 75 },
   'claude-opus-4-6': { input: 15, output: 75 },
-  'claude-3-5-haiku-20241022': { input: 0.80, output: 4 },
+  'claude-haiku-4-5-20251001': { input: 0.80, output: 4 },
 }
 
 /** Calculate cost in USD from token counts and model ID */

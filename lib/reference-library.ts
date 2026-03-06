@@ -102,7 +102,7 @@ const TOOL_LABELS: Record<string, { label: string; Icon: LucideIcon; color: stri
 
 const MODEL_OPTIONS = [
   { id: 'claude-sonnet-4-20250514', label: 'Sonnet 4', description: 'Fast & capable' },
-  { id: 'claude-3-5-haiku-20241022', label: 'Haiku 3.5', description: 'Fastest' },
+  { id: 'claude-haiku-4-5-20251001', label: 'Haiku 4.5', description: 'Fastest' },
   { id: 'claude-opus-4-20250514', label: 'Opus 4', description: 'Most capable' },
 ] as const
 

@@ -605,7 +605,7 @@ describe('${componentName}', () => {
       }),
       execute: async ({ model, reason }) => {
         const modelMap: Record<string, string> = {
-          haiku: 'claude-3-5-haiku-20241022',
+          haiku: 'claude-haiku-4-5-20251001',
           sonnet: 'claude-sonnet-4-20250514',
           opus: 'claude-opus-4-6',
         }
