@@ -49,35 +49,45 @@ export function createAuditTools(ctx: ToolContext) {
     }),
 
     create_audit_plan: tool({
-      description: 'Create a structured audit plan with findings organized by severity. After reading all files with audit_codebase, use this tool to present your findings. The plan will be shown to the user for approval before any changes are made. STOP after calling this tool and wait for user approval.',
+      description: 'Present codebase audit findings to the user. Each finding has a "Fix" or "Leave as is" action. For findings the user wants fixed, draft an architect-level implementation plan. STOP and WAIT for user approval.',
       inputSchema: z.object({
         summary: z.string().describe('Brief overall assessment of the codebase (2-3 sentences)'),
+        overallHealth: z.enum(['healthy', 'minor_issues', 'needs_attention', 'critical'])
+          .describe('Overall health assessment'),
         findings: z.array(z.object({
           id: z.string().describe('Unique ID like "A1", "A2", etc.'),
-          severity: z.enum(['critical', 'high', 'medium', 'low']),
-          category: z.enum(['bug', 'security', 'performance', 'accessibility', 'design', 'code-quality', 'seo', 'best-practice']),
+          severity: z.enum(['critical', 'warning', 'info', 'suggestion']),
+          category: z.enum(['architecture', 'security', 'performance', 'types', 'imports', 'config', 'patterns', 'deps']),
           title: z.string().describe('Short title of the issue'),
           description: z.string().describe('What the issue is and why it matters'),
-          file: z.string().describe('Primary file affected'),
-          fix: z.string().describe('Proposed fix (brief description)'),
+          file: z.string().optional().describe('Primary file affected'),
+          affectedFiles: z.array(z.string()).optional().describe('All files affected'),
+          currentPattern: z.string().optional().describe('What the code currently does (brief)'),
+          suggestedPattern: z.string().optional().describe('What it should do instead (brief)'),
           effort: z.enum(['trivial', 'small', 'medium', 'large']),
         })).describe('List of findings sorted by severity (critical first)'),
         stats: z.object({
-          filesAnalyzed: z.number(),
-          issuesFound: z.number(),
+          totalFiles: z.number(),
+          filesScanned: z.number(),
           criticalCount: z.number(),
-          estimatedFixTime: z.string().describe('Rough estimate like "5-10 minutes"'),
+          warningCount: z.number(),
+          infoCount: z.number(),
         }),
       }),
-      execute: async ({ summary, findings, stats }) => {
-        // Store the audit plan in VFS so it persists
-        const planData = { summary, findings, stats, createdAt: new Date().toISOString(), status: 'pending_approval' }
+      execute: async ({ summary, overallHealth, findings, stats }) => {
+        const planData = { summary, overallHealth, findings, stats, createdAt: new Date().toISOString(), status: 'pending_review' }
         ctx.vfs.write('.forge/audit-plan.json', JSON.stringify(planData, null, 2))
 
         return {
+          __audit_gate: true,
           ok: true,
-          message: 'Audit plan created. Waiting for user approval before executing fixes.',
-          plan: planData,
+          message: 'Audit findings presented. Waiting for user to review each finding.',
+          summary,
+          overallHealth,
+          findings,
+          stats,
+          status: 'pending_review',
+          instruction: 'Audit findings presented. STOP and WAIT for user to review each finding and choose Fix or Leave.',
         }
       },
     }),

@@ -87,14 +87,14 @@ export function GitPanel({ githubRepoUrl, projectId, onAction, onRepoConnected }
         <p className="text-xs text-forge-text-dim">No repository connected</p>
         <button
           onClick={() => onAction('create-repo')}
-          className="w-full flex items-center gap-2 px-3 py-2 text-xs rounded-lg bg-forge-accent text-white hover:bg-forge-accent/90 transition-colors"
+          className="w-full flex items-center gap-2 px-3 py-2 text-xs rounded-lg bg-forge-accent text-white hover:bg-forge-accent/90 active:scale-[0.98] transition-all duration-150"
         >
           <GitBranch className="w-3.5 h-3.5" />
           Create Repository
         </button>
         <button
           onClick={() => setShowConnect(!showConnect)}
-          className="w-full flex items-center gap-2 px-3 py-2 text-xs rounded-lg border border-forge-border hover:bg-forge-surface transition-colors"
+          className="w-full flex items-center gap-2 px-3 py-2 text-xs rounded-lg border border-forge-border hover:bg-forge-surface active:scale-[0.98] transition-all duration-150"
         >
           <Link className="w-3.5 h-3.5" />
           Connect Existing Repo
@@ -125,9 +125,9 @@ export function GitPanel({ githubRepoUrl, projectId, onAction, onRepoConnected }
                       key={repo.full_name}
                       onClick={() => handleConnect(repo.html_url)}
                       disabled={connecting}
-                      className="w-full flex items-center gap-2 px-2 py-1.5 text-xs text-left hover:bg-forge-surface transition-colors"
+                      className="group/repo w-full flex items-center gap-2 px-2 py-1.5 text-xs text-left hover:bg-forge-surface border-l-2 border-l-transparent hover:border-l-forge-accent active:scale-[0.98] transition-all duration-150"
                     >
-                      <GitBranch className="w-3 h-3 text-forge-text-dim shrink-0" />
+                      <GitBranch className="w-3 h-3 text-forge-text-dim group-hover/repo:text-forge-accent shrink-0 transition-colors" />
                       <span className="truncate text-forge-text font-mono">{repo.full_name}</span>
                     </button>
                   ))}
@@ -165,7 +165,7 @@ export function GitPanel({ githubRepoUrl, projectId, onAction, onRepoConnected }
         )}
         <button
           onClick={() => onAction('import')}
-          className="w-full flex items-center gap-2 px-3 py-2 text-xs rounded-lg border border-forge-border hover:bg-forge-surface transition-colors"
+          className="w-full flex items-center gap-2 px-3 py-2 text-xs rounded-lg border border-forge-border hover:bg-forge-surface active:scale-[0.98] transition-all duration-150"
         >
           <FolderInput className="w-3.5 h-3.5" />
           Import from GitHub
@@ -190,14 +190,14 @@ export function GitPanel({ githubRepoUrl, projectId, onAction, onRepoConnected }
       </a>
       <button
         onClick={() => onAction('push')}
-        className="w-full flex items-center gap-2 px-3 py-2 text-xs rounded-lg bg-forge-accent text-white hover:bg-forge-accent/90 transition-colors"
+        className="w-full flex items-center gap-2 px-3 py-2 text-xs rounded-lg bg-forge-accent text-white hover:bg-forge-accent/90 active:scale-[0.98] transition-all duration-150"
       >
         <Upload className="w-3.5 h-3.5" />
         Push to GitHub
       </button>
       <button
         onClick={() => onAction('import')}
-        className="w-full flex items-center gap-2 px-3 py-2 text-xs rounded-lg border border-forge-border hover:bg-forge-surface transition-colors"
+        className="w-full flex items-center gap-2 px-3 py-2 text-xs rounded-lg border border-forge-border hover:bg-forge-surface active:scale-[0.98] transition-all duration-150"
       >
         <FolderInput className="w-3.5 h-3.5" />
         Pull Latest

@@ -1,13 +1,14 @@
 'use client'
 
 import { useEffect, useRef, useState } from 'react'
+import { Loader2, Check, AlertCircle } from 'lucide-react'
 import { getLanguageFromPath } from '@/lib/utils'
 
 interface StatusBarProps {
   activeFile: string | null
   fileCount: number
   framework?: string
-  saveStatus?: 'idle' | 'saving' | 'saved' | 'error'
+  saveStatus?: 'idle' | 'pending' | 'saving' | 'saved' | 'error'
 }
 
 const LANG_DISPLAY: Record<string, string> = {
@@ -21,9 +22,25 @@ const LANG_DISPLAY: Record<string, string> = {
 }
 
 const SAVE_TEXT: Record<string, { label: string; color: string }> = {
+  pending: { label: 'Unsaved', color: 'text-forge-text-dim' },
   saving: { label: 'Saving...', color: 'text-amber-500' },
   saved:  { label: 'Saved',     color: 'text-green-500' },
   error:  { label: 'Save failed', color: 'text-red-500' },
+}
+
+const FRAMEWORK_COLORS: Record<string, string> = {
+  'Next.js': 'bg-gray-500',
+  'Vite': 'bg-purple-500',
+  'Static': 'bg-blue-400',
+  'React': 'bg-cyan-400',
+}
+
+function SaveStatusIcon({ status }: { status: string }) {
+  if (status === 'pending') return <span className="w-2 h-2 rounded-full bg-amber-400 animate-pulse-dot" />
+  if (status === 'saving') return <Loader2 className="w-3.5 h-3.5 text-amber-500 animate-spin" />
+  if (status === 'saved') return <Check className="w-3.5 h-3.5 text-green-500 animate-check-in" />
+  if (status === 'error') return <AlertCircle className="w-3.5 h-3.5 text-red-500" />
+  return null
 }
 
 export function StatusBar({ activeFile, fileCount, framework, saveStatus = 'idle' }: StatusBarProps) {
@@ -54,9 +71,10 @@ export function StatusBar({ activeFile, fileCount, framework, saveStatus = 'idle
   }, [saveStatus])
 
   const info = SAVE_TEXT[displayed]
+  const frameworkDotColor = framework ? FRAMEWORK_COLORS[framework] || 'bg-forge-text-dim' : null
 
   return (
-    <div className="h-6 flex items-center justify-between px-3 border-t border-forge-border bg-forge-panel text-[10px] text-forge-text-dim shrink-0 select-none">
+    <div role="status" aria-live="polite" className="h-6 flex items-center justify-between px-3 border-t border-forge-border bg-forge-panel text-[10px] text-forge-text-dim shrink-0 select-none">
       <div className="flex items-center gap-3">
         {langDisplay && (
           <span className="font-medium">{langDisplay}</span>
@@ -73,15 +91,17 @@ export function StatusBar({ activeFile, fileCount, framework, saveStatus = 'idle
       <div className="flex items-center gap-3">
         {info && (
           <span
-            className={`transition-opacity duration-150 ${info.color} ${visible ? 'opacity-100' : 'opacity-0'}`}
+            className={`flex items-center gap-1 transition-all duration-200 ease-out ${info.color} ${visible ? 'opacity-100' : 'opacity-0'}`}
           >
+            <SaveStatusIcon status={displayed} />
             {info.label}
           </span>
         )}
         {framework && (
           <>
             <span className="w-px h-3 bg-forge-border" />
-            <span className="px-1.5 py-0.5 rounded text-[9px] font-medium bg-forge-surface text-forge-text-dim border border-forge-border" title={`Detected framework: ${framework}`}>
+            <span className="flex items-center gap-1.5 px-1.5 py-0.5 rounded text-[9px] font-medium bg-forge-surface text-forge-text-dim border border-forge-border shadow-sm" title={`Detected framework: ${framework}`}>
+              {frameworkDotColor && <span className={`w-1.5 h-1.5 rounded-full ${frameworkDotColor}`} />}
               {framework}
             </span>
           </>

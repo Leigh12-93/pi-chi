@@ -293,7 +293,7 @@ export function getFriendlyError(rawError: string, toolName?: string): string {
 export function extractFileUpdates(
   inv: ToolInvocation,
   currentFiles: Record<string, string>,
-): { updates?: Record<string, string>; deletes?: string[] } | null {
+): { updates?: Record<string, string>; deletes?: string[]; warning?: string } | null {
   const args = inv.args || {}
 
   switch (inv.toolName) {
@@ -311,7 +311,13 @@ export function extractFileUpdates(
         const current = currentFiles[path]
         if (current && typeof oldStr === 'string' && typeof newStr === 'string') {
           if (current.includes(oldStr)) {
-            return { updates: { [path]: current.replace(oldStr, newStr) } }
+            // Warn if oldStr appears multiple times — only first occurrence is replaced
+            const occurrences = current.split(oldStr).length - 1
+            const updated = current.replace(oldStr, newStr)
+            if (occurrences > 1) {
+              return { updates: { [path]: updated }, warning: `old_string appeared ${occurrences} times — only the first occurrence was replaced` }
+            }
+            return { updates: { [path]: updated } }
           }
           const normLine = (l: string) => l.trim()
           const currentLines = current.split('\n')

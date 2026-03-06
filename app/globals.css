@@ -955,6 +955,43 @@ html.dark [data-sonner-toast] [data-description] {
   animation: textShimmer 2.5s linear infinite;
 }
 
+/* ─── Tab underline slide animation ──────────────────────── */
+@keyframes tabSlide {
+  from { transform: scaleX(0); }
+  to { transform: scaleX(1); }
+}
+.tab-underline-in { animation: tabSlide 0.2s var(--ease-spring); transform-origin: left; }
+
+/* ─── Bell ring animation ────────────────────────────────── */
+@keyframes bellRing {
+  0% { transform: rotate(0); }
+  15% { transform: rotate(14deg); }
+  30% { transform: rotate(-12deg); }
+  45% { transform: rotate(8deg); }
+  60% { transform: rotate(-4deg); }
+  75% { transform: rotate(2deg); }
+  100% { transform: rotate(0); }
+}
+.animate-bell-ring { animation: bellRing 0.6s var(--ease-spring); }
+
+/* ─── Resize grip dots (visible on hover) ────────────────── */
+[data-panel-group-direction="horizontal"] > [data-resize-handle]::after {
+  content: '···';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%) rotate(90deg);
+  font-size: 8px;
+  letter-spacing: 1px;
+  color: var(--color-forge-text-dim);
+  opacity: 0;
+  transition: opacity 0.15s;
+  pointer-events: none;
+}
+[data-panel-group-direction="horizontal"] > [data-resize-handle]:hover::after {
+  opacity: 0.5;
+}
+
 /* Sidebar slide-in animation */
 @keyframes sidebar-slide { from { opacity: 0; transform: translateX(-4px); } to { opacity: 1; transform: translateX(0); } }
 .animate-sidebar-in { animation: sidebar-slide 0.15s ease-out; }
@@ -1072,4 +1109,354 @@ html.dark [data-sonner-toast] [data-description] {
 :is(.dark) .deploy-terminal {
   background: #08080d;
   border-color: rgba(255, 255, 255, 0.04);
+}
+
+/* ─── Forge Polish: Device Frame Transition ──────────────── */
+.preview-device-frame {
+  transition: max-width 0.3s var(--ease-spring), box-shadow 0.3s ease, border-radius 0.3s ease;
+}
+.preview-device-frame.device-tablet,
+.preview-device-frame.device-mobile {
+  box-shadow: 0 0 0 1px var(--color-forge-border), 0 4px 20px rgba(0,0,0,0.08);
+  border-radius: 12px;
+  overflow: hidden;
+}
+:is(.dark) .preview-device-frame.device-tablet,
+:is(.dark) .preview-device-frame.device-mobile {
+  box-shadow: 0 0 0 1px var(--color-forge-border), 0 4px 20px rgba(0,0,0,0.3);
+}
+
+/* ─── Forge Polish: Grip Dots on Resize Handle ───────────── */
+.resize-grip-dots {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  opacity: 0;
+  transition: opacity 0.15s, transform 0.15s;
+}
+.resize-grip-dots > span {
+  width: 3px;
+  height: 3px;
+  border-radius: 50%;
+  background: var(--color-forge-text-dim);
+}
+[data-resize-handle]:hover .resize-grip-dots {
+  opacity: 0.4;
+}
+[data-resize-handle][data-resize-handle-active] .resize-grip-dots {
+  opacity: 0.6;
+  transform: scaleY(1.15);
+}
+
+/* ─── Forge Polish: Console Entry Slide-In ───────────────── */
+@keyframes consoleEntryIn {
+  from { opacity: 0; transform: translateX(8px); }
+  to { opacity: 1; transform: translateX(0); }
+}
+.console-entry-new {
+  animation: consoleEntryIn 0.15s var(--ease-spring);
+}
+
+/* ─── Forge Polish: Error / Warn Glow ────────────────────── */
+.console-entry-error {
+  box-shadow: inset 3px 0 8px -4px rgba(239, 68, 68, 0.3);
+}
+.console-entry-warn {
+  box-shadow: inset 3px 0 8px -4px rgba(245, 158, 11, 0.3);
+}
+
+/* ─── Forge Polish: Progress Bar Pulse at 95% ────────────── */
+@keyframes buildProgressPulse {
+  0%, 100% { opacity: 0.8; }
+  50% { opacity: 1; }
+}
+
+/* ─── Forge Polish: Fullscreen Exit Hint ─────────────────── */
+@keyframes hintFadeOut {
+  0%, 60% { opacity: 1; }
+  100% { opacity: 0; pointer-events: none; }
+}
+.fullscreen-hint {
+  animation: hintFadeOut 2.5s ease-out forwards;
+}
+
+/* ─── Forge Polish: Capture Flash ────────────────────────── */
+@keyframes captureFlash {
+  0% { box-shadow: inset 0 0 0 2px rgba(16, 185, 129, 0.6); }
+  100% { box-shadow: inset 0 0 0 2px rgba(16, 185, 129, 0); }
+}
+.capture-flash {
+  animation: captureFlash 0.8s ease-out;
+}
+
+/* ─── Forge Polish: Drag Overlay Pulse ───────────────────── */
+@keyframes dragBorderPulse {
+  0%, 100% { border-color: var(--color-forge-accent); opacity: 0.8; }
+  50% { border-color: var(--color-forge-accent); opacity: 1; }
+}
+.drag-overlay-pulse {
+  animation: dragBorderPulse 1.5s ease-in-out infinite;
+}
+
+/* ─── Forge Polish: Upload Icon Float ────────────────────── */
+@keyframes uploadFloat {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-4px); }
+}
+.upload-float {
+  animation: uploadFloat 2s ease-in-out infinite;
+}
+
+/* ─── Forge Polish: Building Browser Pulse Border ────────── */
+.forge-browser-building {
+  animation: buildBorderPulse 3s ease-in-out infinite;
+}
+@keyframes buildBorderPulse {
+  0%, 100% { border-color: #e2e8f0; }
+  50% { border-color: var(--color-forge-accent); }
+}
+:is(.dark) .forge-browser-building {
+  animation: buildBorderPulseDark 3s ease-in-out infinite;
+}
+@keyframes buildBorderPulseDark {
+  0%, 100% { border-color: #313244; }
+  50% { border-color: var(--color-forge-accent); }
+}
+
+/* ─── Forge Polish: Console Breathing Icon ───────────────── */
+@keyframes consoleBreathe {
+  0%, 100% { opacity: 0.3; }
+  50% { opacity: 0.6; }
+}
+.console-breathe {
+  animation: consoleBreathe 2.5s ease-in-out infinite;
+}
+
+/* ─── Forge Polish: Voice Recording Bar ──────────────────── */
+@keyframes recordingPulse {
+  0%, 100% { opacity: 0.5; }
+  50% { opacity: 1; }
+}
+.animate-recording-sweep {
+  animation: recordingPulse 1.8s ease-in-out infinite;
+}
+
+/* ─── Forge Polish: Textarea Smooth Height ───────────────── */
+.chat-textarea-smooth {
+  transition: height 0.1s ease-out;
+}
+
+/* ─── Forge Polish: Composer Focus Ring ──────────────────── */
+.composer-focus-glow:focus-within {
+  border-color: var(--color-forge-accent);
+  box-shadow: 0 0 0 2px var(--color-forge-ring);
+}
+
+/* ─── Forge Polish: Approval Card Pulse ──────────────────── */
+@keyframes approvalPulse {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(217, 119, 6, 0); }
+  50% { box-shadow: 0 0 8px 2px rgba(217, 119, 6, 0.08); }
+}
+.animate-approval-pulse {
+  animation: approvalPulse 2s ease-in-out 2;
+}
+
+/* ─── Scroll Edge Fade ─────────────────────────────────── */
+.scroll-fade-bottom {
+  mask-image: linear-gradient(to bottom, black 85%, transparent 100%);
+  -webkit-mask-image: linear-gradient(to bottom, black 85%, transparent 100%);
+}
+.scroll-fade-y {
+  mask-image: linear-gradient(to bottom, transparent, black 4%, black 96%, transparent);
+  -webkit-mask-image: linear-gradient(to bottom, transparent, black 4%, black 96%, transparent);
+}
+
+/* ─── Scroll Buttons Fade In ──────────────────────────── */
+@keyframes scrollBtnIn {
+  from { opacity: 0; transform: scale(0.9); }
+  to { opacity: 1; transform: scale(1); }
+}
+.scroll-btn-in {
+  animation: scrollBtnIn 0.15s var(--ease-spring);
+}
+
+/* ─── Focus Ring Utility ──────────────────────────────── */
+.focus-ring {
+  outline: none;
+  box-shadow: 0 0 0 2px var(--color-forge-ring);
+}
+
+/* ─── Dark Mode Glow Variants ──────────────────────────── */
+:is(.dark) .console-entry-error {
+  box-shadow: inset 3px 0 10px -4px rgba(239, 68, 68, 0.4);
+}
+:is(.dark) .console-entry-warn {
+  box-shadow: inset 3px 0 10px -4px rgba(245, 158, 11, 0.4);
+}
+:is(.dark) .capture-flash {
+  animation-name: captureFlashDark;
+}
+@keyframes captureFlashDark {
+  0% { box-shadow: inset 0 0 0 2px rgba(16, 185, 129, 0.8); }
+  100% { box-shadow: inset 0 0 0 2px rgba(16, 185, 129, 0); }
+}
+
+/* ─── Focus-Visible for All Interactive Polish Elements ─── */
+[role="tab"]:focus-visible {
+  outline: 2px solid var(--color-forge-accent);
+  outline-offset: -2px;
+  border-radius: 2px;
+}
+[data-resize-handle]:focus-visible {
+  outline: 2px solid var(--color-forge-accent);
+  outline-offset: -1px;
+}
+
+/* ─── Reduced Motion: Disable All Polish Animations ────── */
+@media (prefers-reduced-motion: reduce) {
+  .preview-device-frame,
+  .console-entry-new,
+  .console-breathe,
+  .capture-flash,
+  .fullscreen-hint,
+  .drag-overlay-pulse,
+  .upload-float,
+  .forge-browser-building,
+  .deploy-dot,
+  .deploy-rocket,
+  .deploy-success-pop,
+  .deploy-pill-glow,
+  .deploy-progress-bar,
+  .animate-recording-sweep::after,
+  .animate-approval-pulse {
+    animation: none !important;
+  }
+  .preview-device-frame {
+    transition: none !important;
+  }
+  .resize-grip-dots {
+    transition: none !important;
+  }
+  .console-entry-error,
+  .console-entry-warn {
+    box-shadow: none !important;
+  }
+  .modified-dot-pulse,
+  .approval-icon-glow,
+  .thinking-glow,
+  .cmd-palette-enter,
+  .project-card-enter {
+    animation: none !important;
+  }
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   WAVE 3 — File Tree, Project Picker, Command Palette,
+             Approval Card, Chat Panel
+   ═══════════════════════════════════════════════════════════════ */
+
+/* ─── Modified File Dot Pulse ──────────────────────────────── */
+@keyframes modifiedDotPulse {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50% { opacity: 0.5; transform: scale(1.3); }
+}
+.modified-dot-pulse {
+  animation: modifiedDotPulse 2s ease-in-out infinite;
+}
+
+/* ─── File Tree: Active File Left Border Slide-In ──────────── */
+@keyframes borderSlideIn {
+  from { transform: scaleY(0); }
+  to { transform: scaleY(1); }
+}
+
+/* ─── Project Card Stagger Entrance ────────────────────────── */
+@keyframes projectCardIn {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+.project-card-enter {
+  animation: projectCardIn 0.3s var(--ease-spring) both;
+}
+
+/* ─── Command Palette Scale-In ──────────────────────────────── */
+@keyframes cmdPaletteIn {
+  from { opacity: 0; transform: scale(0.95) translateY(-8px); }
+  to { opacity: 1; transform: scale(1) translateY(0); }
+}
+.cmd-palette-enter {
+  animation: cmdPaletteIn 0.2s var(--ease-spring);
+}
+
+/* ─── Command Palette Backdrop ─────────────────────────────── */
+@keyframes cmdBackdropIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+.cmd-backdrop-enter {
+  animation: cmdBackdropIn 0.15s ease-out;
+}
+
+/* ─── Approval Card Icon Glow ──────────────────────────────── */
+@keyframes approvalIconGlow {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(217, 119, 6, 0); }
+  50% { box-shadow: 0 0 8px 2px rgba(217, 119, 6, 0.2); }
+}
+.approval-icon-glow {
+  animation: approvalIconGlow 2s ease-in-out 3;
+}
+
+/* ─── Extended Thinking Glow ───────────────────────────────── */
+@keyframes thinkingGlow {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(99, 102, 241, 0); }
+  50% { box-shadow: 0 0 12px 3px rgba(99, 102, 241, 0.12); }
+}
+.thinking-glow {
+  animation: thinkingGlow 3s ease-in-out infinite;
+}
+
+/* ─── Token Count-Up (via CSS counter — triggered by class) ─── */
+@keyframes countUpFade {
+  from { opacity: 0; transform: translateY(4px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+.cost-chip-enter {
+  animation: countUpFade 0.3s var(--ease-spring);
+}
+
+/* ─── Stop Button Ring Pulse ───────────────────────────────── */
+@keyframes stopRingPulse {
+  0% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.4); }
+  70% { box-shadow: 0 0 0 6px rgba(239, 68, 68, 0); }
+  100% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0); }
+}
+.stop-ring-pulse {
+  animation: stopRingPulse 1.5s ease-out infinite;
+}
+
+/* ─── Quick Action Button Hover Lift ───────────────────────── */
+.quick-action-lift {
+  transition: transform 0.15s var(--ease-spring), box-shadow 0.15s ease;
+}
+.quick-action-lift:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+}
+.quick-action-lift:active {
+  transform: translateY(0);
+}
+
+/* ─── Forge Polish: Approval Timeout Drain Bar ───────────── */
+@keyframes approval-drain {
+  from { width: 100%; }
+  to { width: 0%; }
+}
+.approval-drain-bar {
+  animation: approval-drain 60s linear forwards;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .approval-drain-bar {
+    animation: none !important;
+  }
 }

@@ -88,6 +88,7 @@ export interface CreateResult {
   versionId?: string
   status: string
   error?: string
+  message?: string
   fileCount?: number
   skippedCount?: number
   retryable?: boolean
@@ -362,7 +363,7 @@ export async function createV0Sandbox(
 ): Promise<CreateResult> {
   // Concurrency guard
   if (inflightOps.has(projectId)) {
-    return { ok: false, status: 'error', error: 'Sandbox creation already in progress', retryable: true }
+    return { ok: true, status: 'creating', message: 'Sandbox creation already in progress' }
   }
   inflightOps.add(projectId)
   maybeCleanupSandboxSessions()

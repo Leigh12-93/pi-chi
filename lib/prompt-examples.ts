@@ -4,7 +4,12 @@
 const TEMPLATES: Record<string, { keywords: string[]; template: string }> = {
   'landing-page': {
     keywords: ['landing page', 'homepage', 'hero section', 'landing'],
-    template: `Structure for a landing page:
+    template: `Architecture for a landing page:
+- Data model: mostly static — define NavItem, Feature, Testimonial types in lib/types.ts
+- State: minimal — mobile menu toggle, scroll position for sticky nav
+- No API calls needed for static landing pages — use typed constants instead of inline arrays
+
+Structure for a landing page:
 - Hero section: headline (text-4xl+), subheadline (text-xl text-muted), CTA button (prominent, accent color), optional hero image/illustration
 - Social proof: logo bar or testimonial carousel
 - Features section: 3-4 cards in responsive grid (grid-cols-1 md:grid-cols-3), icon + title + description each
@@ -27,7 +32,13 @@ Each tier card: rounded-xl border shadow-md p-8, consistent internal spacing.`,
   },
   'dashboard': {
     keywords: ['dashboard', 'admin panel', 'analytics', 'overview'],
-    template: `Structure for a dashboard:
+    template: `Architecture for a dashboard:
+- Data model: define StatCard, ActivityItem, ChartDataPoint types in lib/types.ts
+- State: zustand store for sidebar collapse, date range filter
+- Hooks: useStats(), useActivity(), useCharts() for data fetching
+- Each data source needs: loading skeleton, error fallback, empty state
+
+Structure for a dashboard:
 - Sidebar navigation (w-64, collapsible on mobile) with icon + label links
 - Top bar: page title, user avatar dropdown, notifications bell
 - Stats row: 3-4 metric cards (grid-cols-2 lg:grid-cols-4) with label, value, trend indicator
@@ -37,7 +48,13 @@ Use zustand or context for sidebar collapse state.`,
   },
   'auth-flow': {
     keywords: ['login', 'signup', 'sign up', 'sign in', 'authentication', 'register'],
-    template: `Structure for auth pages:
+    template: `Architecture for auth:
+- Data model: LoginForm, SignupForm, AuthUser, AuthError types in lib/types.ts
+- State: form state via react-hook-form, auth state via context/zustand
+- Hooks: useAuth() for login/logout/session, with loading and error states
+- API: POST /api/auth/login → { user, token }, POST /api/auth/signup → { user }
+
+Structure for auth pages:
 - Centered card layout (max-w-md mx-auto mt-20)
 - Logo/brand at top
 - Form with: labeled inputs (react-hook-form + zod), show/hide password toggle, submit button with loading state
@@ -48,7 +65,12 @@ Every input needs: label, placeholder, validation, error state, focus ring.`,
   },
   'settings-page': {
     keywords: ['settings', 'preferences', 'profile', 'account settings'],
-    template: `Structure for settings page:
+    template: `Architecture for settings:
+- Data model: UserProfile, NotificationPrefs, BillingInfo types in lib/types.ts
+- State: form state via react-hook-form per section, with dirty tracking
+- Hooks: useProfile(), useNotificationPrefs() — each with loading/save/error states
+
+Structure for settings page:
 - Left sidebar tabs or top tab bar for sections (Profile, Security, Notifications, Billing)
 - Each section: heading, description, form fields in vertical stack
 - Save button fixed at bottom or per-section
@@ -58,7 +80,13 @@ Use react-hook-form for the form, zod for validation.`,
   },
   'data-table': {
     keywords: ['table', 'data table', 'list', 'crud', 'records'],
-    template: `Structure for a data table page:
+    template: `Architecture for a data table:
+- Data model: define the row type (e.g. User, Product, Order) in lib/types.ts with all columns typed
+- State: URL params for sort/filter/page (shareable), React state for selection
+- Hooks: useTableData(filters) with loading/error/empty states, usePagination()
+- API: GET /api/resource?sort=name&page=1&limit=20 → { data: T[], total: number }
+
+Structure for a data table page:
 - Header: page title + "Add New" button
 - Search/filter bar: text input + dropdown filters + date range
 - Table: sticky header, sortable columns (click header to sort), row hover state
@@ -70,7 +98,12 @@ Use @tanstack/react-table for sorting/filtering/pagination.`,
   },
   'form': {
     keywords: ['form', 'contact form', 'survey', 'questionnaire', 'input'],
-    template: `Structure for forms:
+    template: `Architecture for forms:
+- Data model: define form field types and validation schema in lib/types.ts (zod schema → infer TypeScript type)
+- State: react-hook-form with zodResolver — never manage form state manually
+- Handle: loading (submit button spinner), success (replace form or toast), error (field-level + toast)
+
+Structure for forms:
 - Logical field grouping with section headers
 - Every input: label (htmlFor), placeholder, validation (zod), error message (text-red-500 text-sm)
 - Field types: text, email, tel, textarea, select, checkbox, radio group, file upload
@@ -80,7 +113,13 @@ Use @tanstack/react-table for sorting/filtering/pagination.`,
   },
   'blog': {
     keywords: ['blog', 'articles', 'posts', 'content', 'cms'],
-    template: `Structure for a blog:
+    template: `Architecture for a blog:
+- Data model: Post { slug, title, excerpt, body, date, author, tags } in lib/types.ts
+- State: URL params for category filter, search query
+- Hooks: usePosts(filter), usePost(slug) with loading/error states
+- Static data acceptable for demo — but type the arrays properly
+
+Structure for a blog:
 - Blog listing: card grid (grid-cols-1 md:grid-cols-2 lg:grid-cols-3), each card has: image, category badge, title, excerpt, date, read time
 - Blog post: max-w-3xl mx-auto prose, hero image, title (text-4xl), author + date, markdown-rendered body, share buttons, related posts
 - Sidebar optional: categories, recent posts, newsletter signup
@@ -88,7 +127,13 @@ Use prose class from @tailwindcss/typography for article body.`,
   },
   'e-commerce': {
     keywords: ['shop', 'store', 'product', 'cart', 'checkout', 'e-commerce', 'ecommerce'],
-    template: `Structure for e-commerce:
+    template: `Architecture for e-commerce:
+- Data model: Product, CartItem, Cart, Order, Address types in lib/types.ts
+- State: zustand cart store (add, remove, update quantity, clear)
+- Hooks: useProducts(), useCart(), useCheckout() — each with loading/error/empty
+- API shapes: GET /api/products → Product[], POST /api/orders → Order
+
+Structure for e-commerce:
 - Product grid: responsive cards with image, name, price, rating stars, "Add to Cart" button
 - Product detail: image gallery (thumbnail + main), title, price, description, size/color selectors, quantity, Add to Cart, reviews section
 - Cart: item list with quantity controls, subtotal, shipping estimate, checkout CTA
@@ -145,7 +190,13 @@ Use useDeferredValue or debounce for search, zustand for filter state.`,
   },
   'chat-ui': {
     keywords: ['chat', 'messaging', 'chatbot', 'conversation', 'message'],
-    template: `Structure for chat/messaging UI:
+    template: `Architecture for chat UI:
+- Data model: Message { id, role, content, timestamp }, Conversation { id, messages, title } in lib/types.ts
+- State: zustand for conversations list, React state for current input
+- Hooks: useMessages(conversationId) with loading/streaming/error states
+- Handle: optimistic updates (show message immediately), streaming responses, retry on failure
+
+Structure for chat/messaging UI:
 - Message list: scrollable container (flex-col-reverse or scroll-to-bottom), auto-scroll on new messages
 - Message bubble: user (right-aligned, accent bg) vs other (left-aligned, muted bg), rounded-2xl px-4 py-2
 - Each message: avatar, name, timestamp, text content, optional reactions

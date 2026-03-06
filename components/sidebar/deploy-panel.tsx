@@ -94,14 +94,14 @@ export function DeployPanel({ onAction, projectId, vercelProjectId, onVercelConn
     <div className="p-3 space-y-3">
       <button
         onClick={() => onAction('deploy')}
-        className="w-full flex items-center gap-2 px-3 py-2 text-xs rounded-lg bg-forge-accent text-white hover:bg-forge-accent/90 transition-colors"
+        className="w-full flex items-center gap-2 px-3 py-2 text-xs rounded-lg bg-forge-accent text-white hover:bg-forge-accent/90 active:scale-[0.98] transition-all duration-150"
       >
         <Rocket className="w-3.5 h-3.5" />
         Deploy to Vercel
       </button>
       <button
         onClick={() => onAction('download')}
-        className="w-full flex items-center gap-2 px-3 py-2 text-xs rounded-lg border border-forge-border hover:bg-forge-surface transition-colors"
+        className="w-full flex items-center gap-2 px-3 py-2 text-xs rounded-lg border border-forge-border hover:bg-forge-surface active:scale-[0.98] transition-all duration-150"
       >
         <Download className="w-3.5 h-3.5" />
         Download ZIP
@@ -125,7 +125,7 @@ export function DeployPanel({ onAction, projectId, vercelProjectId, onVercelConn
           <>
             <button
               onClick={() => setShowConnect(!showConnect)}
-              className="w-full flex items-center gap-2 px-3 py-2 text-xs rounded-lg border border-forge-border hover:bg-forge-surface transition-colors"
+              className="w-full flex items-center gap-2 px-3 py-2 text-xs rounded-lg border border-forge-border hover:bg-forge-surface active:scale-[0.98] transition-all duration-150"
             >
               <Link className="w-3.5 h-3.5" />
               Connect Vercel Project

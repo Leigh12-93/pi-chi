@@ -3,7 +3,12 @@
 // Extracted from route.ts to keep the API handler lean.
 // ═══════════════════════════════════════════════════════════════════
 
+/** Escape single quotes for safe interpolation into JS template strings */
+function esc(s: string): string { return s.replace(/'/g, "\\'") }
+
 export function scaffoldNextJS(name: string, description?: string): Record<string, string> {
+  const safeName = esc(name)
+  const safeDesc = esc(description || 'Built with Forge')
   return {
     'package.json': JSON.stringify({
       name, version: '0.1.0', private: true,
@@ -30,9 +35,10 @@ export function scaffoldNextJS(name: string, description?: string): Record<strin
     }, null, 2),
     'postcss.config.mjs': `const config = { plugins: { "@tailwindcss/postcss": {} } }\nexport default config\n`,
     'app/globals.css': '@import "tailwindcss";\n',
-    'app/layout.tsx': `import type { Metadata } from 'next'\nimport './globals.css'\n\nexport const metadata: Metadata = {\n  title: '${name}',\n  description: '${description || 'Built with Forge'}',\n}\n\nexport default function RootLayout({ children }: { children: React.ReactNode }) {\n  return (\n    <html lang="en">\n      <body className="antialiased">{children}</body>\n    </html>\n  )\n}\n`,
+    'app/layout.tsx': `import type { Metadata } from 'next'\nimport './globals.css'\n\nexport const metadata: Metadata = {\n  title: '${safeName}',\n  description: '${safeDesc}',\n}\n\nexport default function RootLayout({ children }: { children: React.ReactNode }) {\n  return (\n    <html lang="en">\n      <body className="antialiased">{children}</body>\n    </html>\n  )\n}\n`,
     'app/page.tsx': `export default function Home() {\n  return (\n    <main className="min-h-screen flex items-center justify-center bg-white">\n      <h1 className="text-4xl font-bold text-gray-900">Welcome to ${name}</h1>\n    </main>\n  )\n}\n`,
     'lib/utils.ts': `import { clsx, type ClassValue } from 'clsx'\nimport { twMerge } from 'tailwind-merge'\nexport function cn(...inputs: ClassValue[]) { return twMerge(clsx(inputs)) }\n`,
+    'lib/types.ts': `// Core data types for this project\n// Define interfaces, types, and enums here\n\nexport {}\n`,
     '.gitignore': '.next/\nnode_modules/\n.env.local\n*.tsbuildinfo\nnext-env.d.ts\n',
   }
 }
@@ -63,6 +69,7 @@ export function scaffoldViteReact(name: string): Record<string, string> {
     'src/main.tsx': `import { StrictMode } from 'react'\nimport { createRoot } from 'react-dom/client'\nimport App from './App'\nimport './index.css'\ncreateRoot(document.getElementById('root')!).render(<StrictMode><App /></StrictMode>)\n`,
     'src/App.tsx': `export default function App() {\n  return (\n    <main className="min-h-screen flex items-center justify-center">\n      <h1 className="text-4xl font-bold">Welcome to ${name}</h1>\n    </main>\n  )\n}\n`,
     'src/index.css': '@import "tailwindcss";\n',
+    'src/types.ts': `// Core data types for this project\n// Define interfaces, types, and enums here\n\nexport {}\n`,
     '.gitignore': 'node_modules/\ndist/\n.env.local\n',
   }
 }
@@ -80,6 +87,7 @@ export function scaffoldSaaS(name: string): Record<string, string> {
   const base = scaffoldNextJS(name, 'SaaS landing page')
   return {
     ...base,
+    'lib/types.ts': `// Core data types for ${name}\n\nexport interface Feature {\n  icon: React.ComponentType<{ className?: string }>\n  title: string\n  desc: string\n}\n\nexport interface PricingPlan {\n  name: string\n  price: string\n  features: string[]\n  popular?: boolean\n}\n\nexport {}\n`,
     'app/page.tsx': `import { ArrowRight, Zap, Shield, BarChart3, Check } from 'lucide-react'
 
 const FEATURES = [
@@ -174,6 +182,7 @@ export function scaffoldBlog(name: string): Record<string, string> {
   const base = scaffoldNextJS(name, 'Blog')
   return {
     ...base,
+    'lib/types.ts': `// Core data types for ${name}\n\nexport interface Post {\n  slug: string\n  title: string\n  excerpt: string\n  date: string\n  readTime: string\n  tag: string\n}\n\nexport {}\n`,
     'app/page.tsx': `const POSTS = [
   { slug: 'getting-started', title: 'Getting Started with ${name}', excerpt: 'Learn how to set up your development environment and build your first feature.', date: '2026-02-28', readTime: '5 min', tag: 'Tutorial' },
   { slug: 'best-practices', title: 'Best Practices for Modern Web Development', excerpt: 'A comprehensive guide to writing clean, maintainable, and performant code.', date: '2026-02-25', readTime: '8 min', tag: 'Guide' },
@@ -220,6 +229,7 @@ export function scaffoldDashboard(name: string): Record<string, string> {
   const base = scaffoldNextJS(name, 'Dashboard')
   return {
     ...base,
+    'lib/types.ts': `// Core data types for ${name}\n\nexport interface StatCard {\n  label: string\n  value: string\n  change: string\n  up: boolean\n  icon: React.ComponentType<{ className?: string }>\n}\n\nexport interface ActivityItem {\n  name: string\n  action: string\n  time: string\n  amount: string\n}\n\nexport interface ChartDataPoint {\n  label: string\n  value: number\n}\n\nexport type DateRange = '7d' | '30d' | '90d' | '12m'\n\nexport {}\n`,
     'app/page.tsx': `import { BarChart3, Users, DollarSign, Activity, ArrowUpRight, ArrowDownRight } from 'lucide-react'
 
 const STATS = [
@@ -298,6 +308,7 @@ export function scaffoldEcommerce(name: string): Record<string, string> {
   const base = scaffoldNextJS(name, 'E-commerce store')
   return {
     ...base,
+    'lib/types.ts': `// Core data types for ${name}\n\nexport interface Product {\n  id: number\n  name: string\n  price: number\n  rating: number\n  reviews: number\n  image: string\n  description?: string\n  category?: string\n}\n\nexport interface CartItem {\n  product: Product\n  quantity: number\n}\n\nexport interface Cart {\n  items: CartItem[]\n  total: number\n}\n\nexport {}\n`,
     'app/page.tsx': `import { ShoppingCart, Star, Heart } from 'lucide-react'
 
 const PRODUCTS = [
@@ -360,6 +371,7 @@ export function scaffoldPortfolio(name: string): Record<string, string> {
   const base = scaffoldNextJS(name, 'Portfolio')
   return {
     ...base,
+    'lib/types.ts': `// Core data types for ${name}\n// Define interfaces, types, and enums here\n\nexport {}\n`,
     'app/page.tsx': `import { Github, Linkedin, Mail, ExternalLink } from 'lucide-react'
 
 const PROJECTS = [
@@ -423,6 +435,7 @@ export function scaffoldDocs(name: string): Record<string, string> {
   const base = scaffoldNextJS(name, 'Documentation site')
   return {
     ...base,
+    'lib/types.ts': `// Core data types for ${name}\n// Define interfaces, types, and enums here\n\nexport {}\n`,
     'app/page.tsx': `import { Book, Code2, Rocket, Terminal, ArrowRight, Search } from 'lucide-react'
 
 const SECTIONS = [

@@ -4,9 +4,9 @@ import { useMemo, useState, useCallback, useRef, useEffect, memo } from 'react'
 import {
   RefreshCw, Monitor, Smartphone, Tablet, AlertTriangle,
   Square, Loader2, Zap, ExternalLink, Maximize2, Minimize2,
-  Globe, Terminal, X, ArrowUpFromLine, Camera,
+  Globe, Terminal, X, ArrowUpFromLine, Camera, Copy, Check,
 } from 'lucide-react'
-import { motion } from 'framer-motion'
+import { motion, AnimatePresence } from 'framer-motion'
 import { cn, hashFileMapDeep } from '@/lib/utils'
 
 interface ConsoleEntry {
@@ -162,7 +162,7 @@ function BuildPhaseIndicator({ phase }: { phase: BuildPhase }) {
         const state = i < currentIdx ? 'done' : i === currentIdx ? 'active' : 'pending'
         return (
           <div key={p} className="flex items-center gap-1.5">
-            {i > 0 && <div className={cn('forge-phase-connector', state === 'done' && 'done')} />}
+            {i > 0 && <div className={cn('forge-phase-connector transition-colors duration-300', state === 'done' && 'done')} />}
             <div className={cn('forge-phase-step', state === 'active' && 'active', state === 'done' && 'done')}>
               <PhaseStepIcon state={state} />
               <span className="hidden sm:inline">{PHASE_LABELS[p]}</span>
@@ -245,7 +245,7 @@ const SANDBOX_NOISE_PATTERNS = [
   /Loading chunk \d+ failed/i,                    // Transient chunk loading (sandbox rebuilding)
   /ChunkLoadError/i,
   /Loading CSS chunk/i,
-  /vusercontent\.net/i,                           // v0 sandbox internal errors
+  // Note: vusercontent.net removed — it was filtering legitimate preview error signals
   /Minified React error/i,                        // React minified errors (from sandbox build, not user code)
   /The above error occurred in/i,                 // React error boundary info message
   /Consider adding an error boundary/i,
@@ -275,6 +275,7 @@ export const PreviewPanel = memo(function PreviewPanel({ files, projectId, onFix
   const [isFullscreen, setIsFullscreen] = useState(false)
   const [showConsole, setShowConsole] = useState(false)
   const [consoleLogs, setConsoleLogs] = useState<ConsoleEntry[]>([])
+  const [copiedConsoleIdx, setCopiedConsoleIdx] = useState<number | null>(null)
 
   // Sandbox state
   const [sandboxStatus, setSandboxStatus] = useState<SandboxStatus>('idle')
@@ -301,6 +302,9 @@ export const PreviewPanel = memo(function PreviewPanel({ files, projectId, onFix
   const errorFeedTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const [iframeError, setIframeError] = useState<string | null>(null)
   const [errorPopupDismissed, setErrorPopupDismissed] = useState(false)
+  const buildPhaseTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const [captureFlash, setCaptureFlash] = useState(false)
+  const [showFullscreenHint, setShowFullscreenHint] = useState(false)
   const lastAutoFeedRef = useRef(0) // global cooldown for error auto-feed
   const consoleLogsRef = useRef(consoleLogs) // stable ref for message listener
   const onFixErrorsRef = useRef(onFixErrors) // stable ref to avoid stale closure in setTimeout
@@ -522,7 +526,7 @@ export const PreviewPanel = memo(function PreviewPanel({ files, projectId, onFix
   // ─── Sandbox lifecycle ─────────────────────────────────────────
 
   const startSandbox = useCallback(async () => {
-    if (!projectId || startingRef.current) return
+    if (!projectId || startingRef.current || sandboxStatus === 'initializing') return
     if (Object.keys(files).length === 0) return
 
     // Abort any inflight request
@@ -621,6 +625,7 @@ export const PreviewPanel = memo(function PreviewPanel({ files, projectId, onFix
     setSandboxStatus('idle')
     setSandboxUrl(null)
     setSandboxError(null)
+    setIframeError(null)
     setIsSyncing(false)
     setBuildPhase(null)
     setIsCrossfading(false)
@@ -724,6 +729,24 @@ export const PreviewPanel = memo(function PreviewPanel({ files, projectId, onFix
       }
     }
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Timeout: catch stalled "starting" phase — if iframe never loads within 30s, show error
+  useEffect(() => {
+    if (buildPhaseTimeoutRef.current) clearTimeout(buildPhaseTimeoutRef.current)
+    if (buildPhase === 'starting') {
+      buildPhaseTimeoutRef.current = setTimeout(() => {
+        // Still stuck on 'starting' — iframe never loaded
+        setBuildPhase(null)
+        setIframeLoading(false)
+        setSandboxError('Preview timed out — the dev server did not respond. The project may have build errors or incompatible dependencies.')
+        setSandboxStatus('error')
+        addLog('Preview startup timed out after 30s', 'error', 'sandbox')
+      }, 30000)
+    }
+    return () => {
+      if (buildPhaseTimeoutRef.current) clearTimeout(buildPhaseTimeoutRef.current)
+    }
+  }, [buildPhase, addLog])
 
   // Listen for console/error messages from preview iframe (static + v0 sandbox)
   useEffect(() => {
@@ -869,6 +892,8 @@ export const PreviewPanel = memo(function PreviewPanel({ files, projectId, onFix
       window.dispatchEvent(new CustomEvent('forge:preview-captured', { detail: result }))
     }
     addLog('Preview captured for AI review', 'info', 'forge')
+    setCaptureFlash(true)
+    setTimeout(() => setCaptureFlash(false), 800)
   }, [capturePreviewContent, onCapturePreview, addLog])
 
   // Reset auto-feed attempts when files change (user or AI made fixes)
@@ -905,10 +930,10 @@ export const PreviewPanel = memo(function PreviewPanel({ files, projectId, onFix
     return () => window.removeEventListener('keydown', handler)
   }, [isFullscreen])
 
-  const widthClasses: Record<ViewMode, string> = {
-    desktop: 'w-full',
-    tablet: 'w-[768px] mx-auto',
-    mobile: 'w-[375px] mx-auto',
+  const deviceMaxWidth: Record<ViewMode, string> = {
+    desktop: '100%',
+    tablet: '768px',
+    mobile: '375px',
   }
 
   const isSandboxActive = sandboxStatus === 'running' && sandboxUrl
@@ -967,44 +992,66 @@ export const PreviewPanel = memo(function PreviewPanel({ files, projectId, onFix
           {/* Center: URL bar */}
           <div className="flex-1 flex items-center min-w-0">
             <div className={cn(
-              'flex items-center gap-2 w-full px-3 py-1.5 rounded-lg text-xs font-mono transition-colors',
-              'bg-forge-surface border border-forge-border transition-all',
+              'flex items-center gap-2 w-full px-3 py-1.5 rounded-lg text-xs font-mono',
+              'bg-forge-surface border border-forge-border transition-all duration-200',
+              'hover:shadow-[inset_0_1px_4px_rgba(0,0,0,0.06)]',
               isSandboxActive && 'border-green-300 dark:border-green-700 bg-green-50/50 dark:bg-green-950/30',
               isSandboxLoading && 'border-amber-300 dark:border-amber-700 bg-amber-50/50 dark:bg-amber-950/30',
               sandboxStatus === 'error' && 'border-red-300 dark:border-red-700 bg-red-50/50 dark:bg-red-950/30',
               showCachedPreview && 'border-forge-border bg-forge-surface/50',
             )}>
-              {/* Status indicator */}
-  {isSandboxActive && !isSyncing && (
-  <div className="shrink-0 flex items-center gap-1 text-emerald-600 dark:text-emerald-400 animate-fade-in">
-  <div className="relative">
-  <Zap className="w-3 h-3" />
-  <span className="absolute -top-0.5 -right-0.5 w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse-dot" />
-  </div>
-  </div>
-  )}
-              {isSandboxActive && isSyncing && (
-                <ArrowUpFromLine className="w-3 h-3 shrink-0 animate-pulse text-blue-500" />
-              )}
-              {isSandboxLoading && (
-                <Loader2 className="w-3 h-3 shrink-0 animate-spin text-amber-600" />
-              )}
-              {sandboxStatus === 'error' && (
-                <AlertTriangle className="w-3 h-3 shrink-0 text-red-500" />
-              )}
-              {showCachedPreview && (
-                <Globe className="w-3 h-3 shrink-0 text-forge-text-dim/50" />
-              )}
-              {sandboxStatus === 'idle' && !showCachedPreview && !previewError && (
-                <Globe className="w-3 h-3 shrink-0 text-forge-text-dim" />
-              )}
-              {sandboxStatus === 'idle' && !showCachedPreview && previewError && (
-                <AlertTriangle className="w-3 h-3 shrink-0 text-red-500" />
-              )}
+              {/* Status indicator — AnimatePresence crossfade */}
+              <AnimatePresence mode="wait">
+                {isSandboxActive && !isSyncing && (
+                  <motion.div
+                    key="live"
+                    initial={{ opacity: 0, scale: 0.8 }}
+                    animate={{ opacity: 1, scale: 1 }}
+                    exit={{ opacity: 0, scale: 0.8 }}
+                    transition={{ duration: 0.15 }}
+                    className="shrink-0 flex items-center gap-1 text-emerald-600 dark:text-emerald-400"
+                  >
+                    <div className="relative">
+                      <Zap className="w-3 h-3" />
+                      <span className="absolute -top-0.5 -right-0.5 w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse-dot" />
+                    </div>
+                  </motion.div>
+                )}
+                {isSandboxActive && isSyncing && (
+                  <motion.div key="syncing" initial={{ opacity: 0, scale: 0.8 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.8 }} transition={{ duration: 0.15 }}>
+                    <ArrowUpFromLine className="w-3 h-3 shrink-0 animate-pulse text-blue-500" />
+                  </motion.div>
+                )}
+                {isSandboxLoading && (
+                  <motion.div key="loading" initial={{ opacity: 0, scale: 0.8 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.8 }} transition={{ duration: 0.15 }}>
+                    <Loader2 className="w-3 h-3 shrink-0 animate-spin text-amber-600" />
+                  </motion.div>
+                )}
+                {sandboxStatus === 'error' && (
+                  <motion.div key="error" initial={{ opacity: 0, scale: 0.8 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.8 }} transition={{ duration: 0.15 }}>
+                    <AlertTriangle className="w-3 h-3 shrink-0 text-red-500" />
+                  </motion.div>
+                )}
+                {showCachedPreview && (
+                  <motion.div key="cached" initial={{ opacity: 0, scale: 0.8 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.8 }} transition={{ duration: 0.15 }}>
+                    <Globe className="w-3 h-3 shrink-0 text-forge-text-dim/50" />
+                  </motion.div>
+                )}
+                {sandboxStatus === 'idle' && !showCachedPreview && !previewError && (
+                  <motion.div key="idle" initial={{ opacity: 0, scale: 0.8 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.8 }} transition={{ duration: 0.15 }}>
+                    <Globe className="w-3 h-3 shrink-0 text-forge-text-dim" />
+                  </motion.div>
+                )}
+                {sandboxStatus === 'idle' && !showCachedPreview && previewError && (
+                  <motion.div key="idle-error" initial={{ opacity: 0, scale: 0.8 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.8 }} transition={{ duration: 0.15 }}>
+                    <AlertTriangle className="w-3 h-3 shrink-0 text-red-500" />
+                  </motion.div>
+                )}
+              </AnimatePresence>
 
               {/* URL text */}
               <span className={cn(
-                'truncate select-all',
+                'truncate select-all cursor-text',
                 isSandboxActive ? 'text-emerald-600 dark:text-emerald-400' : 'text-forge-text-dim',
                 isSandboxLoading && 'text-amber-600 dark:text-amber-400',
                 sandboxStatus === 'error' && 'text-forge-danger',
@@ -1094,7 +1141,12 @@ export const PreviewPanel = memo(function PreviewPanel({ files, projectId, onFix
 
             {/* Fullscreen toggle */}
             <button
-              onClick={() => setIsFullscreen(prev => !prev)}
+              onClick={() => {
+                setIsFullscreen(prev => {
+                  if (!prev) { setShowFullscreenHint(true); setTimeout(() => setShowFullscreenHint(false), 2500) }
+                  return !prev
+                })
+              }}
               className="p-2.5 sm:p-1.5 rounded-md text-forge-text-dim hover:text-forge-text hover:bg-forge-surface transition-colors"
               title={isFullscreen ? 'Exit fullscreen' : 'Fullscreen'}
               aria-label={isFullscreen ? 'Exit fullscreen' : 'Enter fullscreen'}
@@ -1123,9 +1175,25 @@ export const PreviewPanel = memo(function PreviewPanel({ files, projectId, onFix
         </div>
       </div>
 
+      {/* Fullscreen exit hint */}
+      {isFullscreen && showFullscreenHint && (
+        <div className="absolute top-4 left-1/2 -translate-x-1/2 z-[60] fullscreen-hint">
+          <div className="px-3 py-1.5 rounded-lg bg-forge-bg/80 backdrop-blur border border-forge-border text-[11px] text-forge-text-dim shadow-lg">
+            Press <kbd className="px-1 py-0.5 rounded bg-forge-surface border border-forge-border text-[10px] font-mono">Esc</kbd> to exit fullscreen
+          </div>
+        </div>
+      )}
+
       {/* ─── Preview Body ──────────────────────────────────────── */}
-          <div className="flex-1 overflow-hidden bg-forge-bg relative">
-        <div className={cn('h-full transition-all', widthClasses[viewMode])}>
+          <div className={cn('flex-1 overflow-hidden bg-forge-bg relative', captureFlash && 'capture-flash')}>
+        <div
+          className={cn(
+            'h-full preview-device-frame',
+            viewMode !== 'desktop' && `device-${viewMode}`,
+            viewMode !== 'desktop' && 'mx-auto',
+          )}
+          style={{ maxWidth: deviceMaxWidth[viewMode] }}
+        >
           {/* Static preview iframe — always present as base layer, srcDoc updates reactively */}
           {previewHtml === '__JSX_BUILDING_PLACEHOLDER__' && !isSandboxActive && !showCachedPreview ? (
             <div className="absolute inset-0">
@@ -1138,7 +1206,7 @@ export const PreviewPanel = memo(function PreviewPanel({ files, projectId, onFix
                 'w-full h-full border-0 absolute inset-0 transition-opacity duration-300',
                 (isSandboxActive || showCachedPreview) ? 'opacity-0 pointer-events-none' : 'opacity-100',
               )}
-              sandbox="allow-scripts allow-same-origin"
+              sandbox="allow-scripts"
               title="Static Preview"
               onError={() => setIframeError('Preview failed to load')}
             />
@@ -1183,7 +1251,7 @@ export const PreviewPanel = memo(function PreviewPanel({ files, projectId, onFix
               <div className="forge-glow" />
 
               {/* Mini browser frame */}
-              <div className="forge-browser">
+              <div className={cn('forge-browser', buildPhase && buildPhase !== 'ready' && 'forge-browser-building')}>
                 {/* Browser title bar */}
                 <div className="forge-browser-bar">
                   <div className="forge-traffic-dot" style={{ background: '#ff5f57' }} />
@@ -1218,14 +1286,15 @@ export const PreviewPanel = memo(function PreviewPanel({ files, projectId, onFix
                 <div className="forge-ui-row" style={{ ['--delay' as string]: '1.6s', ['--duration' as string]: '0.5s' } as React.CSSProperties}>
                   <div className="forge-cards">
                     {[
-                      { color: '#eef2ff', delay: '1.8s' },
-                      { color: '#f0fdf4', delay: '2.0s' },
-                      { color: '#fef3c7', delay: '2.2s' },
+                      { color: '#eef2ff', delay: '1.8s', lines: ['80%', '55%'] },
+                      { color: '#f0fdf4', delay: '2.0s', lines: ['70%', '90%', '40%'] },
+                      { color: '#fef3c7', delay: '2.2s', lines: ['85%', '50%'] },
                     ].map((card, i) => (
                       <div key={i} className="forge-card" style={{ ['--delay' as string]: card.delay } as React.CSSProperties}>
                         <div className="forge-card-icon" style={{ background: card.color }} />
-                        <div className="forge-card-line" style={{ width: '80%' }} />
-                        <div className="forge-card-line" style={{ width: '55%' }} />
+                        {card.lines.map((w, j) => (
+                          <div key={j} className="forge-card-line" style={{ width: w }} />
+                        ))}
                       </div>
                     ))}
                   </div>
@@ -1271,7 +1340,7 @@ export const PreviewPanel = memo(function PreviewPanel({ files, projectId, onFix
 
               {/* Progress track */}
               <div className="forge-progress-track">
-                <div className="forge-progress-bar" />
+                <div className="forge-progress-bar" style={buildPhase === 'starting' ? { animation: 'buildProgress 8s ease-out forwards, buildProgressPulse 1s ease-in-out infinite' } : undefined} />
               </div>
             </div>
           )}
@@ -1294,9 +1363,21 @@ export const PreviewPanel = memo(function PreviewPanel({ files, projectId, onFix
           )}
 
           {/* Missing imports overlay — shown when files have dangling imports */}
+          <AnimatePresence>
           {missingImports.length > 0 && (isSandboxActive || isSandboxLoading) && (
-            <div className="absolute inset-0 z-20 flex items-center justify-center bg-forge-bg/80 backdrop-blur-sm animate-fade-in">
-              <div className="bg-forge-bg border border-red-300 dark:border-red-500/40 rounded-xl p-5 shadow-xl max-w-sm mx-4">
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0, transition: { duration: 0.2 } }}
+              className="absolute inset-0 z-20 flex items-center justify-center bg-forge-bg/80 backdrop-blur-sm"
+            >
+              <motion.div
+                initial={{ opacity: 0, y: 16, scale: 0.96 }}
+                animate={{ opacity: 1, y: 0, scale: 1 }}
+                exit={{ opacity: 0, y: 8, scale: 0.95 }}
+                transition={{ type: 'spring', stiffness: 400, damping: 30 }}
+                className="bg-forge-bg border border-red-300 dark:border-red-500/40 rounded-xl p-5 shadow-xl max-w-sm mx-4"
+              >
                 <div className="flex items-start gap-3">
                   <div className="w-9 h-9 rounded-lg bg-red-500/10 flex items-center justify-center shrink-0">
                     <AlertTriangle className="w-5 h-5 text-red-500" />
@@ -1306,9 +1387,15 @@ export const PreviewPanel = memo(function PreviewPanel({ files, projectId, onFix
                     <p className="text-xs text-forge-text-dim mt-1">The preview crashed because imported files don&apos;t exist yet:</p>
                     <div className="mt-2 space-y-1 max-h-32 overflow-y-auto">
                       {missingImports.slice(0, 5).map((err, i) => (
-                        <div key={i} className="text-[11px] font-mono text-red-500 dark:text-red-400 bg-red-500/5 rounded px-2 py-1">
+                        <motion.div
+                          key={i}
+                          initial={{ opacity: 0, x: 8 }}
+                          animate={{ opacity: 1, x: 0 }}
+                          transition={{ delay: i * 0.05 }}
+                          className="text-[11px] font-mono text-red-500 dark:text-red-400 bg-red-500/5 rounded px-2 py-1"
+                        >
                           {err.replace(/^Missing module: /, '')}
-                        </div>
+                        </motion.div>
                       ))}
                       {missingImports.length > 5 && (
                         <div className="text-[10px] text-forge-text-dim">+{missingImports.length - 5} more</div>
@@ -1317,18 +1404,26 @@ export const PreviewPanel = memo(function PreviewPanel({ files, projectId, onFix
                     <div className="mt-3 flex items-center gap-2">
                       <div className="flex items-center gap-1.5 text-[10px] text-forge-accent">
                         <Loader2 className="w-3 h-3 animate-spin" />
-                        <span>AI is creating missing files...</span>
+                        <span className="animate-shimmer bg-clip-text">AI is creating missing files...</span>
                       </div>
                     </div>
                   </div>
                 </div>
-              </div>
-            </div>
+              </motion.div>
+            </motion.div>
           )}
+          </AnimatePresence>
 
           {/* Sandbox error popup — bottom-left animated toast with Fix button */}
+          <AnimatePresence>
           {sandboxStatus === 'error' && sandboxError && (
-            <div className="absolute bottom-3 left-3 z-20 max-w-xs animate-slide-up">
+            <motion.div
+              initial={{ opacity: 0, y: 12 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: 8, scale: 0.95 }}
+              transition={{ type: 'spring', stiffness: 400, damping: 30 }}
+              className="absolute bottom-3 left-3 z-20 max-w-xs"
+            >
               <div className="bg-forge-bg/95 backdrop-blur border border-red-500/30 rounded-xl p-3 shadow-2xl space-y-2">
                 <div className="flex items-start gap-2">
                   <div className="w-7 h-7 rounded-lg bg-red-500/10 flex items-center justify-center shrink-0">
@@ -1369,12 +1464,20 @@ export const PreviewPanel = memo(function PreviewPanel({ files, projectId, onFix
                   </button>
                 </div>
               </div>
-            </div>
+            </motion.div>
           )}
+          </AnimatePresence>
 
           {/* Runtime error popup — bottom-left animated toast */}
+          <AnimatePresence>
           {!errorPopupDismissed && errorCount > 0 && !showConsole && sandboxStatus !== 'error' && onFixErrors && (
-            <div className="absolute bottom-3 left-3 z-20 max-w-xs animate-slide-up">
+            <motion.div
+              initial={{ opacity: 0, y: 12 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: 8, scale: 0.95 }}
+              transition={{ type: 'spring', stiffness: 400, damping: 30 }}
+              className="absolute bottom-3 left-3 z-20 max-w-xs"
+            >
               <div className="bg-forge-bg/95 backdrop-blur border border-red-500/30 rounded-xl p-3 shadow-2xl space-y-2">
                 <div className="flex items-start gap-2">
                   <div className="w-7 h-7 rounded-lg bg-red-500/10 flex items-center justify-center shrink-0">
@@ -1419,8 +1522,9 @@ export const PreviewPanel = memo(function PreviewPanel({ files, projectId, onFix
                   </button>
                 </div>
               </div>
-            </div>
+            </motion.div>
           )}
+          </AnimatePresence>
 
           {/* Floating Fix with AI button — visible when console has errors and popup was dismissed */}
           {errorPopupDismissed && !showConsole && consoleLogs.some(e => e.level === 'error') && onFixErrors && (
@@ -1441,17 +1545,31 @@ export const PreviewPanel = memo(function PreviewPanel({ files, projectId, onFix
             </div>
           )}
 
-          {/* Iframe error overlay */}
+          {/* Iframe error overlay with diagnose button */}
           {iframeError && (
             <div className="absolute top-3 left-3 right-3 z-10 animate-fade-in">
-              <div className="bg-forge-bg/95 backdrop-blur border border-red-200 dark:border-red-500/30 rounded-lg p-3 shadow-lg flex items-center gap-2 max-w-sm mx-auto">
-                <AlertTriangle className="w-4 h-4 text-red-500 shrink-0" />
-                <p className="text-xs text-red-700 flex-1">{iframeError}</p>
+              <div className="bg-forge-bg/95 backdrop-blur border border-red-200 dark:border-red-500/30 rounded-lg p-3 shadow-lg max-w-sm mx-auto">
+                <div className="flex items-center gap-2">
+                  <AlertTriangle className="w-4 h-4 text-red-500 shrink-0" />
+                  <p className="text-xs text-red-700 dark:text-red-400 flex-1">{iframeError}</p>
+                  <button
+                    onClick={() => setIframeError(null)}
+                    className="p-0.5 text-red-400 hover:text-red-600 transition-colors"
+                  >
+                    <X className="w-3 h-3" />
+                  </button>
+                </div>
                 <button
-                  onClick={() => setIframeError(null)}
-                  className="p-0.5 text-red-400 hover:text-red-600 transition-colors"
+                  onClick={() => {
+                    // Dispatch preview error event for AI to auto-diagnose
+                    window.dispatchEvent(new CustomEvent('forge:preview-error', {
+                      detail: { url: wcPreviewUrl || 'unknown', errorType: 'refused_to_connect' }
+                    }))
+                    setIframeError(null)
+                  }}
+                  className="mt-2 text-[11px] text-amber-500 hover:text-amber-400 transition-colors"
                 >
-                  <X className="w-3 h-3" />
+                  Diagnose with AI
                 </button>
               </div>
             </div>
@@ -1469,6 +1587,7 @@ export const PreviewPanel = memo(function PreviewPanel({ files, projectId, onFix
                 allow="cross-origin-isolated"
                 onLoad={() => {
                   setIframeLoading(false)
+                  setIframeError(null)
                   onPreviewReady?.()
                 }}
                 onError={() => setIframeError('Preview failed to load')}
@@ -1480,8 +1599,11 @@ export const PreviewPanel = memo(function PreviewPanel({ files, projectId, onFix
           {!wcPreviewUrl && isSandboxActive && (
             <>
               {iframeLoading && (
-                <div className="absolute top-3 right-3 z-10">
-                  <Loader2 className="w-4 h-4 animate-spin text-green-500" />
+                <div className="absolute inset-0 z-10 pointer-events-none">
+                  <div className="absolute inset-0 animate-shimmer" />
+                  <div className="absolute top-3 right-3">
+                    <Loader2 className="w-4 h-4 animate-spin text-green-500" />
+                  </div>
                 </div>
               )}
               <iframe
@@ -1493,6 +1615,7 @@ export const PreviewPanel = memo(function PreviewPanel({ files, projectId, onFix
                 allow="cross-origin-isolated"
                 onLoad={() => {
                   setIframeLoading(false)
+                  setIframeError(null)
                   // Trigger ready phase + crossfade
                   if (buildPhase && buildPhase !== 'ready') {
                     setBuildPhase('ready')
@@ -1555,17 +1678,23 @@ export const PreviewPanel = memo(function PreviewPanel({ files, projectId, onFix
           {/* Console body */}
           <div className="flex-1 overflow-y-auto p-2 font-mono text-xs sm:text-[11px] leading-relaxed">
             {consoleLogs.length === 0 ? (
-              <div className="text-forge-text-dim/50 text-center py-4">No logs yet</div>
+              <div className="flex flex-col items-center justify-center h-full gap-1.5 text-forge-text-dim/50 text-[10px] py-4">
+                <Terminal className="w-4 h-4 console-breathe" />
+                <span>Waiting for output...</span>
+              </div>
             ) : (
               <>
-                {consoleLogs.slice(-50).map((entry, i) => (
+                {consoleLogs.slice(-50).map((entry, i, arr) => {
+                  const isLast = i === arr.length - 1
+                  return (
                   <div key={consoleLogs.length - 50 + i} className={cn(
-                    'flex items-start py-0.5 px-1 rounded',
-                    entry.level === 'error' ? 'text-red-500 dark:text-red-400 bg-red-500/5'
-                      : entry.level === 'warn' ? 'text-amber-600 dark:text-yellow-400 bg-amber-500/5'
+                    'group/entry flex items-start py-0.5 px-1 rounded relative',
+                    entry.level === 'error' ? 'text-red-500 dark:text-red-400 bg-red-500/5 console-entry-error'
+                      : entry.level === 'warn' ? 'text-amber-600 dark:text-yellow-400 bg-amber-500/5 console-entry-warn'
                       : entry.level === 'info' ? 'text-blue-600 dark:text-blue-400'
                       : entry.source === 'sandbox' ? 'text-emerald-600 dark:text-green-400'
                       : 'text-forge-text',
+                    isLast && 'console-entry-new',
                   )}>
                     <span className="w-7 shrink-0 text-right pr-2 text-forge-text-dim/30 select-none tabular-nums">{i + 1}</span>
                     <span className="text-forge-text-dim/50 select-none">[{entry.timestamp}]</span>
@@ -1576,9 +1705,21 @@ export const PreviewPanel = memo(function PreviewPanel({ files, projectId, onFix
                         : 'text-forge-text-dim/50'
                       )}>{entry.level}</span>
                     )}
-                    <span className="ml-1 break-all">{entry.message}</span>
+                    <span className="ml-1 break-all flex-1">{entry.message}</span>
+                    <button
+                      onClick={() => {
+                        navigator.clipboard.writeText(entry.message)
+                        setCopiedConsoleIdx(i)
+                        setTimeout(() => setCopiedConsoleIdx(prev => prev === i ? null : prev), 1500)
+                      }}
+                      className="shrink-0 ml-1 p-0.5 rounded opacity-0 group-hover/entry:opacity-60 hover:!opacity-100 text-forge-text-dim hover:text-forge-text transition-opacity"
+                      title="Copy to clipboard"
+                    >
+                      {copiedConsoleIdx === i ? <Check className="w-2.5 h-2.5 text-forge-success" /> : <Copy className="w-2.5 h-2.5" />}
+                    </button>
                   </div>
-                ))}
+                  )
+                })}
                 <div ref={consoleEndRef} />
               </>
             )}

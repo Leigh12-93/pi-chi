@@ -1,7 +1,7 @@
 'use client'
 
 import React from 'react'
-import { AlertTriangle, RefreshCw } from 'lucide-react'
+import { AlertTriangle, RefreshCw, Copy } from 'lucide-react'
 
 interface ErrorBoundaryState {
   hasError: boolean
@@ -30,7 +30,7 @@ export class ErrorBoundary extends React.Component<
       return (
         <div className="h-screen flex items-center justify-center bg-forge-bg p-6">
           <div className="max-w-md w-full text-center">
-            <div className="w-14 h-14 rounded-2xl bg-red-50 flex items-center justify-center mx-auto mb-5">
+            <div className="w-14 h-14 rounded-2xl bg-red-50 dark:bg-red-950/30 flex items-center justify-center mx-auto mb-5">
               <AlertTriangle className="w-7 h-7 text-red-500" />
             </div>
             <h2 className="text-lg font-semibold text-forge-text mb-2">Something went wrong</h2>
@@ -38,10 +38,11 @@ export class ErrorBoundary extends React.Component<
               An unexpected error occurred. Your recent changes may not have been saved. Click 'Try Again' to recover your work.
             </p>
             {this.state.error && (
-              <pre className="text-[11px] text-red-500 bg-red-50 border border-red-200 rounded-xl p-3 mt-3 mb-4 text-left overflow-auto max-h-32 font-mono">
+              <pre className="text-[11px] text-red-500 bg-red-50 dark:bg-red-950/30 border border-red-200 dark:border-red-800 rounded-xl p-3 mt-3 mb-4 text-left overflow-auto max-h-32 font-mono">
                 {this.state.error.message}
               </pre>
             )}
+            <p className="text-xs text-forge-text-dim mb-4">If this keeps happening, try reloading the page.</p>
             <div className="flex items-center gap-3">
               <button
                 onClick={() => this.setState({ hasError: false, error: null })}
@@ -56,6 +57,20 @@ export class ErrorBoundary extends React.Component<
                 <RefreshCw className="w-4 h-4" />
                 Full Reload
               </button>
+              {this.state.error && (
+                <button
+                  onClick={() => {
+                    const err = this.state.error
+                    if (err) {
+                      navigator.clipboard.writeText(`${err.message}\n${err.stack || ''}`)
+                    }
+                  }}
+                  className="inline-flex items-center gap-2 px-4 py-2.5 text-forge-text-dim text-sm font-medium rounded-xl border border-forge-border hover:bg-forge-panel transition-colors"
+                >
+                  <Copy className="w-4 h-4" />
+                  Copy Error
+                </button>
+              )}
             </div>
           </div>
         </div>

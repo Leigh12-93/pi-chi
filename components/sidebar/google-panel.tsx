@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect, useCallback, useRef } from 'react'
-import { ChevronDown, Check, Loader2, Trash2, ExternalLink, RefreshCw, Copy, Upload, AlertTriangle, X } from 'lucide-react'
+import { ChevronDown, Check, Loader2, Trash2, ExternalLink, RefreshCw, Copy, Upload, AlertTriangle, X, Table2, Calendar, Mail, FolderOpen } from 'lucide-react'
 import { toast } from 'sonner'
 
 interface GooglePanelProps {
@@ -654,6 +654,52 @@ export function GooglePanel({ fileContents, onFileChange }: GooglePanelProps) {
           </div>
         )}
       </div>
+
+      {/* ═══ Section 4: Connected AI Tools ═══ */}
+      {settings.hasGoogleAccount && (
+        <div className="rounded-md border border-forge-border">
+          <div className="px-2.5 py-2">
+            <span className="text-[11px] font-medium text-forge-text">AI Tools Available</span>
+            <p className="text-[10px] text-forge-text-dim mt-0.5">Tools the AI can use based on your connected scopes.</p>
+          </div>
+          <div className="px-2.5 pb-2.5 space-y-1 border-t border-forge-border/50 pt-2">
+            {([
+              { label: 'Sheets', icon: Table2, scope: 'https://www.googleapis.com/auth/spreadsheets', tools: 'Read, write, create spreadsheets' },
+              { label: 'Calendar', icon: Calendar, scope: 'https://www.googleapis.com/auth/calendar', tools: 'List and create events' },
+              { label: 'Gmail', icon: Mail, scope: 'https://www.googleapis.com/auth/gmail.send', tools: 'List, read, send emails' },
+              { label: 'Drive', icon: FolderOpen, scope: 'https://www.googleapis.com/auth/drive.file', tools: 'List and read files' },
+            ] as const).map(({ label, icon: Icon, scope, tools }) => {
+              const hasScope = settings.googleConnectedScopes.includes(scope)
+              return (
+                <div key={label} className="flex items-center gap-2 py-1">
+                  <Icon className={`w-3 h-3 shrink-0 ${hasScope ? 'text-forge-success' : 'text-forge-text-dim/30'}`} />
+                  <div className="flex-1 min-w-0">
+                    <span className={`text-[11px] ${hasScope ? 'text-forge-text' : 'text-forge-text-dim/40'}`}>{label}</span>
+                    <span className="text-[9px] text-forge-text-dim/50 ml-1.5">{tools}</span>
+                  </div>
+                  {hasScope ? (
+                    <Check className="w-2.5 h-2.5 text-forge-success shrink-0" />
+                  ) : (
+                    <span className="text-[9px] text-amber-400/70 shrink-0">Missing scope</span>
+                  )}
+                </div>
+              )
+            })}
+            {settings.googleConnectedScopes.filter(s =>
+              !['openid', 'email', 'profile'].includes(s) &&
+              !s.includes('/auth/userinfo') &&
+              !['https://www.googleapis.com/auth/spreadsheets', 'https://www.googleapis.com/auth/calendar', 'https://www.googleapis.com/auth/gmail.send', 'https://www.googleapis.com/auth/drive.file'].includes(s)
+            ).length < 4 && (
+              <button
+                onClick={handleConnect}
+                className="w-full mt-1 flex items-center justify-center gap-1 px-2 py-1 text-[10px] rounded border border-forge-border text-forge-text-dim hover:text-forge-text hover:bg-forge-surface/50 transition-colors"
+              >
+                <RefreshCw className="w-2.5 h-2.5" /> Re-connect with more scopes
+              </button>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   )
 }

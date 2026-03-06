@@ -16,6 +16,7 @@ import { motion, AnimatePresence } from 'framer-motion'
 import { MODEL_OPTIONS, QUICK_ACTIONS } from '@/lib/chat/constants'
 import { MessageItem } from '@/components/chat/message-item'
 import { ApprovalCard } from '@/components/approval-card'
+import { TaskListPanel } from '@/components/chat/task-list-panel'
 import { useForgeChat, type UseForgeChatProps } from '@/hooks/use-forge-chat'
 import { useVoiceInput } from '@/hooks/use-voice-input'
 import { toast } from 'sonner'
@@ -78,7 +79,7 @@ function ThinkingIndicator({ elapsed, formatElapsed, stepCount, lastCompletedToo
         initial={{ opacity: 0, y: 4 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.25, ease: [0.16, 1, 0.3, 1] }}
-        className="tool-timeline-item space-y-0.5"
+        className={cn("tool-timeline-item space-y-0.5", elapsed >= 10 && "thinking-glow rounded-lg px-1 -mx-1")}
       >
         <div className="flex items-center gap-2.5 py-1">
           <div className="w-5 h-5 rounded-md bg-forge-accent/10 border border-forge-accent/20 flex items-center justify-center shrink-0 icon-glow-pulse">
@@ -137,64 +138,6 @@ function ThinkingIndicator({ elapsed, formatElapsed, stepCount, lastCompletedToo
   )
 }
 
-/** Task tray — collapsible list above chat input, v0-style */
-function TaskTray({ tasks }: { tasks: Array<{ id: string; label: string; status: string }> }) {
-  const [expanded, setExpanded] = useState(true)
-  const completed = tasks.filter(t => t.status === 'completed').length
-  const total = tasks.length
-  const allDone = completed === total
-
-  return (
-    <div className="border-t border-forge-border bg-forge-panel/50 shrink-0">
-      {/* Summary bar */}
-      <button
-        onClick={() => setExpanded(e => !e)}
-        className="w-full flex items-center justify-between px-3 py-1.5 hover:bg-forge-surface/50 transition-colors"
-      >
-        <div className="flex items-center gap-2">
-          {allDone ? (
-            <CheckCircle className="w-3.5 h-3.5 text-emerald-500" />
-          ) : (
-            <Loader2 className="w-3.5 h-3.5 text-forge-accent animate-spin" />
-          )}
-          <span className="text-[11px] font-medium text-forge-text">
-            {allDone ? 'All tasks completed' : `Working on tasks (${completed}/${total})`}
-          </span>
-        </div>
-        <ChevronDown className={cn('w-3 h-3 text-forge-text-dim transition-transform', expanded && 'rotate-180')} />
-      </button>
-
-      {/* Task list */}
-      {expanded && (
-        <div className="px-3 pb-2 space-y-0.5 max-h-[200px] overflow-y-auto">
-          {tasks.map((task) => (
-            <div key={task.id} className="flex items-center gap-2 py-1 px-1 rounded">
-              {task.status === 'completed' ? (
-                <CheckCircle className="w-3 h-3 text-emerald-500 shrink-0" />
-              ) : task.status === 'in_progress' ? (
-                <Loader2 className="w-3 h-3 text-forge-accent animate-spin shrink-0" />
-              ) : task.status === 'failed' ? (
-                <X className="w-3 h-3 text-forge-danger shrink-0" />
-              ) : (
-                <div className="w-3 h-3 rounded-full border border-forge-border shrink-0" />
-              )}
-              <span className={cn(
-                'text-[11px] leading-tight',
-                task.status === 'completed' ? 'text-forge-text-dim line-through' :
-                task.status === 'in_progress' ? 'text-forge-text' :
-                task.status === 'failed' ? 'text-forge-danger' :
-                'text-forge-text-dim'
-              )}>
-                {task.label}
-              </span>
-            </div>
-          ))}
-        </div>
-      )}
-    </div>
-  )
-}
-
 export type ChatPanelProps = UseForgeChatProps & {
   onLoadingChange?: (isLoading: boolean) => void
 }
@@ -236,6 +179,9 @@ export const ChatPanel = memo(function ChatPanel({ onLoadingChange, ...props }: 
   const chat = useForgeChat(props)
   const [isDraggingChat, setIsDraggingChat] = useState(false)
   const [dismissedError, setDismissedError] = useState<string | null>(null)
+  const [hintsDismissed, setHintsDismissed] = useState(() => {
+    try { return localStorage.getItem('forge-hints-dismissed') === '1' } catch { return false }
+  })
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   const voice = useVoiceInput({
@@ -262,7 +208,7 @@ export const ChatPanel = memo(function ChatPanel({ onLoadingChange, ...props }: 
       // Streaming just finished
       setCompletionStats({ stepCount: chat.stepCount, elapsed: chat.elapsed })
       setShowComplete(true)
-      const timer = setTimeout(() => setShowComplete(false), 3500)
+      const timer = setTimeout(() => setShowComplete(false), 2500)
       return () => clearTimeout(timer)
     }
     wasLoadingRef.current = chat.isLoading
@@ -273,85 +219,152 @@ export const ChatPanel = memo(function ChatPanel({ onLoadingChange, ...props }: 
     <div className="h-full flex flex-col bg-forge-bg">
       {/* Messages area */}
       <div className="flex-1 overflow-y-auto" onScroll={chat.handleScroll} role="log" aria-live="polite" aria-label="Chat messages">
-        {chat.loadingHistory ? (
-          <div className="px-4 py-6 space-y-4 animate-fade-in">
-            {[1, 2, 3].map(i => (
-              <div key={i} className={cn('flex', i % 2 === 0 ? 'justify-end' : 'justify-start')}>
-                <div className={cn(
-                  'rounded-2xl p-3.5 space-y-2',
-                  i % 2 === 0 ? 'bg-forge-surface w-2/3' : 'bg-forge-surface w-3/4',
-                )}>
-                  <div className="h-3 rounded animate-skeleton w-full" />
-                  <div className="h-3 rounded animate-skeleton w-4/5" />
-                  {i % 2 !== 0 && <div className="h-3 rounded animate-skeleton w-3/5" />}
-                </div>
-              </div>
-            ))}
-          </div>
-        ) : chat.isEmpty ? (
-          <div className="flex flex-col items-center justify-center h-full px-6">
-            <div className="w-14 h-14 rounded-2xl bg-forge-surface border border-forge-border flex items-center justify-center mb-5 animate-breathe">
-              <Sparkles className="w-7 h-7 text-forge-accent/70" />
-            </div>
-            <h2 className="text-xl font-semibold text-forge-text mb-1.5 text-balance text-center tracking-tight">What shall we build?</h2>
-            <p className="text-[13px] text-forge-text-dim text-center mb-8 text-pretty">Describe your idea and Forge will build it</p>
-            <div className="grid grid-cols-2 gap-2.5 w-full max-w-sm">
-              {QUICK_ACTIONS.map((action, i) => (
-                <motion.button
-                  key={action.label}
-                  initial={{ opacity: 0, y: 8 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ duration: 0.3, delay: i * 0.05, ease: [0.16, 1, 0.3, 1] }}
-                  whileHover={{ scale: 1.02, y: -1 }}
-                  whileTap={{ scale: 0.98 }}
-                  onClick={() => chat.handleSend(action.query)}
-                  className="flex flex-col items-center gap-2 p-4 text-center text-[12.5px] rounded-xl border border-forge-border bg-forge-bg hover:border-forge-accent/25 hover:bg-forge-surface/50 hover:shadow-sm transition-all group"
-                >
-                  <div className="w-9 h-9 rounded-xl bg-forge-surface border border-forge-border flex items-center justify-center group-hover:border-forge-accent/25 transition-colors">
-                    <action.icon className="w-4 h-4 text-forge-text-dim group-hover:text-forge-accent transition-colors" />
+        <AnimatePresence mode="wait">
+          {chat.loadingHistory ? (
+            <motion.div
+              key="skeleton"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 0.15 }}
+              className="px-4 py-6 space-y-4"
+            >
+              {[1, 2, 3].map(i => (
+                <div key={i} className={cn('flex', i % 2 === 0 ? 'justify-end' : 'justify-start')}>
+                  <div className={cn(
+                    'rounded-2xl p-3.5 space-y-2',
+                    i % 2 === 0 ? 'bg-forge-surface w-2/3' : 'bg-forge-surface w-3/4',
+                  )}>
+                    <div className="h-3 rounded animate-skeleton w-full" />
+                    <div className="h-3 rounded animate-skeleton w-4/5" />
+                    {i % 2 !== 0 && <div className="h-3 rounded animate-skeleton w-3/5" />}
                   </div>
-                  <span className="text-forge-text-dim group-hover:text-forge-text font-medium transition-colors">{action.label}</span>
-                </motion.button>
+                </div>
               ))}
-            </div>
-          </div>
-        ) : (
-          <div className="px-4 py-4 space-y-4" role="log" aria-label="Chat messages" aria-live="polite">
+            </motion.div>
+          ) : chat.isEmpty ? (
+            <motion.div
+              key="empty-state"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0, scale: 0.98 }}
+              transition={{ duration: 0.2 }}
+              className="flex flex-col items-center justify-center h-full px-6"
+            >
+              <div className="w-14 h-14 rounded-2xl bg-forge-surface border border-forge-border flex items-center justify-center mb-5 animate-breathe">
+                <Sparkles className="w-7 h-7 text-forge-accent/70" />
+              </div>
+              <h2 className="text-xl font-semibold text-forge-text mb-1.5 text-balance text-center tracking-tight">What shall we build?</h2>
+              <p className="text-[13px] text-forge-text-dim text-center mb-8 text-pretty">Describe your idea and Forge will build it</p>
+              <div className="grid grid-cols-2 gap-2.5 w-full max-w-sm">
+                {QUICK_ACTIONS.map((action, i) => (
+                  <motion.button
+                    key={action.label}
+                    initial={{ opacity: 0, y: 8 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ duration: 0.3, delay: i * 0.05, ease: [0.16, 1, 0.3, 1] }}
+                    whileHover={{ scale: 1.02, y: -1 }}
+                    whileTap={{ scale: 0.98 }}
+                    onClick={() => chat.handleSend(action.query)}
+                    className="flex flex-col items-center gap-2 p-4 text-center text-[12.5px] rounded-xl border border-forge-border bg-forge-bg hover:border-forge-accent/25 hover:bg-forge-surface/50 hover:shadow-sm transition-all group"
+                  >
+                    <div className="w-9 h-9 rounded-xl bg-forge-surface border border-forge-border flex items-center justify-center group-hover:border-forge-accent/25 group-hover:shadow-sm group-hover:shadow-forge-accent/10 transition-all duration-200">
+                      <action.icon className="w-4 h-4 text-forge-text-dim group-hover:text-forge-accent transition-colors" />
+                    </div>
+                    <span className="text-forge-text-dim group-hover:text-forge-text font-medium transition-colors">{action.label}</span>
+                  </motion.button>
+                ))}
+              </div>
+
+              {/* Keyboard hint chips */}
+              {!hintsDismissed && (
+                <motion.div
+                  initial={{ opacity: 0, y: 6 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ duration: 0.3, delay: 0.3 }}
+                  className="flex items-center gap-2 mt-6"
+                >
+                  {[
+                    { key: 'Ctrl+K', label: 'Commands' },
+                    { key: 'Ctrl+/', label: 'Shortcuts' },
+                    { key: 'Ctrl+S', label: 'Save' },
+                  ].map((hint, i) => (
+                    <motion.span
+                      key={hint.key}
+                      initial={{ opacity: 0, y: 4 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      transition={{ duration: 0.2, delay: 0.35 + i * 0.05 }}
+                      className="text-[10px] text-forge-text-dim/50"
+                    >
+                      <kbd className="px-1.5 py-0.5 rounded bg-forge-surface border border-forge-border font-mono text-[9px]">{hint.key}</kbd>
+                      {' '}{hint.label}
+                    </motion.span>
+                  ))}
+                  <button
+                    onClick={() => {
+                      setHintsDismissed(true)
+                      try { localStorage.setItem('forge-hints-dismissed', '1') } catch {}
+                    }}
+                    className="ml-1 p-0.5 text-forge-text-dim/30 hover:text-forge-text-dim transition-colors rounded"
+                    aria-label="Dismiss keyboard hints"
+                  >
+                    <X className="w-3 h-3" />
+                  </button>
+                </motion.div>
+              )}
+            </motion.div>
+          ) : (
+            <motion.div
+              key="messages"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              transition={{ duration: 0.15 }}
+              className="px-4 py-4 space-y-4" role="log" aria-label="Chat messages" aria-live="polite"
+            >
             {chat.messages.map((message, idx) => (
-              <MessageItem
-                key={message.id}
-                message={message}
-                copiedId={chat.copiedId}
-                isEditing={chat.editingMessageId === message.id}
-                editingContent={chat.editingContent}
-                isLoading={chat.isLoading}
-                isLast={idx === chat.messages.length - 1}
-                envVars={chat.envVars}
-                messageCost={message.role === 'assistant' ? chat.getMessageCost(message.id) : null}
-                onCopy={chat.handleCopy}
-                onEditMessage={chat.handleEditMessage}
-                onSaveEdit={chat.handleSaveEdit}
-                onCancelEdit={() => chat.setEditingMessageId(null)}
-                onSetEditingContent={chat.setEditingContent}
-                onRegenerate={chat.handleRegenerate}
-                onEnvVarsSave={chat.handleEnvVarsSave}
-                onCancelTask={chat.handleCancelTask}
-              />
+              <div key={message.id} className={idx === chat.messages.length - 1 ? 'v0-message-in' : undefined}>
+                <MessageItem
+                  message={message}
+                  copiedId={chat.copiedId}
+                  isEditing={chat.editingMessageId === message.id}
+                  editingContent={chat.editingContent}
+                  isLoading={chat.isLoading}
+                  isLast={idx === chat.messages.length - 1}
+                  envVars={chat.envVars}
+                  messageCost={message.role === 'assistant' ? chat.getMessageCost(message.id) : null}
+                  onCopy={chat.handleCopy}
+                  onEditMessage={chat.handleEditMessage}
+                  onSaveEdit={chat.handleSaveEdit}
+                  onCancelEdit={() => chat.setEditingMessageId(null)}
+                  onSetEditingContent={chat.setEditingContent}
+                  onRegenerate={chat.handleRegenerate}
+                  onEnvVarsSave={chat.handleEnvVarsSave}
+                  onCancelTask={chat.handleCancelTask}
+                />
+              </div>
             ))}
 
             {/* Approval gate card */}
-            {chat.pendingApproval && (
-              <ApprovalCard
-                toolName={chat.pendingApproval.toolName}
-                args={chat.pendingApproval.args}
-                onApprove={() => chat.handleApprove(chat.pendingApproval!.key)}
-                onDeny={() => chat.handleDeny(chat.pendingApproval!.key)}
-              />
-            )}
+            <AnimatePresence>
+              {chat.pendingApproval && (
+                <ApprovalCard
+                  toolName={chat.pendingApproval.toolName}
+                  args={chat.pendingApproval.args}
+                  onApprove={() => chat.handleApprove(chat.pendingApproval!.key)}
+                  onDeny={() => chat.handleDeny(chat.pendingApproval!.key)}
+                />
+              )}
+            </AnimatePresence>
 
             {/* Streaming activity indicator - v0-style flat inline timeline */}
+            <AnimatePresence>
             {chat.isLoading && (
-              <div className="animate-fade-in">
+              <motion.div
+                initial={{ opacity: 0, y: 4 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -4 }}
+                transition={{ duration: 0.2, ease: [0.16, 1, 0.3, 1] }}
+              >
                 {/* Current active tool or thinking indicator -- no card, just timeline items */}
                 {chat.currentActivity?.toolName ? (() => {
                   const info = TOOL_LABELS[chat.currentActivity.toolName] || { label: chat.currentActivity.toolName.replace(/_/g, ' '), Icon: Loader2, color: 'gray' }
@@ -394,8 +407,9 @@ export const ChatPanel = memo(function ChatPanel({ onLoadingChange, ...props }: 
                     status={chat.status}
                   />
                 )}
-              </div>
+              </motion.div>
             )}
+            </AnimatePresence>
 
             {/* Response complete signal */}
             <AnimatePresence>
@@ -409,54 +423,101 @@ export const ChatPanel = memo(function ChatPanel({ onLoadingChange, ...props }: 
             </AnimatePresence>
 
             {/* Error banner */}
-            {chat.error && dismissedError !== chat.errorMessage && (
-              <motion.div
-                initial={{ opacity: 0, y: 4 }}
-                animate={{ opacity: 1, y: 0 }}
-                className="flex items-start gap-2.5 text-[12.5px] bg-red-50/80 dark:bg-red-950/20 border border-red-200 dark:border-red-800 rounded-xl px-4 py-3 animate-shake"
-              >
-                <div className="w-6 h-6 rounded-lg bg-red-100 dark:bg-red-900/50 flex items-center justify-center shrink-0 mt-0.5">
-                  <AlertTriangle className="w-3.5 h-3.5 text-red-500" />
-                </div>
-                <div className="flex-1 min-w-0">
-                  <p className="font-medium text-red-700 dark:text-red-400 mb-0.5">Something went wrong</p>
-                  <p className="text-red-500 dark:text-red-400/80 leading-relaxed">{chat.errorMessage}</p>
-                </div>
-                <div className="flex items-center gap-1.5 shrink-0">
-                  <button
-                    onClick={() => chat.regenerate()}
-                    className="px-3 py-1.5 bg-red-100 dark:bg-red-900/50 hover:bg-red-200 dark:hover:bg-red-800/60 text-red-700 dark:text-red-400 rounded-lg text-[11px] font-medium transition-colors"
-                  >
-                    Retry
-                  </button>
-                  <button
-                    onClick={() => setDismissedError(chat.errorMessage)}
-                    className="p-1 text-red-400 hover:text-red-600 dark:hover:text-red-300 transition-colors rounded-md hover:bg-red-100 dark:hover:bg-red-900/40"
-                    aria-label="Dismiss error"
-                    title="Dismiss"
-                  >
-                    <X className="w-3.5 h-3.5" />
-                  </button>
-                </div>
-              </motion.div>
-            )}
+            <AnimatePresence>
+              {chat.error && dismissedError !== chat.errorMessage && (
+                <motion.div
+                  key={chat.errorMessage}
+                  initial={{ opacity: 0, y: 4 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: -6, scale: 0.98 }}
+                  transition={{ duration: 0.2, ease: [0.16, 1, 0.3, 1] }}
+                  className="flex items-start gap-2.5 text-[12.5px] bg-red-50/80 dark:bg-red-950/20 border border-red-200 dark:border-red-800 rounded-xl px-4 py-3 animate-shake"
+                >
+                  <div className="w-6 h-6 rounded-lg bg-red-100 dark:bg-red-900/50 flex items-center justify-center shrink-0 mt-0.5">
+                    <AlertTriangle className="w-3.5 h-3.5 text-red-500" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="font-medium text-red-700 dark:text-red-400 mb-0.5">Something went wrong</p>
+                    <p className="text-red-500 dark:text-red-400/80 leading-relaxed">{chat.errorMessage}</p>
+                  </div>
+                  <div className="flex items-center gap-1.5 shrink-0">
+                    <button
+                      onClick={() => chat.regenerate()}
+                      className="px-3 py-1.5 bg-red-100 dark:bg-red-900/50 hover:bg-red-200 dark:hover:bg-red-800/60 text-red-700 dark:text-red-400 rounded-lg text-[11px] font-medium transition-colors"
+                    >
+                      Retry
+                    </button>
+                    <button
+                      onClick={() => setDismissedError(chat.errorMessage)}
+                      className="p-1 text-red-400 hover:text-red-600 dark:hover:text-red-300 transition-colors rounded-md hover:bg-red-100 dark:hover:bg-red-900/40"
+                      aria-label="Dismiss error"
+                      title="Dismiss"
+                    >
+                      <X className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+                </motion.div>
+              )}
+            </AnimatePresence>
 
             <div ref={chat.messagesEndRef} />
-          </div>
+          </motion.div>
         )}
+        </AnimatePresence>
+
+        {/* New messages floating indicator */}
+        <AnimatePresence>
+          {chat.showNewMessageIndicator && chat.isLoading && (
+            <motion.button
+              initial={{ opacity: 0, y: 8 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: 8 }}
+              transition={{ duration: 0.2, ease: [0.16, 1, 0.3, 1] }}
+              onClick={chat.scrollToBottom}
+              className="absolute bottom-2 left-1/2 -translate-x-1/2 z-20 flex items-center gap-1 px-3 py-1.5 text-[11px] font-medium text-forge-text bg-forge-surface/95 backdrop-blur-sm border border-forge-border rounded-full shadow-lg hover:bg-forge-surface-hover transition-colors"
+            >
+              <ChevronDown className="w-3 h-3" />
+              New messages
+            </motion.button>
+          )}
+        </AnimatePresence>
       </div>
 
-      {/* Task tray */}
-      {chat.tasks.length > 0 && <TaskTray tasks={chat.tasks} />}
+      {/* Task list */}
+      <AnimatePresence>
+        {chat.tasks.length > 0 && (
+          <motion.div
+            initial={{ opacity: 0, height: 0 }}
+            animate={{ opacity: 1, height: 'auto' }}
+            exit={{ opacity: 0, height: 0 }}
+            transition={{ duration: 0.2, ease: [0.16, 1, 0.3, 1] }}
+            className="border-t border-forge-border px-3 py-2 shrink-0 overflow-hidden"
+          >
+            <TaskListPanel tasks={chat.tasks} />
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {/* Input area */}
       <div className="border-t border-forge-border shrink-0 safe-bottom">
         {/* Voice interim text */}
-        {voice.isListening && voice.interimText && (
-          <div className="px-4 pt-2 text-[12px] text-forge-text-dim/60 italic truncate">
-            {voice.interimText}...
-          </div>
-        )}
+        <AnimatePresence>
+          {voice.isListening && (
+            <motion.div
+              initial={{ opacity: 0, height: 0 }}
+              animate={{ opacity: 1, height: 'auto' }}
+              exit={{ opacity: 0, height: 0 }}
+              transition={{ duration: 0.15 }}
+            >
+              <div className="h-0.5 bg-red-100 dark:bg-red-900/30 animate-recording-sweep" />
+              {voice.interimText && (
+                <div className="px-4 pt-2 text-[12px] text-forge-text-dim/60 italic truncate">
+                  {voice.interimText}...
+                </div>
+              )}
+            </motion.div>
+          )}
+        </AnimatePresence>
 
         {/* Composer */}
         <div
@@ -472,26 +533,44 @@ export const ChatPanel = memo(function ChatPanel({ onLoadingChange, ...props }: 
             }
           }}
         >
-          <div className="relative bg-forge-surface border border-forge-border rounded-xl focus-within:border-forge-accent/40 shadow-[inset_0_1px_2px_rgba(0,0,0,0.04),0_1px_2px_rgba(0,0,0,0.02)] focus-within:shadow-[inset_0_1px_2px_rgba(0,0,0,0.04),0_0_0_3px_var(--color-forge-ring)] transition-all">
+          <div className="relative bg-forge-surface border border-forge-border rounded-xl shadow-[inset_0_1px_2px_rgba(0,0,0,0.04),0_1px_2px_rgba(0,0,0,0.02)] composer-focus-glow transition-all">
             {/* Drag overlay */}
-            {isDraggingChat && (
-              <div className="absolute inset-0 z-10 rounded-xl border-2 border-dashed border-forge-accent bg-forge-accent/10 flex items-center justify-center pointer-events-none">
-                <span className="text-[12px] font-medium text-forge-accent">Drop files here</span>
-              </div>
-            )}
+            <AnimatePresence>
+              {isDraggingChat && (
+                <motion.div
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  exit={{ opacity: 0 }}
+                  transition={{ duration: 0.15 }}
+                  className="absolute inset-0 z-10 rounded-xl border-2 border-dashed border-forge-accent bg-forge-accent/10 flex items-center justify-center pointer-events-none"
+                >
+                  <span className="text-[12px] font-medium text-forge-accent">Drop files here</span>
+                </motion.div>
+              )}
+            </AnimatePresence>
 
             {/* Attachment chips */}
             {chat.attachments.length > 0 && (
               <div className="flex flex-wrap gap-1.5 px-3 pt-2.5">
-                {chat.attachments.map((att, i) => (
-                  <div key={i} className="flex items-center gap-1 px-2 py-1 bg-forge-bg/60 border border-forge-border rounded-md text-[11px]">
-                    {att.mediaType?.startsWith('image/') ? <ImageIcon className="w-3 h-3 text-forge-text-dim" /> : <Paperclip className="w-3 h-3 text-forge-text-dim" />}
-                    <span className="max-w-[120px] truncate text-forge-text-dim">{att.filename || 'file'}</span>
-                    <button onClick={() => chat.handleRemoveAttachment(i)} className="p-0.5 text-forge-text-dim hover:text-red-500 transition-colors" aria-label="Remove attachment">
-                      <X className="w-2.5 h-2.5" />
-                    </button>
-                  </div>
-                ))}
+                <AnimatePresence mode="popLayout">
+                  {chat.attachments.map((att, i) => (
+                    <motion.div
+                      key={att.filename || i}
+                      layout
+                      initial={{ opacity: 0, scale: 0.8 }}
+                      animate={{ opacity: 1, scale: 1 }}
+                      exit={{ opacity: 0, scale: 0.8 }}
+                      transition={{ duration: 0.15, ease: [0.16, 1, 0.3, 1] }}
+                      className="flex items-center gap-1 px-2 py-1 bg-forge-bg/60 border border-forge-border rounded-md text-[11px]"
+                    >
+                      {att.mediaType?.startsWith('image/') ? <ImageIcon className="w-3 h-3 text-forge-text-dim" /> : <Paperclip className="w-3 h-3 text-forge-text-dim" />}
+                      <span className="max-w-[120px] truncate text-forge-text-dim">{att.filename || 'file'}</span>
+                      <button onClick={() => chat.handleRemoveAttachment(i)} className="p-0.5 text-forge-text-dim hover:text-red-500 transition-colors" aria-label="Remove attachment">
+                        <X className="w-2.5 h-2.5" />
+                      </button>
+                    </motion.div>
+                  ))}
+                </AnimatePresence>
               </div>
             )}
 
@@ -503,7 +582,7 @@ export const ChatPanel = memo(function ChatPanel({ onLoadingChange, ...props }: 
                 chat.setInput(e.target.value)
                 const textarea = e.target
                 requestAnimationFrame(() => {
-                  textarea.style.height = 'auto'
+                  textarea.style.height = '0'
                   textarea.style.height = Math.min(textarea.scrollHeight, 200) + 'px'
                 })
               }}
@@ -512,7 +591,7 @@ export const ChatPanel = memo(function ChatPanel({ onLoadingChange, ...props }: 
               }}
               placeholder={chat.isEmpty ? 'Describe what you want to build...' : 'Ask for changes, new features, fixes...'}
               rows={1}
-              className="w-full bg-transparent px-3 py-3 text-[13.5px] text-forge-text placeholder:text-forge-text-dim/40 outline-none resize-none"
+              className="w-full bg-transparent px-3 py-3 text-[13.5px] text-forge-text placeholder:text-forge-text-dim/40 outline-none resize-none chat-textarea-smooth"
             />
 
             {/* Action bar */}
@@ -564,53 +643,86 @@ export const ChatPanel = memo(function ChatPanel({ onLoadingChange, ...props }: 
                     {MODEL_OPTIONS.find(m => m.id === chat.selectedModel)?.label || 'Sonnet 4'}
                     <ChevronDown className="w-2.5 h-2.5" />
                   </button>
-                  {chat.showModelPicker && (
-                    <>
-                      <div className="fixed inset-0 z-40" onClick={() => chat.setShowModelPicker(false)} />
-                      <div className="absolute left-0 bottom-full mb-1 z-50 w-44 bg-forge-bg/95 backdrop-blur-lg border border-forge-border rounded-xl shadow-lg overflow-hidden animate-slide-down">
-                        {MODEL_OPTIONS.map(model => (
-                          <button
-                            key={model.id}
-                            onClick={() => { chat.setSelectedModel(model.id); chat.setShowModelPicker(false) }}
-                            className={cn(
-                              'flex items-center gap-2 w-full px-3 py-2 text-[12px] hover:bg-forge-surface-hover transition-colors',
-                              chat.selectedModel === model.id && 'bg-forge-surface text-forge-text font-medium',
-                            )}
-                          >
-                            <Check className={cn('w-3 h-3 shrink-0', chat.selectedModel === model.id ? 'text-forge-accent' : 'invisible')} />
-                            <span className="flex-1 text-left">{model.label}</span>
-                            <span className="text-[10px] text-forge-text-dim">{model.description}</span>
-                          </button>
-                        ))}
-                      </div>
-                    </>
-                  )}
+                  <AnimatePresence>
+                    {chat.showModelPicker && (
+                      <>
+                        <div className="fixed inset-0 z-40" onClick={() => chat.setShowModelPicker(false)} />
+                        <motion.div
+                          initial={{ opacity: 0, y: 4, scale: 0.95 }}
+                          animate={{ opacity: 1, y: 0, scale: 1 }}
+                          exit={{ opacity: 0, y: 4, scale: 0.95 }}
+                          transition={{ duration: 0.15, ease: [0.16, 1, 0.3, 1] }}
+                          className="absolute left-0 bottom-full mb-1 z-50 w-44 bg-forge-bg/95 backdrop-blur-lg border border-forge-border rounded-xl shadow-lg overflow-hidden"
+                        >
+                          {MODEL_OPTIONS.map((model, modelIdx) => (
+                            <button
+                              key={model.id}
+                              onClick={() => { chat.setSelectedModel(model.id); chat.setShowModelPicker(false) }}
+                              onKeyDown={(e) => {
+                                if (e.key === 'ArrowDown') {
+                                  e.preventDefault()
+                                  const next = e.currentTarget.nextElementSibling as HTMLElement
+                                  next?.focus()
+                                } else if (e.key === 'ArrowUp') {
+                                  e.preventDefault()
+                                  const prev = e.currentTarget.previousElementSibling as HTMLElement
+                                  prev?.focus()
+                                } else if (e.key === 'Escape') {
+                                  chat.setShowModelPicker(false)
+                                }
+                              }}
+                              autoFocus={chat.selectedModel === model.id}
+                              className={cn(
+                                'flex items-center gap-2 w-full px-3 py-2 text-[12px] hover:bg-forge-surface-hover transition-colors focus:bg-forge-surface-hover outline-none',
+                                chat.selectedModel === model.id && 'bg-forge-surface text-forge-text font-medium',
+                              )}
+                            >
+                              <Check className={cn('w-3 h-3 shrink-0', chat.selectedModel === model.id ? 'text-forge-accent' : 'invisible')} />
+                              <span className="flex-1 text-left">{model.label}</span>
+                              <span className="text-[10px] text-forge-text-dim">{model.description}</span>
+                            </button>
+                          ))}
+                        </motion.div>
+                      </>
+                    )}
+                  </AnimatePresence>
                 </div>
               </div>
 
               <div className="flex items-center gap-1">
                 {/* Send / Stop */}
+                <AnimatePresence mode="wait">
                 {chat.isLoading ? (
-                  <button onClick={chat.stop} className="p-1.5 rounded-lg bg-red-100 dark:bg-red-900/40 text-forge-danger hover:bg-red-200 dark:hover:bg-red-800/60 transition-colors animate-stop-pulse" title="Stop generating (Esc)" aria-label="Stop generating">
+                  <motion.button
+                    key="stop"
+                    initial={{ scale: 0.9, opacity: 0 }}
+                    animate={{ scale: 1, opacity: 1 }}
+                    exit={{ scale: 0.9, opacity: 0 }}
+                    transition={{ duration: 0.12 }}
+                    onClick={() => { chat.stoppedByUserRef.current = true; chat.stop() }}
+                    className="p-1.5 rounded-lg bg-red-100 dark:bg-red-900/40 text-forge-danger hover:bg-red-200 dark:hover:bg-red-800/60 transition-colors animate-stop-pulse stop-ring-pulse"
+                    title="Stop generating (Esc)"
+                    aria-label="Stop generating"
+                  >
                     <StopCircle className="w-4 h-4" />
-                  </button>
+                  </motion.button>
                 ) : (
                   <motion.button
+                    key="send"
                     onClick={() => chat.handleSend()}
                     disabled={!chat.input.trim() && chat.attachments.length === 0}
-                    initial={{ scale: 0.9, opacity: 0.5 }}
-                    animate={{
-                      scale: (chat.input.trim() || chat.attachments.length > 0) ? 1 : 0.9,
-                      opacity: (chat.input.trim() || chat.attachments.length > 0) ? 1 : 0.5,
-                    }}
-                    transition={{ type: 'spring', stiffness: 400, damping: 20 }}
-                    className="p-1.5 rounded-lg bg-forge-accent hover:bg-forge-accent-hover text-white shadow-sm hover:shadow-md disabled:opacity-40 disabled:cursor-not-allowed transition-all"
+                    initial={{ scale: 0.9, opacity: 0 }}
+                    animate={{ scale: 1, opacity: 1 }}
+                    exit={{ scale: 0.9, opacity: 0 }}
+                    transition={{ duration: 0.12 }}
+                    className="p-1.5 rounded-lg bg-forge-accent hover:bg-forge-accent-hover text-white shadow-sm disabled:opacity-40 disabled:cursor-not-allowed transition-opacity"
                     title="Send message"
                     aria-label="Send message"
                   >
                     <ArrowUp className="w-4 h-4" strokeWidth={2.5} />
                   </motion.button>
                 )}
+                </AnimatePresence>
               </div>
             </div>
           </div>
@@ -618,34 +730,36 @@ export const ChatPanel = memo(function ChatPanel({ onLoadingChange, ...props }: 
 
         {/* Footer: metrics + clear */}
         <div className="flex items-center justify-between px-4 pb-2">
-          <div className="flex items-center gap-1.5">
-            {chat.autoRoutedModel && (
-              <span className="text-[10px] text-forge-text-dim/60 flex items-center gap-0.5" title={chat.autoRoutedModel.reason}>
-                <Sparkles className="w-2.5 h-2.5" />
-                {chat.autoRoutedModel.model.includes('haiku') ? 'Haiku' : chat.autoRoutedModel.model.includes('opus') ? 'Opus' : 'Sonnet'}
-              </span>
-            )}
-            {chat.isLoading && chat.stepCount > 0 && (
-              <span className="text-[10px] text-forge-accent/60 font-medium tabular-nums">
-                {chat.stepCount} action{chat.stepCount !== 1 ? 's' : ''}
-              </span>
-            )}
-            {(chat.realTokens || chat.estimatedTokens) > 0 && (
-              <span className="text-[10px] text-forge-text-dim/50" title={chat.realTokens ? 'Actual API token usage' : 'Estimated token usage'}>
-                {chat.realTokens ? '' : '~'}{(chat.realTokens || chat.estimatedTokens) > 1000 ? `${((chat.realTokens || chat.estimatedTokens) / 1000).toFixed(1)}k` : (chat.realTokens || chat.estimatedTokens)} tok
-              </span>
-            )}
-            {chat.sessionCost.cost > 0 && !chat.isLoading && (
-              <span className="text-[10px] text-forge-text-dim/50" title={`Session: ${chat.sessionCost.inputTokens.toLocaleString()} in + ${chat.sessionCost.outputTokens.toLocaleString()} out`}>
-                ${chat.sessionCost.cost < 0.01 ? chat.sessionCost.cost.toFixed(4) : chat.sessionCost.cost.toFixed(2)}
-              </span>
-            )}
-            {chat.isLoading && chat.elapsed > 0 && (
-              <span className="text-[10px] text-forge-text-dim/50 flex items-center gap-0.5 tabular-nums">
-                <Clock className="w-2.5 h-2.5" />
-                {chat.formatElapsed(chat.elapsed)}
-              </span>
-            )}
+          <div className="flex items-center gap-1.5 tabular-nums">
+            <AnimatePresence>
+              {chat.autoRoutedModel && (
+                <motion.span key="auto-route" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.12 }} className="text-[10px] text-forge-text-dim/60 flex items-center gap-0.5" title={chat.autoRoutedModel.reason}>
+                  <Sparkles className="w-2.5 h-2.5" />
+                  {chat.autoRoutedModel.model.includes('haiku') ? 'Haiku' : chat.autoRoutedModel.model.includes('opus') ? 'Opus' : 'Sonnet'}
+                </motion.span>
+              )}
+              {chat.isLoading && chat.stepCount > 0 && (
+                <motion.span key="step-count" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.18 }} className="text-[10px] text-forge-accent/60 font-medium tabular-nums">
+                  {chat.stepCount} action{chat.stepCount !== 1 ? 's' : ''}
+                </motion.span>
+              )}
+              {(chat.realTokens || chat.estimatedTokens) > 0 && (
+                <motion.span key="tokens" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.14 }} className="text-[10px] text-forge-text-dim/50" title={chat.realTokens ? 'Actual API token usage' : 'Estimated token usage'}>
+                  {chat.realTokens ? '' : '~'}{(chat.realTokens || chat.estimatedTokens) > 1000 ? `${((chat.realTokens || chat.estimatedTokens) / 1000).toFixed(1)}k` : (chat.realTokens || chat.estimatedTokens)} tok
+                </motion.span>
+              )}
+              {chat.sessionCost.cost > 0 && !chat.isLoading && (
+                <motion.span key="cost" initial={{ opacity: 0, y: 4 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} transition={{ duration: 0.2 }} className="text-[10px] text-forge-text-dim/50 cost-chip-enter" title={`Session: ${chat.sessionCost.inputTokens.toLocaleString()} in + ${chat.sessionCost.outputTokens.toLocaleString()} out`}>
+                  ${chat.sessionCost.cost < 0.01 ? chat.sessionCost.cost.toFixed(4) : chat.sessionCost.cost.toFixed(2)}
+                </motion.span>
+              )}
+              {chat.isLoading && chat.elapsed > 0 && (
+                <motion.span key="elapsed" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.16 }} className="text-[10px] text-forge-text-dim/50 flex items-center gap-0.5 tabular-nums">
+                  <Clock className="w-2.5 h-2.5" />
+                  {chat.formatElapsed(chat.elapsed)}
+                </motion.span>
+              )}
+            </AnimatePresence>
             <span className="text-[10px] text-forge-text-dim/30 hidden sm:inline">
               Enter to send{chat.isLoading ? ' · Esc to stop' : ''}
             </span>
@@ -662,7 +776,19 @@ export const ChatPanel = memo(function ChatPanel({ onLoadingChange, ...props }: 
               aria-label={chat.clearConfirm ? 'Confirm clear chat' : 'Clear chat'}
             >
               <Trash2 className="w-3 h-3" />
-              {chat.clearConfirm && <span>Clear?</span>}
+              <AnimatePresence>
+                {chat.clearConfirm && (
+                  <motion.span
+                    initial={{ opacity: 0, width: 0 }}
+                    animate={{ opacity: 1, width: 'auto' }}
+                    exit={{ opacity: 0, width: 0 }}
+                    transition={{ duration: 0.15 }}
+                    className="overflow-hidden whitespace-nowrap"
+                  >
+                    Clear?
+                  </motion.span>
+                )}
+              </AnimatePresence>
             </button>
           )}
         </div>

@@ -8,6 +8,7 @@ import {
   Loader2, Check, Search, ChevronRight, Sun, Moon, Share2,
   Menu, X,
 } from 'lucide-react'
+import { motion, AnimatePresence } from 'framer-motion'
 import { BranchMenu } from './branch-menu'
 import { useTheme } from '@/components/theme-provider'
 import { cn } from '@/lib/utils'
@@ -24,14 +25,14 @@ interface HeaderProps {
 }
 
 const actions: Array<{ id: string; icon: typeof Save; label: string; tip: string } | 'separator'> = [
-  { id: 'save', icon: Save, label: 'Save', tip: 'Save project to database' },
+  { id: 'save', icon: Save, label: 'Save', tip: 'Save (Ctrl+S)' },
   'separator',
-  { id: 'deploy', icon: Rocket, label: 'Deploy', tip: 'Deploy to Vercel' },
+  { id: 'deploy', icon: Rocket, label: 'Deploy', tip: 'Deploy to Vercel (Ctrl+Shift+D)' },
   { id: 'push', icon: Upload, label: 'Push', tip: 'Push to GitHub' },
   'separator',
   { id: 'create-repo', icon: GitBranch, label: 'New Repo', tip: 'Create GitHub repo' },
   { id: 'import', icon: FolderInput, label: 'Import', tip: 'Import from GitHub repo' },
-  { id: 'download', icon: Download, label: 'Download', tip: 'Download project as ZIP' },
+  { id: 'download', icon: Download, label: 'Download', tip: 'Download as ZIP (Ctrl+Shift+E)' },
   { id: 'share', icon: Share2, label: 'Share', tip: 'Copy share link' },
 ]
 
@@ -109,10 +110,11 @@ export function Header({ projectName, onSwitchProject, fileCount, onAction, save
               onClick={() => onAction?.(action.id)}
               disabled={action.id === 'save' && saveStatus === 'saving'}
               className={cn(
-                'flex items-center gap-1.5 px-2.5 py-1.5 text-[11px] font-medium text-forge-text-dim hover:text-forge-accent hover:bg-forge-surface rounded transition-colors',
+                'flex items-center gap-1.5 px-2.5 py-1.5 text-[11px] font-medium text-forge-text-dim hover:text-forge-accent hover:bg-forge-surface rounded transition-all duration-150 hover:scale-105 active:scale-95',
                 action.id === 'save' && saveStatus === 'saving' && 'opacity-50 cursor-not-allowed',
-                action.id === 'save' && saveStatus === 'saved' && 'text-green-600',
+                action.id === 'save' && saveStatus === 'saved' && 'text-green-600 animate-success-glow',
                 action.id === 'save' && saveStatus === 'error' && 'text-red-600',
+                action.id === 'deploy' && 'hover:shadow-[0_0_8px_rgba(99,102,241,0.3)] hover:text-forge-accent',
               )}
               title={action.tip}
               aria-label={action.label}
@@ -130,7 +132,7 @@ export function Header({ projectName, onSwitchProject, fileCount, onAction, save
         {onOpenCommandPalette && (
           <button
             onClick={onOpenCommandPalette}
-            className="hidden md:flex items-center gap-2 px-2.5 py-1 text-[11px] text-forge-text-dim bg-forge-surface border border-forge-border rounded-lg hover:border-forge-accent/50 hover:text-forge-text transition-all"
+            className="hidden md:flex items-center gap-2 px-2.5 py-1 text-[11px] text-forge-text-dim bg-forge-surface border border-forge-border rounded-lg hover:border-forge-accent/50 hover:text-forge-text active:bg-forge-surface-hover active:scale-[0.98] transition-all"
           >
             <Search className="w-3 h-3" />
             <span>Commands</span>
@@ -186,8 +188,14 @@ export function Header({ projectName, onSwitchProject, fileCount, onAction, save
             {mobileMenuOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
           </button>
 
+          <AnimatePresence>
           {mobileMenuOpen && (
-            <div className="absolute right-0 top-full mt-1 w-56 bg-forge-bg/95 backdrop-blur-lg border border-forge-border rounded-xl shadow-xl z-50 overflow-hidden animate-slide-down">
+            <motion.div
+              initial={{ opacity: 0, y: -4, scale: 0.97 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              exit={{ opacity: 0, y: -4, scale: 0.97 }}
+              transition={{ duration: 0.15, ease: [0.16, 1, 0.3, 1] }}
+              className="absolute right-0 top-full mt-1 w-56 bg-forge-bg/95 backdrop-blur-lg border border-forge-border rounded-xl shadow-xl z-50 overflow-hidden">
               {/* User info */}
               {session?.user && (
                 <div className="flex items-center gap-2 px-4 py-3 border-b border-forge-border bg-forge-surface/30">
@@ -202,7 +210,7 @@ export function Header({ projectName, onSwitchProject, fileCount, onAction, save
               )}
 
               {/* Action items */}
-              <div className="py-1">
+              <div className="py-1 divide-y divide-forge-border/30">
                 {actionItems.map((action) => {
                   const saveIcon = action.id === 'save' ? getSaveIcon() : null
                   return (
@@ -211,7 +219,7 @@ export function Header({ projectName, onSwitchProject, fileCount, onAction, save
                       onClick={() => { onAction?.(action.id); setMobileMenuOpen(false) }}
                       disabled={action.id === 'save' && saveStatus === 'saving'}
                       className={cn(
-                        'flex items-center gap-3 w-full px-4 py-2.5 text-xs text-forge-text-dim hover:text-forge-text hover:bg-forge-surface-hover transition-colors',
+                        'flex items-center gap-3 w-full px-4 py-2.5 text-xs text-forge-text-dim hover:text-forge-text hover:bg-forge-surface-hover active:scale-[0.98] transition-all duration-150',
                         action.id === 'save' && saveStatus === 'saved' && 'text-green-600',
                       )}
                     >
@@ -249,8 +257,9 @@ export function Header({ projectName, onSwitchProject, fileCount, onAction, save
                   <span>Sign in with GitHub</span>
                 </a>
               )}
-            </div>
+            </motion.div>
           )}
+          </AnimatePresence>
         </div>
       </div>
     </header>

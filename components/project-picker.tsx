@@ -1,15 +1,18 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
+import { motion, AnimatePresence } from 'framer-motion'
 import {
   Hammer, Sparkles, FolderOpen, Trash2,
   Github, Clock, Globe, ExternalLink, Loader2,
   Lock, Star, GitBranch, Download, GitFork, Archive, Search, X,
-  AlertTriangle, BarChart3, User, ShoppingBag,
+  AlertTriangle, BarChart3, User, ShoppingBag, ArrowUpDown,
 } from 'lucide-react'
 import { toast } from 'sonner'
 import { formatRelative } from '@/lib/utils'
 import { UsageDashboard } from './usage-dashboard'
+
+type SortPref = 'updated' | 'name' | 'created'
 
 interface SavedProject {
   id: string
@@ -95,6 +98,21 @@ export function ProjectPicker({ onSelect, savedProjects, loadingProjects, onDele
   const [tab, setTab] = useState<'projects' | 'github'>('projects')
   const [searchQuery, setSearchQuery] = useState('')
   const [deleteConfirm, setDeleteConfirm] = useState<{ id: string; name: string } | null>(null)
+  const [sortPref, setSortPref] = useState<SortPref>(() => {
+    try { return (localStorage.getItem('forge-sort-pref') as SortPref) || 'updated' } catch { return 'updated' }
+  })
+
+  const sortedProjects = useMemo(() => {
+    const filtered = savedProjects.filter(p => !searchQuery || p.name.toLowerCase().includes(searchQuery.toLowerCase()) || p.description?.toLowerCase().includes(searchQuery.toLowerCase()))
+    return [...filtered].sort((a, b) => {
+      switch (sortPref) {
+        case 'name': return a.name.localeCompare(b.name)
+        case 'created': return new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+        case 'updated':
+        default: return new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime()
+      }
+    })
+  }, [savedProjects, searchQuery, sortPref])
 
   const loadRepos = async (page = 1) => {
     setLoadingRepos(true)
@@ -116,10 +134,14 @@ export function ProjectPicker({ onSelect, savedProjects, loadingProjects, onDele
     if (isLoggedIn) loadRepos(1)
   }, [isLoggedIn])
 
-  const handleCreate = () => {
+  const handleCreate = async () => {
     const projectName = name.trim().replace(/[^a-zA-Z0-9_-]/g, '-').toLowerCase() || `project-${Date.now()}`
     setCreating(true)
-    onSelect(projectName)
+    try {
+      await onSelect(projectName)
+    } catch {
+      setCreating(false)
+    }
   }
 
   const handleDelete = (e: React.MouseEvent, project: SavedProject) => {
@@ -222,7 +244,7 @@ export function ProjectPicker({ onSelect, savedProjects, loadingProjects, onDele
             <button
               onClick={handleCreate}
               disabled={creating}
-              className="flex items-center justify-center gap-2 px-5 py-3 sm:py-2.5 bg-forge-accent hover:bg-forge-accent-hover text-white text-sm font-medium rounded-xl disabled:opacity-50 disabled:cursor-not-allowed transition-all shadow-sm hover:shadow-md hover:shadow-forge-accent/25"
+              className="flex items-center justify-center gap-2 px-5 py-3 sm:py-2.5 bg-forge-accent hover:bg-forge-accent-hover text-white text-sm font-medium rounded-xl disabled:opacity-50 disabled:cursor-not-allowed active:scale-95 transition-all shadow-sm hover:shadow-md hover:shadow-forge-accent/25"
             >
               <Sparkles className="w-4 h-4" />
               Create
@@ -239,7 +261,7 @@ export function ProjectPicker({ onSelect, savedProjects, loadingProjects, onDele
                   const pName = qs.label.toLowerCase().replace(/\s+/g, '-')
                   onSelect(pName, undefined, undefined, qs.query)
                 }}
-                className={`flex items-center gap-1.5 px-4 py-2.5 sm:px-3 sm:py-1.5 text-xs sm:text-[11px] rounded-lg border border-forge-border text-forge-text-dim hover:text-forge-text hover:border-forge-accent/50 hover:bg-forge-accent/5 hover:shadow-sm transition-all animate-fade-in-up stagger-${i + 1}`}
+                className={`flex items-center gap-1.5 px-4 py-2.5 sm:px-3 sm:py-1.5 text-xs sm:text-[11px] rounded-lg border border-forge-border text-forge-text-dim hover:text-forge-text hover:border-forge-accent/50 hover:bg-forge-accent/5 hover:shadow-sm active:scale-95 transition-all animate-fade-in-up stagger-${i + 1}`}
               >
                 <qs.icon className="w-3 h-3" />
                 {qs.label}
@@ -266,7 +288,7 @@ export function ProjectPicker({ onSelect, savedProjects, loadingProjects, onDele
                   <span className="ml-1 text-[10px] px-1.5 py-0.5 rounded-full bg-forge-surface">{savedProjects.length}</span>
                 )}
                 {tab === 'projects' && (
-                  <span className="absolute bottom-0 left-0 right-0 h-0.5 bg-forge-accent rounded-full transition-all" />
+                  <motion.span layoutId="picker-tab-indicator" className="absolute bottom-0 left-0 right-0 h-0.5 bg-forge-accent rounded-full" transition={{ type: 'spring', stiffness: 400, damping: 30 }} />
                 )}
               </button>
               <button
@@ -283,7 +305,7 @@ export function ProjectPicker({ onSelect, savedProjects, loadingProjects, onDele
                   <span className="ml-1 text-[10px] px-1.5 py-0.5 rounded-full bg-forge-surface">{githubRepos.length}</span>
                 )}
                 {tab === 'github' && (
-                  <span className="absolute bottom-0 left-0 right-0 h-0.5 bg-forge-accent rounded-full transition-all" />
+                  <motion.span layoutId="picker-tab-indicator" className="absolute bottom-0 left-0 right-0 h-0.5 bg-forge-accent rounded-full" transition={{ type: 'spring', stiffness: 400, damping: 30 }} />
                 )}
               </button>
               {(loadingProjects || loadingRepos) && (
@@ -291,25 +313,46 @@ export function ProjectPicker({ onSelect, savedProjects, loadingProjects, onDele
               )}
             </div>
 
-            {/* Search filter */}
+            {/* Search filter + Sort */}
             {((tab === 'projects' && savedProjects.length > 0) || (tab === 'github' && githubRepos.length > 0)) && (
-              <div className="relative mb-4">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-forge-text-dim" />
-                <input
-                  type="text"
-                  value={searchQuery}
-                  onChange={e => setSearchQuery(e.target.value)}
-                  placeholder={tab === 'projects' ? 'Filter projects...' : 'Filter repositories...'}
-                  className="w-full pl-9 pr-8 py-2 text-xs bg-forge-surface border border-forge-border rounded-lg text-forge-text placeholder:text-forge-text-dim/50 outline-none focus:border-forge-accent/50 focus:ring-2 focus:ring-forge-accent/10 transition-all"
-                />
-                <button
-                  onClick={() => setSearchQuery('')}
-                  className={`absolute right-2.5 top-1/2 -translate-y-1/2 text-forge-text-dim hover:text-forge-text transition-opacity ${searchQuery ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}
-                  tabIndex={searchQuery ? 0 : -1}
-                  aria-label="Clear search"
-                >
-                  <X className="w-4 h-4" />
-                </button>
+              <div className="flex items-center gap-2 mb-4">
+                <div className="relative flex-1">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-forge-text-dim" />
+                  <input
+                    type="text"
+                    value={searchQuery}
+                    onChange={e => setSearchQuery(e.target.value)}
+                    placeholder={tab === 'projects' ? 'Filter projects...' : 'Filter repositories...'}
+                    className="w-full pl-9 pr-8 py-2 text-xs bg-forge-surface border border-forge-border rounded-lg text-forge-text placeholder:text-forge-text-dim/50 outline-none focus:border-forge-accent/50 focus:ring-2 focus:ring-forge-accent/10 transition-all"
+                  />
+                  <button
+                    onClick={() => setSearchQuery('')}
+                    className={`absolute right-2.5 top-1/2 -translate-y-1/2 text-forge-text-dim hover:text-forge-text transition-opacity ${searchQuery ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}
+                    tabIndex={searchQuery ? 0 : -1}
+                    aria-label="Clear search"
+                  >
+                    <X className="w-4 h-4" />
+                  </button>
+                </div>
+                {tab === 'projects' && (
+                  <div className="relative">
+                    <select
+                      value={sortPref}
+                      onChange={e => {
+                        const val = e.target.value as SortPref
+                        setSortPref(val)
+                        try { localStorage.setItem('forge-sort-pref', val) } catch {}
+                      }}
+                      className="appearance-none bg-forge-surface border border-forge-border rounded-lg pl-7 pr-6 py-2 text-[11px] text-forge-text-dim outline-none focus:border-forge-accent/50 focus:ring-2 focus:ring-forge-accent/10 transition-all cursor-pointer"
+                      aria-label="Sort projects"
+                    >
+                      <option value="updated">Last Modified</option>
+                      <option value="name">Name</option>
+                      <option value="created">Created</option>
+                    </select>
+                    <ArrowUpDown className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3 h-3 text-forge-text-dim pointer-events-none" />
+                  </div>
+                )}
               </div>
             )}
 
@@ -319,13 +362,13 @@ export function ProjectPicker({ onSelect, savedProjects, loadingProjects, onDele
                 {loadingProjects ? (
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                     {[1, 2, 3, 4].map(i => (
-                      <div key={i} className={`rounded-xl border border-forge-border bg-forge-panel p-4 space-y-3 animate-fade-in stagger-${i}`}>
+                      <div key={i} style={{ animationDelay: `${(i - 1) * 80}ms` }} className="rounded-xl border border-forge-border bg-forge-panel p-4 space-y-3 animate-fade-in opacity-0 [animation-fill-mode:forwards]">
                         <div className="flex items-center justify-between">
-                          <div className="h-4 w-32 rounded-lg animate-skeleton" />
-                          <div className="h-4 w-14 rounded-lg animate-skeleton" />
+                          <div className="h-4 w-32 rounded-lg animate-skeleton" style={{ animationDelay: `${i * 100}ms` }} />
+                          <div className="h-4 w-14 rounded-lg animate-skeleton" style={{ animationDelay: `${i * 100 + 50}ms` }} />
                         </div>
-                        <div className="h-3 w-48 rounded-lg animate-skeleton" />
-                        <div className="h-3 w-24 rounded-lg animate-skeleton" />
+                        <div className="h-3 w-48 rounded-lg animate-skeleton" style={{ animationDelay: `${i * 100 + 100}ms` }} />
+                        <div className="h-3 w-24 rounded-lg animate-skeleton" style={{ animationDelay: `${i * 100 + 150}ms` }} />
                       </div>
                     ))}
                   </div>
@@ -352,12 +395,13 @@ export function ProjectPicker({ onSelect, savedProjects, loadingProjects, onDele
                   </div>
                 ) : (
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                    {savedProjects.filter(p => !searchQuery || p.name.toLowerCase().includes(searchQuery.toLowerCase()) || p.description?.toLowerCase().includes(searchQuery.toLowerCase())).map(project => (
+                    {sortedProjects.map((project, i) => (
                       <button
                         key={project.id}
                         onClick={() => onSelect(project.name, project.id)}
                         disabled={loadingProjectId === project.id}
-                        className="group relative bg-forge-panel border border-forge-border border-l-2 border-l-transparent rounded-xl p-4 text-left hover:border-forge-accent/50 hover:border-l-forge-accent hover:bg-forge-accent/5 hover:shadow-sm hover:scale-[1.01] transition-all disabled:opacity-70 disabled:cursor-wait"
+                        style={{ animationDelay: `${i * 50}ms` }}
+                        className="group relative bg-forge-panel border border-forge-border border-l-2 border-l-transparent rounded-xl p-4 text-left hover:border-forge-accent/50 hover:border-l-forge-accent hover:bg-forge-accent/5 hover:shadow-md hover:shadow-forge-accent/5 hover:scale-[1.02] hover:-translate-y-0.5 active:scale-[0.99] active:translate-y-0 transition-all duration-200 disabled:opacity-70 disabled:cursor-wait project-card-enter"
                       >
                         <div className="flex items-start justify-between mb-2">
                           <h3 className="text-sm font-medium text-forge-text group-hover:text-forge-accent transition-colors truncate pr-2">
@@ -435,12 +479,13 @@ export function ProjectPicker({ onSelect, savedProjects, loadingProjects, onDele
                   </div>
                 ) : (
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                    {githubRepos.filter(r => !searchQuery || r.name.toLowerCase().includes(searchQuery.toLowerCase()) || r.description?.toLowerCase().includes(searchQuery.toLowerCase())).map(repo => (
+                    {githubRepos.filter(r => !searchQuery || r.name.toLowerCase().includes(searchQuery.toLowerCase()) || r.description?.toLowerCase().includes(searchQuery.toLowerCase())).map((repo, i) => (
                       <button
                         key={repo.id}
                         onClick={() => handleImportRepo(repo)}
                         disabled={importingRepo === repo.full_name}
-                        className="group relative bg-forge-panel border border-forge-border rounded-xl p-4 text-left hover:border-forge-accent/50 hover:bg-forge-accent/5 hover:shadow-sm hover:scale-[1.01] transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                        style={{ animationDelay: `${i * 50}ms` }}
+                        className="group relative bg-forge-panel border border-forge-border rounded-xl p-4 text-left hover:border-forge-accent/50 hover:bg-forge-accent/5 hover:shadow-md hover:shadow-forge-accent/5 hover:scale-[1.02] hover:-translate-y-0.5 active:scale-[0.99] active:translate-y-0 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed project-card-enter"
                       >
                         <div className="flex items-start justify-between mb-1.5">
                           <h3 className="text-sm font-medium text-forge-text group-hover:text-forge-accent transition-colors truncate pr-2 flex items-center gap-1.5">
@@ -529,10 +574,22 @@ export function ProjectPicker({ onSelect, savedProjects, loadingProjects, onDele
       </div>
 
       {/* Delete confirmation dialog */}
+      <AnimatePresence>
       {deleteConfirm && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm animate-fade-in" onClick={() => setDeleteConfirm(null)}>
-          <div
-            className="bg-forge-surface border border-forge-border rounded-2xl p-6 w-full max-w-sm mx-4 shadow-xl animate-scale-in"
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0 }}
+          transition={{ duration: 0.15 }}
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm"
+          onClick={() => setDeleteConfirm(null)}
+        >
+          <motion.div
+            initial={{ opacity: 0, scale: 0.95, y: 8 }}
+            animate={{ opacity: 1, scale: 1, y: 0 }}
+            exit={{ opacity: 0, scale: 0.95, y: 8 }}
+            transition={{ type: 'spring', stiffness: 400, damping: 25 }}
+            className="bg-forge-surface border border-forge-border rounded-2xl p-6 w-full max-w-sm mx-4 shadow-xl"
             onClick={e => e.stopPropagation()}
           >
             <div className="flex items-center gap-3 mb-4">
@@ -550,20 +607,21 @@ export function ProjectPicker({ onSelect, savedProjects, loadingProjects, onDele
             <div className="flex items-center justify-end gap-2">
               <button
                 onClick={() => setDeleteConfirm(null)}
-                className="px-4 py-2 text-xs font-medium rounded-lg border border-forge-border text-forge-text-dim hover:text-forge-text hover:bg-forge-bg transition-colors"
+                className="px-4 py-2 text-xs font-medium rounded-lg border border-forge-border text-forge-text-dim hover:text-forge-text hover:bg-forge-bg active:scale-95 transition-all duration-150"
               >
                 Cancel
               </button>
               <button
                 onClick={confirmDelete}
-                className="px-4 py-2 text-xs font-medium rounded-lg bg-forge-danger text-white hover:bg-forge-danger/90 transition-colors"
+                className="px-4 py-2 text-xs font-medium rounded-lg bg-forge-danger text-white hover:bg-forge-danger/90 active:scale-95 transition-all duration-150"
               >
                 Delete
               </button>
             </div>
-          </div>
-        </div>
+          </motion.div>
+        </motion.div>
       )}
+      </AnimatePresence>
     </div>
   )
 }

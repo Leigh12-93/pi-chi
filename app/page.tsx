@@ -9,6 +9,7 @@ import { SignInPage } from '@/components/sign-in-page'
 import { ApiKeyGate } from '@/components/api-key-gate'
 import { Onboarding } from '@/components/onboarding'
 import { hashFileMapDeep } from '@/lib/utils'
+import { toast } from 'sonner'
 
 interface SavedProject {
   id: string
@@ -33,11 +34,13 @@ export default function ForgePage() {
   const projectsPageRef = useRef(1)
   const [loadingProjectId, setLoadingProjectId] = useState<string | null>(null)
   const autoSaveTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const retryTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const lastSavedHash = useRef<string>('')
   const restoredRef = useRef(false)
   const savingRef = useRef(false)
   const saveRetriesRef = useRef(0)
   const loadingProjectsRef = useRef(false)
+  const [saveStatus, setSaveStatus] = useState<'idle' | 'pending' | 'saving' | 'saved' | 'error'>('idle')
   const [autoSaveError, setAutoSaveError] = useState(false)
   const [projectsLoadError, setProjectsLoadError] = useState(false)
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
@@ -50,6 +53,7 @@ export default function ForgePage() {
   const [onboardingDismissed, setOnboardingDismissed] = useState(() => {
     try { return sessionStorage.getItem('forge_onboarding_done') === '1' } catch { return false }
   })
+  const [pendingAuditMessage, setPendingAuditMessage] = useState<string | null>(null)
 
   // Concurrent-tab detection: warn if another tab is editing the same project
   useEffect(() => {
@@ -76,6 +80,21 @@ export default function ForgePage() {
     return () => { bc.removeEventListener('message', handler); bc.close() }
   }, [projectId])
 
+  // Show toast for OAuth errors in URL params
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search)
+    const error = params.get('error')
+    if (!error) return
+    const errorMessages: Record<string, string> = {
+      no_code: 'Sign-in was cancelled. Please try again.',
+      csrf_validation_failed: 'Security check failed. Please sign in again.',
+      token_exchange_failed: 'GitHub authentication failed. Please try again.',
+      callback_failed: 'Sign-in error. Please try again.',
+    }
+    toast.error(errorMessages[error] || 'Authentication error. Please try again.')
+    window.history.replaceState({}, '', window.location.pathname)
+  }, [])
+
   // Restore project from sessionStorage on mount (survives refresh)
   useEffect(() => {
     if (restoredRef.current) return
@@ -100,6 +119,24 @@ export default function ForgePage() {
               // Restore active file if it still exists
               if (stored.activeFile && data.files?.[stored.activeFile]) {
                 setActiveFile(stored.activeFile)
+              }
+              // Auto-scan if project hasn't been scanned in 7+ days
+              const projectFiles = data.files || {}
+              const fileCount = Object.keys(projectFiles).length
+              if (fileCount >= 3) {
+                try {
+                  const lastAuditFile = projectFiles['.forge/last-audit.json']
+                  const lastScan = lastAuditFile ? JSON.parse(lastAuditFile).timestamp : null
+                  const daysSinceScan = lastScan ? (Date.now() - new Date(lastScan).getTime()) / 86400000 : Infinity
+                  if (daysSinceScan > 7) {
+                    setPendingAuditMessage(
+                      '[AUTO-SCAN] This project hasn\'t been scanned in ' +
+                      (lastScan ? `${Math.floor(daysSinceScan)} days` : 'ever') + '. ' +
+                      'Run a deep architectural scan focusing on structural issues and codebase errors. ' +
+                      'Do NOT change any UI or content.'
+                    )
+                  }
+                } catch { /* ignore parse errors */ }
               }
             } else {
               // Project was deleted — clear storage
@@ -194,10 +231,13 @@ export default function ForgePage() {
     const hash = hashFileMapDeep(files)
     if (hash === lastSavedHash.current) return
 
+    setSaveStatus('pending')
     if (autoSaveTimer.current) clearTimeout(autoSaveTimer.current)
+    if (retryTimer.current) clearTimeout(retryTimer.current)
     autoSaveTimer.current = setTimeout(async () => {
       if (savingRef.current) return // skip if another save is in-flight
       savingRef.current = true
+      setSaveStatus('saving')
       try {
         const res = await fetch(`/api/projects/${projectId}`, {
           method: 'PUT',
@@ -207,7 +247,9 @@ export default function ForgePage() {
         if (res.ok) {
           lastSavedHash.current = hash
           setAutoSaveError(false)
+          setSaveStatus('saved')
           saveRetriesRef.current = 0
+          setTimeout(() => setSaveStatus('idle'), 2000)
         } else {
           throw new Error(`HTTP ${res.status}`)
         }
@@ -216,7 +258,7 @@ export default function ForgePage() {
           saveRetriesRef.current++
           // Exponential backoff retry
           savingRef.current = false
-          autoSaveTimer.current = setTimeout(async () => {
+          retryTimer.current = setTimeout(async () => {
             savingRef.current = true
             try {
               const retryRes = await fetch(`/api/projects/${projectId}`, {
@@ -227,9 +269,12 @@ export default function ForgePage() {
               if (retryRes.ok) {
                 lastSavedHash.current = hash
                 setAutoSaveError(false)
+                setSaveStatus('saved')
                 saveRetriesRef.current = 0
+                setTimeout(() => setSaveStatus('idle'), 2000)
               } else {
                 setAutoSaveError(true)
+                setSaveStatus('error')
               }
             } catch {
               setAutoSaveError(true)
@@ -240,6 +285,7 @@ export default function ForgePage() {
           return
         }
         setAutoSaveError(true)
+        setSaveStatus('error')
         // Backup to localStorage as safety net
         try { localStorage.setItem(`forge-unsaved-${projectId}`, JSON.stringify(files)) } catch {}
       } finally {
@@ -249,6 +295,7 @@ export default function ForgePage() {
 
     return () => {
       if (autoSaveTimer.current) clearTimeout(autoSaveTimer.current)
+      if (retryTimer.current) clearTimeout(retryTimer.current)
     }
   }, [files, projectId])
 
@@ -258,6 +305,7 @@ export default function ForgePage() {
     if (autoSaveTimer.current) clearTimeout(autoSaveTimer.current)
     if (savingRef.current) return
     savingRef.current = true
+    setSaveStatus('saving')
     try {
       const res = await fetch(`/api/projects/${projectId}`, {
         method: 'PUT',
@@ -267,11 +315,15 @@ export default function ForgePage() {
       if (res.ok) {
         lastSavedHash.current = hashFileMapDeep(files)
         setAutoSaveError(false)
+        setSaveStatus('saved')
+        setTimeout(() => setSaveStatus('idle'), 2000)
       } else {
         setAutoSaveError(true)
+        setSaveStatus('error')
       }
     } catch {
       setAutoSaveError(true)
+      setSaveStatus('error')
     } finally {
       savingRef.current = false
     }
@@ -297,6 +349,18 @@ export default function ForgePage() {
       window.removeEventListener('online', goOnline)
     }
   }, [projectId, files, handleManualSave])
+
+  // Auto-audit: dispatch pending audit message after project load settles
+  useEffect(() => {
+    if (!pendingAuditMessage || !projectId) return
+    const timer = setTimeout(() => {
+      window.dispatchEvent(new CustomEvent('forge:auto-audit', {
+        detail: { message: pendingAuditMessage, projectId }
+      }))
+      setPendingAuditMessage(null)
+    }, 1500) // Wait for project to fully load
+    return () => clearTimeout(timer)
+  }, [pendingAuditMessage, projectId])
 
   /** After importing from GitHub, auto-detect and connect integrations (fire-and-forget) */
   const autoConnectFromImport = useCallback(async (importedFiles: Record<string, string>, repoUrl: string, newProjectId: string) => {
@@ -416,6 +480,18 @@ export default function ForgePage() {
     // Auto-connect integrations from imported files (fire-and-forget)
     if (initialFiles && meta?.githubRepoUrl && newProjectId) {
       autoConnectFromImport(initialFiles, meta.githubRepoUrl, newProjectId)
+    }
+
+    // Auto-scan imported projects with 3+ files
+    if (initialFiles && Object.keys(initialFiles).length >= 3) {
+      setPendingAuditMessage(
+        '[AUTO-SCAN] This project was just imported. Run a deep architectural scan: ' +
+        'analyze the codebase structure, find architectural bugs, structural issues, ' +
+        'and codebase errors. Do NOT change any UI or content. Focus on: ' +
+        'missing dependencies, broken imports, incorrect patterns, config issues, ' +
+        'type safety gaps, security vulnerabilities, and architectural inconsistencies. ' +
+        'Present findings with severity ratings.'
+      )
     }
   }, [session])
 
@@ -575,6 +651,7 @@ export default function ForgePage() {
           loadProjects()
         }}
         autoSaveError={autoSaveError}
+        saveStatus={saveStatus}
         onManualSave={handleManualSave}
         onUpdateSettings={(settings) => {
           if (settings.name) setProjectName(settings.name)

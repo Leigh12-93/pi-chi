@@ -248,7 +248,9 @@ export function useForgeChat(props: UseForgeChatProps) {
   const [editingContent, setEditingContent] = useState('')
   const [clearConfirm, setClearConfirm] = useState(false)
   const [attachments, setAttachments] = useState<FileUIPart[]>([])
-  const [tasks, setTasks] = useState<Array<{ id: string; label: string; status: string }>>([])
+  const [tasks, setTasks] = useState<Array<{ id: string; label: string; status: string; description?: string; blockedBy?: string[]; phase?: string }>>([])
+  const [showNewMessageIndicator, setShowNewMessageIndicator] = useState(false)
+  const stoppedByUserRef = useRef(false)
 
   // ─── Approval gates ─────────────────────────────────────────
   const [pendingApproval, setPendingApproval] = useState<{
@@ -267,6 +269,7 @@ export function useForgeChat(props: UseForgeChatProps) {
   const historyLoadingRef = useRef(false)
   const localFiles = useRef<Record<string, string>>({})
   const isNearBottomRef = useRef(true)
+  const diagnosedUrls = useRef(new Set<string>())
 
   // ─── Sync files ref (synchronous — must not be deferred via useEffect
   // to avoid stale reads during tool invocation processing) ─────────
@@ -280,23 +283,40 @@ export function useForgeChat(props: UseForgeChatProps) {
   // ─── Scroll tracking ─────────────────────────────────────────
   const handleScroll = useCallback((e: React.UIEvent<HTMLDivElement>) => {
     const el = e.currentTarget
-    isNearBottomRef.current = el.scrollHeight - el.scrollTop - el.clientHeight < 150
+    const nearBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 150
+    isNearBottomRef.current = nearBottom
+    setShowNewMessageIndicator(!nearBottom)
+  }, [])
+
+  const scrollToBottom = useCallback(() => {
+    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
+    setShowNewMessageIndicator(false)
   }, [])
 
   // Escape to stop generation
   useEffect(() => {
     if (!isLoading) return
     const handler = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') { e.preventDefault(); stop() }
+      if (e.key === 'Escape') { e.preventDefault(); stoppedByUserRef.current = true; stop() }
     }
     window.addEventListener('keydown', handler)
     return () => window.removeEventListener('keydown', handler)
   }, [isLoading, stop])
 
+  // Toast when user-initiated stop completes
+  const wasLoadingRef = useRef(false)
+  useEffect(() => {
+    if (wasLoadingRef.current && !isLoading && stoppedByUserRef.current) {
+      toast.info('Generation stopped', { duration: 2000 })
+      stoppedByUserRef.current = false
+    }
+    wasLoadingRef.current = isLoading
+  }, [isLoading])
+
   // Auto-scroll when near bottom
   useEffect(() => {
     if (isNearBottomRef.current) {
-      messagesEndRef.current?.scrollIntoView({ behavior: 'auto' })
+      messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
     }
   }, [messages, isLoading])
 
@@ -502,10 +522,31 @@ export function useForgeChat(props: UseForgeChatProps) {
           }
         }
 
+        // ── Gate tools: present_plan, ask_user, checkpoint ──
+        // These tools produce inline cards — mark as processed so they don't
+        // trigger file extraction, but do NOT skip them (they render in message-item)
+        if (['present_plan', 'ask_user', 'checkpoint'].includes(inv.toolName) && (isCall || isResult)) {
+          const gateArgs = inv.args as Record<string, unknown>
+          if (gateArgs?.__plan_gate || gateArgs?.__ask_gate || gateArgs?.__checkpoint || gateArgs?.files || gateArgs?.question) {
+            processedInvs.current.add(key)
+            // Check auto-approve for plans
+            if (inv.toolName === 'present_plan' && (isCall || isResult)) {
+              try {
+                const autoApprove = localStorage.getItem('forge:auto-approve-plans') === 'true'
+                if (autoApprove) {
+                  sendMessage({ text: '[PLAN APPROVED]' })
+                }
+              } catch {}
+            }
+            continue
+          }
+        }
+
         // Audit plan — dispatch event for workspace to display audit panel
-        if (inv.toolName === 'create_audit_plan' && isResult && inv.result) {
-          const result = inv.result as Record<string, unknown>
-          if (result.plan || result.findings) {
+        // AND mark as processed so the inline card renders
+        if (inv.toolName === 'create_audit_plan' && (isCall || isResult)) {
+          const result = (inv.result || inv.args) as Record<string, unknown>
+          if (result?.__audit_gate || result?.plan || result?.findings) {
             processedInvs.current.add(key)
             window.dispatchEvent(new CustomEvent('forge:audit-plan', {
               detail: result.plan || result
@@ -514,9 +555,9 @@ export function useForgeChat(props: UseForgeChatProps) {
           }
         }
 
-        // Task list — extract tasks from manage_tasks tool
+        // Task list — extract tasks from manage_tasks tool (with deps/phases)
         if (inv.toolName === 'manage_tasks' && (isCall || isResult)) {
-          const taskArgs = inv.args as { tasks?: Array<{ id: string; label: string; status: string }> }
+          const taskArgs = inv.args as { tasks?: Array<{ id: string; label: string; status: string; description?: string; blockedBy?: string[]; phase?: string }> }
           if (Array.isArray(taskArgs?.tasks)) {
             setTasks(taskArgs.tasks)
           }
@@ -573,6 +614,36 @@ export function useForgeChat(props: UseForgeChatProps) {
     window.addEventListener('forge:preview-captured', handler)
     return () => window.removeEventListener('forge:preview-captured', handler)
   }, [sendMessage])
+
+  // ─── Listen for preview errors — auto-diagnose ──────────────
+  useEffect(() => {
+    const handler = (e: Event) => {
+      const detail = (e as CustomEvent).detail
+      if (!detail?.url) return
+      const key = `preview-error:${detail.url}`
+      if (diagnosedUrls.current.has(key)) return
+      diagnosedUrls.current.add(key)
+      sendMessage({
+        text: `[PREVIEW ERROR] The preview at ${detail.url} failed to load (${detail.errorType || 'unknown'}). Please use diagnose_preview to check the headers and suggest fixes.`,
+      })
+    }
+    window.addEventListener('forge:preview-error', handler)
+    return () => window.removeEventListener('forge:preview-error', handler)
+  }, [sendMessage])
+
+  // ─── Listen for auto-audit trigger (from project load/import) ──
+  useEffect(() => {
+    const handler = (e: Event) => {
+      const detail = (e as CustomEvent).detail
+      if (!detail?.message) return
+      if (detail.projectId && detail.projectId !== projectIdRef.current) return
+      if (!isLoading && detail.message) {
+        sendMessage({ text: detail.message })
+      }
+    }
+    window.addEventListener('forge:auto-audit', handler)
+    return () => window.removeEventListener('forge:auto-audit', handler)
+  }, [isLoading, sendMessage])
 
   // ─── Send / register / pending ────────────────────────────────
   const handleSend = useCallback((text?: string) => {
@@ -643,6 +714,7 @@ export function useForgeChat(props: UseForgeChatProps) {
   const handleCopy = useCallback((id: string, content: string) => {
     navigator.clipboard.writeText(content)
     setCopiedId(id)
+    toast.success('Copied', { duration: 1500 })
     setTimeout(() => setCopiedId(null), 2000)
   }, [])
 
@@ -847,18 +919,20 @@ export function useForgeChat(props: UseForgeChatProps) {
   // ─── Elapsed time tracking ────────────────────────────────────
   const streamStartRef = useRef<number>(0)
   const [elapsed, setElapsed] = useState(0)
+  const finalElapsedRef = useRef(0)
 
   useEffect(() => {
     if (isLoading) {
       streamStartRef.current = Date.now()
       setElapsed(0)
       const interval = setInterval(() => {
-        setElapsed(Math.floor((Date.now() - streamStartRef.current) / 1000))
+        const secs = Math.floor((Date.now() - streamStartRef.current) / 1000)
+        setElapsed(secs)
+        finalElapsedRef.current = secs
       }, 1000)
       return () => clearInterval(interval)
-    } else {
-      setElapsed(0)
     }
+    // Keep elapsed at final value briefly so completion signal can read it
   }, [isLoading])
 
   const formatElapsed = useCallback((s: number) => {
@@ -889,7 +963,7 @@ export function useForgeChat(props: UseForgeChatProps) {
     selectedModel, setSelectedModel, showModelPicker, setShowModelPicker,
     copiedId, loadingHistory, editingMessageId, editingContent,
     clearConfirm, envVars, elapsed, isEmpty, attachments,
-    tasks,
+    tasks, showNewMessageIndicator, scrollToBottom,
     stepCount, estimatedTokens, realTokens, autoRoutedModel, currentActivity, lastCompletedToolName,
     // Cost tracking
     sessionCost, getMessageCost,
@@ -902,6 +976,6 @@ export function useForgeChat(props: UseForgeChatProps) {
     handleRegenerate, handleEnvVarsSave, handleCancelTask, handleScroll,
     handleClearChat, handleAttachFiles, handleRemoveAttachment,
     setEditingMessageId, setEditingContent, setClearConfirm,
-    stop, regenerate, setMessages, formatElapsed,
+    stop, regenerate, setMessages, formatElapsed, stoppedByUserRef,
   }
 }

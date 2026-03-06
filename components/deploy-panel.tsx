@@ -313,9 +313,9 @@ export function DeployPanel({ projectId, files, projectName, onClose, onSuccess,
                   'flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg transition-all duration-300',
                   isDone && !isAutoFix && 'bg-emerald-500/8',
                   isDone && isAutoFix && 'bg-amber-500/8',
-                  isCurrent && !isAutoFix && 'bg-forge-accent/8',
-                  isCurrent && isAutoFix && 'bg-amber-500/8',
-                  isError && 'bg-forge-danger/8',
+                  isCurrent && !isAutoFix && 'bg-forge-accent/8 shadow-[0_0_8px_rgba(99,102,241,0.15)]',
+                  isCurrent && isAutoFix && 'bg-amber-500/8 shadow-[0_0_8px_rgba(245,158,11,0.15)]',
+                  isError && 'bg-forge-danger/8 shadow-[0_0_8px_rgba(239,68,68,0.15)]',
                 )}>
                   <div className={cn(
                     'flex items-center justify-center w-4.5 h-4.5 rounded-md transition-all duration-300',
@@ -327,7 +327,7 @@ export function DeployPanel({ projectId, files, projectName, onClose, onSuccess,
                     !isDone && !isCurrent && !isError && 'text-forge-text-dim/40',
                   )}>
                     {isDone ? (
-                      <CheckCircle className="w-3.5 h-3.5" />
+                      <CheckCircle className="w-3.5 h-3.5 animate-check-in" />
                     ) : isError ? (
                       <XCircle className="w-3.5 h-3.5" />
                     ) : isCurrent ? (
@@ -361,7 +361,7 @@ export function DeployPanel({ projectId, files, projectName, onClose, onSuccess,
       {currentStage === 'autofix' && status === 'deploying' && (
         <div className="px-4 pb-2 deploy-slide-up">
           <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-amber-500/[0.06] border border-amber-500/15">
-            <Zap className="w-3.5 h-3.5 text-amber-500 shrink-0" />
+            <Zap className="w-3.5 h-3.5 text-amber-500 shrink-0 animate-pulse" />
             <div className="flex-1 min-w-0">
               <p className="text-[11px] font-medium text-amber-500/90">
                 Auto-fixing build error

@@ -29,8 +29,20 @@ const ICON_MAP = {
 export function NotificationCenter({ notifications, onMarkAllRead, onDismiss }: NotificationCenterProps) {
   const [open, setOpen] = useState(false)
   const panelRef = useRef<HTMLDivElement>(null)
+  const [bellRing, setBellRing] = useState(false)
+  const prevUnreadRef = useRef(0)
 
   const unreadCount = notifications.filter(n => !n.read).length
+
+  // Trigger bell ring animation when new unread notifications arrive
+  useEffect(() => {
+    if (unreadCount > prevUnreadRef.current) {
+      setBellRing(true)
+      const timer = setTimeout(() => setBellRing(false), 600)
+      return () => clearTimeout(timer)
+    }
+    prevUnreadRef.current = unreadCount
+  }, [unreadCount])
 
   useEffect(() => {
     if (!open) return
@@ -51,7 +63,7 @@ export function NotificationCenter({ notifications, onMarkAllRead, onDismiss }: 
         title="Notifications"
         aria-label="Notifications"
       >
-        <Bell className="w-3.5 h-3.5" />
+        <Bell className={cn('w-3.5 h-3.5', bellRing && 'animate-bell-ring')} />
         {unreadCount > 0 && (
           <span className="absolute -top-0.5 -right-0.5 w-3.5 h-3.5 text-[8px] font-bold text-white bg-forge-accent rounded-full flex items-center justify-center animate-pulse-dot">
             {unreadCount > 9 ? '9+' : unreadCount}
@@ -70,21 +82,22 @@ export function NotificationCenter({ notifications, onMarkAllRead, onDismiss }: 
             )}
           </div>
 
-          <div className="max-h-64 overflow-y-auto">
+          <div className="max-h-64 overflow-y-auto scroll-fade-bottom" role="log" aria-label="Notification history">
             {notifications.length === 0 ? (
               <div className="py-8 text-center text-xs text-forge-text-dim">
                 No notifications yet
               </div>
             ) : (
-              notifications.slice(0, 20).map(notif => {
+              notifications.slice(0, 20).map((notif, idx) => {
                 const { Icon, color } = ICON_MAP[notif.type]
                 return (
                   <div
                     key={notif.id}
                     className={cn(
-                      'flex items-start gap-2 px-3 py-2 border-b border-forge-border/50 last:border-0 hover:bg-forge-surface/50 transition-all hover:-translate-y-px',
+                      'flex items-start gap-2 px-3 py-2 border-b border-forge-border/50 last:border-0 hover:bg-forge-surface/50 transition-all hover:-translate-y-px animate-fade-in-up',
                       !notif.read && 'bg-forge-accent/5',
                     )}
+                    style={{ animationDelay: `${idx * 30}ms` }}
                   >
                     <Icon className={cn('w-3.5 h-3.5 mt-0.5 shrink-0', color)} />
                     <div className="flex-1 min-w-0">

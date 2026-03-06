@@ -18,19 +18,211 @@ export function createUtilityTools(ctx: ToolContext) {
 
   return {
     think: tool({
-      description: 'Think through your approach before building. Use for complex tasks (3+ files). The files array becomes a live progress checklist — list EVERY file you plan to create/modify. After think, IMMEDIATELY start building with tool calls. No text output.',
+      description: 'Think through your approach before building. Use for complex tasks (3+ files). The files array becomes a live progress checklist — list EVERY file you plan to create/modify in BUILD ORDER (types → hooks → components → pages). For data-driven apps, include dataModel and stateManagement. After think, IMMEDIATELY start building with tool calls. No text output.',
       inputSchema: z.object({
         plan: z.string().describe('Your step-by-step plan for implementing this task'),
-        files: z.array(z.string()).describe('List of ALL files you will create/modify — these become the visible progress checklist'),
+        files: z.array(z.string()).describe('ALL files in BUILD ORDER: types → hooks → components → pages'),
         approach: z.string().optional().describe('Key architectural decisions'),
+        dataModel: z.string().optional().describe('TypeScript types/interfaces for core entities — define BEFORE building components'),
+        stateManagement: z.string().optional().describe('Hooks, stores, context, data fetching strategy'),
+        apiContracts: z.string().optional().describe('API route request/response shapes'),
+        errorStrategy: z.string().optional().describe('Loading states, error boundaries, empty states per data source'),
+        confidence: z.number().min(0).max(100).optional()
+          .describe('Confidence in approach (0-100). Below 70 → use present_plan to get user approval'),
+        uncertainties: z.array(z.string()).optional()
+          .describe('What would reduce uncertainty'),
+        fragileAssumption: z.string().optional()
+          .describe('The assumption most likely to be wrong'),
       }),
-      execute: async ({ plan, files, approach }) => ({
-        acknowledged: true,
-        plan,
-        files,
-        approach,
-        next: 'Start building immediately. Your next action must be a tool call.',
+      execute: async ({ plan, files, approach, dataModel, stateManagement, apiContracts, errorStrategy, confidence, uncertainties, fragileAssumption }) => {
+        const warnings: string[] = []
+
+        // Validate build order: types files should come before component/page files
+        const typesIdx = files.findIndex(f => /\/types\.tsx?$/.test(f) || f.includes('/types/'))
+        const firstComponentIdx = files.findIndex(f => f.includes('components/'))
+        const firstPageIdx = files.findIndex(f => f.match(/app\/.*page\.tsx/) || f.match(/page\.tsx$/))
+        if (typesIdx > -1 && firstComponentIdx > -1 && typesIdx > firstComponentIdx) {
+          warnings.push('BUILD ORDER: types file is listed AFTER components — types should be built first')
+        }
+        if (firstComponentIdx > -1 && firstPageIdx > -1 && firstComponentIdx > firstPageIdx) {
+          warnings.push('BUILD ORDER: components are listed AFTER pages — components should be built before pages that import them')
+        }
+
+        // Check if data-driven app is missing architecture fields
+        const planLower = plan.toLowerCase()
+        const isDataDriven = /\b(fetch|api|crud|form|database|supabase|data|state)\b/.test(planLower)
+        if (isDataDriven && !dataModel) {
+          warnings.push('ARCHITECTURE: This appears to be a data-driven app but no dataModel was provided — define TypeScript types for your entities')
+        }
+        const hasApiRoutes = files.some(f => f.includes('api/') && f.includes('route'))
+        if (hasApiRoutes && !apiContracts) {
+          warnings.push('ARCHITECTURE: API routes are planned but no apiContracts defined — specify request/response shapes')
+        }
+        if (isDataDriven && !stateManagement) {
+          warnings.push('ARCHITECTURE: Data-driven app with no stateManagement — define hooks, stores, context, or data fetching strategy')
+        }
+        if (isDataDriven && !errorStrategy) {
+          warnings.push('ARCHITECTURE: Data-driven app with no errorStrategy — define loading, error, and empty states')
+        }
+        if (isDataDriven && !stateManagement) {
+          warnings.push('ARCHITECTURE: Data-driven app with no stateManagement — define hooks, stores, context, or data fetching strategy')
+        }
+
+        if (confidence !== undefined && confidence < 70) {
+          warnings.push(`LOW CONFIDENCE (${confidence}%): Consider using present_plan to get user approval before building`)
+        }
+
+        return {
+          acknowledged: true,
+          plan,
+          files,
+          approach,
+          architecture: {
+            dataModel: dataModel || null,
+            stateManagement: stateManagement || null,
+            apiContracts: apiContracts || null,
+            errorStrategy: errorStrategy || null,
+          },
+          confidence: confidence ?? null,
+          uncertainties: uncertainties || [],
+          fragileAssumption: fragileAssumption || null,
+          warnings,
+          next: warnings.length > 0
+            ? `Address these warnings before building: ${warnings.join('; ')}`
+            : 'Start building immediately. Your next action must be a tool call.',
+        }
+      },
+    }),
+
+    present_plan: tool({
+      description: 'Present a build plan to the user and WAIT for approval. Use for ANY task involving 3+ files, ambiguous requirements, or architectural decisions. Shows an interactive plan card. Do NOT build until the user approves.',
+      inputSchema: z.object({
+        summary: z.string().describe('1-2 sentence overview of what will be built'),
+        approach: z.string().describe('Key architectural decisions and rationale'),
+        files: z.array(z.object({
+          path: z.string(),
+          action: z.enum(['create', 'modify', 'delete']),
+          reason: z.string().describe('Why this file needs this change'),
+        })).describe('Every file that will be created/modified/deleted, in build order'),
+        alternatives: z.array(z.object({
+          id: z.string(),
+          label: z.string(),
+          description: z.string(),
+        })).optional().describe('Alternative approaches for user to choose'),
+        questions: z.array(z.object({
+          id: z.string(),
+          question: z.string(),
+          options: z.array(z.string()).optional(),
+        })).optional().describe('Clarifying questions requiring user input'),
+        confidence: z.number().min(0).max(100).describe('Confidence in this plan (0-100)'),
+        uncertainties: z.array(z.string()).optional().describe('What could reduce uncertainty'),
       }),
+      execute: async (args) => ({
+        __plan_gate: true,
+        ...args,
+        instruction: 'Plan presented to user. STOP and WAIT for their approval. Do NOT proceed until you receive a [PLAN APPROVED] or [PLAN REJECTED] message.',
+      }),
+    }),
+
+    ask_user: tool({
+      description: 'Ask the user a clarifying question with optional choices. Use when the request is ambiguous, multiple valid approaches exist, or you need the user to decide. Renders as an interactive card. STOP and wait for response.',
+      inputSchema: z.object({
+        question: z.string().describe('The question to ask'),
+        context: z.string().optional().describe('Why you are asking this'),
+        options: z.array(z.object({
+          id: z.string(),
+          label: z.string(),
+          description: z.string().optional(),
+        })).optional().describe('Choices for the user (if applicable)'),
+        recommended: z.string().optional().describe('ID of the recommended option'),
+        allowFreeText: z.boolean().optional().describe('Allow user to type a custom answer (default true)'),
+      }),
+      execute: async (args) => ({
+        __ask_gate: true,
+        ...args,
+        instruction: 'Question shown to user. STOP and wait for their response.',
+      }),
+    }),
+
+    checkpoint: tool({
+      description: 'Show a progress checkpoint during a complex build (10+ files). Use after completing a logical phase. Lets the user see progress and provide feedback before continuing.',
+      inputSchema: z.object({
+        phase: z.string().describe('What phase just completed (e.g., "Data model & types")'),
+        completed: z.array(z.string()).describe('Files completed in this phase'),
+        nextPhase: z.string().describe('What will be built next'),
+        previewReady: z.boolean().optional().describe('Is there enough to see a meaningful preview?'),
+        question: z.string().optional().describe('Optional question before continuing'),
+      }),
+      execute: async (args) => ({
+        __checkpoint: true,
+        ...args,
+        instruction: args.question
+          ? 'Checkpoint shown with question. STOP and wait for user response.'
+          : 'Checkpoint shown. Continue to next phase.',
+      }),
+    }),
+
+    diagnose_preview: tool({
+      description: 'Diagnose why the preview panel is failing to load. Checks CSP headers, X-Frame-Options, and connection status of the preview URL. Use when the user reports "refused to connect" or preview errors.',
+      inputSchema: z.object({
+        url: z.string().describe('The preview URL that is failing'),
+        errorType: z.enum(['refused_to_connect', 'blank_page', 'runtime_error', 'timeout', 'unknown'])
+          .describe('The type of error observed'),
+        consoleErrors: z.array(z.string()).optional().describe('Any console errors reported by the preview'),
+      }),
+      execute: async ({ url, errorType, consoleErrors }) => {
+        const diagnosis: string[] = []
+        const fixes: string[] = []
+
+        try {
+          const res = await fetch(url, {
+            method: 'HEAD',
+            signal: AbortSignal.timeout(10000),
+            redirect: 'follow',
+          })
+
+          const xFrameOptions = res.headers.get('x-frame-options')
+          const csp = res.headers.get('content-security-policy')
+          const frameAncestors = csp?.match(/frame-ancestors\s+([^;]+)/)?.[1]
+
+          if (xFrameOptions?.toLowerCase() === 'deny' || xFrameOptions?.toLowerCase() === 'sameorigin') {
+            diagnosis.push(`X-Frame-Options: ${xFrameOptions} — blocks iframe embedding`)
+            fixes.push('Remove or modify X-Frame-Options header in next.config.ts or middleware.ts')
+          }
+
+          if (frameAncestors && !frameAncestors.includes('*')) {
+            diagnosis.push(`CSP frame-ancestors: ${frameAncestors} — restricts iframe embedding`)
+            fixes.push('Update Content-Security-Policy frame-ancestors to allow Forge domain')
+          }
+
+          if (!res.ok) {
+            diagnosis.push(`HTTP ${res.status}: Server returned error status`)
+            fixes.push(`Check build logs — the deployed site is returning ${res.status}`)
+          }
+
+          if (res.status === 500) {
+            fixes.push('Check for missing environment variables on the deployed site')
+            fixes.push('Check for server-side rendering errors (use try/catch in server components)')
+          }
+        } catch (err: unknown) {
+          const errMsg = err instanceof Error ? err.message : String(err)
+          diagnosis.push(`Connection failed: ${errMsg}`)
+          if (errMsg.includes('ECONNREFUSED')) {
+            fixes.push('The preview server is not running — check if the dev server started correctly')
+          }
+          if (errMsg.includes('timeout')) {
+            fixes.push('The preview URL timed out — the server may be overloaded or unresponsive')
+          }
+        }
+
+        return {
+          url,
+          errorType,
+          diagnosis: diagnosis.length ? diagnosis : ['No specific issue detected from server-side probe'],
+          suggestedFixes: fixes.length ? fixes : ['Try refreshing the preview or redeploying'],
+          consoleErrors: consoleErrors || [],
+        }
+      },
     }),
 
     suggest_improvement: tool({
@@ -342,7 +534,7 @@ export function createUtilityTools(ctx: ToolContext) {
         // Check 2: Exported types/interfaces used consistently
         const exports = new Map<string, string[]>()
         for (const [filePath, content] of fileContents) {
-          const exportMatches = content.matchAll(/export\s+(?:interface|type)\s+(\w+)/g)
+          const exportMatches = content.matchAll(/export\s+(?:interface|type|function|const)\s+(\w+)/g)
           for (const m of exportMatches) {
             if (!exports.has(m[1])) exports.set(m[1], [])
             exports.get(m[1])!.push(filePath)
@@ -350,24 +542,65 @@ export function createUtilityTools(ctx: ToolContext) {
         }
 
         // Check 3: API route response shape matches frontend fetch usage
+        const warnings: string[] = []
         for (const [filePath, content] of fileContents) {
           // Find fetch calls to local API routes
           const fetchMatches = content.matchAll(/fetch\s*\(\s*['"`]\/api\/([^'"`]+)/g)
           for (const m of fetchMatches) {
             const apiPath = `app/api/${m[1]}/route.ts`
-            if (allPaths.has(apiPath) && !fileContents.has(apiPath)) {
-              issues.push(`${filePath}: fetches /api/${m[1]} but that route file wasn't included in coherence check — consider adding it`)
+            if (!allPaths.has(apiPath)) {
+              issues.push(`${filePath}: fetches /api/${m[1]} but no route file exists at ${apiPath}`)
+            } else if (!fileContents.has(apiPath)) {
+              warnings.push(`${filePath}: fetches /api/${m[1]} — route exists but wasn't included in coherence check`)
             }
+          }
+        }
+
+        // Check 4: Dead exports — exported types/functions not imported by any checked file
+        for (const [typeName, exportFiles] of exports) {
+          const importedAnywhere = [...fileContents].some(([fp, content]) =>
+            !exportFiles.includes(fp) && new RegExp(`\\b${typeName}\\b`).test(content)
+          )
+          if (!importedAnywhere && fileContents.size > 1) {
+            warnings.push(`${exportFiles[0]}: exports '${typeName}' but it's not imported by any other checked file`)
+          }
+        }
+
+        // Check 5: Missing loading/error states for data fetching components
+        for (const [filePath, content] of fileContents) {
+          const isTsx = filePath.endsWith('.tsx') || filePath.endsWith('.jsx')
+          if (!isTsx) continue
+          const hasFetch = /\b(fetch|useSWR|useQuery|axios)\b/.test(content) || (/\buseEffect\b/.test(content) && /\bfetch\b/.test(content))
+          if (hasFetch) {
+            const hasLoading = /loading|isLoading|skeleton|spinner|Loader/i.test(content)
+            const hasError = /error|isError|catch|Error/i.test(content)
+            if (!hasLoading) {
+              issues.push(`${filePath}: fetches data but has no loading state — add a loading indicator`)
+            }
+            if (!hasError) {
+              issues.push(`${filePath}: fetches data but has no error handling — add error state`)
+            }
+          }
+        }
+
+        // Check 6: Excessive 'any' types
+        for (const [filePath, content] of fileContents) {
+          const isTs = filePath.endsWith('.ts') || filePath.endsWith('.tsx')
+          if (!isTs) continue
+          const anyCount = (content.match(/:\s*any\b/g) || []).length
+          if (anyCount > 3) {
+            warnings.push(`${filePath}: ${anyCount} uses of 'any' type — consider defining proper types`)
           }
         }
 
         return {
           filesChecked: paths.length,
           issues,
+          warnings,
           coherent: issues.length === 0,
           summary: issues.length === 0
-            ? `All ${paths.length} files are coherent — imports resolve and types align`
-            : `Found ${issues.length} coherence issue(s) across ${paths.length} files`,
+            ? `All ${paths.length} files are coherent${warnings.length > 0 ? ` (${warnings.length} warning${warnings.length > 1 ? 's' : ''})` : ''}`
+            : `Found ${issues.length} issue(s) and ${warnings.length} warning(s) across ${paths.length} files`,
         }
       },
     }),

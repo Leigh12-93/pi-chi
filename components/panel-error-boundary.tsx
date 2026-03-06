@@ -1,7 +1,7 @@
 'use client'
 
 import { Component, type ReactNode } from 'react'
-import { AlertTriangle, RefreshCw } from 'lucide-react'
+import { AlertTriangle, RefreshCw, Copy } from 'lucide-react'
 
 interface Props {
   children: ReactNode
@@ -42,6 +42,17 @@ export class PanelErrorBoundary extends Component<Props, State> {
           >
             <RefreshCw className="w-3 h-3" />
             Retry
+          </button>
+          <button
+            onClick={() => {
+              if (this.state.error) {
+                navigator.clipboard.writeText(this.state.error.message)
+              }
+            }}
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs text-forge-text-dim hover:text-forge-text transition-colors"
+          >
+            <Copy className="w-3 h-3" />
+            Copy error
           </button>
         </div>
       )

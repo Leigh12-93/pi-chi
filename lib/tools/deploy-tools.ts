@@ -7,6 +7,7 @@ import type { ToolContext } from './types'
 
 export function createDeployTools(ctx: ToolContext) {
   return {
+    // TODO: Refactor to route through /api/tasks executeDeploy() for auto-fix loop (error classification + Haiku auto-fix + regression detection)
     deploy_to_vercel: tool({
       description: 'Deploy the current project files to Vercel. Returns a taskId — use check_task_status to poll for completion. Build errors are automatically captured.',
       inputSchema: z.object({
@@ -77,7 +78,7 @@ export function createDeployTools(ctx: ToolContext) {
         branch: z.string().default('master').describe('Branch to build'),
       }),
       execute: async ({ branch }) => {
-        const token = VERCEL_TOKEN
+        const token = ctx.userVercelToken || VERCEL_TOKEN
         if (!token) return { error: 'No Vercel deploy token configured' }
 
         const buildResult = await TaskStore.createPersistent(
@@ -184,7 +185,7 @@ export function createDeployTools(ctx: ToolContext) {
       description: 'Check the current Vercel deployment status for Forge. Use after self-modification to verify the deploy succeeded.',
       inputSchema: z.object({}),
       execute: async () => {
-        const token = VERCEL_TOKEN
+        const token = ctx.userVercelToken || VERCEL_TOKEN
         if (!token) return { error: 'No Vercel deploy token configured' }
 
         const teamParam = VERCEL_TEAM ? `?teamId=${VERCEL_TEAM}&` : '?'
@@ -236,7 +237,7 @@ export function createDeployTools(ctx: ToolContext) {
         errorsOnly: z.boolean().optional().describe('Only show error-related lines (default: false)'),
       }),
       execute: async ({ deploymentId, errorsOnly }) => {
-        const token = VERCEL_TOKEN
+        const token = ctx.userVercelToken || VERCEL_TOKEN
         if (!token) return { error: 'No Vercel deploy token configured' }
         const teamParam = VERCEL_TEAM ? `?teamId=${VERCEL_TEAM}` : ''
         const res = await fetch(`https://api.vercel.com/v2/deployments/${deploymentId}/events${teamParam}`, {
@@ -309,7 +310,7 @@ export function createDeployTools(ctx: ToolContext) {
           return { error: `Invalid domain format: "${domain}". Expected format: example.com or sub.example.com` }
         }
 
-        const token = VERCEL_TOKEN
+        const token = ctx.userVercelToken || VERCEL_TOKEN
         if (!token) return { error: 'No Vercel deploy token configured' }
         const name = (pName || ctx.projectName).replace(/\s+/g, '-').toLowerCase().replace(/[^a-z0-9-]/g, '').slice(0, 52)
         const teamParam = VERCEL_TEAM ? `?teamId=${VERCEL_TEAM}` : ''

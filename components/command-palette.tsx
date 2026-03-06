@@ -100,11 +100,11 @@ export function CommandPalette({ open, onClose, commands }: CommandPaletteProps)
   return (
     <div className="fixed inset-0 z-[100] flex items-start justify-center pt-[10vh] sm:pt-[20vh]" onClick={onClose} role="dialog" aria-modal="true" aria-label="Command palette">
       {/* Backdrop */}
-      <div className="absolute inset-0 bg-forge-overlay backdrop-blur-md animate-fade-in" />
+      <div className="absolute inset-0 bg-forge-overlay backdrop-blur-md cmd-backdrop-enter" />
 
       {/* Palette */}
       <div
-        className="relative w-full max-w-md mx-4 bg-forge-bg rounded-2xl shadow-2xl border border-forge-border overflow-hidden animate-fade-in-up"
+        className="relative w-full max-w-md mx-4 bg-forge-bg rounded-2xl shadow-2xl border border-forge-border overflow-hidden cmd-palette-enter"
         onClick={e => e.stopPropagation()}
       >
         {/* Search input */}
@@ -127,6 +127,7 @@ export function CommandPalette({ open, onClose, commands }: CommandPaletteProps)
         <div className="max-h-[300px] overflow-y-auto py-1">
           {flatFiltered.length === 0 ? (
             <div className="px-4 py-8 text-center">
+              <Search className="w-5 h-5 text-forge-text-dim/30 mx-auto mb-2 console-breathe" />
               <p className="text-sm text-forge-text-dim">No matching commands</p>
             </div>
           ) : (
@@ -145,13 +146,13 @@ export function CommandPalette({ open, onClose, commands }: CommandPaletteProps)
                       onClick={() => { cmd.action(); onClose() }}
                       onMouseEnter={() => setSelectedIndex(cmd.flatIndex)}
                       className={cn(
-                        'w-full flex items-center gap-3 px-4 py-3 sm:py-2 text-left transition-colors',
+                        'w-full flex items-center gap-3 px-4 py-3 sm:py-2 text-left transition-all duration-150',
                         isSelected ? 'bg-forge-accent/10' : 'hover:bg-forge-surface',
                       )}
                     >
                       <div className={cn(
-                        'w-9 h-9 sm:w-7 sm:h-7 rounded-lg flex items-center justify-center shrink-0',
-                        isSelected ? 'bg-forge-accent/20 text-forge-accent' : 'bg-forge-surface text-forge-text-dim',
+                        'w-9 h-9 sm:w-7 sm:h-7 rounded-lg flex items-center justify-center shrink-0 transition-all duration-150',
+                        isSelected ? 'bg-forge-accent/20 text-forge-accent scale-110' : 'bg-forge-surface text-forge-text-dim',
                       )}>
                         <cmd.icon className="w-4 h-4 sm:w-3.5 sm:h-3.5" />
                       </div>

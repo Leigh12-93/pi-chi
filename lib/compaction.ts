@@ -12,7 +12,7 @@ const COMPACTION_MODEL = (process.env.COMPACTION_MODEL || 'claude-haiku-4-5-2025
 // Constants
 const COMPACTION_THRESHOLD = 0.35        // Trigger at 35% of context limit — compact early to avoid 413 errors
 const PRESERVE_FIRST = 2                 // Keep first 2 messages (initial context)
-const PRESERVE_RECENT = 6               // Keep last 6 messages (current work — 3 exchanges)
+const PRESERVE_RECENT = 8               // Keep last 8 messages (current work — 4 exchanges)
 const MAX_SUMMARY_INPUT_CHARS = 50000   // Cap Haiku input at ~12.5K tokens
 const MAX_SUMMARY_TOKENS = 2000         // Concise summary output
 const COMPACTION_TIMEOUT_MS = 10000     // 10s timeout for Haiku call
@@ -92,8 +92,27 @@ export async function compactMessages(
     return { messages, compacted: false, tokensSaved: 0 }
   }
 
+  // Pre-extract critical decisions to ensure they survive summarization
+  const criticalDecisions: string[] = []
+  for (const m of middleMessages) {
+    const text = getMessageText(m)
+    if (text.includes('[PLAN APPROVED]')) {
+      criticalDecisions.push(`APPROVED PLAN: ${text.slice(0, 500)}`)
+    }
+    if (text.includes('"plan"') && text.includes('"files"')) {
+      const planMatch = text.match(/"plan":\s*"([^"]{1,500})"/)
+      if (planMatch) criticalDecisions.push(`THINK PLAN: ${planMatch[1]}`)
+    }
+    const archMatch = text.match(/(?:chose|decided|using|going with|picked)\s+(\S+.*?)(?:\.|$)/gi)
+    if (archMatch) criticalDecisions.push(...archMatch.map(m => `DECISION: ${m.slice(0, 200)}`))
+  }
+
+  const decisionsPrefix = criticalDecisions.length > 0
+    ? `CRITICAL DECISIONS TO PRESERVE:\n${criticalDecisions.join('\n')}\n\n---\n\n`
+    : ''
+
   // Build text for summarization
-  const middleText = middleMessages.map(m => {
+  const middleText = decisionsPrefix + middleMessages.map(m => {
     const role = m.role.toUpperCase()
     let text = getMessageText(m)
     if (text.length > 2000) text = text.slice(0, 2000) + '... [truncated]'
@@ -180,16 +199,20 @@ async function generateCompactionSummary(conversationText: string): Promise<stri
     model: anthropic(COMPACTION_MODEL),
     maxOutputTokens: MAX_SUMMARY_TOKENS,
     abortSignal: AbortSignal.timeout(COMPACTION_TIMEOUT_MS),
-    system: `You are a conversation summarizer for Forge, an AI code builder. Create a concise summary that captures everything the AI needs to continue working.
+    system: `You are a conversation summarizer for Forge, an AI code builder. Create a structured summary that preserves everything the AI needs to continue working without re-reading old messages.
 
-Include:
-1. **Files created/modified**: List all file paths and their purpose
-2. **Key decisions**: Architecture choices, libraries, patterns chosen
-3. **Current state**: What's working, what's broken, what the user wants next
-4. **Requirements**: User preferences, constraints, specifications mentioned
+CRITICAL — preserve these exactly:
+1. **Architectural decisions**: Framework, state management, routing approach, data model design. Quote exact technology choices.
+2. **Files created/modified**: ALL paths with their purpose and key patterns (e.g., "app/page.tsx — landing page with hero + features sections, uses framer-motion")
+3. **Design tokens**: Color palette, fonts, spacing if established (e.g., "palette: slate-900 bg, violet-500 accent, Inter font")
+4. **User requirements**: Stated preferences, constraints, rejected approaches
+5. **Current state**: What works, what's broken, what's next
+6. **Plan status**: If a plan was approved, what's done and what remains
+7. **Key code patterns**: Import conventions, component structure, naming patterns in use
 
-Format as structured bullet points. Be specific about file paths and code patterns.
-Keep under 1500 tokens. No pleasantries or meta-commentary.`,
+Format as structured sections with headers. Be specific — file paths, color codes, library names.
+Do NOT summarize away architectural decisions — they are the most expensive information to lose.
+Keep under 1800 tokens.`,
     prompt: `Summarize this Forge coding session:\n\n${truncated}`,
   })
 

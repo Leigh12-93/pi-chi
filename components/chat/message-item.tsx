@@ -14,8 +14,12 @@ import { cn } from '@/lib/utils'
 import { TOOL_LABELS, colorClasses } from '@/lib/chat/constants'
 import { getToolSummary, getFriendlyError, type ToolInvocation } from '@/lib/chat/tool-utils'
 import { cachedRenderMarkdown } from '@/lib/chat/markdown'
-import { ThinkPanel } from './think-panel'
+import { ThinkPanel, type ThinkPanelProps } from './think-panel'
 import { EnvVarInputCard } from './env-var-input-card'
+import { PlanCard } from './plan-card'
+import { AskCard } from './ask-card'
+import { CheckpointCard } from './checkpoint-card'
+import { AuditFindingsCard } from './audit-findings-card'
 import { CollapsibleToolGroup, groupToolInvocations, type RenderItem } from './tool-group'
 import { ToolResultDetail, getInlineSummary } from './tool-result-detail'
 
@@ -325,11 +329,13 @@ export interface MessageItemProps {
   onRegenerate: (id: string) => void
   onEnvVarsSave: (vars: Record<string, string>) => void
   onCancelTask: (taskId: string) => void
+  onSendMessage?: (text: string) => void
 }
 
 export const MessageItem = memo(function MessageItem({
   message, copiedId, isEditing, editingContent, isLoading, isLast, envVars, messageCost,
   onCopy, onEditMessage, onSaveEdit, onCancelEdit, onSetEditingContent, onRegenerate, onEnvVarsSave, onCancelTask,
+  onSendMessage,
 }: MessageItemProps) {
   const isUser = message.role === 'user'
   const textContent = getTextContent(message)
@@ -359,10 +365,13 @@ export const MessageItem = memo(function MessageItem({
             <div className="flex flex-col gap-0.5 opacity-0 group-hover/user:opacity-100 transition-all mt-1.5">
               <button
                 onClick={() => onCopy(message.id, textContent)}
-                className="p-1 rounded-md text-forge-text-dim hover:text-forge-text hover:bg-forge-surface transition-colors"
+                className={cn(
+                  'p-1 rounded-md text-forge-text-dim hover:text-forge-text hover:bg-forge-surface active:scale-90 transition-all',
+                  copiedId === message.id && 'scale-110'
+                )}
                 title="Copy"
               >
-                {copiedId === message.id ? <Check className="w-3 h-3 text-emerald-500" /> : <Copy className="w-3 h-3" />}
+                {copiedId === message.id ? <Check className="w-3 h-3 text-emerald-500 transition-colors" /> : <Copy className="w-3 h-3 transition-colors" />}
               </button>
               <button
                 onClick={() => onEditMessage(message.id, textContent)}
@@ -427,7 +436,7 @@ export const MessageItem = memo(function MessageItem({
             if (isComplete && !hasError) {
               const args = inv.args as Record<string, unknown>
               const path = (args.path || args.file || args.filePath) as string | undefined
-              if (path && ['write_file', 'edit_file', 'create_project', 'rename_file', 'delete_file'].includes(inv.toolName)) {
+              if (path && ['write_file', 'edit_file', 'create_project', 'rename_file', 'delete_file', 'scaffold_component'].includes(inv.toolName)) {
                 completedFiles.add(path)
               }
               // create_project completes multiple files — mark all scaffold files
@@ -472,11 +481,14 @@ export const MessageItem = memo(function MessageItem({
                   />
                   <button
                     onClick={() => onCopy(`${message.id}-${partIdx}`, part.text!)}
-                    className="absolute top-0 right-0 opacity-0 group-hover:opacity-100 sm:transition-opacity p-1.5 rounded-lg hover:bg-forge-surface"
+                    className={cn(
+                      'absolute top-0 right-0 opacity-0 group-hover:opacity-100 sm:transition-all p-1.5 rounded-lg hover:bg-forge-surface active:scale-90',
+                      copiedId === `${message.id}-${partIdx}` && 'opacity-100 scale-110'
+                    )}
                     aria-label="Copy message"
                     title="Copy"
                   >
-                    {copiedId === `${message.id}-${partIdx}` ? <Check className="w-3.5 h-3.5 text-emerald-500" /> : <Copy className="w-3.5 h-3.5 text-forge-text-dim" />}
+                    {copiedId === `${message.id}-${partIdx}` ? <Check className="w-3.5 h-3.5 text-emerald-500 transition-colors" /> : <Copy className="w-3.5 h-3.5 text-forge-text-dim transition-colors" />}
                   </button>
                 </div>
               )
@@ -498,7 +510,18 @@ export const MessageItem = memo(function MessageItem({
 
               if (inv.toolName === 'think' && inv.state === 'result') {
                 const planFiles = Array.isArray(inv.args?.files) ? inv.args.files as string[] : []
-                return <ThinkPanel key={partIdx} plan={String(inv.args?.plan || '')} files={planFiles} completedFiles={completedFiles} isStreaming={isLoading && isLast} />
+                const thinkResult = inv.result && typeof inv.result === 'object' ? inv.result as Record<string, unknown> : null
+                return (
+                  <ThinkPanel
+                    key={partIdx}
+                    plan={String(inv.args?.plan || '')}
+                    files={planFiles}
+                    completedFiles={completedFiles}
+                    isStreaming={isLoading && isLast}
+                    architecture={thinkResult?.architecture as ThinkPanelProps['architecture']}
+                    warnings={Array.isArray(thinkResult?.warnings) ? thinkResult.warnings as string[] : undefined}
+                  />
+                )
               }
 
               if (inv.toolName === 'suggest_improvement' && inv.state === 'result') {
@@ -541,6 +564,87 @@ export const MessageItem = memo(function MessageItem({
                       variables={variables}
                       savedVars={envVars}
                       onSave={onEnvVarsSave}
+                    />
+                  )
+                }
+              }
+
+              // ── Plan card (present_plan gate) ──
+              if (inv.toolName === 'present_plan' && inv.state === 'result') {
+                const planData = inv.args as Record<string, unknown>
+                if (planData?.files || planData?.__plan_gate) {
+                  return (
+                    <PlanCard
+                      key={partIdx}
+                      plan={{
+                        summary: String(planData.summary || ''),
+                        approach: String(planData.approach || ''),
+                        files: Array.isArray(planData.files) ? planData.files as any : [],
+                        alternatives: Array.isArray(planData.alternatives) ? planData.alternatives as any : undefined,
+                        questions: Array.isArray(planData.questions) ? planData.questions as any : undefined,
+                        confidence: Number(planData.confidence || 80),
+                        uncertainties: Array.isArray(planData.uncertainties) ? planData.uncertainties as string[] : undefined,
+                      }}
+                      onApprove={(response) => onSendMessage?.(response)}
+                      onReject={(reason) => onSendMessage?.(reason)}
+                    />
+                  )
+                }
+              }
+
+              // ── Ask card (ask_user gate) ──
+              if (inv.toolName === 'ask_user' && inv.state === 'result') {
+                const askData = inv.args as Record<string, unknown>
+                if (askData?.question || askData?.__ask_gate) {
+                  return (
+                    <AskCard
+                      key={partIdx}
+                      question={String(askData.question || '')}
+                      context={askData.context ? String(askData.context) : undefined}
+                      options={Array.isArray(askData.options) ? askData.options as any : undefined}
+                      recommended={askData.recommended ? String(askData.recommended) : undefined}
+                      allowFreeText={askData.allowFreeText !== false}
+                      onAnswer={(answer) => onSendMessage?.(answer)}
+                    />
+                  )
+                }
+              }
+
+              // ── Checkpoint card ──
+              if (inv.toolName === 'checkpoint' && inv.state === 'result') {
+                const cpData = inv.args as Record<string, unknown>
+                return (
+                  <CheckpointCard
+                    key={partIdx}
+                    phase={String(cpData.phase || '')}
+                    completed={Array.isArray(cpData.completed) ? cpData.completed as string[] : []}
+                    nextPhase={String(cpData.nextPhase || '')}
+                    previewReady={Boolean(cpData.previewReady)}
+                    question={cpData.question ? String(cpData.question) : undefined}
+                    onAnswer={cpData.question ? (answer) => onSendMessage?.(answer) : undefined}
+                  />
+                )
+              }
+
+              // ── Audit findings card (create_audit_plan gate) ──
+              if (inv.toolName === 'create_audit_plan' && inv.state === 'result') {
+                const auditData = (inv.result && typeof inv.result === 'object' ? inv.result : inv.args) as Record<string, unknown>
+                if (auditData?.__audit_gate || auditData?.findings) {
+                  return (
+                    <AuditFindingsCard
+                      key={partIdx}
+                      findings={{
+                        summary: String(auditData.summary || ''),
+                        overallHealth: (auditData.overallHealth as any) || 'minor_issues',
+                        findings: Array.isArray(auditData.findings) ? auditData.findings as any : [],
+                        stats: (auditData.stats as any) || { totalFiles: 0, filesScanned: 0, criticalCount: 0, warningCount: 0, infoCount: 0 },
+                      }}
+                      onFixSelected={(ids) => {
+                        onSendMessage?.(`[AUDIT FIX REQUEST] Fix these findings: ${ids.join(', ')}. Design the architecture like a human senior engineer would — read every affected file, understand the full dependency chain, draft a complete plan with task list. Do NOT make any changes until I approve the plan.`)
+                      }}
+                      onDismiss={() => {
+                        onSendMessage?.('[AUDIT DISMISSED] No fixes needed.')
+                      }}
                     />
                   )
                 }
@@ -790,14 +894,16 @@ export const MessageItem = memo(function MessageItem({
             />
           )}
           {!isLoading && (
-            <button
+            <motion.button
               onClick={() => onRegenerate(message.id)}
+              whileHover={{ scale: 1.02 }}
+              whileTap={{ scale: 0.95 }}
               className="flex items-center gap-1 mt-0.5 px-2 py-1 text-[11px] text-forge-text-dim hover:text-forge-accent opacity-40 group-hover/assistant:opacity-100 transition-all rounded-lg hover:bg-forge-surface"
               title="Regenerate response"
             >
               <RefreshCw className="w-3 h-3" />
               Regenerate
-            </button>
+            </motion.button>
           )}
         </div>
       ) : (
@@ -813,7 +919,10 @@ export const MessageItem = memo(function MessageItem({
               />
               <button
                 onClick={() => onCopy(message.id, textContent)}
-                className="absolute top-0 right-0 opacity-0 group-hover:opacity-100 sm:transition-opacity p-1.5 rounded-lg hover:bg-forge-surface"
+                className={cn(
+                  'absolute top-0 right-0 opacity-0 group-hover:opacity-100 sm:transition-all p-1.5 rounded-lg hover:bg-forge-surface active:scale-90',
+                  copiedId === message.id && 'opacity-100 scale-110'
+                )}
                 aria-label="Copy message"
                 title="Copy"
               >
@@ -831,14 +940,16 @@ export const MessageItem = memo(function MessageItem({
             />
           )}
           {!isLoading && (
-            <button
+            <motion.button
               onClick={() => onRegenerate(message.id)}
+              whileHover={{ scale: 1.02 }}
+              whileTap={{ scale: 0.95 }}
               className="flex items-center gap-1 mt-0.5 px-2 py-1 text-[11px] text-forge-text-dim hover:text-forge-accent opacity-40 group-hover/assistant:opacity-100 transition-all rounded-lg hover:bg-forge-surface"
               title="Regenerate response"
             >
               <RefreshCw className="w-3 h-3" />
               Regenerate
-            </button>
+            </motion.button>
           )}
         </div>
       )}

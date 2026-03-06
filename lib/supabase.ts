@@ -18,6 +18,7 @@ export interface ForgeProject {
   framework: string
   github_repo_url: string | null
   vercel_url: string | null
+  vercel_project_id: string | null
   memory: Record<string, string> | null
   last_deploy_at: string | null
   created_at: string

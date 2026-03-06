@@ -211,6 +211,11 @@ export const FileTree = memo(function FileTree({
               className="w-full pl-7 pr-7 py-2 sm:py-1 text-xs sm:text-[11px] bg-forge-surface border border-forge-border rounded-md text-forge-text outline-none focus:border-forge-accent/50 placeholder:text-forge-text-dim/50"
             />
             {searchQuery && (
+              <span className="absolute right-7 top-1/2 -translate-y-1/2 text-[9px] text-forge-text-dim/50 tabular-nums">
+                {filteredFiles.length} result{filteredFiles.length !== 1 ? 's' : ''}
+              </span>
+            )}
+            {searchQuery && (
               <button
                 onClick={() => setSearchQuery('')}
                 className="absolute right-1.5 top-1/2 -translate-y-1/2 p-0.5 text-forge-text-dim hover:text-forge-text"
@@ -224,7 +229,7 @@ export const FileTree = memo(function FileTree({
       )}
 
       {/* File list */}
-      <div className="flex-1 overflow-y-auto py-1">
+      <div className="flex-1 overflow-y-auto py-1 scroll-fade-bottom">
         {files.length === 0 ? (
           <div className="flex flex-col items-center justify-center h-full px-4 py-8">
             <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-forge-accent/10 to-purple-500/10 flex items-center justify-center mb-3 animate-breathe">
@@ -327,6 +332,7 @@ function TreeItem({
   const [expanded, setExpanded] = useState(depth < 2)
   const isExpanded = forceExpand || expanded
   const [showContextMenu, setShowContextMenu] = useState(false)
+  const [contextMenuPos, setContextMenuPos] = useState<{ x: number; y: number } | null>(null)
   const [isRenaming, setIsRenaming] = useState(false)
   const [newName, setNewName] = useState(node.name)
   const [copied, setCopied] = useState(false)
@@ -393,7 +399,7 @@ function TreeItem({
         {depth > 0 && Array.from({ length: depth }, (_, i) => (
           <span
             key={i}
-            className="absolute top-0 bottom-0 border-l border-forge-border/30"
+            className="absolute top-0 bottom-0 border-l border-forge-border/40 group-hover:border-forge-border/60 transition-colors"
             style={{ left: `${i * 12 + 13}px` }}
             aria-hidden="true"
           />
@@ -403,10 +409,13 @@ function TreeItem({
             if (isDir) setExpanded(!expanded)
             else onFileSelect(node.path)
           }}
+          role={isDir ? 'treeitem' : undefined}
+          aria-expanded={isDir ? isExpanded : undefined}
           className={cn(
-            'flex items-center gap-1.5 sm:gap-1 flex-1 text-left px-2 py-2 sm:py-[5px] text-xs sm:text-[12px] hover:bg-forge-surface-hover transition-all min-h-[36px] sm:min-h-0 border-l-2',
+            'flex items-center gap-1.5 sm:gap-1 flex-1 text-left px-2 py-2 sm:py-[5px] text-xs sm:text-[12px] hover:bg-forge-surface-hover/50 transition-all duration-150 min-h-[36px] sm:min-h-0 border-l-2',
             isActive && !isDir && 'bg-forge-accent/10 text-forge-accent border-l-forge-accent',
-            !isActive && 'text-forge-text-dim hover:text-forge-text border-l-transparent',
+            !isActive && !isDir && 'text-forge-text-dim hover:text-forge-text border-l-transparent hover:translate-x-0.5',
+            !isActive && isDir && 'text-forge-text-dim hover:text-forge-text border-l-transparent',
             !isDir && aiEditingFiles?.has(node.path) && 'animate-ai-edit-pulse',
           )}
           style={{ paddingLeft: `${depth * 12 + 8}px` }}
@@ -418,6 +427,9 @@ function TreeItem({
                 <FolderOpen className="w-3.5 h-3.5 shrink-0 text-amber-500 transition-colors" />
               ) : (
                 <Folder className="w-3.5 h-3.5 shrink-0 text-amber-400 transition-colors" />
+              )}
+              {node.children && (
+                <span className="text-[9px] text-forge-text-dim/40 ml-0.5">({node.children.length})</span>
               )}
             </>
           ) : (
@@ -451,7 +463,7 @@ function TreeItem({
                 )
               })()}
               {isModified && !fileDiffs?.get(node.path) && (
-                <span className="w-1.5 h-1.5 rounded-full bg-amber-500 shrink-0 ml-auto mr-1" title="Modified" />
+                <span className="w-1.5 h-1.5 rounded-full bg-amber-500 shrink-0 ml-auto mr-1 modified-dot-pulse" title="Modified" />
               )}
             </>
           )}
@@ -462,9 +474,11 @@ function TreeItem({
           <button
             onClick={(e) => {
               e.stopPropagation()
+              const rect = (e.target as HTMLElement).getBoundingClientRect()
+              setContextMenuPos({ x: rect.right - 140, y: rect.bottom + 4 })
               setShowContextMenu(!showContextMenu)
             }}
-            className="opacity-60 sm:opacity-0 sm:group-hover:opacity-100 p-2 sm:p-1 hover:bg-forge-surface rounded transition-all mr-1"
+            className="opacity-60 sm:opacity-0 sm:group-hover:opacity-100 p-2 sm:p-1 hover:bg-forge-surface hover:rotate-90 rounded transition-all duration-150 mr-1"
             aria-label="File options"
             title="More options"
           >
@@ -474,10 +488,11 @@ function TreeItem({
       </div>
 
       {/* Context menu */}
-      {showContextMenu && !isDir && (
+      {showContextMenu && !isDir && contextMenuPos && (
         <div
           ref={contextMenuRef}
-          className="absolute right-2 top-6 z-50 bg-forge-panel border border-forge-border rounded-lg shadow-lg py-1 min-w-[140px] animate-scale-in origin-top-right"
+          className="fixed z-50 bg-forge-panel border border-forge-border rounded-lg shadow-lg py-1 min-w-[140px] animate-scale-in origin-top-right"
+          style={{ left: Math.min(contextMenuPos.x, window.innerWidth - 160), top: Math.min(contextMenuPos.y, window.innerHeight - 200) }}
         >
           {onFileRename && (
             <button

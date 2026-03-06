@@ -32,6 +32,7 @@ import { MCPManager } from './mcp-manager'
 import { useKeyboardShortcuts } from '@/lib/keyboard-shortcuts'
 import { useWebcontainer } from '@/hooks/use-webcontainer'
 import { detectFramework } from '@/lib/vercel'
+import { motion } from 'framer-motion'
 import { MessageSquare, FolderTree, Code2, Eye, Loader2, Save, Rocket, Upload, GitBranch, Download, SidebarOpen, FolderInput, Keyboard, Settings2, Search, History, Terminal, Plug, Pin, PinOff } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { toast } from 'sonner'
@@ -50,6 +51,7 @@ interface WorkspaceProps {
   onSwitchProject: () => void
   githubToken?: string
   autoSaveError?: boolean
+  saveStatus?: 'idle' | 'pending' | 'saving' | 'saved' | 'error'
   onManualSave?: () => Promise<void>
   onUpdateSettings?: (settings: { name?: string; description?: string }) => void
   initialPendingMessage?: string | null
@@ -63,7 +65,7 @@ type DialogType = 'push' | 'create-repo' | 'import' | null
 export function Workspace({
   projectName, projectId, files, activeFile,
   onFileSelect, onFileChange, onFileDelete, onBulkFileUpdate, onSwitchProject,
-  githubToken, autoSaveError, onManualSave, onUpdateSettings,
+  githubToken, autoSaveError, saveStatus: parentSaveStatus, onManualSave, onUpdateSettings,
   initialPendingMessage, onInitialPendingMessageSent, githubRepoUrl,
 }: WorkspaceProps) {
   const [rightTab, setRightTab] = useState<'code' | 'preview' | 'split' | 'terminal'>('code')
@@ -72,7 +74,8 @@ export function Workspace({
 
   const [activeDialog, setActiveDialog] = useState<DialogType>(null)
   const [showDeployPanel, setShowDeployPanel] = useState(false)
-  const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle')
+  const [localSaveStatus, setLocalSaveStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle')
+  const saveStatus = (parentSaveStatus && parentSaveStatus !== 'idle') ? parentSaveStatus : localSaveStatus
   const [pendingChatMessage, setPendingChatMessage] = useState<string | null>(null)
   const [showCommandPalette, setShowCommandPalette] = useState(false)
   const [showShortcuts, setShowShortcuts] = useState(false)
@@ -487,7 +490,7 @@ export function Workspace({
   // Show toast when auto-save fails
   useEffect(() => {
     if (autoSaveError) {
-      setSaveStatus('error')
+      setLocalSaveStatus('error')
       toast.error('Auto-save failed', { description: 'Changes may not be saved. Try saving manually with Ctrl+S.' })
     }
   }, [autoSaveError])
@@ -508,7 +511,7 @@ export function Workspace({
     if (!projectId || Object.keys(files).length === 0) return
     // Cancel pending auto-save timer and sync hash in parent
     onManualSave?.()
-    setSaveStatus('saving')
+    setLocalSaveStatus('saving')
     try {
       const res = await fetch(`/api/projects/${projectId}`, {
         method: 'PUT',
@@ -516,7 +519,7 @@ export function Workspace({
         body: JSON.stringify({ files }),
       })
       if (res.ok) {
-        setSaveStatus('saved')
+        setLocalSaveStatus('saved')
         // Create a snapshot via API for version history
         fetch(`/api/projects/${projectId}/snapshots`, {
           method: 'POST',
@@ -535,14 +538,14 @@ export function Workspace({
         toast.success('Project saved', { description: `${Object.keys(files).length} files saved` })
       } else {
         console.error(`Auto-save failed: ${res.status}`)
-        setSaveStatus('error')
+        setLocalSaveStatus('error')
         toast.error('Save failed', { description: `Could not save to database (HTTP ${res.status})` })
       }
-      setTimeout(() => setSaveStatus('idle'), 2000)
+      setTimeout(() => setLocalSaveStatus('idle'), 2000)
     } catch {
-      setSaveStatus('error')
+      setLocalSaveStatus('error')
       toast.error('Save failed', { description: 'Network error' })
-      setTimeout(() => setSaveStatus('idle'), 2000)
+      setTimeout(() => setLocalSaveStatus('idle'), 2000)
     }
   }, [projectId, files, onManualSave])
 
@@ -589,7 +592,7 @@ export function Workspace({
         setActiveDialog(action as DialogType)
         break
     }
-  }, [handleDownload, handleSave])
+  }, [handleDownload, handleSave, files, projectId])
 
   const handleDialogSuccess = useCallback((result: Record<string, unknown>) => {
     if (result.url) {
@@ -826,7 +829,11 @@ export function Workspace({
               &times;
             </button>
             {isActive && (
-              <span className="absolute bottom-0 left-1 right-1 h-0.5 bg-forge-accent rounded-full" />
+              <motion.span
+                layoutId="file-tab-indicator"
+                className="absolute bottom-0 left-1 right-1 h-0.5 bg-forge-accent rounded-full"
+                transition={{ type: 'spring', stiffness: 400, damping: 30 }}
+              />
             )}
           </div>
         )
@@ -847,13 +854,17 @@ export function Workspace({
               if (userSwitchTimerRef.current) clearTimeout(userSwitchTimerRef.current)
               userSwitchTimerRef.current = setTimeout(() => { userManualSwitchRef.current = false }, 15000)
             }}
-            className={`relative px-4 py-2 text-xs font-medium transition-colors ${
-              rightTab === tab ? 'text-forge-accent bg-forge-surface' : 'text-forge-text-dim hover:text-forge-text'
+            className={`relative px-4 py-2 text-xs font-medium transition-all duration-150 ${
+              rightTab === tab ? 'text-forge-accent bg-forge-surface' : 'text-forge-text-dim hover:text-forge-text hover:bg-forge-surface/50'
             }`}
           >
             {tab.charAt(0).toUpperCase() + tab.slice(1)}
             {rightTab === tab && (
-              <span className="absolute bottom-0 left-1 right-1 h-0.5 bg-forge-accent rounded-full transition-all" />
+              <motion.span
+                layoutId="right-tab-indicator"
+                className="absolute bottom-0 left-1 right-1 h-0.5 bg-forge-accent rounded-full"
+                transition={{ type: 'spring', stiffness: 400, damping: 30 }}
+              />
             )}
           </button>
         ))}
@@ -870,7 +881,7 @@ export function Workspace({
           </div>
         )}
       </div>
-      <div className="flex-1 overflow-hidden">
+      <div id="main-content" role="main" className="flex-1 overflow-hidden">
         {rightTab === 'code' ? (
           <PanelErrorBoundary name="Code Editor">
             <CodeEditor
@@ -892,7 +903,9 @@ export function Workspace({
                 />
               </PanelErrorBoundary>
             </Panel>
-            <PanelResizeHandle />
+            <PanelResizeHandle className="w-3 bg-transparent hover:bg-forge-accent/10 active:bg-forge-accent/20 transition-colors relative flex items-center justify-center cursor-col-resize after:absolute after:inset-y-0 after:left-1/2 after:-translate-x-1/2 after:w-px after:bg-forge-border">
+              <div className="resize-grip-dots"><span /><span /><span /></div>
+            </PanelResizeHandle>
             <Panel defaultSize={50} minSize={30}>
               <PanelErrorBoundary name="Preview">
                 <PreviewPanel files={files} projectId={projectId} onFixErrors={(msg) => setPendingChatMessage(msg)} onCapturePreview={(msg) => setPendingChatMessage(msg)} onPreviewReady={handlePreviewReady} wcPreviewUrl={wc.previewUrl} />
@@ -932,9 +945,9 @@ export function Workspace({
     >
       {/* Drag overlay */}
       {isDragging && (
-        <div className="absolute inset-0 z-[90] bg-forge-accent/10 border-2 border-dashed border-forge-accent rounded-lg flex items-center justify-center backdrop-blur-sm animate-fade-in pointer-events-none">
+        <div className="absolute inset-0 z-[90] bg-forge-accent/10 border-2 border-dashed border-forge-accent rounded-lg flex items-center justify-center backdrop-blur-sm animate-fade-in drag-overlay-pulse pointer-events-none">
           <div className="text-center">
-            <Upload className="w-10 h-10 text-forge-accent mx-auto mb-2" />
+            <Upload className="w-10 h-10 text-forge-accent mx-auto mb-2 upload-float" />
             <p className="text-sm font-medium text-forge-accent">Drop files to import</p>
             <p className="text-xs text-forge-text-dim mt-1">Text files up to 500KB</p>
           </div>
@@ -945,7 +958,7 @@ export function Workspace({
         onSwitchProject={onSwitchProject}
         fileCount={Object.keys(files).length}
         onAction={handleAction}
-        saveStatus={saveStatus}
+        saveStatus={saveStatus === 'pending' ? 'idle' : saveStatus}
         onOpenCommandPalette={() => setShowCommandPalette(true)}
         notificationSlot={
           <NotificationCenter
@@ -1017,9 +1030,10 @@ export function Workspace({
                       }
                     }}
                     title={sidebarPinned ? 'Unpin sidebar' : 'Pin sidebar'}
-                    className="p-1 rounded text-forge-text-dim hover:text-forge-text hover:bg-forge-surface transition-colors"
+                    aria-label={sidebarPinned ? 'Unpin sidebar' : 'Pin sidebar'}
+                    className="p-1 rounded text-forge-text-dim hover:text-forge-text hover:bg-forge-surface transition-all"
                   >
-                    {sidebarPinned ? <PinOff className="w-3.5 h-3.5" /> : <Pin className="w-3.5 h-3.5" />}
+                    {sidebarPinned ? <PinOff className="w-3.5 h-3.5 transition-transform duration-200" /> : <Pin className="w-3.5 h-3.5 transition-transform duration-200 rotate-45" />}
                   </button>
                 </div>
                 <div className="flex-1 overflow-y-auto">
@@ -1104,7 +1118,9 @@ export function Workspace({
           <Panel defaultSize={25} minSize={15} maxSize={45}>
             {chatPanel}
           </Panel>
-          <PanelResizeHandle />
+          <PanelResizeHandle className="w-3 bg-transparent hover:bg-forge-accent/10 active:bg-forge-accent/20 transition-colors relative flex items-center justify-center cursor-col-resize after:absolute after:inset-y-0 after:left-1/2 after:-translate-x-1/2 after:w-px after:bg-forge-border">
+              <div className="resize-grip-dots"><span /><span /><span /></div>
+            </PanelResizeHandle>
           <Panel defaultSize={15} minSize={8} maxSize={25}>
             <div className="h-full overflow-y-auto bg-forge-panel border-r border-forge-border">
               <FileTree
@@ -1121,7 +1137,9 @@ export function Workspace({
               />
             </div>
           </Panel>
-          <PanelResizeHandle />
+          <PanelResizeHandle className="w-3 bg-transparent hover:bg-forge-accent/10 active:bg-forge-accent/20 transition-colors relative flex items-center justify-center cursor-col-resize after:absolute after:inset-y-0 after:left-1/2 after:-translate-x-1/2 after:w-px after:bg-forge-border">
+              <div className="resize-grip-dots"><span /><span /><span /></div>
+            </PanelResizeHandle>
           <Panel defaultSize={60} minSize={30}>
             <div className="h-full flex flex-col overflow-hidden">
               <div className="flex-1 overflow-hidden">
@@ -1174,14 +1192,27 @@ export function Workspace({
             <button
               key={tab.id}
               onClick={() => handleMobileTabSwitch(tab.id)}
+              aria-label={tab.label}
               className={cn(
-                'flex flex-col items-center gap-0.5 px-4 py-2 rounded-xl transition-all min-w-[64px] min-h-[48px] focus:outline-none focus-visible:ring-2 focus-visible:ring-forge-accent/50 active:scale-95',
+                'relative flex flex-col items-center gap-0.5 px-4 py-2 rounded-xl transition-all min-w-[64px] min-h-[48px] focus:outline-none focus-visible:ring-2 focus-visible:ring-forge-accent/50 active:scale-95',
                 mobileTab === tab.id
-                  ? 'text-forge-accent bg-forge-accent/10 shadow-sm'
+                  ? 'text-forge-accent'
                   : 'text-forge-text-dim active:bg-forge-surface',
               )}
             >
-              <tab.Icon className={cn('w-5 h-5', mobileTab === tab.id && 'scale-110')} />
+              {mobileTab === tab.id && (
+                <motion.div
+                  layoutId="mobile-tab-bg"
+                  className="absolute inset-0 bg-forge-accent/10 rounded-xl shadow-sm"
+                  transition={{ type: 'spring', stiffness: 400, damping: 30 }}
+                />
+              )}
+              <div className="relative">
+                <tab.Icon className={cn('w-5 h-5 transition-transform duration-200', mobileTab === tab.id && 'scale-110')} />
+                {tab.id === 'preview' && wc.previewUrl && mobileTab !== 'preview' && (
+                  <span className="absolute -top-0.5 -right-0.5 w-1.5 h-1.5 rounded-full bg-forge-accent animate-pulse-dot" />
+                )}
+              </div>
               <span className="text-[10px] font-medium">{tab.label}</span>
             </button>
           ))}

@@ -6,7 +6,16 @@ import { type OnMount, type BeforeMount } from '@monaco-editor/react'
 
 const Editor = dynamic(() => import('@monaco-editor/react').then(m => m.default), {
   ssr: false,
-  loading: () => <div className="flex-1 bg-forge-bg animate-pulse" />,
+  loading: () => (
+    <div className="flex-1 bg-forge-bg p-4 space-y-2.5">
+      {Array.from({ length: 12 }, (_, i) => (
+        <div key={i} className="flex items-center gap-3">
+          <div className="w-6 h-3 rounded animate-skeleton" />
+          <div className="h-3 rounded animate-skeleton" style={{ width: `${30 + Math.random() * 50}%`, animationDelay: `${i * 60}ms` }} />
+        </div>
+      ))}
+    </div>
+  ),
 })
 import { getLanguageFromPath, cn } from '@/lib/utils'
 import { setupMonacoTypes } from '@/lib/monaco-types'
@@ -23,8 +32,14 @@ interface CodeEditorProps {
 
 export const CodeEditor = memo(function CodeEditor({ path, content, onSave, onChange, readOnly }: CodeEditorProps) {
   const editorRef = useRef<Parameters<OnMount>[0] | null>(null)
+  const pathRef = useRef(path)
+  const onSaveRef = useRef(onSave)
   const [modified, setModified] = useState(false)
   const { theme } = useTheme()
+
+  // Keep refs current so Ctrl+S handler always uses latest values
+  useEffect(() => { pathRef.current = path }, [path])
+  useEffect(() => { onSaveRef.current = onSave }, [onSave])
 
   const handleBeforeMount: BeforeMount = (monaco) => {
     setupMonacoTypes(monaco)
@@ -62,9 +77,9 @@ export const CodeEditor = memo(function CodeEditor({ path, content, onSave, onCh
     // Ctrl+S to save
     // 2097 = KeyMod.CtrlCmd | KeyCode.KeyS (not imported to avoid bundling monaco-editor directly)
     editor.addCommand(2097, () => {
-      if (path) {
+      if (pathRef.current) {
         const value = editor.getValue()
-        onSave(path, value)
+        onSaveRef.current(pathRef.current, value)
         setModified(false)
       }
     })
@@ -96,7 +111,7 @@ export const CodeEditor = memo(function CodeEditor({ path, content, onSave, onCh
             <FileText className="w-5 h-5 opacity-40" />
           </div>
           <p className="text-xs font-medium">Select a file to edit</p>
-          <p className="text-[10px] text-forge-text-dim/60 mt-1">Click a file in the tree or use Ctrl+P</p>
+          <p className="text-[11px] text-forge-text-dim/60 mt-1">Click a file in the tree or press Ctrl+P to open a file</p>
         </div>
       </div>
     )
@@ -169,6 +184,8 @@ export const CodeEditor = memo(function CodeEditor({ path, content, onSave, onCh
             bracketPairColorization: { enabled: true },
             guides: { bracketPairs: true },
             suggest: { showStatusBar: true },
+            folding: true,
+            foldingHighlight: true,
             scrollbar: {
               verticalScrollbarSize: 6,
               horizontalScrollbarSize: 6,

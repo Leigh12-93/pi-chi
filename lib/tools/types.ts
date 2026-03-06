@@ -15,4 +15,8 @@ export interface ToolContext {
   githubFetch: (path: string, token: string, options?: RequestInit) => Promise<Record<string, any>>
   githubUsername?: string
   userVercelToken?: string  // User's own Vercel token (BYOK), falls back to server token
+  // Google integration (null if not connected)
+  googleAccessToken?: string
+  googleApiKey?: string
+  googleServiceAccountEmail?: string
 }

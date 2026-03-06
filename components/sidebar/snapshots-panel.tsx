@@ -56,7 +56,7 @@ export function SnapshotsPanel({ snapshots, onRestoreSnapshot, onOpenVersionHist
       <button
         onClick={handleCreate}
         disabled={creating}
-        className="w-full flex items-center justify-center gap-1.5 px-3 py-2 text-xs rounded-lg bg-forge-accent text-white hover:bg-forge-accent/90 disabled:opacity-50 transition-colors"
+        className="w-full flex items-center justify-center gap-1.5 px-3 py-2 text-xs rounded-lg bg-forge-accent text-white hover:bg-forge-accent/90 active:scale-[0.98] disabled:opacity-50 transition-all duration-150"
       >
         {creating ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Plus className="w-3.5 h-3.5" />}
         {creating ? 'Creating...' : 'Create Snapshot'}
@@ -64,7 +64,7 @@ export function SnapshotsPanel({ snapshots, onRestoreSnapshot, onOpenVersionHist
 
       {/* Restore confirmation */}
       {confirmRestore && (
-        <div className="p-3 bg-amber-500/10 border border-amber-500/20 rounded-lg space-y-2 animate-fade-in">
+        <div className="p-3 bg-amber-500/10 border border-amber-500/20 rounded-lg space-y-2 animate-fade-in animate-scale-in">
           <div className="flex items-start gap-2">
             <AlertTriangle className="w-3.5 h-3.5 text-amber-400 shrink-0 mt-0.5" />
             <div>
@@ -78,7 +78,7 @@ export function SnapshotsPanel({ snapshots, onRestoreSnapshot, onOpenVersionHist
             <button
               onClick={() => handleRestore(confirmRestore)}
               disabled={restoring}
-              className="flex-1 flex items-center justify-center gap-1 px-2 py-1.5 text-[10px] rounded-md bg-amber-500 text-white hover:bg-amber-600 disabled:opacity-50 transition-colors"
+              className="flex-1 flex items-center justify-center gap-1 px-2 py-1.5 text-[10px] rounded-md bg-amber-500 text-white hover:bg-amber-600 active:scale-95 disabled:opacity-50 transition-all duration-150"
             >
               {restoring ? <Loader2 className="w-3 h-3 animate-spin" /> : <RotateCcw className="w-3 h-3" />}
               {restoring ? 'Restoring...' : 'Confirm Restore'}
@@ -86,7 +86,7 @@ export function SnapshotsPanel({ snapshots, onRestoreSnapshot, onOpenVersionHist
             <button
               onClick={() => setConfirmRestore(null)}
               disabled={restoring}
-              className="px-3 py-1.5 text-[10px] rounded-md border border-forge-border hover:bg-forge-surface transition-colors"
+              className="px-3 py-1.5 text-[10px] rounded-md border border-forge-border hover:bg-forge-surface active:scale-95 transition-all duration-150"
             >
               Cancel
             </button>
@@ -104,8 +104,8 @@ export function SnapshotsPanel({ snapshots, onRestoreSnapshot, onOpenVersionHist
       ) : (
         <div className="space-y-1">
           {snapshots.slice(0, 15).map(snap => (
-            <div key={snap.id} className="flex items-center gap-2 group px-2 py-1.5 rounded-md hover:bg-forge-surface transition-colors">
-              <History className="w-3 h-3 text-forge-text-dim shrink-0" />
+            <div key={snap.id} className="flex items-center gap-2 group px-2 py-1.5 rounded-md hover:bg-forge-surface border-l-2 border-l-transparent hover:border-l-forge-accent transition-all duration-150">
+              <History className="w-3 h-3 text-forge-text-dim group-hover:text-forge-accent shrink-0 transition-colors" />
               <div className="flex-1 min-w-0">
                 <p className="text-xs text-forge-text truncate">{snap.label}</p>
                 <p className="text-[10px] text-forge-text-dim" title={formatTime(snap.timestamp)}>
@@ -114,7 +114,7 @@ export function SnapshotsPanel({ snapshots, onRestoreSnapshot, onOpenVersionHist
               </div>
               <button
                 onClick={() => setConfirmRestore(snap)}
-                className="p-1 text-forge-text-dim hover:text-forge-accent opacity-0 group-hover:opacity-100 transition-all"
+                className="p-1 text-forge-text-dim hover:text-forge-accent hover:rotate-[-30deg] active:scale-90 opacity-0 group-hover:opacity-100 transition-all duration-200"
                 title="Restore this snapshot"
               >
                 <RotateCcw className="w-3 h-3" />
@@ -126,7 +126,7 @@ export function SnapshotsPanel({ snapshots, onRestoreSnapshot, onOpenVersionHist
 
       <button
         onClick={onOpenVersionHistory}
-        className="w-full flex items-center justify-center gap-2 px-3 py-1.5 text-xs rounded-md border border-forge-border hover:bg-forge-surface transition-colors"
+        className="w-full flex items-center justify-center gap-2 px-3 py-1.5 text-xs rounded-md border border-forge-border hover:bg-forge-surface active:scale-[0.98] transition-all duration-150"
       >
         View Full History
       </button>

@@ -29,6 +29,7 @@ import {
   createTestingTools,
   createAuditTools,
   createTaskTools,
+  createGoogleTools,
 } from '@/lib/tools'
 import type { ToolContext } from '@/lib/tools'
 
@@ -614,6 +615,8 @@ export async function POST(req: Request) {
     githubFetch,
     githubUsername: (session as any).githubUsername || session.user?.name || 'unknown',
     userVercelToken: userVercelToken || undefined,
+    // Google credentials loaded from user settings (conditional)
+    googleAccessToken: undefined,
   }
 
   // Structural prompt example
@@ -633,6 +636,9 @@ export async function POST(req: Request) {
     ...createTestingTools(ctx),
     ...createAuditTools(ctx),
     ...createTaskTools(ctx),
+    // Google tools (only included if user has connected Google)
+    // Note: tool availability is checked at call time via getGoogleCredentials
+    ...createGoogleTools(ctx),
   }
 
   try {

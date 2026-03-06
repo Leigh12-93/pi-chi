@@ -3,7 +3,9 @@ import {
   FolderPlus, Search, Terminal, Globe, Rocket,
   CheckCircle, Sparkles, ArrowUp, Database, Wrench,
   RefreshCw, BookOpen, Save, Plug, ImageIcon, Package,
-  GitBranch, Key,
+  GitBranch, Key, ListChecks, StopCircle,
+  ClipboardList, HelpCircle, Flag, Shield, Lock,
+  Calendar, CalendarPlus, Mail, Inbox, MailOpen, Table2, FilePlus,
   type LucideIcon,
 } from 'lucide-react'
 
@@ -57,6 +59,8 @@ export const TOOL_LABELS: Record<string, { label: string; Icon: LucideIcon; colo
   sandbox_status: { label: 'Checking sandbox', Icon: Rocket, color: 'blue' },
   add_image: { label: 'Finding image', Icon: ImageIcon, color: 'cyan' },
   check_task_status: { label: 'Checking task', Icon: RefreshCw, color: 'blue' },
+  manage_tasks: { label: 'Update tasks', Icon: ListChecks, color: 'blue' },
+  cancel_task: { label: 'Cancel task', Icon: StopCircle, color: 'red' },
   grep_files: { label: 'Grepping files', Icon: BookOpen, color: 'purple' },
   add_dependency: { label: 'Adding package', Icon: Package, color: 'green' },
   validate_file: { label: 'Validating file', Icon: CheckCircle, color: 'green' },
@@ -80,9 +84,25 @@ export const TOOL_LABELS: Record<string, { label: string; Icon: LucideIcon; colo
   run_tests: { label: 'Running tests', Icon: CheckCircle, color: 'blue' },
   check_types: { label: 'Type checking', Icon: CheckCircle, color: 'purple' },
   verify_build: { label: 'Verifying build', Icon: CheckCircle, color: 'green' },
-  audit_codebase: { label: 'Auditing codebase', Icon: Search, color: 'purple' },
-  create_audit_plan: { label: 'Creating audit plan', Icon: Brain, color: 'purple' },
-  execute_audit_task: { label: 'Fixing issue', Icon: Wrench, color: 'yellow' },
+  audit_codebase: { label: 'Scanning files', Icon: Search, color: 'amber' },
+  create_audit_plan: { label: 'Analyzing codebase', Icon: Shield, color: 'amber' },
+  execute_audit_task: { label: 'Fixing issue', Icon: Wrench, color: 'green' },
+  // Gate tools (Claude Code patterns)
+  present_plan: { label: 'Presenting plan', Icon: ClipboardList, color: 'purple' },
+  ask_user: { label: 'Asking question', Icon: HelpCircle, color: 'blue' },
+  checkpoint: { label: 'Checkpoint', Icon: Flag, color: 'green' },
+  diagnose_preview: { label: 'Diagnosing preview', Icon: Search, color: 'amber' },
+  // Google tools
+  google_sheets_read: { label: 'Reading spreadsheet', Icon: Table2, color: 'green' },
+  google_sheets_write: { label: 'Writing spreadsheet', Icon: Table2, color: 'green' },
+  google_sheets_create: { label: 'Creating spreadsheet', Icon: FilePlus, color: 'green' },
+  google_calendar_list_events: { label: 'Checking calendar', Icon: Calendar, color: 'blue' },
+  google_calendar_create_event: { label: 'Creating event', Icon: CalendarPlus, color: 'blue' },
+  google_gmail_send: { label: 'Sending email', Icon: Mail, color: 'red' },
+  google_gmail_list: { label: 'Listing emails', Icon: Inbox, color: 'blue' },
+  google_gmail_read: { label: 'Reading email', Icon: MailOpen, color: 'blue' },
+  google_drive_list: { label: 'Browsing Drive', Icon: FolderPlus, color: 'amber' },
+  google_drive_read: { label: 'Reading Drive file', Icon: FileText, color: 'amber' },
 }
 
 export const MODEL_OPTIONS = [
@@ -113,7 +133,16 @@ export function formatTokens(count: number): string {
 }
 
 /** Destructive tool patterns for approval gates */
-export const DESTRUCTIVE_TOOLS = new Set(['delete_file', 'db_mutate'])
+export const DESTRUCTIVE_TOOLS = new Set([
+  'delete_file',
+  'db_mutate',
+  'forge_modify_own_source',
+  'forge_redeploy',
+  'forge_revert_commit',
+  'forge_merge_pr',
+  'github_modify_external_file',
+  'google_gmail_send',
+])
 export const DANGEROUS_COMMAND_PATTERNS = /\b(rm\s+-rf|rm\s+-r|drop\s+table|drop\s+database|delete\s+from|truncate|reset\s+--hard|--force|--no-verify)\b/i
 
 export const QUICK_ACTIONS = [

@@ -13,20 +13,25 @@ const PURIFY_CONFIG = {
   ],
   ALLOWED_ATTR: [
     'class', 'id', 'style', 'href', 'src', 'alt', 'title', 'target', 'rel',
-    'onclick',
+    'data-copy-target',
   ],
   ALLOW_DATA_ATTR: false,
 }
 
 if (typeof window !== 'undefined') {
-  // Strict allowlist: only permit the exact code-block copy pattern
-  const SAFE_ONCLICK = /^navigator\.clipboard\.writeText\(document\.getElementById\('[a-zA-Z0-9_-]+'\)\.textContent\)\.then\(\(\)=>\{this\.textContent='Copied!';setTimeout\(\(\)=>this\.textContent='Copy',\d+\)\}\)$/
-  DOMPurify.addHook('uponSanitizeAttribute', (node: Element, data) => {
-    if (data.attrName === 'onclick') {
-      const val = String(data.attrValue || '')
-      if (node.tagName !== 'BUTTON' || !SAFE_ONCLICK.test(val)) {
-        data.keepAttr = false
-      }
+  // Post-sanitization: attach copy handlers to buttons with data-copy-target
+  DOMPurify.addHook('afterSanitizeElements', (node) => {
+    if (node instanceof HTMLButtonElement && node.dataset.copyTarget) {
+      const targetId = node.dataset.copyTarget
+      node.addEventListener('click', () => {
+        const target = document.getElementById(targetId)
+        if (target) {
+          navigator.clipboard.writeText(target.textContent || '').then(() => {
+            node.textContent = 'Copied!'
+            setTimeout(() => { node.textContent = 'Copy' }, 1500)
+          })
+        }
+      })
     }
   })
 }
@@ -54,7 +59,7 @@ function renderMarkdown(text: string): string {
     const html = `<div class="code-block-wrapper relative group/code my-3 rounded-xl overflow-hidden border border-forge-border">
       <div class="flex items-center justify-between px-3.5 py-2 bg-forge-surface border-b border-forge-border">
         <span class="text-[11px] font-medium text-forge-text-dim tracking-wide">${label}</span>
-        <button onclick="navigator.clipboard.writeText(document.getElementById('${safeId}').textContent).then(()=>{this.textContent='Copied!';setTimeout(()=>this.textContent='Copy',1500)})" class="text-[11px] text-forge-text-dim hover:text-forge-text transition-colors px-2 py-0.5 rounded-md hover:bg-forge-surface-hover">Copy</button>
+        <button data-copy-target="${safeId}" class="text-[11px] text-forge-text-dim hover:text-forge-text transition-colors px-2 py-0.5 rounded-md hover:bg-forge-surface-hover">Copy</button>
       </div>
       <pre class="bg-forge-panel text-forge-text p-4 overflow-x-auto text-[12.5px] font-mono leading-relaxed"><code id="${safeId}">${highlighted}</code></pre>
     </div>`
