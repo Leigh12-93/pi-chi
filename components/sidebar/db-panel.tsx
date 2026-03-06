@@ -1,7 +1,7 @@
 'use client'
 
-import { useState, useEffect, useMemo, useCallback } from 'react'
-import { Database, RefreshCw, Loader2, ChevronRight, CheckCircle2, Settings, AlertCircle, Zap } from 'lucide-react'
+import { useState, useEffect, useMemo, useCallback, useRef } from 'react'
+import { Database, RefreshCw, Loader2, ChevronRight, CheckCircle2, Settings, AlertCircle, Zap, ExternalLink } from 'lucide-react'
 
 type ConnectionSource = 'saved' | 'env' | 'none'
 
@@ -45,20 +45,19 @@ function detectSupabaseFromEnv(fileContents: Record<string, string>): { url: str
 
 export function DbPanel({ fileContents, onOpenDbExplorer, onOpenSettings }: DbPanelProps) {
   const envDetected = useMemo(() => detectSupabaseFromEnv(fileContents), [fileContents])
+  const autoSaved = useRef(false)
 
   // Connection state
   const [source, setSource] = useState<ConnectionSource>('none')
   const [connected, setConnected] = useState(false)
-  const [connecting, setConnecting] = useState(true) // starts true — auto-connect on mount
+  const [connecting, setConnecting] = useState(true)
   const [projectRef, setProjectRef] = useState('')
-  const [projectUrl, setProjectUrl] = useState('')
 
   // Tables
   const [tables, setTables] = useState<string[]>([])
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
 
-  // Fetch tables using the appropriate method
   const fetchTables = useCallback(async (connectionSource: ConnectionSource, envCreds?: { url: string; key: string }) => {
     setLoading(true)
     setError('')
@@ -66,7 +65,6 @@ export function DbPanel({ fileContents, onOpenDbExplorer, onOpenSettings }: DbPa
       const body: Record<string, unknown> = {
         query: `SELECT table_name FROM information_schema.tables WHERE table_schema = 'public' ORDER BY table_name`,
       }
-
       if (connectionSource === 'saved') {
         body.useSaved = true
       } else if (connectionSource === 'env' && envCreds) {
@@ -95,7 +93,24 @@ export function DbPanel({ fileContents, onOpenDbExplorer, onOpenSettings }: DbPa
     }
   }, [])
 
-  // Auto-connect on mount: try saved credentials first, then env detection
+  // Auto-save env creds to settings (fire-and-forget, so they persist for next session)
+  const autoSaveEnvCreds = useCallback(async (creds: { url: string; key: string }) => {
+    if (autoSaved.current) return
+    autoSaved.current = true
+    try {
+      await fetch('/api/settings', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          supabaseUrl: creds.url,
+          supabaseKey: creds.key,
+          skipValidation: true, // already connected, no need to re-validate
+        }),
+      })
+    } catch {} // silent — if it fails, user still has env-based connection
+  }, [])
+
+  // Auto-connect on mount: saved creds → env detection (+ auto-save)
   useEffect(() => {
     let cancelled = false
 
@@ -110,54 +125,50 @@ export function DbPanel({ fileContents, onOpenDbExplorer, onOpenSettings }: DbPa
           setConnected(true)
           setSource('saved')
           setProjectRef(data.projectRef || '')
-          setProjectUrl(data.url || '')
           setConnecting(false)
           fetchTables('saved')
           return
         }
       } catch {}
 
-      // 2. Try env file detection
+      // 2. Try env file detection → auto-save for persistence
       if (envDetected && !cancelled) {
         const ref = envDetected.url.match(/https:\/\/([^.]+)\.supabase/)?.[1] || ''
         setConnected(true)
         setSource('env')
         setProjectRef(ref)
-        setProjectUrl(envDetected.url)
         setConnecting(false)
         fetchTables('env', envDetected)
+        // Auto-save to settings so next time it connects from saved creds
+        autoSaveEnvCreds(envDetected)
         return
       }
 
-      if (!cancelled) {
-        setConnecting(false)
-      }
+      if (!cancelled) setConnecting(false)
     }
 
     autoConnect()
     return () => { cancelled = true }
-  }, [envDetected, fetchTables])
+  }, [envDetected, fetchTables, autoSaveEnvCreds])
 
   const handleRefresh = () => {
-    if (source === 'saved') {
-      fetchTables('saved')
-    } else if (source === 'env' && envDetected) {
-      fetchTables('env', envDetected)
-    }
+    if (source === 'saved') fetchTables('saved')
+    else if (source === 'env' && envDetected) fetchTables('env', envDetected)
   }
 
-  // Not connected — show setup guidance
+  // Loading state
   if (connecting) {
     return (
       <div className="p-3">
         <div className="flex items-center gap-2 py-6 justify-center">
           <Loader2 className="w-4 h-4 animate-spin text-forge-accent" />
-          <span className="text-xs text-forge-text-dim">Connecting...</span>
+          <span className="text-xs text-forge-text-dim">Connecting to Supabase...</span>
         </div>
       </div>
     )
   }
 
+  // Not connected — setup guidance
   if (!connected) {
     return (
       <div className="p-3 space-y-3">
@@ -166,24 +177,37 @@ export function DbPanel({ fileContents, onOpenDbExplorer, onOpenSettings }: DbPa
           <div className="min-w-0">
             <p className="text-xs font-medium text-forge-text">No database connected</p>
             <p className="text-[10px] text-forge-text-dim mt-0.5">
-              Connect your Supabase project to browse tables and run queries.
+              Connect Supabase to browse tables and run queries.
             </p>
           </div>
         </div>
 
         <div className="space-y-2">
-          <p className="text-[10px] uppercase tracking-wider text-forge-text-dim font-medium">Quick setup</p>
-
+          {/* Option 1: One-click via access token (best UX) */}
           <button
             onClick={onOpenSettings}
             className="w-full flex items-center gap-2.5 p-2.5 text-left rounded-lg border border-forge-border hover:border-forge-accent/50 hover:bg-forge-accent/5 transition-colors group"
           >
             <div className="w-7 h-7 rounded-md bg-emerald-500/10 flex items-center justify-center shrink-0">
-              <Settings className="w-3.5 h-3.5 text-emerald-400" />
+              <Zap className="w-3.5 h-3.5 text-emerald-400" />
             </div>
             <div className="min-w-0">
-              <p className="text-xs text-forge-text group-hover:text-forge-accent transition-colors">Connect in Settings</p>
-              <p className="text-[9px] text-forge-text-dim">Save credentials for all projects</p>
+              <p className="text-xs text-forge-text group-hover:text-forge-accent transition-colors">Connect via Access Token</p>
+              <p className="text-[9px] text-forge-text-dim">One-click — auto-finds your projects & keys</p>
+            </div>
+          </button>
+
+          {/* Option 2: Manual in settings */}
+          <button
+            onClick={onOpenSettings}
+            className="w-full flex items-center gap-2.5 p-2.5 text-left rounded-lg border border-forge-border hover:border-forge-accent/50 hover:bg-forge-accent/5 transition-colors group"
+          >
+            <div className="w-7 h-7 rounded-md bg-forge-surface flex items-center justify-center shrink-0">
+              <Settings className="w-3.5 h-3.5 text-forge-text-dim" />
+            </div>
+            <div className="min-w-0">
+              <p className="text-xs text-forge-text group-hover:text-forge-accent transition-colors">Enter URL & Key Manually</p>
+              <p className="text-[9px] text-forge-text-dim">Paste from Supabase dashboard</p>
             </div>
           </button>
 
@@ -193,16 +217,12 @@ export function DbPanel({ fileContents, onOpenDbExplorer, onOpenSettings }: DbPa
             <span className="flex-1 h-px bg-forge-border" />
           </div>
 
-          <div className="p-2.5 rounded-lg border border-forge-border">
-            <div className="flex items-center gap-2 mb-2">
-              <Zap className="w-3 h-3 text-amber-400" />
-              <p className="text-[10px] text-forge-text font-medium">Auto-detect from .env</p>
-            </div>
+          {/* Option 3: Auto from .env */}
+          <div className="p-2.5 rounded-lg border border-dashed border-forge-border">
             <p className="text-[9px] text-forge-text-dim leading-relaxed">
               Add <code className="text-forge-accent px-0.5 bg-forge-accent/10 rounded">SUPABASE_URL</code> and{' '}
               <code className="text-forge-accent px-0.5 bg-forge-accent/10 rounded">SUPABASE_SERVICE_ROLE_KEY</code>{' '}
-              to your project&apos;s <code className="text-forge-accent px-0.5 bg-forge-accent/10 rounded">.env.local</code> file.
-              The DB panel will auto-connect.
+              to your <code className="text-forge-accent px-0.5 bg-forge-accent/10 rounded">.env.local</code> — auto-connects instantly.
             </p>
           </div>
         </div>
@@ -211,15 +231,28 @@ export function DbPanel({ fileContents, onOpenDbExplorer, onOpenSettings }: DbPa
   }
 
   // Connected — show tables
+  const dashboardUrl = `https://supabase.com/dashboard/project/${projectRef}`
+
   return (
     <div className="p-3 space-y-3">
-      {/* Connection status */}
+      {/* Connection header */}
       <div className="flex items-center gap-2 p-2 bg-green-500/10 border border-green-500/20 rounded-lg">
         <CheckCircle2 className="w-3.5 h-3.5 text-green-400 shrink-0" />
         <div className="flex-1 min-w-0">
-          <p className="text-[10px] text-green-400 font-medium">
-            {source === 'saved' ? 'Supabase connected' : 'Auto-detected from .env'}
-          </p>
+          <div className="flex items-center gap-1.5">
+            <p className="text-[10px] text-green-400 font-medium">Connected</p>
+            {projectRef && (
+              <a
+                href={dashboardUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-forge-text-dim hover:text-forge-accent transition-colors"
+                title="Open in Supabase Dashboard"
+              >
+                <ExternalLink className="w-2.5 h-2.5" />
+              </a>
+            )}
+          </div>
           <p className="text-[9px] text-forge-text-dim font-mono truncate">{projectRef}</p>
         </div>
         <button
@@ -239,7 +272,7 @@ export function DbPanel({ fileContents, onOpenDbExplorer, onOpenSettings }: DbPa
         </div>
       )}
 
-      {/* Tables list */}
+      {/* Tables */}
       {loading && tables.length === 0 ? (
         <div className="flex items-center gap-2 py-4 justify-center">
           <Loader2 className="w-3.5 h-3.5 animate-spin text-forge-text-dim" />

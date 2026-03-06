@@ -42,7 +42,17 @@ export function SettingsDialog({ open, onClose, defaultTab }: SettingsDialogProp
   const [sbStatus, setSbStatus] = useState<'idle' | 'saving' | 'success' | 'error'>('idle')
   const [sbError, setSbError] = useState('')
   const [hasSupabase, setHasSupabase] = useState(false)
+  const [sbProjectRef, setSbProjectRef] = useState<string | null>(null)
   const [deletingSupabase, setDeletingSupabase] = useState(false)
+  // Supabase access token (for project picker)
+  const [sbTokenInput, setSbTokenInput] = useState('')
+  const [sbTokenStatus, setSbTokenStatus] = useState<'idle' | 'saving' | 'success' | 'error'>('idle')
+  const [sbTokenError, setSbTokenError] = useState('')
+  const [hasSbToken, setHasSbToken] = useState(false)
+  // Project picker
+  const [sbProjects, setSbProjects] = useState<{ ref: string; name: string; url: string }[]>([])
+  const [loadingSbProjects, setLoadingSbProjects] = useState(false)
+  const [connectingProject, setConnectingProject] = useState<string | null>(null)
 
   // Reset tab when opened with a specific default
   useEffect(() => {
@@ -58,6 +68,8 @@ export function SettingsDialog({ open, onClose, defaultTab }: SettingsDialogProp
         setHasKey(data.hasApiKey)
         setHasVercel(data.hasVercelToken)
         setHasSupabase(data.hasSupabase)
+        setHasSbToken(data.hasSupabaseAccessToken)
+        setSbProjectRef(data.supabaseProjectRef || null)
         if (data.preferences) {
           setSettings(prev => ({ ...prev, ...data.preferences }))
         }
@@ -154,6 +166,8 @@ export function SettingsDialog({ open, onClose, defaultTab }: SettingsDialogProp
       if (res.ok) {
         setSbStatus('success')
         setHasSupabase(true)
+        const ref = sbUrlInput.match(/https:\/\/([^.]+)\.supabase/)?.[1] || null
+        setSbProjectRef(ref)
         setSbUrlInput('')
         setSbKeyInput('')
       } else {
@@ -172,8 +186,92 @@ export function SettingsDialog({ open, onClose, defaultTab }: SettingsDialogProp
     try {
       await fetch('/api/settings?target=supabase', { method: 'DELETE' })
       setHasSupabase(false)
+      setSbProjectRef(null)
     } catch {}
     setDeletingSupabase(false)
+  }, [])
+
+  // Save Supabase access token
+  const saveSbToken = useCallback(async () => {
+    setSbTokenStatus('saving')
+    setSbTokenError('')
+    try {
+      const res = await fetch('/api/settings', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ supabaseAccessToken: sbTokenInput }),
+      })
+      if (res.ok) {
+        setSbTokenStatus('success')
+        setHasSbToken(true)
+        setSbTokenInput('')
+        // Auto-load projects after saving token
+        loadSbProjects()
+      } else {
+        const data = await res.json()
+        setSbTokenError(data.error || 'Invalid token')
+        setSbTokenStatus('error')
+      }
+    } catch {
+      setSbTokenError('Network error')
+      setSbTokenStatus('error')
+    }
+  }, [sbTokenInput]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Load Supabase projects
+  const loadSbProjects = useCallback(async () => {
+    setLoadingSbProjects(true)
+    try {
+      const res = await fetch('/api/supabase/projects')
+      const data = await res.json()
+      if (Array.isArray(data)) {
+        setSbProjects(data)
+      }
+    } catch {}
+    setLoadingSbProjects(false)
+  }, [])
+
+  // Auto-load projects when Supabase tab is shown and token exists
+  useEffect(() => {
+    if (tab === 'supabase' && hasSbToken && sbProjects.length === 0) {
+      loadSbProjects()
+    }
+  }, [tab, hasSbToken, sbProjects.length, loadSbProjects])
+
+  // Connect a specific project (fetches its API keys automatically)
+  const connectSbProject = useCallback(async (projectRef: string) => {
+    setConnectingProject(projectRef)
+    setSbError('')
+    try {
+      // Fetch the project's API keys via management API
+      const res = await fetch('/api/supabase/projects', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ projectRef }),
+      })
+      const data = await res.json()
+      if (!res.ok) {
+        setSbError(data.error || 'Failed to fetch project keys')
+        setConnectingProject(null)
+        return
+      }
+      // Save the URL + key to settings
+      const saveRes = await fetch('/api/settings', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ supabaseUrl: data.url, supabaseKey: data.key }),
+      })
+      if (saveRes.ok) {
+        setHasSupabase(true)
+        setSbProjectRef(projectRef)
+      } else {
+        const err = await saveRes.json()
+        setSbError(err.error || 'Failed to save credentials')
+      }
+    } catch {
+      setSbError('Network error')
+    }
+    setConnectingProject(null)
   }, [])
 
   if (!open) return null
@@ -382,63 +480,142 @@ export function SettingsDialog({ open, onClose, defaultTab }: SettingsDialogProp
 
             {tab === 'supabase' && (
               <div className="space-y-4">
-                <div className="text-xs text-forge-text-dim">
-                  {hasSupabase
-                    ? 'Your Supabase credentials are stored and encrypted. The DB panel will auto-connect to your project.'
-                    : 'Connect your Supabase project to browse tables and run queries from the Database panel.'}
-                </div>
-
+                {/* Connected project status */}
                 {hasSupabase && (
                   <div className="flex items-center gap-2 p-3 bg-green-500/10 border border-green-500/20 rounded-lg">
                     <CheckCircle2 className="w-4 h-4 text-green-400" />
-                    <span className="text-xs text-green-400">Supabase connected</span>
+                    <div className="flex-1 min-w-0">
+                      <span className="text-xs text-green-400">Project connected</span>
+                      {sbProjectRef && (
+                        <p className="text-[10px] text-forge-text-dim font-mono truncate">{sbProjectRef}</p>
+                      )}
+                    </div>
                     <button
                       onClick={deleteSupabase}
                       disabled={deletingSupabase}
-                      className="ml-auto flex items-center gap-1 text-xs text-red-400 hover:text-red-300 transition-colors"
+                      className="flex items-center gap-1 text-xs text-red-400 hover:text-red-300 transition-colors shrink-0"
                     >
                       <Trash2 className="w-3 h-3" />
-                      {deletingSupabase ? 'Removing...' : 'Disconnect'}
+                      {deletingSupabase ? '...' : 'Disconnect'}
                     </button>
                   </div>
                 )}
 
-                <input
-                  type="text"
-                  value={sbUrlInput}
-                  onChange={e => { setSbUrlInput(e.target.value); setSbStatus('idle') }}
-                  placeholder={hasSupabase ? 'Enter new URL to update...' : 'https://xxxxx.supabase.co'}
-                  className="w-full px-3 py-2 text-xs bg-forge-surface border border-forge-border rounded-lg text-forge-text font-mono placeholder:text-forge-text-dim/50 focus:outline-none focus:border-forge-accent"
-                />
+                {/* Section 1: Access Token (best UX — enables project picker) */}
+                <div className="space-y-2">
+                  <p className="text-[10px] uppercase tracking-wider text-forge-text-dim font-medium">
+                    {hasSbToken ? 'Supabase Account' : 'Step 1 — Connect Account'}
+                  </p>
+                  {hasSbToken ? (
+                    <div className="flex items-center gap-2 p-2 bg-forge-surface rounded-lg">
+                      <CheckCircle2 className="w-3.5 h-3.5 text-green-400" />
+                      <span className="text-[11px] text-forge-text flex-1">Access token saved</span>
+                      <button
+                        onClick={async () => {
+                          await fetch('/api/settings?target=supabaseAccessToken', { method: 'DELETE' })
+                          setHasSbToken(false)
+                          setSbProjects([])
+                        }}
+                        className="text-[10px] text-red-400 hover:text-red-300"
+                      >
+                        Remove
+                      </button>
+                    </div>
+                  ) : (
+                    <>
+                      <div className="text-[11px] text-forge-text-dim">
+                        Paste a Supabase access token to auto-discover your projects and API keys.
+                      </div>
+                      <input
+                        type="password"
+                        value={sbTokenInput}
+                        onChange={e => { setSbTokenInput(e.target.value); setSbTokenStatus('idle') }}
+                        placeholder="sbp_xxxxxxxxxxxxxxxxxxxxxxxx..."
+                        className="w-full px-3 py-2 text-xs bg-forge-surface border border-forge-border rounded-lg text-forge-text font-mono placeholder:text-forge-text-dim/50 focus:outline-none focus:border-forge-accent"
+                      />
+                      {sbTokenError && <p className="text-[10px] text-red-400">{sbTokenError}</p>}
+                      <button
+                        onClick={saveSbToken}
+                        disabled={!sbTokenInput.trim() || sbTokenStatus === 'saving'}
+                        className="px-4 py-1.5 text-xs font-medium bg-forge-accent text-white rounded-lg hover:bg-forge-accent-hover disabled:opacity-50 transition-colors"
+                      >
+                        {sbTokenStatus === 'saving' ? 'Validating...' : 'Save Token'}
+                      </button>
+                      <p className="text-[10px] text-forge-text-dim">
+                        Create one at{' '}
+                        <a href="https://supabase.com/dashboard/account/tokens" target="_blank" rel="noopener" className="text-forge-accent hover:underline">
+                          supabase.com/dashboard/account/tokens
+                        </a>
+                      </p>
+                    </>
+                  )}
+                </div>
 
-                <input
-                  type="password"
-                  value={sbKeyInput}
-                  onChange={e => { setSbKeyInput(e.target.value); setSbStatus('idle') }}
-                  placeholder={hasSupabase ? 'Enter new key to update...' : 'Service role key or anon key (eyJ...)'}
-                  onKeyDown={e => e.key === 'Enter' && sbUrlInput.trim() && sbKeyInput.trim() && saveSupabase()}
-                  className="w-full px-3 py-2 text-xs bg-forge-surface border border-forge-border rounded-lg text-forge-text font-mono placeholder:text-forge-text-dim/50 focus:outline-none focus:border-forge-accent"
-                />
-
-                {sbError && (
-                  <p className="text-xs text-red-400">{sbError}</p>
+                {/* Section 2: Project picker (shown when token exists) */}
+                {hasSbToken && !hasSupabase && (
+                  <div className="space-y-2">
+                    <p className="text-[10px] uppercase tracking-wider text-forge-text-dim font-medium">Step 2 — Select Project</p>
+                    {loadingSbProjects ? (
+                      <div className="flex items-center gap-2 py-3 justify-center">
+                        <Loader2 className="w-3.5 h-3.5 animate-spin text-forge-text-dim" />
+                        <span className="text-[11px] text-forge-text-dim">Loading your projects...</span>
+                      </div>
+                    ) : sbProjects.length > 0 ? (
+                      <div className="max-h-48 overflow-y-auto rounded-lg border border-forge-border divide-y divide-forge-border">
+                        {sbProjects.map(p => (
+                          <button
+                            key={p.ref}
+                            onClick={() => connectSbProject(p.ref)}
+                            disabled={connectingProject !== null}
+                            className="w-full flex items-center gap-2 px-3 py-2 text-left hover:bg-forge-surface transition-colors disabled:opacity-50"
+                          >
+                            <Database className="w-3.5 h-3.5 text-forge-text-dim shrink-0" />
+                            <div className="flex-1 min-w-0">
+                              <p className="text-xs text-forge-text truncate">{p.name}</p>
+                              <p className="text-[9px] text-forge-text-dim font-mono truncate">{p.ref}</p>
+                            </div>
+                            {connectingProject === p.ref && (
+                              <Loader2 className="w-3 h-3 animate-spin text-forge-accent shrink-0" />
+                            )}
+                          </button>
+                        ))}
+                      </div>
+                    ) : (
+                      <p className="text-[11px] text-forge-text-dim py-2">No projects found. Create one at supabase.com first.</p>
+                    )}
+                    {sbError && <p className="text-[10px] text-red-400">{sbError}</p>}
+                  </div>
                 )}
 
-                <button
-                  onClick={saveSupabase}
-                  disabled={!sbUrlInput.trim() || !sbKeyInput.trim() || sbStatus === 'saving'}
-                  className="px-4 py-2 text-xs font-medium bg-forge-accent text-white rounded-lg hover:bg-forge-accent-hover disabled:opacity-50 transition-colors"
-                >
-                  {sbStatus === 'saving' ? 'Validating...' : hasSupabase ? 'Update Credentials' : 'Connect Supabase'}
-                </button>
-
-                <p className="text-[10px] text-forge-text-dim">
-                  Find your credentials at{' '}
-                  <a href="https://supabase.com/dashboard/project/_/settings/api" target="_blank" rel="noopener" className="text-forge-accent hover:underline">
-                    Supabase Dashboard → Settings → API
-                  </a>
-                  . Or add <code className="text-forge-accent">SUPABASE_URL</code> + <code className="text-forge-accent">SUPABASE_SERVICE_ROLE_KEY</code> to your project&apos;s <code>.env.local</code> for auto-detection.
-                </p>
+                {/* Section 3: Manual entry fallback */}
+                {!hasSbToken && (
+                  <div className="space-y-2 border-t border-forge-border pt-3">
+                    <p className="text-[10px] uppercase tracking-wider text-forge-text-dim font-medium">Or enter manually</p>
+                    <input
+                      type="text"
+                      value={sbUrlInput}
+                      onChange={e => { setSbUrlInput(e.target.value); setSbStatus('idle') }}
+                      placeholder={hasSupabase ? 'New URL to update...' : 'https://xxxxx.supabase.co'}
+                      className="w-full px-3 py-2 text-xs bg-forge-surface border border-forge-border rounded-lg text-forge-text font-mono placeholder:text-forge-text-dim/50 focus:outline-none focus:border-forge-accent"
+                    />
+                    <input
+                      type="password"
+                      value={sbKeyInput}
+                      onChange={e => { setSbKeyInput(e.target.value); setSbStatus('idle') }}
+                      placeholder={hasSupabase ? 'New key to update...' : 'Service role key (eyJ...)'}
+                      onKeyDown={e => e.key === 'Enter' && sbUrlInput.trim() && sbKeyInput.trim() && saveSupabase()}
+                      className="w-full px-3 py-2 text-xs bg-forge-surface border border-forge-border rounded-lg text-forge-text font-mono placeholder:text-forge-text-dim/50 focus:outline-none focus:border-forge-accent"
+                    />
+                    {sbError && !hasSbToken && <p className="text-[10px] text-red-400">{sbError}</p>}
+                    <button
+                      onClick={saveSupabase}
+                      disabled={!sbUrlInput.trim() || !sbKeyInput.trim() || sbStatus === 'saving'}
+                      className="px-4 py-1.5 text-xs font-medium bg-forge-accent text-white rounded-lg hover:bg-forge-accent-hover disabled:opacity-50 transition-colors"
+                    >
+                      {sbStatus === 'saving' ? 'Validating...' : hasSupabase ? 'Update' : 'Connect'}
+                    </button>
+                  </div>
+                )}
               </div>
             )}
           </div>

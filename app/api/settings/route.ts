@@ -8,7 +8,7 @@ export async function GET() {
   if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
   const { data, ok } = await supabaseFetch(
-    `/forge_user_settings?github_username=eq.${encodeURIComponent(session.githubUsername)}&select=encrypted_api_key,api_key_validated_at,encrypted_vercel_token,encrypted_supabase_url,encrypted_supabase_key,preferred_model,preferences`,
+    `/forge_user_settings?github_username=eq.${encodeURIComponent(session.githubUsername)}&select=encrypted_api_key,api_key_validated_at,encrypted_vercel_token,encrypted_supabase_url,encrypted_supabase_key,encrypted_supabase_access_token,preferred_model,preferences`,
   )
 
   if (!ok || !Array.isArray(data) || data.length === 0) {
@@ -16,17 +16,32 @@ export async function GET() {
       hasApiKey: false,
       hasVercelToken: false,
       hasSupabase: false,
+      hasSupabaseAccessToken: false,
+      supabaseProjectRef: null,
       preferredModel: 'claude-sonnet-4-20250514',
       preferences: {},
     })
   }
 
   const row = data[0] as any
+  const hasSupabase = !!(row.encrypted_supabase_url && row.encrypted_supabase_key)
+
+  // Decrypt the URL to extract the project ref for display (not the key)
+  let supabaseProjectRef: string | null = null
+  if (hasSupabase && row.encrypted_supabase_url) {
+    try {
+      const sbUrl = await decryptToken(row.encrypted_supabase_url.replace(/^v1:/, ''))
+      supabaseProjectRef = sbUrl.match(/https:\/\/([^.]+)\.supabase/)?.[1] || null
+    } catch {}
+  }
+
   return NextResponse.json({
     hasApiKey: !!row.encrypted_api_key,
     apiKeyValidatedAt: row.api_key_validated_at,
     hasVercelToken: !!row.encrypted_vercel_token,
-    hasSupabase: !!(row.encrypted_supabase_url && row.encrypted_supabase_key),
+    hasSupabase,
+    hasSupabaseAccessToken: !!row.encrypted_supabase_access_token,
+    supabaseProjectRef,
     preferredModel: row.preferred_model || 'claude-sonnet-4-20250514',
     preferences: row.preferences || {},
   })
@@ -108,7 +123,7 @@ export async function PUT(req: Request) {
     updates.encrypted_vercel_token = `v1:${encrypted}`
   }
 
-  // Validate and store Supabase credentials
+  // Validate and store Supabase project credentials (URL + key)
   if (body.supabaseUrl && body.supabaseKey) {
     const sbUrl = body.supabaseUrl.trim().replace(/\/$/, '')
     const sbKey = body.supabaseKey.trim()
@@ -120,28 +135,51 @@ export async function PUT(req: Request) {
       return NextResponse.json({ error: 'Invalid Supabase key format' }, { status: 400 })
     }
 
-    // Validate by hitting the PostgREST endpoint
-    try {
-      const res = await fetch(`${sbUrl}/rest/v1/`, {
-        headers: {
-          'apikey': sbKey,
-          'Authorization': `Bearer ${sbKey}`,
-        },
-        signal: AbortSignal.timeout(10000),
-      })
-      if (!res.ok) {
+    // Skip validation when auto-saving from env detection (already verified by the DB panel)
+    if (!body.skipValidation) {
+      try {
+        const res = await fetch(`${sbUrl}/rest/v1/`, {
+          headers: {
+            'apikey': sbKey,
+            'Authorization': `Bearer ${sbKey}`,
+          },
+          signal: AbortSignal.timeout(10000),
+        })
+        if (!res.ok) {
+          return NextResponse.json({
+            error: `Supabase validation failed: HTTP ${res.status}`,
+          }, { status: 400 })
+        }
+      } catch (err: any) {
         return NextResponse.json({
-          error: `Supabase validation failed: HTTP ${res.status}`,
+          error: `Supabase validation failed: ${err.message || 'Connection refused'}`,
         }, { status: 400 })
       }
-    } catch (err: any) {
-      return NextResponse.json({
-        error: `Supabase validation failed: ${err.message || 'Connection refused'}`,
-      }, { status: 400 })
     }
 
     updates.encrypted_supabase_url = `v1:${await encryptToken(sbUrl)}`
     updates.encrypted_supabase_key = `v1:${await encryptToken(sbKey)}`
+  }
+
+  // Validate and store Supabase management API access token
+  if (body.supabaseAccessToken) {
+    const trimmed = body.supabaseAccessToken.trim()
+    try {
+      const res = await fetch('https://api.supabase.com/v1/projects', {
+        headers: { Authorization: `Bearer ${trimmed}` },
+        signal: AbortSignal.timeout(10000),
+      })
+      if (!res.ok) {
+        return NextResponse.json({
+          error: `Supabase access token validation failed: HTTP ${res.status}`,
+        }, { status: 400 })
+      }
+    } catch (err: any) {
+      return NextResponse.json({
+        error: `Supabase access token validation failed: ${err.message || 'Network error'}`,
+      }, { status: 400 })
+    }
+    updates.encrypted_supabase_access_token = `v1:${await encryptToken(trimmed)}`
   }
 
   if (preferredModel) updates.preferred_model = preferredModel
@@ -181,6 +219,8 @@ export async function DELETE(req: Request) {
   } else if (target === 'supabase') {
     patch.encrypted_supabase_url = null
     patch.encrypted_supabase_key = null
+  } else if (target === 'supabaseAccessToken') {
+    patch.encrypted_supabase_access_token = null
   } else {
     patch.encrypted_api_key = null
     patch.api_key_validated_at = null
