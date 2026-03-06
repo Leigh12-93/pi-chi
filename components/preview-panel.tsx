@@ -730,18 +730,18 @@ export const PreviewPanel = memo(function PreviewPanel({ files, projectId, onFix
     }
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Timeout: catch stalled "starting" phase — if iframe never loads within 30s, show error
+  // Timeout: catch stalled "starting" phase — if iframe never loads within 90s, show warning
+  // Next.js cold builds inside WebContainer can take 45-60s, so 30s was too aggressive.
+  // Don't kill the sandbox on timeout — keep iframe mounted so it can still load late.
   useEffect(() => {
     if (buildPhaseTimeoutRef.current) clearTimeout(buildPhaseTimeoutRef.current)
     if (buildPhase === 'starting') {
       buildPhaseTimeoutRef.current = setTimeout(() => {
-        // Still stuck on 'starting' — iframe never loaded
+        // Still stuck on 'starting' — iframe hasn't loaded yet, but keep sandbox running
         setBuildPhase(null)
         setIframeLoading(false)
-        setSandboxError('Preview timed out — the dev server did not respond. The project may have build errors or incompatible dependencies.')
-        setSandboxStatus('error')
-        addLog('Preview startup timed out after 30s', 'error', 'sandbox')
-      }, 30000)
+        addLog('Preview still loading after 90s — the project may have build errors or heavy dependencies', 'warn', 'sandbox')
+      }, 90000)
     }
     return () => {
       if (buildPhaseTimeoutRef.current) clearTimeout(buildPhaseTimeoutRef.current)
@@ -1616,6 +1616,7 @@ export const PreviewPanel = memo(function PreviewPanel({ files, projectId, onFix
                 onLoad={() => {
                   setIframeLoading(false)
                   setIframeError(null)
+                  setSandboxError(null)
                   // Trigger ready phase + crossfade
                   if (buildPhase && buildPhase !== 'ready') {
                     setBuildPhase('ready')
