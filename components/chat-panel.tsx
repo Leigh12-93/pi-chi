@@ -762,11 +762,17 @@ export const ChatPanel = memo(function ChatPanel({ onLoadingChange, ...props }: 
                   {chat.stepCount} action{chat.stepCount !== 1 ? 's' : ''}
                 </motion.span>
               )}
-              {(chat.realTokens || chat.estimatedTokens) > 0 && (
-                <motion.span key="tokens" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.14 }} className="text-[10px] text-forge-text-dim/50" title={chat.realTokens ? 'Actual API token usage' : 'Estimated token usage'}>
-                  {chat.realTokens ? '' : '~'}{(chat.realTokens || chat.estimatedTokens) > 1000 ? `${((chat.realTokens || chat.estimatedTokens) / 1000).toFixed(1)}k` : (chat.realTokens || chat.estimatedTokens)} tok
-                </motion.span>
-              )}
+              {(() => {
+                const sessionTotal = chat.sessionCost.inputTokens + chat.sessionCost.outputTokens
+                const tokenCount = sessionTotal || chat.estimatedTokens
+                const isReal = sessionTotal > 0
+                if (tokenCount <= 0) return null
+                return (
+                  <motion.span key="tokens" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.14 }} className="text-[10px] text-forge-text-dim/50" title={isReal ? `${chat.sessionCost.inputTokens.toLocaleString()} in + ${chat.sessionCost.outputTokens.toLocaleString()} out` : 'Estimated token usage'}>
+                    {isReal ? '' : '~'}{tokenCount > 1000 ? `${(tokenCount / 1000).toFixed(1)}k` : tokenCount} tok
+                  </motion.span>
+                )
+              })()}
               {chat.sessionCost.cost > 0 && !chat.isLoading && (
                 <motion.span key="cost" initial={{ opacity: 0, y: 4 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} transition={{ duration: 0.2 }} className="text-[10px] text-forge-text-dim/50 cost-chip-enter" title={`Session: ${chat.sessionCost.inputTokens.toLocaleString()} in + ${chat.sessionCost.outputTokens.toLocaleString()} out`}>
                   ${chat.sessionCost.cost < 0.01 ? chat.sessionCost.cost.toFixed(4) : chat.sessionCost.cost.toFixed(2)}
