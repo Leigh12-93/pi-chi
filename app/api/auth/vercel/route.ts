@@ -16,9 +16,10 @@ export async function GET() {
 
   const state = crypto.randomUUID()
 
-  // Standard Vercel OAuth2 authorize URL
+  // Vercel Integration install URL
   const authUrl = new URL('https://vercel.com/integrations/forge-ai/new')
   authUrl.searchParams.set('state', state)
+  authUrl.searchParams.set('redirect_uri', REDIRECT_URI)
 
   const response = NextResponse.redirect(authUrl.toString())
   response.cookies.set('vercel_oauth_state', state, {
