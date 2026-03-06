@@ -356,7 +356,7 @@ export const ChatPanel = memo(function ChatPanel({ onLoadingChange, ...props }: 
               )}
             </AnimatePresence>
 
-            {/* Streaming activity indicator - v0-style flat inline timeline */}
+            {/* Streaming task checklist — sticky at bottom of scroll area */}
             <AnimatePresence>
             {chat.isLoading && (
               <motion.div
@@ -364,38 +364,44 @@ export const ChatPanel = memo(function ChatPanel({ onLoadingChange, ...props }: 
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0, y: -4 }}
                 transition={{ duration: 0.2, ease: [0.16, 1, 0.3, 1] }}
+                className="sticky bottom-0 z-10 bg-gradient-to-t from-forge-bg via-forge-bg/95 to-transparent pt-4 pb-1 -mb-3"
               >
-                {/* Current active tool or thinking indicator -- no card, just timeline items */}
+                {/* Completed steps — checkbox checklist */}
+                {chat.currentActivity?.recentCompleted && chat.currentActivity.recentCompleted.length > 0 && (
+                  <div className="space-y-0.5 mb-1">
+                    {chat.currentActivity.recentCompleted.map((completed: { toolName: string; args: Record<string, unknown> }, idx: number) => {
+                      const cInfo = TOOL_LABELS[completed.toolName] || { label: completed.toolName.replace(/_/g, ' '), Icon: Check, color: 'gray' }
+                      const cArgs = completed.args as Record<string, string>
+                      const cPath = cArgs.path || cArgs.file || cArgs.filePath || cArgs.file_path || ''
+                      const cFileName = cPath ? cPath.split('/').pop() : ''
+                      return (
+                        <div key={`step-${idx}`} className="flex items-center gap-2 py-0.5 pl-1">
+                          <CheckCircle className="w-3.5 h-3.5 text-forge-success/70 shrink-0" />
+                          <span className="text-[12px] text-forge-text-dim/60 truncate">
+                            {cInfo.label}{cFileName ? ` — ${cFileName}` : ''}
+                          </span>
+                        </div>
+                      )
+                    })}
+                  </div>
+                )}
+                {/* Current active step or thinking indicator */}
                 {chat.currentActivity?.toolName ? (() => {
                   const info = TOOL_LABELS[chat.currentActivity.toolName] || { label: chat.currentActivity.toolName.replace(/_/g, ' '), Icon: Loader2, color: 'gray' }
                   const args = chat.currentActivity.args as Record<string, string>
                   const filePath = args.path || args.file || args.filePath || args.file_path || ''
                   const fileName = filePath ? filePath.split('/').pop() : ''
-                  const parentPath = filePath && fileName ? filePath.slice(0, filePath.length - fileName.length).replace(/\/$/, '') : ''
-                  const displayPath = parentPath.length > 30 ? '...' + parentPath.slice(parentPath.length - 27) : parentPath
                   return (
-                    <div className="tool-timeline-item">
-                      <div className="flex items-center gap-2.5 py-1 relative">
-                        <div className="w-5 h-5 rounded-md flex items-center justify-center shrink-0 z-[1] bg-forge-accent/10 border border-forge-accent/30 icon-glow-pulse">
-                          <Loader2 className="w-3 h-3 text-forge-accent animate-spin" />
-                        </div>
-                        <div className="flex-1 min-w-0 flex items-baseline gap-1.5">
-                          <span className="text-[13px] text-forge-text font-medium shrink-0 shimmer-text">
-                            {info.label}
-                          </span>
-                          {fileName && (
-                            <span className="flex items-baseline gap-1.5 min-w-0 truncate">
-                              <span className="font-mono text-[11.5px] text-forge-accent/70 shrink-0 shimmer-text-subtle">{fileName}</span>
-                              {displayPath && <span className="tool-timeline-path shimmer-text-subtle hidden sm:inline">{displayPath}</span>}
-                            </span>
-                          )}
-                        </div>
-                        {chat.elapsed > 0 && (
-                          <span className="text-[11px] text-forge-text-dim/40 font-mono shrink-0 tabular-nums">
-                            {chat.formatElapsed(chat.elapsed)}
-                          </span>
-                        )}
-                      </div>
+                    <div className="flex items-center gap-2 py-0.5 pl-1">
+                      <Loader2 className="w-3.5 h-3.5 text-forge-accent animate-spin shrink-0" />
+                      <span className="text-[12px] text-forge-text font-medium shimmer-text truncate">
+                        {info.label}{fileName ? ` — ${fileName}` : ''}
+                      </span>
+                      {chat.elapsed > 0 && (
+                        <span className="text-[11px] text-forge-text-dim/40 font-mono shrink-0 tabular-nums ml-auto">
+                          {chat.formatElapsed(chat.elapsed)}
+                        </span>
+                      )}
                     </div>
                   )
                 })() : (

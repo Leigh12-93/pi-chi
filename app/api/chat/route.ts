@@ -477,11 +477,11 @@ export async function POST(req: Request) {
   }
 
   // ── Layer 2: Auto-compaction via Haiku summarization ──────────
-  // Triggers on: token threshold (50%) OR message count (>20 messages = always compact)
+  // Triggers on: token threshold (70%) OR message count (>30 messages = always compact)
   let compactionOccurred = false
   let compactedTokensSaved = 0
-  const shouldCompact = (estimatedInputTokens > contextLimit * 0.50 && trimmedMessages.length > 6)
-    || trimmedMessages.length > 20 // Safety net: always compact long conversations
+  const shouldCompact = (estimatedInputTokens > contextLimit * 0.70 && trimmedMessages.length > 6)
+    || trimmedMessages.length > 30 // Safety net: always compact long conversations
   if (shouldCompact) {
     const preCompactionTokens = estimatedInputTokens
     const result = await compactMessages(trimmedMessages, projectId, estimatedInputTokens, contextLimit)

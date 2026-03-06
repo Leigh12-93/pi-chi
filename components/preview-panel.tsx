@@ -5,6 +5,7 @@ import {
   RefreshCw, Monitor, Smartphone, Tablet, AlertTriangle,
   Square, Loader2, Zap, ExternalLink, Maximize2, Minimize2,
   Globe, Terminal, X, ArrowUpFromLine, Camera, Copy, Check,
+  ChevronLeft, ChevronRight, Home,
 } from 'lucide-react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { cn, hashFileMapDeep } from '@/lib/utils'
@@ -71,6 +72,28 @@ const PREVIEW_ERROR_SCRIPT = `<script>
       window.parent.postMessage({type:'forge-preview',level:m,message:a.join(' ')},'*');
       o.apply(console,arguments);
     };
+  });
+  // Track navigation — intercept link clicks, pushState, popstate, hashchange
+  document.addEventListener('click',function(e){
+    var a=e.target;while(a&&a.tagName!=='A')a=a.parentElement;
+    if(a&&a.href&&!a.href.startsWith('javascript:')){
+      var h=a.getAttribute('href')||'';
+      window.parent.postMessage({type:'forge-navigate',href:h,pathname:h},'*');
+    }
+  });
+  var _ps=history.pushState;history.pushState=function(){
+    _ps.apply(this,arguments);
+    window.parent.postMessage({type:'forge-navigate',pathname:location.pathname+location.search+location.hash},'*');
+  };
+  var _rs=history.replaceState;history.replaceState=function(){
+    _rs.apply(this,arguments);
+    window.parent.postMessage({type:'forge-navigate',pathname:location.pathname+location.search+location.hash},'*');
+  };
+  window.addEventListener('popstate',function(){
+    window.parent.postMessage({type:'forge-navigate',pathname:location.pathname+location.search+location.hash},'*');
+  });
+  window.addEventListener('hashchange',function(){
+    window.parent.postMessage({type:'forge-navigate',pathname:location.pathname+location.search+location.hash},'*');
   });
 })();
 </script>`
@@ -302,12 +325,68 @@ export const PreviewPanel = memo(function PreviewPanel({ files, projectId, onFix
   const buildPhaseTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const [captureFlash, setCaptureFlash] = useState(false)
   const [showFullscreenHint, setShowFullscreenHint] = useState(false)
+
+  // Navigation state
+  const [currentPath, setCurrentPath] = useState('/')
+  const [isEditingUrl, setIsEditingUrl] = useState(false)
+  const [urlInput, setUrlInput] = useState('/')
+  const [navCount, setNavCount] = useState(0) // track navigations for back button enable
   const lastAutoFeedRef = useRef(0) // global cooldown for error auto-feed
   const consoleLogsRef = useRef(consoleLogs) // stable ref for message listener
   const onFixErrorsRef = useRef(onFixErrors) // stable ref to avoid stale closure in setTimeout
 
   // Memoized file hash — avoids O(n) hashing on every render/effect
   const filesHash = useMemo(() => hashFileMapDeep(files), [files])
+
+  // ─── Navigation handlers ─────────────────────────────────────
+  // Reset path when preview URL changes (new sandbox/WebContainer)
+  useEffect(() => {
+    setCurrentPath('/')
+    setNavCount(0)
+  }, [wcPreviewUrl, sandboxUrl])
+
+  const handleGoBack = useCallback(() => {
+    try {
+      const iframe = document.getElementById('forge-preview-iframe') as HTMLIFrameElement
+      iframe?.contentWindow?.history.back()
+    } catch { /* cross-origin safety */ }
+  }, [])
+
+  const handleGoForward = useCallback(() => {
+    try {
+      const iframe = document.getElementById('forge-preview-iframe') as HTMLIFrameElement
+      iframe?.contentWindow?.history.forward()
+    } catch { /* cross-origin safety */ }
+  }, [])
+
+  const handleGoHome = useCallback(() => {
+    try {
+      const iframe = document.getElementById('forge-preview-iframe') as HTMLIFrameElement
+      if (iframe?.contentWindow) {
+        const baseUrl = wcPreviewUrl || sandboxUrl
+        if (baseUrl) {
+          iframe.contentWindow.location.href = new URL('/', baseUrl).href
+          setCurrentPath('/')
+          setNavCount(prev => prev + 1)
+        }
+      }
+    } catch { /* cross-origin safety */ }
+  }, [wcPreviewUrl, sandboxUrl])
+
+  const handleNavigateTo = useCallback((path: string) => {
+    try {
+      const iframe = document.getElementById('forge-preview-iframe') as HTMLIFrameElement
+      if (iframe?.contentWindow) {
+        const baseUrl = wcPreviewUrl || sandboxUrl
+        if (baseUrl) {
+          const normalizedPath = path.startsWith('/') ? path : '/' + path
+          iframe.contentWindow.location.href = new URL(normalizedPath, baseUrl).href
+          setCurrentPath(normalizedPath)
+          setNavCount(prev => prev + 1)
+        }
+      }
+    } catch { /* cross-origin safety */ }
+  }, [wcPreviewUrl, sandboxUrl])
 
   // Keep refs in sync without causing re-renders in message listener
   useEffect(() => { consoleLogsRef.current = consoleLogs }, [consoleLogs])
@@ -749,11 +828,19 @@ export const PreviewPanel = memo(function PreviewPanel({ files, projectId, onFix
     }
   }, [buildPhase, addLog])
 
-  // Listen for console/error messages from preview iframe (static + v0 sandbox)
+  // Listen for console/error/navigation messages from preview iframe
   useEffect(() => {
     const handler = (event: MessageEvent) => {
       const d = event.data
       if (!d || typeof d !== 'object') return
+
+      // Navigation events from injected script (pushState, popstate, link click)
+      if (d.type === 'forge-navigate') {
+        const pathname = typeof d.pathname === 'string' ? d.pathname : '/'
+        setCurrentPath(pathname)
+        setNavCount(prev => prev + 1)
+        return
+      }
 
       let level: ConsoleEntry['level'] = 'log'
       let message = ''
@@ -942,9 +1029,10 @@ export const PreviewPanel = memo(function PreviewPanel({ files, projectId, onFix
   const isSandboxOffline = !isSandboxActive && !isSandboxLoading && !!cachedSandboxUrl
   const showCachedPreview = isSandboxOffline && sandboxStatus !== 'error'
 
-  // Display URL for the URL bar — shows phase label during build
-  const displayUrl = isSandboxActive
-    ? sandboxUrl
+  // Display URL for the URL bar — shows current path when live, phase label during build
+  const isLivePreview = !!(wcPreviewUrl || isSandboxActive)
+  const displayUrl = isLivePreview
+    ? currentPath
     : isSandboxLoading
       ? (buildPhase ? PHASE_LABELS[buildPhase] : STATUS_LABELS[sandboxStatus])
       : showCachedPreview
@@ -989,6 +1077,37 @@ export const PreviewPanel = memo(function PreviewPanel({ files, projectId, onFix
               </button>
             ))}
           </div>
+
+          {/* Navigation buttons — back/forward/home */}
+          {isLivePreview && (
+            <div className="flex items-center gap-0.5 shrink-0">
+              <button
+                onClick={handleGoBack}
+                disabled={navCount === 0}
+                title="Back"
+                aria-label="Navigate back"
+                className="p-2.5 sm:p-1.5 rounded-md text-forge-text-dim hover:text-forge-text hover:bg-forge-surface transition-colors disabled:opacity-30 disabled:pointer-events-none"
+              >
+                <ChevronLeft className="w-4 h-4 sm:w-3.5 sm:h-3.5" />
+              </button>
+              <button
+                onClick={handleGoForward}
+                title="Forward"
+                aria-label="Navigate forward"
+                className="p-2.5 sm:p-1.5 rounded-md text-forge-text-dim hover:text-forge-text hover:bg-forge-surface transition-colors"
+              >
+                <ChevronRight className="w-4 h-4 sm:w-3.5 sm:h-3.5" />
+              </button>
+              <button
+                onClick={handleGoHome}
+                title="Home (/)"
+                aria-label="Navigate home"
+                className="p-2.5 sm:p-1.5 rounded-md text-forge-text-dim hover:text-forge-text hover:bg-forge-surface transition-colors"
+              >
+                <Home className="w-4 h-4 sm:w-3.5 sm:h-3.5" />
+              </button>
+            </div>
+          )}
 
           {/* Center: URL bar */}
           <div className="flex-1 flex items-center min-w-0">
@@ -1050,16 +1169,43 @@ export const PreviewPanel = memo(function PreviewPanel({ files, projectId, onFix
                 )}
               </AnimatePresence>
 
-              {/* URL text */}
-              <span className={cn(
-                'truncate select-all cursor-text',
-                isSandboxActive ? 'text-emerald-600 dark:text-emerald-400' : 'text-forge-text-dim',
-                isSandboxLoading && 'text-amber-600 dark:text-amber-400',
-                sandboxStatus === 'error' && 'text-forge-danger',
-                showCachedPreview && 'text-forge-text-dim/50',
-              )}>
-                {displayUrl}
-              </span>
+              {/* URL text — click to edit path, Enter to navigate */}
+              {isEditingUrl && isLivePreview ? (
+                <input
+                  autoFocus
+                  value={urlInput}
+                  onChange={(e) => setUrlInput(e.target.value)}
+                  onBlur={() => setIsEditingUrl(false)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') {
+                      handleNavigateTo(urlInput)
+                      setIsEditingUrl(false)
+                    }
+                    if (e.key === 'Escape') setIsEditingUrl(false)
+                  }}
+                  className="flex-1 min-w-0 bg-transparent outline-none text-emerald-600 dark:text-emerald-400"
+                  placeholder="/"
+                />
+              ) : (
+                <span
+                  onClick={() => {
+                    if (isLivePreview) {
+                      setUrlInput(currentPath)
+                      setIsEditingUrl(true)
+                    }
+                  }}
+                  className={cn(
+                    'truncate',
+                    isLivePreview ? 'cursor-text select-all' : 'cursor-default select-none',
+                    isLivePreview ? 'text-emerald-600 dark:text-emerald-400' : 'text-forge-text-dim',
+                    isSandboxLoading && 'text-amber-600 dark:text-amber-400',
+                    sandboxStatus === 'error' && 'text-forge-danger',
+                    showCachedPreview && 'text-forge-text-dim/50',
+                  )}
+                >
+                  {displayUrl}
+                </span>
+              )}
 
               {/* Sync badge */}
   {isSyncing && isSandboxActive && (
@@ -1207,7 +1353,7 @@ export const PreviewPanel = memo(function PreviewPanel({ files, projectId, onFix
                 'w-full h-full border-0 absolute inset-0 transition-opacity duration-300',
                 (isSandboxActive || showCachedPreview) ? 'opacity-0 pointer-events-none' : 'opacity-100',
               )}
-              sandbox="allow-scripts"
+              sandbox="allow-scripts allow-same-origin allow-forms"
               title="Static Preview"
               onError={() => setIframeError('Preview failed to load')}
             />
@@ -1363,54 +1509,61 @@ export const PreviewPanel = memo(function PreviewPanel({ files, projectId, onFix
             </div>
           )}
 
-          {/* Missing imports overlay — shown when files have dangling imports */}
+          {/* Missing imports prompt — non-blocking card, user chooses to fix or dismiss */}
           <AnimatePresence>
-          {missingImports.length > 0 && (isSandboxActive || isSandboxLoading) && (
+          {missingImports.length > 0 && !missingImportsFedRef.current && (isSandboxActive || isSandboxLoading) && (
             <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0, transition: { duration: 0.2 } }}
-              className="absolute inset-0 z-20 flex items-center justify-center bg-forge-bg/80 backdrop-blur-sm"
+              initial={{ opacity: 0, y: 12 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: 8, scale: 0.95 }}
+              transition={{ type: 'spring', stiffness: 400, damping: 30 }}
+              className="absolute top-3 left-3 z-20 max-w-xs"
             >
-              <motion.div
-                initial={{ opacity: 0, y: 16, scale: 0.96 }}
-                animate={{ opacity: 1, y: 0, scale: 1 }}
-                exit={{ opacity: 0, y: 8, scale: 0.95 }}
-                transition={{ type: 'spring', stiffness: 400, damping: 30 }}
-                className="bg-forge-bg border border-red-300 dark:border-red-500/40 rounded-xl p-5 shadow-xl max-w-sm mx-4"
-              >
-                <div className="flex items-start gap-3">
-                  <div className="w-9 h-9 rounded-lg bg-red-500/10 flex items-center justify-center shrink-0">
-                    <AlertTriangle className="w-5 h-5 text-red-500" />
+              <div className="bg-forge-bg/95 backdrop-blur border border-amber-500/30 rounded-xl p-3 shadow-2xl space-y-2">
+                <div className="flex items-start gap-2">
+                  <div className="w-7 h-7 rounded-lg bg-amber-500/10 flex items-center justify-center shrink-0">
+                    <AlertTriangle className="w-3.5 h-3.5 text-amber-500" />
                   </div>
                   <div className="flex-1 min-w-0">
-                    <p className="text-sm font-medium text-forge-text">Missing Components</p>
-                    <p className="text-xs text-forge-text-dim mt-1">The preview crashed because imported files don&apos;t exist yet:</p>
-                    <div className="mt-2 space-y-1 max-h-32 overflow-y-auto">
-                      {missingImports.slice(0, 5).map((err, i) => (
-                        <motion.div
-                          key={i}
-                          initial={{ opacity: 0, x: 8 }}
-                          animate={{ opacity: 1, x: 0 }}
-                          transition={{ delay: i * 0.05 }}
-                          className="text-[11px] font-mono text-red-500 dark:text-red-400 bg-red-500/5 rounded px-2 py-1"
-                        >
-                          {err.replace(/^Missing module: /, '')}
-                        </motion.div>
-                      ))}
-                      {missingImports.length > 5 && (
-                        <div className="text-[10px] text-forge-text-dim">+{missingImports.length - 5} more</div>
-                      )}
-                    </div>
-                    <div className="mt-3 flex items-center gap-2">
-                      <div className="flex items-center gap-1.5 text-[10px] text-forge-accent">
-                        <Loader2 className="w-3 h-3 animate-spin" />
-                        <span className="animate-shimmer bg-clip-text">AI is creating missing files...</span>
-                      </div>
-                    </div>
+                    <p className="text-xs font-medium text-forge-text">Missing Imports ({missingImports.length})</p>
+                    <p className="text-[10px] text-forge-text-dim mt-0.5">Some imported files don&apos;t exist yet</p>
                   </div>
+                  <button
+                    onClick={() => { missingImportsFedRef.current = true; setMissingImports([]) }}
+                    className="p-0.5 text-forge-text-dim hover:text-forge-text transition-colors shrink-0"
+                  >
+                    <X className="w-3 h-3" />
+                  </button>
                 </div>
-              </motion.div>
+                <div className="max-h-20 overflow-y-auto space-y-0.5">
+                  {missingImports.slice(0, 4).map((err, i) => (
+                    <p key={i} className="text-[10px] font-mono text-amber-600 dark:text-amber-400 truncate">{err.replace(/^Missing module: /, '')}</p>
+                  ))}
+                  {missingImports.length > 4 && (
+                    <p className="text-[9px] text-forge-text-dim">+{missingImports.length - 4} more</p>
+                  )}
+                </div>
+                <div className="flex gap-1.5">
+                  {onFixErrors && (
+                    <button
+                      onClick={() => {
+                        onFixErrors(`The preview detected missing imports. Please create the missing files:\n\n${missingImports.join('\n')}`)
+                        missingImportsFedRef.current = true
+                      }}
+                      className="flex-1 flex items-center justify-center gap-1.5 px-2.5 py-1.5 bg-forge-accent hover:bg-forge-accent-hover text-white text-[10px] font-medium rounded-lg transition-colors"
+                    >
+                      <Zap className="w-3 h-3" />
+                      Fix with AI
+                    </button>
+                  )}
+                  <button
+                    onClick={() => { missingImportsFedRef.current = true; setMissingImports([]) }}
+                    className="px-2.5 py-1.5 text-[10px] font-medium text-forge-text-dim hover:text-forge-text bg-forge-surface hover:bg-forge-surface-hover rounded-lg transition-colors"
+                  >
+                    Dismiss
+                  </button>
+                </div>
+              </div>
             </motion.div>
           )}
           </AnimatePresence>
@@ -1586,10 +1739,20 @@ export const PreviewPanel = memo(function PreviewPanel({ files, projectId, onFix
                 className="w-full h-full border-0 absolute inset-0"
                 title="Live Preview"
                 allow="cross-origin-isolated"
-                onLoad={() => {
+                onLoad={(e) => {
                   setIframeLoading(false)
                   setIframeError(null)
                   onPreviewReady?.()
+                  // Track navigation — try to read URL, fall back for cross-origin
+                  try {
+                    const url = (e.target as HTMLIFrameElement).contentWindow?.location.href
+                    if (url) {
+                      const parsed = new URL(url)
+                      setCurrentPath(parsed.pathname + parsed.search + parsed.hash)
+                    }
+                  } catch {
+                    setNavCount(prev => prev + 1)
+                  }
                 }}
                 onError={() => setIframeError('Preview failed to load')}
               />
@@ -1614,7 +1777,7 @@ export const PreviewPanel = memo(function PreviewPanel({ files, projectId, onFix
                 className="w-full h-full border-0 absolute inset-0"
                 title="Live Preview"
                 allow="cross-origin-isolated"
-                onLoad={() => {
+                onLoad={(e) => {
                   setIframeLoading(false)
                   setIframeError(null)
                   setSandboxError(null)
@@ -1628,6 +1791,16 @@ export const PreviewPanel = memo(function PreviewPanel({ files, projectId, onFix
                     }, 600) // matches CSS crossfade duration
                   }
                   onPreviewReady?.()
+                  // Track navigation
+                  try {
+                    const url = (e.target as HTMLIFrameElement).contentWindow?.location.href
+                    if (url) {
+                      const parsed = new URL(url)
+                      setCurrentPath(parsed.pathname + parsed.search + parsed.hash)
+                    }
+                  } catch {
+                    setNavCount(prev => prev + 1)
+                  }
                 }}
                 onError={() => setIframeError('Preview failed to load')}
               />

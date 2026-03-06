@@ -362,6 +362,7 @@ export function useForgeChat(props: UseForgeChatProps) {
   // ─── Context warning + compaction detection from stream data parts ──
   const contextWarningShownRef = useRef<string | null>(null)
   const compactionShownRef = useRef<string | null>(null)
+  const compactionToastCooldownRef = useRef<number>(0)
   useEffect(() => {
     for (const msg of messages) {
       if (msg.role !== 'assistant') continue
@@ -387,10 +388,15 @@ export function useForgeChat(props: UseForgeChatProps) {
             }
             if (parsed.type === 'compaction_notice' && compactionShownRef.current !== msg.id) {
               compactionShownRef.current = msg.id
-              toast.info('Context compacted', {
-                description: 'Older messages summarized to free up context space.',
-                duration: 5000,
-              })
+              // Cooldown: only show compaction toast once per 2 minutes
+              const now = Date.now()
+              if (now - compactionToastCooldownRef.current > 120_000) {
+                compactionToastCooldownRef.current = now
+                toast.info('Context compacted', {
+                  description: 'Older messages summarized to free up context space.',
+                  duration: 5000,
+                })
+              }
             }
           } catch { /* not JSON data part — ignore */ }
         }
@@ -815,12 +821,15 @@ export function useForgeChat(props: UseForgeChatProps) {
     let steps = 0
     let tokens = 0
     let activity: { toolName: string; args: Record<string, unknown> } | null = null
-    const recentCompleted: Array<{ toolName: string; args: Record<string, unknown> }> = []
+    const allCompleted: Array<{ toolName: string; args: Record<string, unknown> }> = []
+    // Track completed tools from only the LAST assistant message (current response)
+    let currentResponseCompleted: Array<{ toolName: string; args: Record<string, unknown> }> = []
 
     for (const msg of messages) {
       const textLen = getMessageText(msg).length
       tokens += Math.ceil(textLen / 4)
       if (msg.role !== 'assistant') continue
+      const msgCompleted: Array<{ toolName: string; args: Record<string, unknown> }> = []
       const parts = (msg as any).parts as Array<{ type: string; toolName?: string; toolInvocation?: ToolInvocation; state?: string; input?: Record<string, unknown>; args?: Record<string, unknown> }> | undefined
       if (parts) {
         for (const p of parts) {
@@ -834,16 +843,21 @@ export function useForgeChat(props: UseForgeChatProps) {
           if (isRunning) {
             activity = { toolName: tName, args: tArgs }
           } else {
-            recentCompleted.push({ toolName: tName, args: tArgs })
+            allCompleted.push({ toolName: tName, args: tArgs })
+            msgCompleted.push({ toolName: tName, args: tArgs })
           }
         }
       }
       const invs = (msg as any).toolInvocations as ToolInvocation[] | undefined
       if (invs) steps += invs.length
+      // Always overwrite — last assistant message wins
+      if (msgCompleted.length > 0 || activity) {
+        currentResponseCompleted = msgCompleted
+      }
     }
 
-    const lastCompleted = recentCompleted.length > 0
-      ? recentCompleted[recentCompleted.length - 1].toolName
+    const lastCompleted = allCompleted.length > 0
+      ? allCompleted[allCompleted.length - 1].toolName
       : null
 
     return {
@@ -851,9 +865,9 @@ export function useForgeChat(props: UseForgeChatProps) {
       estimatedTokens: tokens,
       lastCompletedToolName: lastCompleted,
       currentActivity: activity
-        ? { ...activity, recentCompleted: recentCompleted.slice(-3) }
-        : recentCompleted.length > 0
-          ? { toolName: '', args: {}, recentCompleted: recentCompleted.slice(-3) }
+        ? { ...activity, recentCompleted: currentResponseCompleted }
+        : currentResponseCompleted.length > 0
+          ? { toolName: '', args: {}, recentCompleted: currentResponseCompleted }
           : null,
     }
   }, [messages])
