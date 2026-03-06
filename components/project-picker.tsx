@@ -39,7 +39,7 @@ interface GitHubRepo {
 }
 
 interface ProjectPickerProps {
-  onSelect: (name: string, id?: string, initialFiles?: Record<string, string>, query?: string) => void
+  onSelect: (name: string, id?: string, initialFiles?: Record<string, string>, query?: string, meta?: { githubRepoUrl?: string }) => void
   savedProjects: SavedProject[]
   loadingProjects: boolean
   onDeleteProject: (id: string) => void
@@ -163,7 +163,9 @@ export function ProjectPicker({ onSelect, savedProjects, loadingProjects, onDele
       toast.success(`Imported ${data.fileCount} files`, {
         description: `From ${repo.full_name} (${data.branch || repo.default_branch})`,
       })
-      onSelect(repo.name, undefined, data.files)
+      onSelect(repo.name, undefined, data.files, undefined, {
+        githubRepoUrl: `https://github.com/${repo.full_name}`,
+      })
     } catch (err) {
       console.error('Failed to import repo:', err)
       toast.error('Import failed', {

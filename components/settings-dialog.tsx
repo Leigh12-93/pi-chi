@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect, useCallback } from 'react'
-import { X, Key, Monitor, Type, Trash2, Loader2, CheckCircle2, Rocket, Database } from 'lucide-react'
+import { X, Key, Monitor, Type, Trash2, Loader2, CheckCircle2, Rocket, Database, ExternalLink, ChevronDown } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useSession } from './session-provider'
 
@@ -35,6 +35,7 @@ export function SettingsDialog({ open, onClose, defaultTab }: SettingsDialogProp
   const [vercelError, setVercelError] = useState('')
   const [hasVercel, setHasVercel] = useState(false)
   const [deletingVercel, setDeletingVercel] = useState(false)
+  const [showManualVercel, setShowManualVercel] = useState(false)
 
   // Supabase state
   const [sbUrlInput, setSbUrlInput] = useState('')
@@ -44,6 +45,7 @@ export function SettingsDialog({ open, onClose, defaultTab }: SettingsDialogProp
   const [hasSupabase, setHasSupabase] = useState(false)
   const [sbProjectRef, setSbProjectRef] = useState<string | null>(null)
   const [deletingSupabase, setDeletingSupabase] = useState(false)
+  const [showManualSupabase, setShowManualSupabase] = useState(false)
   // Supabase access token (for project picker)
   const [sbTokenInput, setSbTokenInput] = useState('')
   const [sbTokenStatus, setSbTokenStatus] = useState<'idle' | 'saving' | 'success' | 'error'>('idle')
@@ -53,6 +55,9 @@ export function SettingsDialog({ open, onClose, defaultTab }: SettingsDialogProp
   const [sbProjects, setSbProjects] = useState<{ ref: string; name: string; url: string }[]>([])
   const [loadingSbProjects, setLoadingSbProjects] = useState(false)
   const [connectingProject, setConnectingProject] = useState<string | null>(null)
+
+  // OAuth provider availability
+  const [oauthProviders, setOauthProviders] = useState<{ supabase: boolean; vercel: boolean }>({ supabase: false, vercel: false })
 
   // Reset tab when opened with a specific default
   useEffect(() => {
@@ -70,6 +75,7 @@ export function SettingsDialog({ open, onClose, defaultTab }: SettingsDialogProp
         setHasSupabase(data.hasSupabase)
         setHasSbToken(data.hasSupabaseAccessToken)
         setSbProjectRef(data.supabaseProjectRef || null)
+        if (data.oauthProviders) setOauthProviders(data.oauthProviders)
         if (data.preferences) {
           setSettings(prev => ({ ...prev, ...data.preferences }))
         }
@@ -205,7 +211,6 @@ export function SettingsDialog({ open, onClose, defaultTab }: SettingsDialogProp
         setSbTokenStatus('success')
         setHasSbToken(true)
         setSbTokenInput('')
-        // Auto-load projects after saving token
         loadSbProjects()
       } else {
         const data = await res.json()
@@ -243,7 +248,6 @@ export function SettingsDialog({ open, onClose, defaultTab }: SettingsDialogProp
     setConnectingProject(projectRef)
     setSbError('')
     try {
-      // Fetch the project's API keys via management API
       const res = await fetch('/api/supabase/projects', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -255,7 +259,6 @@ export function SettingsDialog({ open, onClose, defaultTab }: SettingsDialogProp
         setConnectingProject(null)
         return
       }
-      // Save the URL + key to settings
       const saveRes = await fetch('/api/settings', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
@@ -429,8 +432,8 @@ export function SettingsDialog({ open, onClose, defaultTab }: SettingsDialogProp
               <div className="space-y-4">
                 <div className="text-xs text-forge-text-dim">
                   {hasVercel
-                    ? 'Your Vercel token is stored and encrypted. Projects deploy to your Vercel account.'
-                    : 'Connect your Vercel account to deploy projects under your own account.'}
+                    ? 'Your Vercel account is connected. Projects deploy under your account.'
+                    : 'Connect your Vercel account to deploy projects.'}
                 </div>
 
                 {hasVercel && (
@@ -448,33 +451,93 @@ export function SettingsDialog({ open, onClose, defaultTab }: SettingsDialogProp
                   </div>
                 )}
 
-                <input
-                  type="password"
-                  value={vercelInput}
-                  onChange={e => { setVercelInput(e.target.value); setVercelStatus('idle') }}
-                  placeholder={hasVercel ? 'Enter new token to update...' : 'Vercel personal access token...'}
-                  className="w-full px-3 py-2 text-xs bg-forge-surface border border-forge-border rounded-lg text-forge-text font-mono placeholder:text-forge-text-dim/50 focus:outline-none focus:border-forge-accent"
-                />
+                {!hasVercel && (
+                  <>
+                    {/* Primary: OAuth login button */}
+                    {oauthProviders.vercel && (
+                      <>
+                        <a
+                          href="/api/auth/vercel"
+                          className="w-full flex items-center justify-center gap-2 px-4 py-2.5 text-sm font-medium bg-white text-black rounded-lg hover:bg-gray-100 transition-colors"
+                        >
+                          <svg className="w-4 h-4" viewBox="0 0 76 65" fill="currentColor"><path d="M37.5274 0L75.0548 65H0L37.5274 0Z" /></svg>
+                          Login with Vercel
+                          <ExternalLink className="w-3 h-3 ml-1 opacity-50" />
+                        </a>
 
-                {vercelError && (
-                  <p className="text-xs text-red-400">{vercelError}</p>
+                        <div className="flex items-center gap-2">
+                          <span className="flex-1 h-px bg-forge-border" />
+                          <span className="text-[9px] text-forge-text-dim">or</span>
+                          <span className="flex-1 h-px bg-forge-border" />
+                        </div>
+                      </>
+                    )}
+
+                    {/* Secondary: Manual token input (collapsible when OAuth available) */}
+                    {oauthProviders.vercel ? (
+                      <div>
+                        <button
+                          onClick={() => setShowManualVercel(!showManualVercel)}
+                          className="flex items-center gap-1 text-[11px] text-forge-text-dim hover:text-forge-text transition-colors"
+                        >
+                          <ChevronDown className={cn('w-3 h-3 transition-transform', showManualVercel && 'rotate-180')} />
+                          Enter token manually
+                        </button>
+                        {showManualVercel && (
+                          <div className="mt-2 space-y-2">
+                            <input
+                              type="password"
+                              value={vercelInput}
+                              onChange={e => { setVercelInput(e.target.value); setVercelStatus('idle') }}
+                              placeholder="Vercel personal access token..."
+                              className="w-full px-3 py-2 text-xs bg-forge-surface border border-forge-border rounded-lg text-forge-text font-mono placeholder:text-forge-text-dim/50 focus:outline-none focus:border-forge-accent"
+                            />
+                            {vercelError && <p className="text-[10px] text-red-400">{vercelError}</p>}
+                            <button
+                              onClick={saveVercelToken}
+                              disabled={!vercelInput.trim() || vercelStatus === 'saving'}
+                              className="px-4 py-1.5 text-xs font-medium bg-forge-accent text-white rounded-lg hover:bg-forge-accent-hover disabled:opacity-50 transition-colors"
+                            >
+                              {vercelStatus === 'saving' ? 'Validating...' : 'Save Token'}
+                            </button>
+                            <p className="text-[10px] text-forge-text-dim">
+                              Create at{' '}
+                              <a href="https://vercel.com/account/tokens" target="_blank" rel="noopener" className="text-forge-accent hover:underline">
+                                vercel.com/account/tokens
+                              </a>
+                            </p>
+                          </div>
+                        )}
+                      </div>
+                    ) : (
+                      /* No OAuth — show manual as primary */
+                      <div className="space-y-3">
+                        <input
+                          type="password"
+                          value={vercelInput}
+                          onChange={e => { setVercelInput(e.target.value); setVercelStatus('idle') }}
+                          placeholder="Vercel personal access token..."
+                          className="w-full px-3 py-2 text-xs bg-forge-surface border border-forge-border rounded-lg text-forge-text font-mono placeholder:text-forge-text-dim/50 focus:outline-none focus:border-forge-accent"
+                        />
+                        {vercelError && <p className="text-xs text-red-400">{vercelError}</p>}
+                        <button
+                          onClick={saveVercelToken}
+                          disabled={!vercelInput.trim() || vercelStatus === 'saving'}
+                          className="px-4 py-2 text-xs font-medium bg-forge-accent text-white rounded-lg hover:bg-forge-accent-hover disabled:opacity-50 transition-colors"
+                        >
+                          {vercelStatus === 'saving' ? 'Validating...' : 'Connect Vercel'}
+                        </button>
+                        <p className="text-[10px] text-forge-text-dim">
+                          Create a token at{' '}
+                          <a href="https://vercel.com/account/tokens" target="_blank" rel="noopener" className="text-forge-accent hover:underline">
+                            vercel.com/account/tokens
+                          </a>
+                          {' '}with full access scope.
+                        </p>
+                      </div>
+                    )}
+                  </>
                 )}
-
-                <button
-                  onClick={saveVercelToken}
-                  disabled={!vercelInput.trim() || vercelStatus === 'saving'}
-                  className="px-4 py-2 text-xs font-medium bg-forge-accent text-white rounded-lg hover:bg-forge-accent-hover disabled:opacity-50 transition-colors"
-                >
-                  {vercelStatus === 'saving' ? 'Validating...' : hasVercel ? 'Update Token' : 'Connect Vercel'}
-                </button>
-
-                <p className="text-[10px] text-forge-text-dim">
-                  Create a token at{' '}
-                  <a href="https://vercel.com/account/tokens" target="_blank" rel="noopener" className="text-forge-accent hover:underline">
-                    vercel.com/account/tokens
-                  </a>
-                  {' '}with full access scope.
-                </p>
               </div>
             )}
 
@@ -501,126 +564,264 @@ export function SettingsDialog({ open, onClose, defaultTab }: SettingsDialogProp
                   </div>
                 )}
 
-                {/* Section 1: Access Token (best UX — enables project picker) */}
-                <div className="space-y-2">
-                  <p className="text-[10px] uppercase tracking-wider text-forge-text-dim font-medium">
-                    {hasSbToken ? 'Supabase Account' : 'Step 1 — Connect Account'}
-                  </p>
-                  {hasSbToken ? (
-                    <div className="flex items-center gap-2 p-2 bg-forge-surface rounded-lg">
-                      <CheckCircle2 className="w-3.5 h-3.5 text-green-400" />
-                      <span className="text-[11px] text-forge-text flex-1">Access token saved</span>
-                      <button
-                        onClick={async () => {
-                          await fetch('/api/settings?target=supabaseAccessToken', { method: 'DELETE' })
-                          setHasSbToken(false)
-                          setSbProjects([])
-                        }}
-                        className="text-[10px] text-red-400 hover:text-red-300"
-                      >
-                        Remove
-                      </button>
-                    </div>
-                  ) : (
-                    <>
-                      <div className="text-[11px] text-forge-text-dim">
-                        Paste a Supabase access token to auto-discover your projects and API keys.
-                      </div>
-                      <input
-                        type="password"
-                        value={sbTokenInput}
-                        onChange={e => { setSbTokenInput(e.target.value); setSbTokenStatus('idle') }}
-                        placeholder="sbp_xxxxxxxxxxxxxxxxxxxxxxxx..."
-                        className="w-full px-3 py-2 text-xs bg-forge-surface border border-forge-border rounded-lg text-forge-text font-mono placeholder:text-forge-text-dim/50 focus:outline-none focus:border-forge-accent"
-                      />
-                      {sbTokenError && <p className="text-[10px] text-red-400">{sbTokenError}</p>}
-                      <button
-                        onClick={saveSbToken}
-                        disabled={!sbTokenInput.trim() || sbTokenStatus === 'saving'}
-                        className="px-4 py-1.5 text-xs font-medium bg-forge-accent text-white rounded-lg hover:bg-forge-accent-hover disabled:opacity-50 transition-colors"
-                      >
-                        {sbTokenStatus === 'saving' ? 'Validating...' : 'Save Token'}
-                      </button>
-                      <p className="text-[10px] text-forge-text-dim">
-                        Create one at{' '}
-                        <a href="https://supabase.com/dashboard/account/tokens" target="_blank" rel="noopener" className="text-forge-accent hover:underline">
-                          supabase.com/dashboard/account/tokens
+                {!hasSupabase && (
+                  <>
+                    {/* Primary: OAuth login button */}
+                    {oauthProviders.supabase && (
+                      <>
+                        <a
+                          href="/api/auth/supabase"
+                          className="w-full flex items-center justify-center gap-2 px-4 py-2.5 text-sm font-medium bg-emerald-600 text-white rounded-lg hover:bg-emerald-500 transition-colors"
+                        >
+                          <svg className="w-4 h-4" viewBox="0 0 109 113" fill="none">
+                            <path d="M63.7076 110.284C60.8481 113.885 55.0502 111.912 54.9813 107.314L53.9738 40.0627H99.1935C108.384 40.0627 113.398 51.1843 106.845 57.8658L63.7076 110.284Z" fill="url(#sb-a)" />
+                            <path d="M63.7076 110.284C60.8481 113.885 55.0502 111.912 54.9813 107.314L53.9738 40.0627H99.1935C108.384 40.0627 113.398 51.1843 106.845 57.8658L63.7076 110.284Z" fill="url(#sb-b)" fillOpacity="0.2" />
+                            <path d="M45.317 2.07103C48.1765 -1.53037 53.9745 0.442937 54.0434 5.04075L54.4849 72.2922H9.83113C0.64038 72.2922 -4.37348 61.1706 2.17953 54.489L45.317 2.07103Z" fill="#3ECF8E" />
+                            <defs>
+                              <linearGradient id="sb-a" x1="53.9738" y1="54.974" x2="94.1635" y2="71.8295" gradientUnits="userSpaceOnUse">
+                                <stop stopColor="#249361" /><stop offset="1" stopColor="#3ECF8E" />
+                              </linearGradient>
+                              <linearGradient id="sb-b" x1="36.1558" y1="30.578" x2="54.4844" y2="65.0806" gradientUnits="userSpaceOnUse">
+                                <stop /><stop offset="1" stopOpacity="0" />
+                              </linearGradient>
+                            </defs>
+                          </svg>
+                          Login with Supabase
+                          <ExternalLink className="w-3 h-3 ml-1 opacity-50" />
                         </a>
-                      </p>
-                    </>
-                  )}
-                </div>
 
-                {/* Section 2: Project picker (shown when token exists) */}
-                {hasSbToken && !hasSupabase && (
-                  <div className="space-y-2">
-                    <p className="text-[10px] uppercase tracking-wider text-forge-text-dim font-medium">Step 2 — Select Project</p>
-                    {loadingSbProjects ? (
-                      <div className="flex items-center gap-2 py-3 justify-center">
-                        <Loader2 className="w-3.5 h-3.5 animate-spin text-forge-text-dim" />
-                        <span className="text-[11px] text-forge-text-dim">Loading your projects...</span>
-                      </div>
-                    ) : sbProjects.length > 0 ? (
-                      <div className="max-h-48 overflow-y-auto rounded-lg border border-forge-border divide-y divide-forge-border">
-                        {sbProjects.map(p => (
-                          <button
-                            key={p.ref}
-                            onClick={() => connectSbProject(p.ref)}
-                            disabled={connectingProject !== null}
-                            className="w-full flex items-center gap-2 px-3 py-2 text-left hover:bg-forge-surface transition-colors disabled:opacity-50"
-                          >
-                            <Database className="w-3.5 h-3.5 text-forge-text-dim shrink-0" />
-                            <div className="flex-1 min-w-0">
-                              <p className="text-xs text-forge-text truncate">{p.name}</p>
-                              <p className="text-[9px] text-forge-text-dim font-mono truncate">{p.ref}</p>
-                            </div>
-                            {connectingProject === p.ref && (
-                              <Loader2 className="w-3 h-3 animate-spin text-forge-accent shrink-0" />
-                            )}
-                          </button>
-                        ))}
+                        <div className="flex items-center gap-2">
+                          <span className="flex-1 h-px bg-forge-border" />
+                          <span className="text-[9px] text-forge-text-dim">or</span>
+                          <span className="flex-1 h-px bg-forge-border" />
+                        </div>
+                      </>
+                    )}
+
+                    {/* Secondary: Access token + project picker */}
+                    {oauthProviders.supabase ? (
+                      <div>
+                        <button
+                          onClick={() => setShowManualSupabase(!showManualSupabase)}
+                          className="flex items-center gap-1 text-[11px] text-forge-text-dim hover:text-forge-text transition-colors"
+                        >
+                          <ChevronDown className={cn('w-3 h-3 transition-transform', showManualSupabase && 'rotate-180')} />
+                          Connect manually
+                        </button>
+                        {showManualSupabase && (
+                          <div className="mt-3 space-y-4">
+                            <SupabaseManualFlow
+                              hasSbToken={hasSbToken}
+                              hasSupabase={hasSupabase}
+                              sbTokenInput={sbTokenInput}
+                              setSbTokenInput={setSbTokenInput}
+                              sbTokenStatus={sbTokenStatus}
+                              setSbTokenStatus={setSbTokenStatus}
+                              sbTokenError={sbTokenError}
+                              saveSbToken={saveSbToken}
+                              setHasSbToken={setHasSbToken}
+                              setSbProjects={setSbProjects}
+                              loadingSbProjects={loadingSbProjects}
+                              sbProjects={sbProjects}
+                              connectSbProject={connectSbProject}
+                              connectingProject={connectingProject}
+                              sbError={sbError}
+                              sbUrlInput={sbUrlInput}
+                              setSbUrlInput={setSbUrlInput}
+                              sbKeyInput={sbKeyInput}
+                              setSbKeyInput={setSbKeyInput}
+                              sbStatus={sbStatus}
+                              setSbStatus={setSbStatus}
+                              saveSupabase={saveSupabase}
+                            />
+                          </div>
+                        )}
                       </div>
                     ) : (
-                      <p className="text-[11px] text-forge-text-dim py-2">No projects found. Create one at supabase.com first.</p>
+                      /* No OAuth — show manual as primary */
+                      <SupabaseManualFlow
+                        hasSbToken={hasSbToken}
+                        hasSupabase={hasSupabase}
+                        sbTokenInput={sbTokenInput}
+                        setSbTokenInput={setSbTokenInput}
+                        sbTokenStatus={sbTokenStatus}
+                        setSbTokenStatus={setSbTokenStatus}
+                        sbTokenError={sbTokenError}
+                        saveSbToken={saveSbToken}
+                        setHasSbToken={setHasSbToken}
+                        setSbProjects={setSbProjects}
+                        loadingSbProjects={loadingSbProjects}
+                        sbProjects={sbProjects}
+                        connectSbProject={connectSbProject}
+                        connectingProject={connectingProject}
+                        sbError={sbError}
+                        sbUrlInput={sbUrlInput}
+                        setSbUrlInput={setSbUrlInput}
+                        sbKeyInput={sbKeyInput}
+                        setSbKeyInput={setSbKeyInput}
+                        sbStatus={sbStatus}
+                        setSbStatus={setSbStatus}
+                        saveSupabase={saveSupabase}
+                      />
                     )}
-                    {sbError && <p className="text-[10px] text-red-400">{sbError}</p>}
-                  </div>
-                )}
-
-                {/* Section 3: Manual entry fallback */}
-                {!hasSbToken && (
-                  <div className="space-y-2 border-t border-forge-border pt-3">
-                    <p className="text-[10px] uppercase tracking-wider text-forge-text-dim font-medium">Or enter manually</p>
-                    <input
-                      type="text"
-                      value={sbUrlInput}
-                      onChange={e => { setSbUrlInput(e.target.value); setSbStatus('idle') }}
-                      placeholder={hasSupabase ? 'New URL to update...' : 'https://xxxxx.supabase.co'}
-                      className="w-full px-3 py-2 text-xs bg-forge-surface border border-forge-border rounded-lg text-forge-text font-mono placeholder:text-forge-text-dim/50 focus:outline-none focus:border-forge-accent"
-                    />
-                    <input
-                      type="password"
-                      value={sbKeyInput}
-                      onChange={e => { setSbKeyInput(e.target.value); setSbStatus('idle') }}
-                      placeholder={hasSupabase ? 'New key to update...' : 'Service role key (eyJ...)'}
-                      onKeyDown={e => e.key === 'Enter' && sbUrlInput.trim() && sbKeyInput.trim() && saveSupabase()}
-                      className="w-full px-3 py-2 text-xs bg-forge-surface border border-forge-border rounded-lg text-forge-text font-mono placeholder:text-forge-text-dim/50 focus:outline-none focus:border-forge-accent"
-                    />
-                    {sbError && !hasSbToken && <p className="text-[10px] text-red-400">{sbError}</p>}
-                    <button
-                      onClick={saveSupabase}
-                      disabled={!sbUrlInput.trim() || !sbKeyInput.trim() || sbStatus === 'saving'}
-                      className="px-4 py-1.5 text-xs font-medium bg-forge-accent text-white rounded-lg hover:bg-forge-accent-hover disabled:opacity-50 transition-colors"
-                    >
-                      {sbStatus === 'saving' ? 'Validating...' : hasSupabase ? 'Update' : 'Connect'}
-                    </button>
-                  </div>
+                  </>
                 )}
               </div>
             )}
           </div>
         </div>
       </div>
+    </div>
+  )
+}
+
+/** Supabase manual connection flow — access token → project picker → manual URL/key */
+function SupabaseManualFlow({
+  hasSbToken, hasSupabase, sbTokenInput, setSbTokenInput, sbTokenStatus, setSbTokenStatus,
+  sbTokenError, saveSbToken, setHasSbToken, setSbProjects, loadingSbProjects, sbProjects,
+  connectSbProject, connectingProject, sbError, sbUrlInput, setSbUrlInput, sbKeyInput,
+  setSbKeyInput, sbStatus, setSbStatus, saveSupabase,
+}: {
+  hasSbToken: boolean
+  hasSupabase: boolean
+  sbTokenInput: string
+  setSbTokenInput: (v: string) => void
+  sbTokenStatus: string
+  setSbTokenStatus: (v: 'idle' | 'saving' | 'success' | 'error') => void
+  sbTokenError: string
+  saveSbToken: () => void
+  setHasSbToken: (v: boolean) => void
+  setSbProjects: (v: { ref: string; name: string; url: string }[]) => void
+  loadingSbProjects: boolean
+  sbProjects: { ref: string; name: string; url: string }[]
+  connectSbProject: (ref: string) => void
+  connectingProject: string | null
+  sbError: string
+  sbUrlInput: string
+  setSbUrlInput: (v: string) => void
+  sbKeyInput: string
+  setSbKeyInput: (v: string) => void
+  sbStatus: string
+  setSbStatus: (v: 'idle' | 'saving' | 'success' | 'error') => void
+  saveSupabase: () => void
+}) {
+  return (
+    <div className="space-y-4">
+      {/* Access token */}
+      <div className="space-y-2">
+        <p className="text-[10px] uppercase tracking-wider text-forge-text-dim font-medium">
+          {hasSbToken ? 'Supabase Account' : 'Option 1 — Access Token'}
+        </p>
+        {hasSbToken ? (
+          <div className="flex items-center gap-2 p-2 bg-forge-surface rounded-lg">
+            <CheckCircle2 className="w-3.5 h-3.5 text-green-400" />
+            <span className="text-[11px] text-forge-text flex-1">Access token saved</span>
+            <button
+              onClick={async () => {
+                await fetch('/api/settings?target=supabaseAccessToken', { method: 'DELETE' })
+                setHasSbToken(false)
+                setSbProjects([])
+              }}
+              className="text-[10px] text-red-400 hover:text-red-300"
+            >
+              Remove
+            </button>
+          </div>
+        ) : (
+          <>
+            <div className="text-[11px] text-forge-text-dim">
+              Paste a Supabase access token to auto-discover your projects.
+            </div>
+            <input
+              type="password"
+              value={sbTokenInput}
+              onChange={e => { setSbTokenInput(e.target.value); setSbTokenStatus('idle') }}
+              placeholder="sbp_xxxxxxxxxxxxxxxxxxxxxxxx..."
+              className="w-full px-3 py-2 text-xs bg-forge-surface border border-forge-border rounded-lg text-forge-text font-mono placeholder:text-forge-text-dim/50 focus:outline-none focus:border-forge-accent"
+            />
+            {sbTokenError && <p className="text-[10px] text-red-400">{sbTokenError}</p>}
+            <button
+              onClick={saveSbToken}
+              disabled={!sbTokenInput.trim() || sbTokenStatus === 'saving'}
+              className="px-4 py-1.5 text-xs font-medium bg-forge-accent text-white rounded-lg hover:bg-forge-accent-hover disabled:opacity-50 transition-colors"
+            >
+              {sbTokenStatus === 'saving' ? 'Validating...' : 'Save Token'}
+            </button>
+            <p className="text-[10px] text-forge-text-dim">
+              Create at{' '}
+              <a href="https://supabase.com/dashboard/account/tokens" target="_blank" rel="noopener" className="text-forge-accent hover:underline">
+                supabase.com/dashboard/account/tokens
+              </a>
+            </p>
+          </>
+        )}
+      </div>
+
+      {/* Project picker */}
+      {hasSbToken && !hasSupabase && (
+        <div className="space-y-2">
+          <p className="text-[10px] uppercase tracking-wider text-forge-text-dim font-medium">Select Project</p>
+          {loadingSbProjects ? (
+            <div className="flex items-center gap-2 py-3 justify-center">
+              <Loader2 className="w-3.5 h-3.5 animate-spin text-forge-text-dim" />
+              <span className="text-[11px] text-forge-text-dim">Loading projects...</span>
+            </div>
+          ) : sbProjects.length > 0 ? (
+            <div className="max-h-48 overflow-y-auto rounded-lg border border-forge-border divide-y divide-forge-border">
+              {sbProjects.map(p => (
+                <button
+                  key={p.ref}
+                  onClick={() => connectSbProject(p.ref)}
+                  disabled={connectingProject !== null}
+                  className="w-full flex items-center gap-2 px-3 py-2 text-left hover:bg-forge-surface transition-colors disabled:opacity-50"
+                >
+                  <Database className="w-3.5 h-3.5 text-forge-text-dim shrink-0" />
+                  <div className="flex-1 min-w-0">
+                    <p className="text-xs text-forge-text truncate">{p.name}</p>
+                    <p className="text-[9px] text-forge-text-dim font-mono truncate">{p.ref}</p>
+                  </div>
+                  {connectingProject === p.ref && (
+                    <Loader2 className="w-3 h-3 animate-spin text-forge-accent shrink-0" />
+                  )}
+                </button>
+              ))}
+            </div>
+          ) : (
+            <p className="text-[11px] text-forge-text-dim py-2">No projects found.</p>
+          )}
+          {sbError && <p className="text-[10px] text-red-400">{sbError}</p>}
+        </div>
+      )}
+
+      {/* Manual entry fallback */}
+      {!hasSbToken && (
+        <div className="space-y-2 border-t border-forge-border pt-3">
+          <p className="text-[10px] uppercase tracking-wider text-forge-text-dim font-medium">Option 2 — Enter Manually</p>
+          <input
+            type="text"
+            value={sbUrlInput}
+            onChange={e => { setSbUrlInput(e.target.value); setSbStatus('idle') }}
+            placeholder="https://xxxxx.supabase.co"
+            className="w-full px-3 py-2 text-xs bg-forge-surface border border-forge-border rounded-lg text-forge-text font-mono placeholder:text-forge-text-dim/50 focus:outline-none focus:border-forge-accent"
+          />
+          <input
+            type="password"
+            value={sbKeyInput}
+            onChange={e => { setSbKeyInput(e.target.value); setSbStatus('idle') }}
+            placeholder="Service role key (eyJ...)"
+            onKeyDown={e => e.key === 'Enter' && sbUrlInput.trim() && sbKeyInput.trim() && saveSupabase()}
+            className="w-full px-3 py-2 text-xs bg-forge-surface border border-forge-border rounded-lg text-forge-text font-mono placeholder:text-forge-text-dim/50 focus:outline-none focus:border-forge-accent"
+          />
+          {sbError && !hasSbToken && <p className="text-[10px] text-red-400">{sbError}</p>}
+          <button
+            onClick={saveSupabase}
+            disabled={!sbUrlInput.trim() || !sbKeyInput.trim() || sbStatus === 'saving'}
+            className="px-4 py-1.5 text-xs font-medium bg-forge-accent text-white rounded-lg hover:bg-forge-accent-hover disabled:opacity-50 transition-colors"
+          >
+            {sbStatus === 'saving' ? 'Validating...' : 'Connect'}
+          </button>
+        </div>
+      )}
     </div>
   )
 }

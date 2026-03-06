@@ -52,14 +52,17 @@ export async function POST(req: Request) {
     return NextResponse.json(existing)
   }
 
+  const insertData: Record<string, unknown> = {
+    name,
+    github_username: username,
+    description: body.description || '',
+    framework: body.framework || 'nextjs',
+  }
+  if (body.github_repo_url) insertData.github_repo_url = body.github_repo_url
+
   const { data, error } = await supabase
     .from('forge_projects')
-    .insert({
-      name,
-      github_username: username,
-      description: body.description || '',
-      framework: body.framework || 'nextjs',
-    })
+    .insert(insertData)
     .select()
     .single()
 

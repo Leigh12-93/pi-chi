@@ -267,7 +267,62 @@ export default function ForgePage() {
     }
   }, [projectId, files, handleManualSave])
 
-  const handleSelectProject = useCallback(async (name: string, id?: string, initialFiles?: Record<string, string>, query?: string) => {
+  /** After importing from GitHub, auto-detect and connect integrations (fire-and-forget) */
+  const autoConnectFromImport = useCallback(async (importedFiles: Record<string, string>, repoUrl: string, newProjectId: string) => {
+    // 1. Auto-detect Supabase credentials from env files and save to user settings
+    const envFiles = ['.env.local', '.env', '.env.development', '.env.production']
+    for (const envFile of envFiles) {
+      const content = importedFiles[envFile]
+      if (!content) continue
+      let sbUrl = ''
+      let sbKey = ''
+      for (const line of content.split('\n')) {
+        const trimmed = line.trim()
+        if (trimmed.startsWith('#') || !trimmed.includes('=')) continue
+        const eqIdx = trimmed.indexOf('=')
+        const k = trimmed.slice(0, eqIdx).trim()
+        const v = trimmed.slice(eqIdx + 1).trim().replace(/^["']|["']$/g, '')
+        if (k.includes('SUPABASE') && k.includes('URL') && v.startsWith('https://')) sbUrl = v
+        if (k.includes('SUPABASE') && (k.includes('SERVICE_ROLE') || k.includes('ANON')) && v.startsWith('ey')) {
+          if (k.includes('SERVICE_ROLE') || !sbKey) sbKey = v
+        }
+      }
+      if (sbUrl && sbKey) {
+        try {
+          await fetch('/api/settings', {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ supabaseUrl: sbUrl, supabaseKey: sbKey, skipValidation: true }),
+          })
+        } catch {}
+        break
+      }
+    }
+
+    // 2. Auto-detect Vercel project linked to this GitHub repo
+    try {
+      const res = await fetch('/api/vercel/projects')
+      if (res.ok) {
+        const data = await res.json()
+        const projects = Array.isArray(data) ? data : data.projects || []
+        // Match by GitHub repo URL
+        const repoPath = repoUrl.replace('https://github.com/', '').toLowerCase()
+        const match = projects.find((p: any) => {
+          const linked = p.link?.repo?.toLowerCase() || p.link?.repoSlug?.toLowerCase() || ''
+          return linked === repoPath || linked === repoPath.split('/')[1]
+        })
+        if (match) {
+          await fetch(`/api/projects/${newProjectId}/connect`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ vercel_project_id: match.id }),
+          })
+        }
+      }
+    } catch {}
+  }, [])
+
+  const handleSelectProject = useCallback(async (name: string, id?: string, initialFiles?: Record<string, string>, query?: string, meta?: { githubRepoUrl?: string }) => {
     if (id) {
       setLoadingProjectId(id)
       try {
@@ -297,16 +352,20 @@ export default function ForgePage() {
     }
 
     // Creating new project (only reached when id is not provided)
+    let newProjectId: string | null = null
     if (session?.githubUsername) {
       try {
+        const createBody: Record<string, unknown> = { name }
+        if (meta?.githubRepoUrl) createBody.github_repo_url = meta.githubRepoUrl
         const res = await fetch('/api/projects', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ name }),
+          body: JSON.stringify(createBody),
         })
         if (res.ok) {
           const data = await res.json()
           setProjectId(data.id)
+          newProjectId = data.id
         } else {
           console.error('Failed to create project:', res.status)
           setErrorMessage(`Cloud save unavailable (${res.status}). Working in local-only mode — changes won't persist across sessions.`)
@@ -320,8 +379,13 @@ export default function ForgePage() {
     setProjectName(name)
     setFiles(initialFiles || {})
     setActiveFile(null)
-    setGithubRepoUrl(null)
+    setGithubRepoUrl(meta?.githubRepoUrl || null)
     if (query) setPendingMessage(query)
+
+    // Auto-connect integrations from imported files (fire-and-forget)
+    if (initialFiles && meta?.githubRepoUrl && newProjectId) {
+      autoConnectFromImport(initialFiles, meta.githubRepoUrl, newProjectId)
+    }
   }, [session])
 
   const handleFileChange = useCallback((path: string, content: string) => {

@@ -3,6 +3,7 @@
 import { useState, useEffect, useMemo, useCallback, useRef } from 'react'
 import { Database, RefreshCw, Loader2, ChevronRight, CheckCircle2, Settings, AlertCircle, Zap, ExternalLink } from 'lucide-react'
 
+
 type ConnectionSource = 'saved' | 'env' | 'none'
 
 interface DbPanelProps {
@@ -52,6 +53,9 @@ export function DbPanel({ fileContents, onOpenDbExplorer, onOpenSettings }: DbPa
   const [connected, setConnected] = useState(false)
   const [connecting, setConnecting] = useState(true)
   const [projectRef, setProjectRef] = useState('')
+
+  // OAuth availability
+  const [oauthProviders, setOauthProviders] = useState<{ supabase: boolean; vercel: boolean }>({ supabase: false, vercel: false })
 
   // Tables
   const [tables, setTables] = useState<string[]>([])
@@ -116,6 +120,15 @@ export function DbPanel({ fileContents, onOpenDbExplorer, onOpenSettings }: DbPa
 
     async function autoConnect() {
       setConnecting(true)
+
+      // Load OAuth provider availability
+      try {
+        const settingsRes = await fetch('/api/settings')
+        const settingsData = await settingsRes.json()
+        if (settingsData.oauthProviders && !cancelled) {
+          setOauthProviders(settingsData.oauthProviders)
+        }
+      } catch {}
 
       // 1. Try saved credentials
       try {
@@ -183,19 +196,30 @@ export function DbPanel({ fileContents, onOpenDbExplorer, onOpenSettings }: DbPa
         </div>
 
         <div className="space-y-2">
-          {/* Option 1: One-click via access token (best UX) */}
-          <button
-            onClick={onOpenSettings}
-            className="w-full flex items-center gap-2.5 p-2.5 text-left rounded-lg border border-forge-border hover:border-forge-accent/50 hover:bg-forge-accent/5 transition-colors group"
-          >
-            <div className="w-7 h-7 rounded-md bg-emerald-500/10 flex items-center justify-center shrink-0">
-              <Zap className="w-3.5 h-3.5 text-emerald-400" />
-            </div>
-            <div className="min-w-0">
-              <p className="text-xs text-forge-text group-hover:text-forge-accent transition-colors">Connect via Access Token</p>
-              <p className="text-[9px] text-forge-text-dim">One-click — auto-finds your projects & keys</p>
-            </div>
-          </button>
+          {/* Option 1: OAuth login (best UX) */}
+          {oauthProviders?.supabase ? (
+            <a
+              href="/api/auth/supabase"
+              className="w-full flex items-center justify-center gap-2 p-2.5 text-xs font-medium bg-emerald-600 text-white rounded-lg hover:bg-emerald-500 transition-colors"
+            >
+              <Database className="w-3.5 h-3.5" />
+              Login with Supabase
+              <ExternalLink className="w-3 h-3 opacity-50" />
+            </a>
+          ) : (
+            <button
+              onClick={onOpenSettings}
+              className="w-full flex items-center gap-2.5 p-2.5 text-left rounded-lg border border-forge-border hover:border-forge-accent/50 hover:bg-forge-accent/5 transition-colors group"
+            >
+              <div className="w-7 h-7 rounded-md bg-emerald-500/10 flex items-center justify-center shrink-0">
+                <Zap className="w-3.5 h-3.5 text-emerald-400" />
+              </div>
+              <div className="min-w-0">
+                <p className="text-xs text-forge-text group-hover:text-forge-accent transition-colors">Connect via Access Token</p>
+                <p className="text-[9px] text-forge-text-dim">One-click — auto-finds your projects & keys</p>
+              </div>
+            </button>
+          )}
 
           {/* Option 2: Manual in settings */}
           <button
@@ -206,7 +230,7 @@ export function DbPanel({ fileContents, onOpenDbExplorer, onOpenSettings }: DbPa
               <Settings className="w-3.5 h-3.5 text-forge-text-dim" />
             </div>
             <div className="min-w-0">
-              <p className="text-xs text-forge-text group-hover:text-forge-accent transition-colors">Enter URL & Key Manually</p>
+              <p className="text-xs text-forge-text group-hover:text-forge-accent transition-colors">{oauthProviders?.supabase ? 'Or connect manually' : 'Enter URL & Key Manually'}</p>
               <p className="text-[9px] text-forge-text-dim">Paste from Supabase dashboard</p>
             </div>
           </button>

@@ -11,6 +11,12 @@ export async function GET() {
     `/forge_user_settings?github_username=eq.${encodeURIComponent(session.githubUsername)}&select=encrypted_api_key,api_key_validated_at,encrypted_vercel_token,encrypted_supabase_url,encrypted_supabase_key,encrypted_supabase_access_token,preferred_model,preferences`,
   )
 
+  // Check which OAuth providers are configured
+  const oauthProviders = {
+    supabase: !!(process.env.SUPABASE_OAUTH_CLIENT_ID || '').trim(),
+    vercel: !!(process.env.VERCEL_OAUTH_CLIENT_ID || '').trim(),
+  }
+
   if (!ok || !Array.isArray(data) || data.length === 0) {
     return NextResponse.json({
       hasApiKey: false,
@@ -20,6 +26,7 @@ export async function GET() {
       supabaseProjectRef: null,
       preferredModel: 'claude-sonnet-4-20250514',
       preferences: {},
+      oauthProviders,
     })
   }
 
@@ -44,6 +51,7 @@ export async function GET() {
     supabaseProjectRef,
     preferredModel: row.preferred_model || 'claude-sonnet-4-20250514',
     preferences: row.preferences || {},
+    oauthProviders,
   })
 }
 
