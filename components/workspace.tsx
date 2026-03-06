@@ -30,6 +30,7 @@ import { DbExplorer } from './db-explorer'
 import { ComponentLibrary } from './component-library'
 import { MCPManager } from './mcp-manager'
 import { useKeyboardShortcuts } from '@/lib/keyboard-shortcuts'
+import { useSwipe } from '@/hooks/use-swipe'
 import { useWebcontainer } from '@/hooks/use-webcontainer'
 import { detectFramework } from '@/lib/vercel'
 import { motion } from 'framer-motion'
@@ -677,6 +678,23 @@ export function Workspace({
     setTimeout(() => { userInteractingRef.current = false }, 10000)
   }, [])
 
+  // Swipe gestures for mobile tab cycling
+  const MOBILE_TAB_ORDER: MobileTab[] = ['chat', 'files', 'code', 'preview']
+  const mobileSwipe = useSwipe({
+    onSwipeLeft: () => {
+      setMobileTab(prev => {
+        const idx = MOBILE_TAB_ORDER.indexOf(prev)
+        return MOBILE_TAB_ORDER[Math.min(idx + 1, MOBILE_TAB_ORDER.length - 1)]
+      })
+    },
+    onSwipeRight: () => {
+      setMobileTab(prev => {
+        const idx = MOBILE_TAB_ORDER.indexOf(prev)
+        return MOBILE_TAB_ORDER[Math.max(idx - 1, 0)]
+      })
+    },
+  })
+
   useEffect(() => {
     const currentCount = Object.keys(files).length
     const prevCount = prevFileCountRef.current
@@ -1173,7 +1191,7 @@ export function Workspace({
 
       {/* Mobile layout */}
       <div className="flex-1 flex flex-col md:hidden overflow-hidden">
-        <div className="flex-1 overflow-hidden">
+        <div className="flex-1 overflow-hidden" onTouchStart={mobileSwipe.onTouchStart} onTouchEnd={mobileSwipe.onTouchEnd}>
           {mobileTab === 'chat' && chatPanel}
           {mobileTab === 'files' && fileTreePanel}
           {mobileTab === 'code' && (

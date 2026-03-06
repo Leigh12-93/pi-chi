@@ -40,6 +40,15 @@ export const CodeEditor = memo(function CodeEditor({ path, content, previousCont
   const diffClearTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const { theme } = useTheme()
 
+  // Detect mobile viewport for optimized editor settings
+  const [isMobile, setIsMobile] = useState(false)
+  useEffect(() => {
+    const check = () => setIsMobile(window.innerWidth < 768)
+    check()
+    window.addEventListener('resize', check)
+    return () => window.removeEventListener('resize', check)
+  }, [])
+
   // Keep refs current so Ctrl+S handler always uses latest values
   useEffect(() => { pathRef.current = path }, [path])
   useEffect(() => { onSaveRef.current = onSave }, [onSave])
@@ -226,12 +235,12 @@ export const CodeEditor = memo(function CodeEditor({ path, content, previousCont
           onChange={handleChange}
           options={{
             readOnly: readOnly ?? false,
-            glyphMargin: true,
-            fontSize: 13,
+            glyphMargin: !isMobile,
+            fontSize: isMobile ? 14 : 13,
             fontFamily: "'Cascadia Code', 'Fira Code', 'JetBrains Mono', monospace",
             fontLigatures: true,
             minimap: { enabled: false },
-            lineNumbers: 'on',
+            lineNumbers: isMobile ? 'off' : 'on',
             lineNumbersMinChars: 3,
             scrollBeyondLastLine: false,
             renderWhitespace: 'none',
@@ -242,13 +251,13 @@ export const CodeEditor = memo(function CodeEditor({ path, content, previousCont
             cursorBlinking: 'smooth',
             cursorSmoothCaretAnimation: 'on',
             bracketPairColorization: { enabled: true },
-            guides: { bracketPairs: true },
+            guides: { bracketPairs: !isMobile },
             suggest: { showStatusBar: true },
-            folding: true,
-            foldingHighlight: true,
+            folding: !isMobile,
+            foldingHighlight: !isMobile,
             scrollbar: {
-              verticalScrollbarSize: 6,
-              horizontalScrollbarSize: 6,
+              verticalScrollbarSize: isMobile ? 10 : 6,
+              horizontalScrollbarSize: isMobile ? 10 : 6,
             },
           }}
         />

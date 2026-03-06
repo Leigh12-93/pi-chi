@@ -649,7 +649,7 @@ export async function POST(req: Request) {
         if (modelAutoRouted) {
           const classification = classifyModelComplexity(body.messages || [], Object.keys(safeFiles).length)
           writer.write({
-            type: 'data' as any,
+            type: 'data-forge-meta',
             data: JSON.stringify({ type: 'model_suggestion', model: selectedModel, reason: classification.reason }),
           } as any)
         }
@@ -657,7 +657,7 @@ export async function POST(req: Request) {
         // Send context usage warning if approaching limit
         if (contextWarning) {
           writer.write({
-            type: 'data' as any,
+            type: 'data-forge-meta',
             data: JSON.stringify({
               type: 'context_warning',
               level: contextWarning,
@@ -669,7 +669,7 @@ export async function POST(req: Request) {
         // Notify client if compaction occurred
         if (compactionOccurred) {
           writer.write({
-            type: 'data' as any,
+            type: 'data-forge-meta',
             data: JSON.stringify({
               type: 'compaction_notice',
               tokensSaved: compactedTokensSaved,

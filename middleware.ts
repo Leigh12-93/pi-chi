@@ -13,7 +13,7 @@ export function middleware(request: NextRequest) {
     `img-src 'self' data: blob: https:`,
     `font-src 'self' data:`,
     `connect-src 'self' https://api.github.com https://*.supabase.co https://api.vercel.com https://registry.npmjs.org https://api.npmjs.org https://api.unsplash.com https://api.anthropic.com https://*.v0.dev https://cdn.jsdelivr.net`,
-    `frame-src 'self' blob: https://*.v0.dev https://*.vercel.app https://*.vusercontent.net https://*.webcontainer.io https://*.local-credentialless.webcontainer.io https://*.stackblitz.com`,
+    `frame-src 'self' blob: https://*.v0.dev https://*.vercel.app https://*.vusercontent.net https://*.webcontainer.io https://*.local-credentialless.webcontainer.io https://stackblitz.com https://*.stackblitz.com`,
     `object-src 'none'`,
     `base-uri 'self'`,
   ].join('; ')
@@ -37,6 +37,6 @@ export function middleware(request: NextRequest) {
 export const config = {
   matcher: [
     // Match all paths except static files
-    '/((?!_next/static|_next/image|favicon.ico).*)',
+    '/((?!_next/static|_next/image|favicon.ico|sw\\.js|icons/).*)',
   ],
 }

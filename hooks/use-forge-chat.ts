@@ -368,7 +368,7 @@ export function useForgeChat(props: UseForgeChatProps) {
       const parts = (msg as any).parts as Array<{ type: string; data?: string }> | undefined
       if (!parts) continue
       for (const p of parts) {
-        if (p.type === 'data' && typeof p.data === 'string') {
+        if (p.type === 'data-forge-meta' && typeof p.data === 'string') {
           try {
             const parsed = JSON.parse(p.data)
             if (parsed.type === 'context_warning' && contextWarningShownRef.current !== msg.id) {

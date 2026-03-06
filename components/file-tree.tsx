@@ -228,6 +228,21 @@ export const FileTree = memo(function FileTree({
         </div>
       )}
 
+      {/* Mobile breadcrumbs — show current file path */}
+      {activeFile && (
+        <div className="flex items-center gap-0.5 px-2 py-1.5 border-b border-forge-border text-[10px] text-forge-text-dim font-mono overflow-x-auto whitespace-nowrap md:hidden shrink-0">
+          {activeFile.split('/').map((segment, i, arr) => (
+            <span key={i} className="flex items-center gap-0.5">
+              {i > 0 && <ChevronRight className="w-2.5 h-2.5 shrink-0 opacity-40" />}
+              <span className={cn(
+                'px-0.5 rounded',
+                i === arr.length - 1 ? 'text-forge-text font-medium' : 'text-forge-text-dim',
+              )}>{segment}</span>
+            </span>
+          ))}
+        </div>
+      )}
+
       {/* File list */}
       <div className="flex-1 overflow-y-auto py-1 scroll-fade-bottom">
         {files.length === 0 ? (
@@ -412,7 +427,7 @@ function TreeItem({
           role={isDir ? 'treeitem' : undefined}
           aria-expanded={isDir ? isExpanded : undefined}
           className={cn(
-            'flex items-center gap-1.5 sm:gap-1 flex-1 text-left px-2 py-2 sm:py-[5px] text-xs sm:text-[12px] hover:bg-forge-surface-hover/50 transition-all duration-150 min-h-[36px] sm:min-h-0 border-l-2',
+            'flex items-center gap-1.5 sm:gap-1 flex-1 text-left px-2 py-2.5 sm:py-[5px] text-xs sm:text-[12px] hover:bg-forge-surface-hover/50 transition-all duration-150 min-h-[44px] sm:min-h-0 border-l-2',
             isActive && !isDir && 'bg-forge-accent/10 text-forge-accent border-l-forge-accent',
             !isActive && !isDir && 'text-forge-text-dim hover:text-forge-text border-l-transparent hover:translate-x-0.5',
             !isActive && isDir && 'text-forge-text-dim hover:text-forge-text border-l-transparent',

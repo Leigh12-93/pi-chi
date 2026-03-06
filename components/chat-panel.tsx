@@ -589,6 +589,14 @@ export const ChatPanel = memo(function ChatPanel({ onLoadingChange, ...props }: 
               onKeyDown={e => {
                 if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); chat.handleSend() }
               }}
+              onFocus={() => {
+                // Scroll input into view when mobile keyboard opens
+                setTimeout(() => {
+                  chat.inputRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' })
+                }, 300)
+              }}
+              enterKeyHint="send"
+              inputMode="text"
               placeholder={chat.isEmpty ? 'Describe what you want to build...' : 'Ask for changes, new features, fixes...'}
               rows={1}
               className="w-full bg-transparent px-3 py-3 text-[13.5px] text-forge-text placeholder:text-forge-text-dim/40 outline-none resize-none chat-textarea-smooth"
@@ -610,7 +618,7 @@ export const ChatPanel = memo(function ChatPanel({ onLoadingChange, ...props }: 
                 />
                 <button
                   onClick={() => fileInputRef.current?.click()}
-                  className="p-1.5 text-forge-text-dim hover:text-forge-text rounded-lg hover:bg-forge-bg/60 transition-colors"
+                  className="p-2 sm:p-1.5 text-forge-text-dim hover:text-forge-text rounded-lg hover:bg-forge-bg/60 transition-colors"
                   title="Attach files"
                   aria-label="Attach files"
                 >
@@ -622,7 +630,7 @@ export const ChatPanel = memo(function ChatPanel({ onLoadingChange, ...props }: 
                   <button
                     onClick={voice.toggle}
                     className={cn(
-                      'p-1.5 rounded-lg transition-all',
+                      'p-2 sm:p-1.5 rounded-lg transition-all',
                       voice.isListening
                         ? 'bg-red-100 dark:bg-red-900/40 text-red-500 hover:bg-red-200 dark:hover:bg-red-800/60 animate-pulse'
                         : 'text-forge-text-dim hover:text-forge-text hover:bg-forge-bg/60',
@@ -700,7 +708,7 @@ export const ChatPanel = memo(function ChatPanel({ onLoadingChange, ...props }: 
                     exit={{ scale: 0.9, opacity: 0 }}
                     transition={{ duration: 0.12 }}
                     onClick={() => { chat.stoppedByUserRef.current = true; chat.stop() }}
-                    className="p-1.5 rounded-lg bg-red-100 dark:bg-red-900/40 text-forge-danger hover:bg-red-200 dark:hover:bg-red-800/60 transition-colors animate-stop-pulse stop-ring-pulse"
+                    className="p-2 sm:p-1.5 rounded-lg bg-red-100 dark:bg-red-900/40 text-forge-danger hover:bg-red-200 dark:hover:bg-red-800/60 transition-colors animate-stop-pulse stop-ring-pulse"
                     title="Stop generating (Esc)"
                     aria-label="Stop generating"
                   >
@@ -715,7 +723,7 @@ export const ChatPanel = memo(function ChatPanel({ onLoadingChange, ...props }: 
                     animate={{ scale: 1, opacity: 1 }}
                     exit={{ scale: 0.9, opacity: 0 }}
                     transition={{ duration: 0.12 }}
-                    className="p-1.5 rounded-lg bg-forge-accent hover:bg-forge-accent-hover text-white shadow-sm disabled:opacity-40 disabled:cursor-not-allowed transition-opacity"
+                    className="p-2 sm:p-1.5 rounded-lg bg-forge-accent hover:bg-forge-accent-hover text-white shadow-sm disabled:opacity-40 disabled:cursor-not-allowed transition-opacity"
                     title="Send message"
                     aria-label="Send message"
                   >
