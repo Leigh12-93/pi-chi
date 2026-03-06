@@ -50,12 +50,12 @@ function ThinkingIndicator({ elapsed, formatElapsed, stepCount, lastCompletedToo
   lastCompletedToolName: string | null
   status: string
 }) {
-  // Rotate through thinking messages every 8 seconds
+  // Rotate through thinking messages every 6 seconds
   const [messageIdx, setMessageIdx] = useState(0)
   useEffect(() => {
     const interval = setInterval(() => {
       setMessageIdx(prev => (prev + 1) % THINKING_MESSAGES.length)
-    }, 8000)
+    }, 6000)
     return () => clearInterval(interval)
   }, [])
 
@@ -71,6 +71,16 @@ function ThinkingIndicator({ elapsed, formatElapsed, stepCount, lastCompletedToo
   const isSubmitted = status === 'submitted'
   const isExtendedThinking = isSubmitted && elapsed >= 2
   const phaseLabel = getPhaseLabel(lastCompletedToolName)
+
+  // Context line — what it just did or is working on
+  const contextLine = useMemo(() => {
+    if (stepCount > 0 && lastCompletedToolName) {
+      const lastAction = getPhaseLabel(lastCompletedToolName)
+      return `${stepCount} step${stepCount !== 1 ? 's' : ''} done — last: ${lastAction.toLowerCase()}`
+    }
+    if (stepCount > 0) return `${stepCount} step${stepCount !== 1 ? 's' : ''} completed`
+    return null
+  }, [stepCount, lastCompletedToolName])
 
   // Extended thinking: flat inline timeline item (no card)
   if (isExtendedThinking) {
@@ -99,10 +109,20 @@ function ThinkingIndicator({ elapsed, formatElapsed, stepCount, lastCompletedToo
             {formatElapsed(elapsed)}
           </span>
         </div>
-        {milestone && elapsed >= 10 && (
-          <p className="text-[11px] text-forge-text-dim/40 pl-[30px] thinking-text-rotate" key={milestone}>
-            {milestone}
-          </p>
+        {/* Secondary breakdown line */}
+        {(milestone || contextLine) && (
+          <div className="pl-[30px] space-y-0.5">
+            {contextLine && (
+              <p className="text-[11px] text-forge-text-dim/50 tabular-nums">
+                {contextLine}
+              </p>
+            )}
+            {milestone && elapsed >= 10 && (
+              <p className="text-[11px] text-forge-text-dim/40 thinking-text-rotate" key={milestone}>
+                {milestone}
+              </p>
+            )}
+          </div>
         )}
       </motion.div>
     )
@@ -125,9 +145,16 @@ function ThinkingIndicator({ elapsed, formatElapsed, stepCount, lastCompletedToo
             </span>
           </div>
         )}
-        <span className={cn('text-[13px] text-forge-text-dim', isSubmitted && 'shimmer-task')}>
-          {isSubmitted ? 'Thinking' : phaseLabel}
-        </span>
+        <div className="flex-1 min-w-0">
+          <span className={cn('text-[13px] text-forge-text-dim', isSubmitted && 'shimmer-task')}>
+            {isSubmitted ? 'Thinking' : phaseLabel}
+          </span>
+          {isSubmitted && contextLine && (
+            <p className="text-[11px] text-forge-text-dim/40 mt-0.5">
+              {contextLine}
+            </p>
+          )}
+        </div>
         {elapsed > 0 && (
           <span className="text-[11px] text-forge-text-dim/40 font-mono shrink-0 tabular-nums">
             {formatElapsed(elapsed)}

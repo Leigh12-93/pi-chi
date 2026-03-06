@@ -42,11 +42,11 @@ const STATUS_LABELS: Record<SandboxStatus, string> = {
 }
 
 const PHASE_LABELS: Record<Exclude<BuildPhase, null>, string> = {
-  analyzing: 'Analyzing project',
-  uploading: 'Uploading files',
-  building: 'Building preview',
-  starting: 'Starting dev server',
-  ready: 'Ready!',
+  analyzing: 'Reading your project',
+  uploading: 'Sending files to preview',
+  building: 'Building your app',
+  starting: 'Almost there...',
+  ready: 'Your preview is ready!',
 }
 
 const PHASE_ORDER: Exclude<BuildPhase, null>[] = ['analyzing', 'uploading', 'building', 'starting', 'ready']
@@ -127,10 +127,6 @@ function isProjectReady(files: Record<string, string>): boolean {
 
 function BuildingPlaceholder({ files }: { files: Record<string, string> }) {
   const fileNames = Object.keys(files)
-  const mainFile = fileNames.find(f => f === 'app/page.tsx')
-    || fileNames.find(f => f === 'src/App.tsx')
-    || fileNames.find(f => f.endsWith('/page.tsx'))
-    || fileNames.find(f => f.endsWith('.tsx'))
   const hasPackageJson = fileNames.includes('package.json')
   let framework = 'React'
   if (hasPackageJson) {
@@ -144,26 +140,25 @@ function BuildingPlaceholder({ files }: { files: Record<string, string> }) {
 
   return (
     <div className="flex items-center justify-center h-full bg-forge-bg text-forge-text-dim">
-      <div className="text-center max-w-xs">
-        <div className="w-12 h-12 mx-auto mb-4 rounded-xl bg-forge-surface border border-forge-border flex items-center justify-center">
-          <Loader2 className="w-5 h-5 text-forge-accent animate-spin" />
-        </div>
-        <p className="text-sm font-medium text-forge-text mb-1">{framework} project detected</p>
-        <p className="text-xs text-forge-text-dim mb-4">
-          {mainFile
-            ? `Waiting for sandbox to render ${mainFile.split('/').pop()}`
-            : 'JSX projects need a live sandbox for preview'}
-        </p>
-        <div className="text-left bg-forge-surface rounded-lg p-3 border border-forge-border">
-          <p className="text-[10px] text-forge-text-dim/70 uppercase tracking-wider mb-2 font-medium">Project files ({fileNames.length})</p>
-          <div className="space-y-0.5 max-h-32 overflow-y-auto">
-            {fileNames.slice(0, 12).map(f => (
-              <div key={f} className="text-[11px] font-mono text-forge-text-dim truncate">{f}</div>
-            ))}
-            {fileNames.length > 12 && (
-              <div className="text-[10px] text-forge-text-dim/50">+{fileNames.length - 12} more</div>
-            )}
+      <div className="text-center max-w-xs px-6">
+        {/* Breathing logo with subtle glow */}
+        <div className="relative inline-flex items-center justify-center mb-6">
+          <div className="absolute inset-0 rounded-full bg-forge-accent/10 blur-xl building-placeholder-glow" />
+          <div className="sixchi-logo-reveal">
+            <span className="text-4xl font-bold bg-gradient-to-r from-forge-accent to-red-400 bg-clip-text text-transparent select-none">
+              6-&#x03C7;
+            </span>
           </div>
+        </div>
+        <p className="text-sm font-medium text-forge-text mb-1.5">{framework} project detected</p>
+        <p className="text-xs text-forge-text-dim/60 mb-4">
+          Setting up your preview environment
+        </p>
+        {/* Animated dots */}
+        <div className="flex justify-center gap-1.5">
+          <span className="building-dot" style={{ animationDelay: '0s' }} />
+          <span className="building-dot" style={{ animationDelay: '0.15s' }} />
+          <span className="building-dot" style={{ animationDelay: '0.3s' }} />
         </div>
       </div>
     </div>
@@ -206,6 +201,26 @@ function BuildPhaseIndicator({ phase }: { phase: BuildPhase }) {
         )
       })}
     </div>
+  )
+}
+
+/** Small copy button for error popups */
+function CopyErrorButton({ text }: { text: string }) {
+  const [copied, setCopied] = useState(false)
+  return (
+    <button
+      onClick={() => {
+        navigator.clipboard.writeText(text).then(() => {
+          setCopied(true)
+          setTimeout(() => setCopied(false), 2000)
+        })
+      }}
+      className="flex items-center justify-center gap-1 px-2.5 py-1.5 text-[10px] font-medium text-forge-text-dim hover:text-forge-text bg-forge-surface hover:bg-forge-surface-hover rounded-lg transition-colors"
+      title="Copy error to clipboard"
+    >
+      {copied ? <Check className="w-3 h-3 text-emerald-500" /> : <Copy className="w-3 h-3" />}
+      {copied ? 'Copied' : 'Copy'}
+    </button>
   )
 }
 
@@ -493,19 +508,42 @@ export const PreviewPanel = memo(function PreviewPanel({ files, projectId, onFix
     if (sandboxError) addLog(sandboxError, 'error', 'sandbox')
   }, [sandboxError, addLog])
 
-  // Helper to create empty state HTML
+  // Helper to create empty state HTML — styled to match the app theme, not look like an error
   const createEmptyState = (title: string, subtitle: string) => {
     return `<!DOCTYPE html>
-<html><head><meta charset="UTF-8"><script src="https://cdn.tailwindcss.com"></script></head>
-<body class="min-h-screen bg-white flex items-center justify-center">
-  <div class="text-center text-gray-500 max-w-sm">
-    <div class="w-12 h-12 mx-auto mb-4 rounded-xl bg-gray-100 flex items-center justify-center">
-      <svg class="w-6 h-6 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4"></path>
-      </svg>
-    </div>
-    <p class="text-sm font-medium text-gray-900 mb-1">${title}</p>
-    <p class="text-xs text-gray-400">${subtitle}</p>
+<html><head><meta charset="UTF-8">
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { min-height: 100vh; display: flex; align-items: center; justify-content: center; font-family: system-ui, -apple-system, sans-serif; }
+  @media (prefers-color-scheme: dark) {
+    body { background: #0f1117; color: #9ca3af; }
+    .card { background: #1a1d27; border-color: #2a2d3a; }
+    .title { color: #e5e7eb; }
+    .dot { background: rgba(220,38,38,0.15); }
+    .dot span { background: #dc2626; }
+  }
+  @media (prefers-color-scheme: light) {
+    body { background: #ffffff; color: #9ca3af; }
+    .card { background: #f8f9fa; border-color: #e5e7eb; }
+    .title { color: #374151; }
+    .dot { background: rgba(220,38,38,0.08); }
+    .dot span { background: #dc2626; }
+  }
+  .card { padding: 32px; border-radius: 16px; border: 1px solid; text-align: center; max-width: 280px; }
+  .dots { display: flex; gap: 6px; justify-content: center; margin-bottom: 16px; }
+  .dot { width: 32px; height: 32px; border-radius: 50%; display: flex; align-items: center; justify-content: center; }
+  .dot span { width: 6px; height: 6px; border-radius: 50%; animation: pulse 1.8s ease-in-out infinite; }
+  .dot:nth-child(2) span { animation-delay: 0.2s; }
+  .dot:nth-child(3) span { animation-delay: 0.4s; }
+  .title { font-size: 14px; font-weight: 500; margin-bottom: 4px; }
+  .sub { font-size: 12px; opacity: 0.6; }
+  @keyframes pulse { 0%,100% { transform: scale(0.8); opacity: 0.4; } 50% { transform: scale(1.4); opacity: 1; } }
+</style></head>
+<body>
+  <div class="card">
+    <div class="dots"><div class="dot"><span></span></div><div class="dot"><span></span></div><div class="dot"><span></span></div></div>
+    <p class="title">${title}</p>
+    <p class="sub">${subtitle}</p>
   </div>
 </body></html>`
   }
@@ -521,7 +559,7 @@ export const PreviewPanel = memo(function PreviewPanel({ files, projectId, onFix
   const computedPreviewHtml = useMemo(() => {
     try {
       if (previewFileCount === 0) {
-        return createEmptyState('No preview available', 'Start building to see a preview')
+        return createEmptyState('Nothing to show yet', 'Your preview will appear here as you build')
       }
 
       if (projectType === 'static' && previewIndexHtml) {
@@ -533,9 +571,9 @@ export const PreviewPanel = memo(function PreviewPanel({ files, projectId, onFix
       }
 
       if (!previewMainFile) {
-        if (projectType === 'nextjs') return createEmptyState('Next.js project', 'Waiting for app/page.tsx...')
-        if (projectType === 'vite') return createEmptyState('Vite project', 'Waiting for src/App.tsx...')
-        return createEmptyState('Building...', 'Preview will appear when ready')
+        if (projectType === 'nextjs') return createEmptyState('Next.js project detected', 'Waiting for your first page to be created')
+        if (projectType === 'vite') return createEmptyState('Vite project detected', 'Waiting for your first component to be created')
+        return createEmptyState('Getting things ready', 'Your preview will appear shortly')
       }
 
       // If the project has JSX/TSX files, don't attempt fragile regex extraction —
@@ -1425,96 +1463,54 @@ export const PreviewPanel = memo(function PreviewPanel({ files, projectId, onFix
           {/* Building animation — shows a miniature page being painted with phase stepper */}
           {/* Visible during: initializing, any active build phase, or crossfade-out to live */}
           {(isSandboxLoading || !!buildPhase || isCrossfading) && (
-            <div className={cn('forge-building-scene animate-fade-in', isCrossfading && 'forge-ready-crossfade')}>
-              <div className="forge-dots" />
-              <div className="forge-glow" />
+            <div className={cn('sixchi-loader-scene', isCrossfading && 'forge-ready-crossfade')}>
+              {/* Radial gradient background */}
+              <div className="sixchi-bg-mesh" />
+              <div className="sixchi-dot-grid" />
 
-              {/* Mini browser frame */}
-              <div className={cn('forge-browser', buildPhase && buildPhase !== 'ready' && 'forge-browser-building')}>
-                {/* Browser title bar */}
-                <div className="forge-browser-bar">
-                  <div className="forge-traffic-dot" style={{ background: '#ff5f57' }} />
-                  <div className="forge-traffic-dot" style={{ background: '#ffbd2e' }} />
-                  <div className="forge-traffic-dot" style={{ background: '#28c840' }} />
-                  <div className="forge-browser-url" />
+              {/* Orbital rings */}
+              <div className="sixchi-orbit sixchi-orbit-outer" />
+              <div className="sixchi-orbit sixchi-orbit-inner" />
+
+              {/* Logo reveal */}
+              <div className="sixchi-logo-container">
+                <div className={cn('sixchi-logo-glow', buildPhase === 'ready' && 'sixchi-glow-success')} />
+                <div className={cn('sixchi-logo-reveal', buildPhase === 'ready' && 'sixchi-logo-ready')}>
+                  <span className="text-5xl sm:text-6xl font-bold bg-gradient-to-r from-forge-accent via-red-400 to-red-500 bg-clip-text text-transparent select-none">
+                    6-&#x03C7;
+                  </span>
                 </div>
 
-                {/* Navbar — paints in first */}
-                <div className="forge-ui-row" style={{ ['--delay' as string]: '0.4s' } as React.CSSProperties}>
-                  <div className="forge-navbar">
-                    <div className="forge-nav-logo" />
-                    <div className="forge-nav-links">
-                      <div className="forge-nav-link" style={{ ['--w' as string]: '28px' } as React.CSSProperties} />
-                      <div className="forge-nav-link" style={{ ['--w' as string]: '32px' } as React.CSSProperties} />
-                      <div className="forge-nav-link" style={{ ['--w' as string]: '24px' } as React.CSSProperties} />
-                    </div>
-                  </div>
-                </div>
-
-                {/* Hero section */}
-                <div className="forge-ui-row" style={{ ['--delay' as string]: '0.9s', ['--duration' as string]: '0.6s' } as React.CSSProperties}>
-                  <div className="forge-hero">
-                    <div className="forge-hero-title" />
-                    <div className="forge-hero-sub" />
-                    <div className="forge-hero-sub" style={{ width: '60%' }} />
-                    <div className="forge-hero-btn" />
-                  </div>
-                </div>
-
-                {/* Card grid */}
-                <div className="forge-ui-row" style={{ ['--delay' as string]: '1.6s', ['--duration' as string]: '0.5s' } as React.CSSProperties}>
-                  <div className="forge-cards">
-                    {[
-                      { color: '#eef2ff', delay: '1.8s', lines: ['80%', '55%'] },
-                      { color: '#f0fdf4', delay: '2.0s', lines: ['70%', '90%', '40%'] },
-                      { color: '#fef3c7', delay: '2.2s', lines: ['85%', '50%'] },
-                    ].map((card, i) => (
-                      <div key={i} className="forge-card" style={{ ['--delay' as string]: card.delay } as React.CSSProperties}>
-                        <div className="forge-card-icon" style={{ background: card.color }} />
-                        {card.lines.map((w, j) => (
-                          <div key={j} className="forge-card-line" style={{ width: w }} />
-                        ))}
-                      </div>
-                    ))}
-                  </div>
-                </div>
-
-                {/* Typing cursor */}
-                <div className="forge-cursor" />
-
-                {/* Ready overlay — flashes green check when phase is ready */}
+                {/* Ready overlay — green check on top of logo */}
                 {buildPhase === 'ready' && (
-                  <div className="absolute inset-0 z-10 flex items-center justify-center bg-forge-bg/60 backdrop-blur-sm">
-                    <div className="flex flex-col items-center gap-2 forge-ready-check">
-                      <svg className="w-10 h-10 text-emerald-500" viewBox="0 0 40 40" fill="none">
-                        <circle cx="20" cy="20" r="18" stroke="currentColor" strokeWidth="2" fill="currentColor" fillOpacity="0.1" />
-                        <path d="M12 20l6 6 10-10" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />
+                  <div className="absolute inset-0 flex items-center justify-center z-10">
+                    <div className="forge-ready-check">
+                      <svg className="w-12 h-12 text-emerald-500 drop-shadow-lg" viewBox="0 0 48 48" fill="none">
+                        <circle cx="24" cy="24" r="22" stroke="currentColor" strokeWidth="2" fill="currentColor" fillOpacity="0.15" />
+                        <path d="M14 24l7 7 13-13" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" className="forge-check-draw" />
                       </svg>
-                      <span className="text-xs font-medium text-emerald-600 dark:text-emerald-400">Ready!</span>
                     </div>
                   </div>
                 )}
               </div>
 
-              {/* Status below browser — phase stepper + label */}
-              <div className="forge-build-status">
-                {buildPhase !== 'ready' && (
-                  <div className="forge-build-dots">
-                    <span />
-                    <span />
-                    <span />
-                  </div>
-                )}
-                <span className="text-xs font-medium text-forge-accent/70 tracking-wide">
+              {/* Phase text + file count */}
+              <div className="sixchi-status-text">
+                <span className={cn(
+                  'text-sm font-medium tracking-wide transition-colors duration-500',
+                  buildPhase === 'ready' ? 'text-emerald-500' : 'shimmer-text',
+                )}>
                   {buildPhase ? PHASE_LABELS[buildPhase] : 'Building your preview'}
                 </span>
                 {Object.keys(files).length > 0 && buildPhase !== 'ready' && (
-                  <span className="text-[10px] text-forge-text-dim/40">
+                  <span className="text-[10px] text-forge-text-dim/40 mt-1.5 tabular-nums">
                     {Object.keys(files).length} files
                   </span>
                 )}
                 {/* Phase stepper */}
-                <BuildPhaseIndicator phase={buildPhase} />
+                <div className="mt-4">
+                  <BuildPhaseIndicator phase={buildPhase} />
+                </div>
               </div>
 
               {/* Progress track */}
@@ -1526,17 +1522,27 @@ export const PreviewPanel = memo(function PreviewPanel({ files, projectId, onFix
 
           {/* Auto-starting status — shown briefly while sandbox initializes automatically */}
           {sandboxStatus === 'idle' && !showCachedPreview && isProjectReady(files) && (
-            <div className="absolute inset-0 z-10 flex items-center justify-center">
-              <div className="flex flex-col items-center gap-3 animate-fade-in">
-                <div className="w-12 h-12 rounded-xl bg-forge-surface border border-forge-border flex items-center justify-center">
-                  <Zap className="w-5 h-5 text-forge-accent animate-pulse" />
+            <div className="absolute inset-0 z-10 flex items-center justify-center bg-forge-bg/80 backdrop-blur-sm">
+              <div className="flex flex-col items-center gap-4 animate-fade-in px-6">
+                <div className="relative">
+                  <div className="absolute inset-0 rounded-2xl bg-forge-accent/10 blur-lg building-placeholder-glow" />
+                  <div className="relative w-14 h-14 rounded-2xl bg-forge-surface border border-forge-border flex items-center justify-center">
+                    <Zap className="w-6 h-6 text-forge-accent" />
+                  </div>
                 </div>
-                <span className="text-xs text-forge-text font-medium">
-                  Preparing preview
-                </span>
-                <span className="text-[10px] text-forge-text-dim/60">
-                  {Object.keys(files).length} files detected
-                </span>
+                <div className="text-center">
+                  <p className="text-sm text-forge-text font-medium mb-1">
+                    Preparing preview
+                  </p>
+                  <p className="text-xs text-forge-text-dim/60">
+                    {Object.keys(files).length} files detected
+                  </p>
+                </div>
+                <div className="flex justify-center gap-1.5">
+                  <span className="building-dot" style={{ animationDelay: '0s' }} />
+                  <span className="building-dot" style={{ animationDelay: '0.15s' }} />
+                  <span className="building-dot" style={{ animationDelay: '0.3s' }} />
+                </div>
               </div>
             </div>
           )}
@@ -1642,7 +1648,7 @@ export const PreviewPanel = memo(function PreviewPanel({ files, projectId, onFix
           )}
           </AnimatePresence>
 
-          {/* Sandbox error popup — bottom-left animated toast with Fix button */}
+          {/* Sandbox error popup — bottom-left animated toast with Fix + Copy buttons */}
           <AnimatePresence>
           {sandboxStatus === 'error' && sandboxError && (
             <motion.div
@@ -1684,6 +1690,7 @@ export const PreviewPanel = memo(function PreviewPanel({ files, projectId, onFix
                       Fix with AI
                     </button>
                   )}
+                  <CopyErrorButton text={(() => { const allErrors = consoleLogs.filter(e => e.level === 'error').map(e => e.message).join('\n'); return allErrors || sandboxError || '' })() } />
                   <button
                     onClick={() => { hasAutoStartedRef.current = false; sandboxAvailableRef.current = null; retryCountRef.current = 0; startSandbox() }}
                     className="px-2.5 py-1.5 text-[10px] font-medium text-forge-text-dim hover:text-forge-text bg-forge-surface hover:bg-forge-surface-hover rounded-lg transition-colors"
@@ -1742,6 +1749,7 @@ export const PreviewPanel = memo(function PreviewPanel({ files, projectId, onFix
                     <Zap className="w-3 h-3" />
                     Fix with AI
                   </button>
+                  <CopyErrorButton text={consoleLogs.filter(e => e.level === 'error').map(e => e.message).join('\n')} />
                   <button
                     onClick={() => { setErrorPopupDismissed(true); setShowConsole(true) }}
                     className="px-2.5 py-1.5 text-[10px] font-medium text-forge-text-dim hover:text-forge-text bg-forge-surface hover:bg-forge-surface-hover rounded-lg transition-colors"
