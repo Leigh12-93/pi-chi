@@ -1325,56 +1325,77 @@ export function PreviewPanel({ files, projectId, onFixErrors, onCapturePreview, 
             </div>
           )}
 
-          {/* Sandbox error toast — non-blocking overlay at bottom */}
+          {/* Sandbox error popup — bottom-left animated toast with Fix button */}
           {sandboxStatus === 'error' && sandboxError && (
-            <div className="absolute bottom-3 left-3 right-3 z-10 animate-fade-in">
-              <div className="bg-forge-bg/95 backdrop-blur border border-red-200 dark:border-red-500/30 rounded-lg p-3 shadow-lg flex items-start gap-2 max-w-sm mx-auto animate-shake">
-                <AlertTriangle className="w-4 h-4 text-red-500 shrink-0 mt-0.5" />
-                <div className="flex-1 min-w-0">
-                  <p className="text-xs font-medium text-red-900">Sandbox Error</p>
-                  <p className="text-[10px] text-red-600 font-mono truncate mt-0.5" title={sandboxError}>{sandboxError}</p>
-                </div>
-                <div className="flex gap-1 shrink-0">
-                  <button
-                    onClick={() => { hasAutoStartedRef.current = false; sandboxAvailableRef.current = null; retryCountRef.current = 0; startSandbox() }}
-                    className="px-2.5 py-1 bg-red-600 text-white text-[10px] rounded-md hover:bg-red-700 transition-colors font-medium"
-                  >
-                    Retry
-                  </button>
+            <div className="absolute bottom-3 left-3 z-20 max-w-xs animate-slide-up">
+              <div className="bg-forge-bg/95 backdrop-blur border border-red-500/30 rounded-xl p-3 shadow-2xl space-y-2">
+                <div className="flex items-start gap-2">
+                  <div className="w-7 h-7 rounded-lg bg-red-500/10 flex items-center justify-center shrink-0">
+                    <AlertTriangle className="w-3.5 h-3.5 text-red-500" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-xs font-medium text-forge-text">Preview Error</p>
+                    <p className="text-[10px] text-red-400 font-mono mt-0.5 line-clamp-3" title={sandboxError}>{sandboxError}</p>
+                  </div>
                   <button
                     onClick={() => { setSandboxStatus('idle'); setSandboxError(null); hasAutoStartedRef.current = false }}
-                    className="p-1 text-red-400 hover:text-red-600 transition-colors"
-                    title="Dismiss (will auto-retry on next file change)"
+                    className="p-0.5 text-forge-text-dim hover:text-forge-text transition-colors shrink-0"
                   >
                     <X className="w-3 h-3" />
+                  </button>
+                </div>
+                <div className="flex gap-1.5">
+                  {onFixErrors && (
+                    <button
+                      onClick={() => {
+                        const allErrors = consoleLogs.filter(e => e.level === 'error').map(e => e.message).join('\n')
+                        const errorMsg = allErrors || sandboxError
+                        onFixErrors(`The preview sandbox crashed with errors. Please fix the code:\n\n\`\`\`\n${errorMsg}\n\`\`\``)
+                        setSandboxStatus('idle')
+                        setSandboxError(null)
+                      }}
+                      className="flex-1 flex items-center justify-center gap-1.5 px-2.5 py-1.5 bg-forge-accent hover:bg-forge-accent-hover text-white text-[10px] font-medium rounded-lg transition-colors"
+                    >
+                      <Zap className="w-3 h-3" />
+                      Fix with AI
+                    </button>
+                  )}
+                  <button
+                    onClick={() => { hasAutoStartedRef.current = false; sandboxAvailableRef.current = null; retryCountRef.current = 0; startSandbox() }}
+                    className="px-2.5 py-1.5 text-[10px] font-medium text-forge-text-dim hover:text-forge-text bg-forge-surface hover:bg-forge-surface-hover rounded-lg transition-colors"
+                  >
+                    Retry
                   </button>
                 </div>
               </div>
             </div>
           )}
 
-          {/* Centered error popup — shown on first error detection, dismissable */}
-          {!errorPopupDismissed && errorCount > 0 && !showConsole && onFixErrors && (
-            <div className="absolute inset-0 z-20 flex items-center justify-center bg-forge-bg/60 backdrop-blur-sm animate-fade-in">
-              <div className="bg-forge-bg border border-forge-danger/20 rounded-xl p-5 shadow-xl max-w-sm mx-4 animate-scale-in">
-                <div className="flex items-center gap-2 mb-2">
-                  <div className="w-8 h-8 rounded-full bg-red-500/10 flex items-center justify-center">
-                    <AlertTriangle className="w-4 h-4 text-red-500" />
+          {/* Runtime error popup — bottom-left animated toast */}
+          {!errorPopupDismissed && errorCount > 0 && !showConsole && sandboxStatus !== 'error' && onFixErrors && (
+            <div className="absolute bottom-3 left-3 z-20 max-w-xs animate-slide-up">
+              <div className="bg-forge-bg/95 backdrop-blur border border-red-500/30 rounded-xl p-3 shadow-2xl space-y-2">
+                <div className="flex items-start gap-2">
+                  <div className="w-7 h-7 rounded-lg bg-red-500/10 flex items-center justify-center shrink-0">
+                    <AlertTriangle className="w-3.5 h-3.5 text-red-500" />
                   </div>
-                  <div>
-                    <p className="text-sm font-medium text-forge-text">Preview Error</p>
-                    <p className="text-xs text-forge-text-dim">{errorCount} error{errorCount !== 1 ? 's' : ''} detected</p>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-xs font-medium text-forge-text">Runtime Error</p>
+                    <p className="text-[10px] text-forge-text-dim">{errorCount} error{errorCount !== 1 ? 's' : ''} detected</p>
                   </div>
+                  <button
+                    onClick={() => setErrorPopupDismissed(true)}
+                    className="p-0.5 text-forge-text-dim hover:text-forge-text transition-colors shrink-0"
+                  >
+                    <X className="w-3 h-3" />
+                  </button>
                 </div>
-                <div className="mb-3 max-h-24 overflow-y-auto">
+                <div className="max-h-16 overflow-y-auto">
                   {consoleLogs.filter(e => e.level === 'error').slice(0, 3).map((e, i) => (
-                    <p key={i} className="text-[11px] font-mono text-red-400 truncate leading-relaxed">{e.message.slice(0, 120)}</p>
+                    <p key={i} className="text-[10px] font-mono text-red-400 truncate leading-relaxed">{e.message.slice(0, 120)}</p>
                   ))}
-                  {errorCount > 3 && (
-                    <p className="text-[10px] text-forge-text-dim mt-1">+{errorCount - 3} more</p>
-                  )}
                 </div>
-                <div className="flex gap-2">
+                <div className="flex gap-1.5">
                   <button
                     onClick={() => {
                       const errors = consoleLogs
@@ -1384,20 +1405,14 @@ export function PreviewPanel({ files, projectId, onFixErrors, onCapturePreview, 
                       onFixErrors(`The preview has runtime errors. Please fix them:\n\n\`\`\`\n${errors}\n\`\`\``)
                       setErrorPopupDismissed(true)
                     }}
-                    className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2 bg-forge-accent hover:bg-forge-accent-hover text-white text-xs font-medium rounded-lg transition-colors"
+                    className="flex-1 flex items-center justify-center gap-1.5 px-2.5 py-1.5 bg-forge-accent hover:bg-forge-accent-hover text-white text-[10px] font-medium rounded-lg transition-colors"
                   >
                     <Zap className="w-3 h-3" />
                     Fix with AI
                   </button>
                   <button
-                    onClick={() => setErrorPopupDismissed(true)}
-                    className="px-3 py-2 text-xs text-forge-text-dim hover:text-forge-text bg-forge-surface hover:bg-forge-surface-hover rounded-lg transition-colors"
-                  >
-                    Dismiss
-                  </button>
-                  <button
                     onClick={() => { setErrorPopupDismissed(true); setShowConsole(true) }}
-                    className="px-3 py-2 text-xs text-forge-text-dim hover:text-forge-text bg-forge-surface hover:bg-forge-surface-hover rounded-lg transition-colors"
+                    className="px-2.5 py-1.5 text-[10px] font-medium text-forge-text-dim hover:text-forge-text bg-forge-surface hover:bg-forge-surface-hover rounded-lg transition-colors"
                   >
                     Console
                   </button>
