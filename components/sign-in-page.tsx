@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { Hammer, Github, Zap, Code2, Rocket, Shield } from 'lucide-react'
+import { Github, Zap, Code2, Rocket, Shield } from 'lucide-react'
 
 export function SignInPage() {
   const [loading, setLoading] = useState(false)
@@ -16,10 +16,10 @@ export function SignInPage() {
       <div className="w-full max-w-md space-y-8">
         {/* Logo + Title */}
         <div className="text-center space-y-3">
-          <div className="w-16 h-16 mx-auto rounded-2xl bg-gradient-to-br from-forge-accent to-purple-600 flex items-center justify-center shadow-lg shadow-forge-accent/20">
-            <Hammer className="w-8 h-8 text-white" />
+          <div className="w-16 h-16 mx-auto rounded-2xl bg-gradient-to-br from-forge-accent to-red-600 flex items-center justify-center shadow-lg shadow-forge-accent/20">
+            <span className="text-3xl font-bold text-white">6-&#x03C7;</span>
           </div>
-          <h1 className="text-3xl font-bold text-forge-text tracking-tight">Forge</h1>
+          <h1 className="text-3xl font-bold text-forge-text tracking-tight">Six-Chi</h1>
           <p className="text-forge-text-dim text-sm max-w-xs mx-auto">
             AI-powered development environment. Describe what you want, watch it build, ship with one click.
           </p>
@@ -52,7 +52,7 @@ export function SignInPage() {
         </button>
 
         <p className="text-[10px] text-forge-text-dim/50 text-center">
-          Forge uses your GitHub account for auth and repo access. Your API key is encrypted and never shared.
+          Six-Chi uses your GitHub account for auth and repo access. Your API key is encrypted and never shared.
         </p>
       </div>
     </div>

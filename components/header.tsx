@@ -3,7 +3,7 @@
 import { useState, useRef, useEffect } from 'react'
 import { useSession } from '@/components/session-provider'
 import {
-  Hammer, FolderOpen, FileText, Github, LogOut,
+  FolderOpen, FileText, Github, LogOut,
   Rocket, Upload, Save, GitBranch, Download, FolderInput,
   Loader2, Check, Search, ChevronRight, Sun, Moon, Share2,
   Menu, X,
@@ -72,8 +72,8 @@ export function Header({ projectName, onSwitchProject, fileCount, onAction, save
           aria-label="Back to projects"
           title="Back to projects"
         >
-          <Hammer className="w-4 h-4 text-forge-accent transition-transform duration-200 group-hover/logo:rotate-[-8deg]" />
-          <span className="font-bold text-sm text-forge-text hidden sm:inline">Forge</span>
+          <span className="font-bold text-sm bg-gradient-to-r from-forge-accent to-red-500 bg-clip-text text-transparent transition-transform duration-200 group-hover/logo:scale-105">6-&#x03C7;</span>
+          <span className="font-bold text-sm text-forge-text hidden sm:inline">Six-Chi</span>
         </button>
         <ChevronRight className="w-3 h-3 text-forge-text-dim hidden sm:block" />
         <button

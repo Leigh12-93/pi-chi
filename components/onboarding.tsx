@@ -2,7 +2,7 @@
 
 import { useState } from 'react'
 import {
-  Hammer, ArrowRight, Globe, ShoppingCart, BarChart3,
+  ArrowRight, Globe, ShoppingCart, BarChart3,
   FileText, Briefcase, Palette, Layout, Rocket,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
@@ -66,8 +66,8 @@ export function Onboarding({ onComplete }: OnboardingProps) {
       <div className="w-full max-w-lg space-y-8">
         {/* Logo */}
         <div className="text-center space-y-2">
-          <div className="w-14 h-14 mx-auto rounded-2xl bg-gradient-to-br from-forge-accent to-purple-600 flex items-center justify-center shadow-lg shadow-forge-accent/20">
-            <Hammer className="w-7 h-7 text-white" />
+          <div className="w-14 h-14 mx-auto rounded-2xl bg-gradient-to-br from-forge-accent to-red-600 flex items-center justify-center shadow-lg shadow-forge-accent/20">
+            <span className="text-2xl font-bold text-white">6-&#x03C7;</span>
           </div>
           <h1 className="text-2xl font-bold text-forge-text">What are you building?</h1>
           <p className="text-sm text-forge-text-dim">

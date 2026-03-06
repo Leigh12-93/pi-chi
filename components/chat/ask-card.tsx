@@ -53,7 +53,7 @@ export function AskCard({ question, context, options, recommended, allowFreeText
         <div className="w-6 h-6 rounded-lg flex items-center justify-center bg-blue-500/20">
           <HelpCircle className="w-3.5 h-3.5 text-blue-400" />
         </div>
-        <span className="text-[13px] font-semibold text-blue-300">Forge needs your input</span>
+        <span className="text-[13px] font-semibold text-blue-300">Six-Chi needs your input</span>
       </div>
 
       <div className="px-4 py-3 space-y-3">

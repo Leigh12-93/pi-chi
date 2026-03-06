@@ -3,7 +3,7 @@
 import { useState, useEffect, useMemo } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import {
-  Hammer, Sparkles, FolderOpen, Trash2,
+  Sparkles, FolderOpen, Trash2,
   Github, Clock, Globe, ExternalLink, Loader2,
   Lock, Star, GitBranch, Download, GitFork, Archive, Search, X,
   AlertTriangle, BarChart3, User, ShoppingBag, ArrowUpDown,
@@ -203,13 +203,13 @@ export function ProjectPicker({ onSelect, savedProjects, loadingProjects, onDele
       <div className="max-w-3xl w-full">
         {/* Logo */}
         <div className="text-center mb-8 sm:mb-10">
-          <div className="inline-flex items-center justify-center w-14 h-14 sm:w-16 sm:h-16 rounded-2xl bg-gradient-to-br from-forge-accent/20 to-purple-500/20 mb-4 sm:mb-5 shadow-sm animate-breathe">
-            <Hammer className="w-7 h-7 sm:w-8 sm:h-8 text-forge-accent" />
+          <div className="inline-flex items-center justify-center w-14 h-14 sm:w-16 sm:h-16 rounded-2xl bg-gradient-to-br from-forge-accent/20 to-red-500/20 mb-4 sm:mb-5 shadow-sm animate-breathe">
+            <span className="text-2xl sm:text-3xl font-bold bg-gradient-to-r from-forge-accent to-red-500 bg-clip-text text-transparent">6-&#x03C7;</span>
           </div>
           <h1 className="text-2xl sm:text-3xl font-bold mb-2 tracking-tight">
-            <span className="bg-gradient-to-r from-forge-accent to-purple-500 bg-clip-text text-transparent">Forge</span>
+            <span className="bg-gradient-to-r from-forge-accent to-red-500 bg-clip-text text-transparent">Six-Chi</span>
           </h1>
-          <p className="text-forge-text-dim text-sm text-pretty">AI-powered website builder with superpowers</p>
+          <p className="text-forge-text-dim text-sm text-pretty">AI-powered website builder</p>
         </div>
 
         {/* Auth prompt */}

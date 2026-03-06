@@ -5,7 +5,7 @@ import { X, ChevronRight, Sparkles, MessageSquare, Code2, Eye, FolderTree, Rocke
 
 const STEPS = [
   {
-    title: 'Welcome to Forge',
+    title: 'Welcome to Six-Chi',
     description: 'Build React websites with AI. Describe what you want and watch it come to life.',
     icon: Sparkles,
   },
