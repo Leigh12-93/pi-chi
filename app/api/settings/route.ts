@@ -2,13 +2,13 @@ import { NextResponse } from 'next/server'
 import { getSession, encryptToken, decryptToken } from '@/lib/auth'
 import { supabaseFetch } from '@/lib/supabase-fetch'
 
-/** GET /api/settings — return user's settings (hasApiKey, hasVercelToken, hasSupabase, preferredModel, preferences) */
+/** GET /api/settings — return user's settings (hasApiKey, hasVercelToken, hasSupabase, Google flags, preferredModel, preferences) */
 export async function GET() {
   const session = await getSession()
   if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
   const { data, ok } = await supabaseFetch(
-    `/forge_user_settings?github_username=eq.${encodeURIComponent(session.githubUsername)}&select=encrypted_api_key,api_key_validated_at,encrypted_vercel_token,encrypted_supabase_url,encrypted_supabase_key,encrypted_supabase_access_token,preferred_model,preferences`,
+    `/forge_user_settings?github_username=eq.${encodeURIComponent(session.githubUsername)}&select=encrypted_api_key,api_key_validated_at,encrypted_vercel_token,encrypted_supabase_url,encrypted_supabase_key,encrypted_supabase_access_token,preferred_model,preferences,encrypted_google_client_id,encrypted_google_client_secret,encrypted_google_api_key,encrypted_google_service_account,encrypted_google_access_token,google_connected_email,google_connected_scopes,google_token_expiry`,
   )
 
   // Check which OAuth providers are configured
@@ -27,6 +27,15 @@ export async function GET() {
       preferredModel: 'claude-sonnet-4-20250514',
       preferences: {},
       oauthProviders,
+      hasGoogleOAuth: false,
+      hasGoogleApiKey: false,
+      hasGoogleServiceAccount: false,
+      hasGoogleAccount: false,
+      googleConnectedEmail: null,
+      googleConnectedScopes: [],
+      googleTokenExpiry: null,
+      googleServiceAccountEmail: null,
+      googleServiceAccountProject: null,
     })
   }
 
@@ -42,6 +51,18 @@ export async function GET() {
     } catch {}
   }
 
+  // Extract service account display info if available
+  let googleServiceAccountEmail: string | null = null
+  let googleServiceAccountProject: string | null = null
+  if (row.encrypted_google_service_account) {
+    try {
+      const saJson = await decryptToken(row.encrypted_google_service_account.replace(/^v1:/, ''))
+      const sa = JSON.parse(saJson)
+      googleServiceAccountEmail = sa.client_email || null
+      googleServiceAccountProject = sa.project_id || null
+    } catch {}
+  }
+
   return NextResponse.json({
     hasApiKey: !!row.encrypted_api_key,
     apiKeyValidatedAt: row.api_key_validated_at,
@@ -52,6 +73,15 @@ export async function GET() {
     preferredModel: row.preferred_model || 'claude-sonnet-4-20250514',
     preferences: row.preferences || {},
     oauthProviders,
+    hasGoogleOAuth: !!(row.encrypted_google_client_id && row.encrypted_google_client_secret),
+    hasGoogleApiKey: !!row.encrypted_google_api_key,
+    hasGoogleServiceAccount: !!row.encrypted_google_service_account,
+    hasGoogleAccount: !!row.encrypted_google_access_token,
+    googleConnectedEmail: row.google_connected_email || null,
+    googleConnectedScopes: row.google_connected_scopes || [],
+    googleTokenExpiry: row.google_token_expiry || null,
+    googleServiceAccountEmail,
+    googleServiceAccountProject,
   })
 }
 
@@ -190,6 +220,66 @@ export async function PUT(req: Request) {
     updates.encrypted_supabase_access_token = `v1:${await encryptToken(trimmed)}`
   }
 
+  // Validate and store Google OAuth credentials (Client ID + Secret)
+  if (body.googleClientId && body.googleClientSecret) {
+    const clientId = body.googleClientId.trim()
+    const clientSecret = body.googleClientSecret.trim()
+
+    if (!clientId.includes('.apps.googleusercontent.com')) {
+      return NextResponse.json({ error: 'Invalid Client ID format. Must contain .apps.googleusercontent.com' }, { status: 400 })
+    }
+
+    updates.encrypted_google_client_id = `v1:${await encryptToken(clientId)}`
+    updates.encrypted_google_client_secret = `v1:${await encryptToken(clientSecret)}`
+
+    // If Client ID changes, clear connected account (tokens are bound to the old credentials)
+    updates.encrypted_google_access_token = null
+    updates.encrypted_google_refresh_token = null
+    updates.google_token_expiry = null
+    updates.google_connected_email = null
+    updates.google_connected_scopes = null
+  }
+
+  // Validate and store Google API Key
+  if (body.googleApiKey) {
+    const apiKeyTrimmed = body.googleApiKey.trim()
+    if (!apiKeyTrimmed.startsWith('AIza')) {
+      return NextResponse.json({ error: 'Invalid Google API key format. Must start with AIza' }, { status: 400 })
+    }
+    updates.encrypted_google_api_key = `v1:${await encryptToken(apiKeyTrimmed)}`
+  }
+
+  // Validate and store Google Service Account JSON
+  if (body.googleServiceAccount) {
+    const saStr = typeof body.googleServiceAccount === 'string'
+      ? body.googleServiceAccount.trim()
+      : JSON.stringify(body.googleServiceAccount)
+
+    if (saStr.length > 50 * 1024) {
+      return NextResponse.json({ error: 'Service account JSON exceeds 50KB limit' }, { status: 400 })
+    }
+
+    try {
+      const sa = JSON.parse(saStr)
+      if (sa.type !== 'service_account') {
+        return NextResponse.json({ error: 'Invalid service account: type must be "service_account"' }, { status: 400 })
+      }
+      if (!sa.project_id) {
+        return NextResponse.json({ error: 'Invalid service account: missing project_id' }, { status: 400 })
+      }
+      if (!sa.private_key) {
+        return NextResponse.json({ error: 'Invalid service account: missing private_key' }, { status: 400 })
+      }
+      if (!sa.client_email) {
+        return NextResponse.json({ error: 'Invalid service account: missing client_email' }, { status: 400 })
+      }
+    } catch {
+      return NextResponse.json({ error: 'Invalid JSON in service account' }, { status: 400 })
+    }
+
+    updates.encrypted_google_service_account = `v1:${await encryptToken(saStr)}`
+  }
+
   if (preferredModel) updates.preferred_model = preferredModel
   if (preferences) updates.preferences = preferences
 
@@ -229,6 +319,19 @@ export async function DELETE(req: Request) {
     patch.encrypted_supabase_key = null
   } else if (target === 'supabaseAccessToken') {
     patch.encrypted_supabase_access_token = null
+  } else if (target === 'googleOAuth') {
+    patch.encrypted_google_client_id = null
+    patch.encrypted_google_client_secret = null
+  } else if (target === 'googleApiKey') {
+    patch.encrypted_google_api_key = null
+  } else if (target === 'googleServiceAccount') {
+    patch.encrypted_google_service_account = null
+  } else if (target === 'googleAccount') {
+    patch.encrypted_google_access_token = null
+    patch.encrypted_google_refresh_token = null
+    patch.google_token_expiry = null
+    patch.google_connected_email = null
+    patch.google_connected_scopes = null
   } else {
     patch.encrypted_api_key = null
     patch.api_key_validated_at = null

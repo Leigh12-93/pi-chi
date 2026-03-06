@@ -22,6 +22,11 @@ const COMMON_ENV_NAMES = [
   'DATABASE_URL',
   'NEXTAUTH_SECRET',
   'NEXTAUTH_URL',
+  'GOOGLE_CLIENT_ID',
+  'GOOGLE_CLIENT_SECRET',
+  'GOOGLE_API_KEY',
+  'GOOGLE_SERVICE_ACCOUNT_JSON',
+  'NEXT_PUBLIC_GOOGLE_MAPS_API_KEY',
 ]
 
 function parseEnvFile(content: string): { key: string; value: string }[] {

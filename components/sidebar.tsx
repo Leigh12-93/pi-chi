@@ -7,11 +7,12 @@ import { GitPanel } from './sidebar/git-panel'
 import { DeployPanel } from './sidebar/deploy-panel'
 import { EnvPanel } from './sidebar/env-panel'
 import { DbPanel } from './sidebar/db-panel'
+import { GooglePanel } from './sidebar/google-panel'
 import { SnapshotsPanel } from './sidebar/snapshots-panel'
 import type { FileNode } from '@/lib/types'
 import type { Snapshot } from './version-history'
 
-export type SidebarTab = 'git' | 'deploy' | 'env' | 'db' | 'snapshots'
+export type SidebarTab = 'git' | 'deploy' | 'env' | 'db' | 'google' | 'snapshots'
 
 // ─── Brand SVG icons for sidebar ────────────────────────────────
 
@@ -49,6 +50,14 @@ function SupabaseIcon({ className }: { className?: string }) {
   )
 }
 
+function GoogleIcon({ className }: { className?: string }) {
+  return (
+    <svg className={className} viewBox="0 0 24 24" fill="currentColor">
+      <path d="M12.545 10.239v3.821h5.445c-.712 2.315-2.647 3.972-5.445 3.972a6.033 6.033 0 110-12.064c1.498 0 2.866.549 3.921 1.453l2.814-2.814A9.969 9.969 0 0012.545 2C7.021 2 2.543 6.477 2.543 12s4.478 10 10.002 10c8.396 0 10.249-7.85 9.426-11.748l-9.426-.013z" />
+    </svg>
+  )
+}
+
 type TabIcon = React.FC<{ className?: string }>
 
 const TABS: { id: SidebarTab; icon: TabIcon; label: string }[] = [
@@ -56,6 +65,7 @@ const TABS: { id: SidebarTab; icon: TabIcon; label: string }[] = [
   { id: 'deploy', icon: VercelIcon, label: 'Vercel' },
   { id: 'env', icon: Key, label: 'Environment' },
   { id: 'db', icon: SupabaseIcon, label: 'Supabase' },
+  { id: 'google', icon: GoogleIcon, label: 'Google' },
   { id: 'snapshots', icon: History, label: 'Snapshots' },
 ]
 
@@ -90,7 +100,7 @@ export function ActivityBar({ activeTab, onTabChange }: ActivityBarProps) {
         >
           <tab.icon className="w-[18px] h-[18px]" />
           {activeTab === tab.id && (
-            <span className="absolute left-0 top-1.5 bottom-1.5 w-0.5 bg-forge-accent rounded-r-full" />
+            <span className="absolute left-0 top-1.5 bottom-1.5 w-0.5 bg-forge-accent rounded-r-full transition-all duration-200 shadow-[2px_0_8px_-1px_rgba(99,102,241,0.3)]" />
           )}
         </button>
       ))}
@@ -147,6 +157,9 @@ export function SidebarContent({
       )}
       {activeTab === 'db' && (
         <DbPanel fileContents={fileContents} onOpenDbExplorer={onOpenDbExplorer} onOpenSettings={onOpenSettings} />
+      )}
+      {activeTab === 'google' && (
+        <GooglePanel fileContents={fileContents} onFileChange={onFileChange} />
       )}
       {activeTab === 'snapshots' && (
         <SnapshotsPanel
