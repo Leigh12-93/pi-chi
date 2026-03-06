@@ -1,15 +1,14 @@
 import { NextResponse } from 'next/server'
 import { getSession } from '@/lib/auth'
 
-const SUPABASE_OAUTH_CLIENT_ID = (process.env.SUPABASE_OAUTH_CLIENT_ID || '').trim()
-const SUPABASE_OAUTH_CLIENT_SECRET = (process.env.SUPABASE_OAUTH_CLIENT_SECRET || '').trim()
-const BASE_URL = (process.env.AUTH_URL || process.env.NEXTAUTH_URL || 'http://localhost:3333').trim()
-const REDIRECT_URI = `${BASE_URL}/api/auth/supabase/callback`
-
 /** GET /api/auth/supabase — start Supabase OAuth flow */
 export async function GET() {
   const session = await getSession()
   if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+
+  const SUPABASE_OAUTH_CLIENT_ID = (process.env.SUPABASE_OAUTH_CLIENT_ID || '').trim()
+  const BASE_URL = (process.env.AUTH_URL || process.env.NEXTAUTH_URL || 'http://localhost:3333').trim()
+  const REDIRECT_URI = `${BASE_URL}/api/auth/supabase/callback`
 
   if (!SUPABASE_OAUTH_CLIENT_ID) {
     return NextResponse.json({ error: 'Supabase OAuth not configured' }, { status: 500 })

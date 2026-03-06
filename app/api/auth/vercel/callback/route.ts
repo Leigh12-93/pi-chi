@@ -3,13 +3,13 @@ import { getSession, encryptToken } from '@/lib/auth'
 import { supabaseFetch } from '@/lib/supabase-fetch'
 import { cookies } from 'next/headers'
 
-const VERCEL_OAUTH_CLIENT_ID = (process.env.VERCEL_OAUTH_CLIENT_ID || '').trim()
-const VERCEL_OAUTH_CLIENT_SECRET = (process.env.VERCEL_OAUTH_CLIENT_SECRET || '').trim()
-const BASE_URL = (process.env.AUTH_URL || process.env.NEXTAUTH_URL || 'http://localhost:3333').trim()
-const REDIRECT_URI = `${BASE_URL}/api/auth/vercel/callback`
-
 /** GET /api/auth/vercel/callback — handle OAuth callback from Vercel */
 export async function GET(req: Request) {
+  const VERCEL_OAUTH_CLIENT_ID = (process.env.VERCEL_OAUTH_CLIENT_ID || '').trim()
+  const VERCEL_OAUTH_CLIENT_SECRET = (process.env.VERCEL_OAUTH_CLIENT_SECRET || '').trim()
+  const BASE_URL = (process.env.AUTH_URL || process.env.NEXTAUTH_URL || 'http://localhost:3333').trim()
+  const REDIRECT_URI = `${BASE_URL}/api/auth/vercel/callback`
+
   const session = await getSession()
   if (!session) return NextResponse.redirect(`${BASE_URL}?error=unauthorized`)
 

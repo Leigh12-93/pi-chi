@@ -3,13 +3,13 @@ import { getSession, encryptToken } from '@/lib/auth'
 import { supabaseFetch } from '@/lib/supabase-fetch'
 import { cookies } from 'next/headers'
 
-const SUPABASE_OAUTH_CLIENT_ID = (process.env.SUPABASE_OAUTH_CLIENT_ID || '').trim()
-const SUPABASE_OAUTH_CLIENT_SECRET = (process.env.SUPABASE_OAUTH_CLIENT_SECRET || '').trim()
-const BASE_URL = (process.env.AUTH_URL || process.env.NEXTAUTH_URL || 'http://localhost:3333').trim()
-const REDIRECT_URI = `${BASE_URL}/api/auth/supabase/callback`
-
 /** GET /api/auth/supabase/callback — handle OAuth callback from Supabase */
 export async function GET(req: Request) {
+  const SUPABASE_OAUTH_CLIENT_ID = (process.env.SUPABASE_OAUTH_CLIENT_ID || '').trim()
+  const SUPABASE_OAUTH_CLIENT_SECRET = (process.env.SUPABASE_OAUTH_CLIENT_SECRET || '').trim()
+  const BASE_URL = (process.env.AUTH_URL || process.env.NEXTAUTH_URL || 'http://localhost:3333').trim()
+  const REDIRECT_URI = `${BASE_URL}/api/auth/supabase/callback`
+
   const session = await getSession()
   if (!session) return NextResponse.redirect(`${BASE_URL}?error=unauthorized`)
 
