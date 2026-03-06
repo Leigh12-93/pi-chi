@@ -114,6 +114,7 @@ export function Workspace({
   const [aiEditingFiles, setAiEditingFiles] = useState<Set<string>>(new Set())
   const [fileDiffs, setFileDiffs] = useState<Map<string, { added: number; removed: number }>>(new Map())
   const aiEditTimersRef = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map())
+  const aiAutoTabRef = useRef<string | null>(null) // last tab auto-opened by AI (for replacement, not accumulation)
 
   // ─── WebContainer integration ──────────────────────────────
   const hasPackageJson = 'package.json' in files
@@ -182,10 +183,22 @@ export function Workspace({
       const paths = detail.paths as string[]
 
       // Auto-navigate to the edited file so user sees changes live
+      // Replace the previous AI-auto-opened tab instead of accumulating new tabs
       if (paths.length > 0 && !userManualSwitchRef.current) {
         const targetPath = paths[0]
         onFileSelect(targetPath)
-        setOpenFiles(prev => prev.includes(targetPath) ? prev : [...prev, targetPath])
+        setOpenFiles(prev => {
+          let next = prev
+          // Remove the previously auto-opened AI tab (unless user also opened it manually)
+          if (aiAutoTabRef.current && aiAutoTabRef.current !== targetPath && !prev.includes(targetPath)) {
+            next = next.filter(f => f !== aiAutoTabRef.current)
+          }
+          if (!next.includes(targetPath)) {
+            next = [...next, targetPath]
+          }
+          aiAutoTabRef.current = targetPath
+          return next
+        })
       }
 
       // Add paths to aiEditingFiles set (triggers pulse animation)
@@ -745,6 +758,8 @@ export function Workspace({
     }
 
     if (!aiLoading && wasLoading) {
+      // AI done — stop replacing tabs (keep last auto-opened tab in place)
+      aiAutoTabRef.current = null
       // AI just finished — if files were created/changed, switch to preview after brief delay
       const currentCount = Object.keys(files).length
       if (currentCount > fileCountAtStartRef.current && !userManualSwitchRef.current) {
@@ -762,7 +777,7 @@ export function Workspace({
   // Preview ready callback — auto-switch to preview
   const handlePreviewReady = useCallback(() => {
     // Only auto-switch if AI is not currently streaming (otherwise stay on code)
-    if (!aiLoading && !userManualSwitchRef.current && Object.keys(files).length >= 3) {
+    if (!aiLoading && !userManualSwitchRef.current && Object.keys(files).length >= 2) {
       setRightTab('preview')
     }
   }, [aiLoading, files])
@@ -906,51 +921,47 @@ export function Workspace({
           </div>
         )}
       </div>
-      <div id="main-content" role="main" className="flex-1 overflow-hidden">
-        {rightTab === 'code' ? (
-          <PanelErrorBoundary name="Code Editor">
-            <CodeEditor
-              path={activeFile}
-              content={activeFile ? files[activeFile] || '' : ''}
-              previousContent={activeFile ? initialFilesRef.current[activeFile] : undefined}
-              onSave={(path, content) => onFileChange(path, content)}
-              onChange={(content) => activeFile && onFileChange(activeFile, content)}
-            />
-          </PanelErrorBoundary>
-        ) : rightTab === 'split' ? (
-          <PanelGroup direction="horizontal">
-            <Panel defaultSize={50} minSize={30}>
-              <PanelErrorBoundary name="Code Editor">
-                <CodeEditor
-                  path={activeFile}
-                  content={activeFile ? files[activeFile] || '' : ''}
-                  previousContent={activeFile ? initialFilesRef.current[activeFile] : undefined}
-                  onSave={(path, content) => onFileChange(path, content)}
-                  onChange={(content) => activeFile && onFileChange(activeFile, content)}
-                />
-              </PanelErrorBoundary>
-            </Panel>
-            <PanelResizeHandle className="w-3 bg-transparent hover:bg-forge-accent/10 active:bg-forge-accent/20 transition-colors relative flex items-center justify-center cursor-col-resize after:absolute after:inset-y-0 after:left-1/2 after:-translate-x-1/2 after:w-px after:bg-forge-border">
-              <div className="resize-grip-dots"><span /><span /><span /></div>
-            </PanelResizeHandle>
-            <Panel defaultSize={50} minSize={30}>
-              <PanelErrorBoundary name="Preview">
-                <PreviewPanel files={files} projectId={projectId} onFixErrors={(msg) => setPendingChatMessage(msg)} onCapturePreview={(msg) => setPendingChatMessage(msg)} onPreviewReady={handlePreviewReady} wcPreviewUrl={wc.previewUrl} />
-              </PanelErrorBoundary>
-            </Panel>
-          </PanelGroup>
-        ) : rightTab === 'terminal' ? (
+      <div id="main-content" role="main" className="flex-1 overflow-hidden relative">
+        {/* Code editor — visible on code and split tabs */}
+        {(rightTab === 'code' || rightTab === 'split') && (
+          <div className={cn(
+            'h-full',
+            rightTab === 'split' && 'absolute inset-0 right-1/2 border-r border-forge-border z-10'
+          )}>
+            <PanelErrorBoundary name="Code Editor">
+              <CodeEditor
+                path={activeFile}
+                content={activeFile ? files[activeFile] || '' : ''}
+                previousContent={activeFile ? initialFilesRef.current[activeFile] : undefined}
+                onSave={(path, content) => onFileChange(path, content)}
+                onChange={(content) => activeFile && onFileChange(activeFile, content)}
+              />
+            </PanelErrorBoundary>
+          </div>
+        )}
+
+        {/* Terminal */}
+        {rightTab === 'terminal' && (
           <PanelErrorBoundary name="Terminal">
             <TerminalPanel
               getShellProcess={wc.getShellProcess}
               wcReady={wc.status === 'ready'}
             />
           </PanelErrorBoundary>
-        ) : (
+        )}
+
+        {/* Preview — ALWAYS mounted so sandbox/WebContainer stays alive in background.
+            Positioned based on active tab: full-width for preview, right-half for split, hidden otherwise. */}
+        <div className={cn(
+          'absolute inset-0',
+          rightTab === 'preview' && 'z-10',
+          rightTab === 'split' && 'z-10 left-1/2',
+          (rightTab === 'code' || rightTab === 'terminal') && '-z-10 invisible pointer-events-none',
+        )}>
           <PanelErrorBoundary name="Preview">
             <PreviewPanel files={files} projectId={projectId} onFixErrors={(msg) => setPendingChatMessage(msg)} onCapturePreview={(msg) => setPendingChatMessage(msg)} onPreviewReady={handlePreviewReady} wcPreviewUrl={wc.previewUrl} />
           </PanelErrorBoundary>
-        )}
+        </div>
       </div>
     </div>
   )

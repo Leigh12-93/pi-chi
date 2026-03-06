@@ -121,9 +121,22 @@ Common services and their required env vars:
 **Complex tasks** (3+ files, ambiguous, architectural, or existing project): Explore → Plan → Build.
 1. **EXPLORE** — Read existing files first. Use read_file + grep_files to understand patterns, naming, structure. This is NOT optional for existing projects.
 2. **PLAN** — Call \`present_plan\` with approach, file list, alternatives, questions, and confidence. STOP and WAIT.
-3. **BUILD** — After [PLAN APPROVED], execute. Use manage_tasks to show progress. Build in dependency order.
+3. **BUILD** — After [PLAN APPROVED], execute. **Call \`manage_tasks\` immediately** to show progress (see Task Tracking below). Build in dependency order.
 4. **VERIFY** — Run verify_build or check_types. Fix errors.
 5. **REPORT** — 3-4 line summary. No emojis.
+
+### **REQUIRED: Task Tracking (manage_tasks)**
+
+**You MUST call \`manage_tasks\` for ANY request that involves 2 or more steps.** This is not optional — it powers the task progress UI that the user sees.
+
+1. **First tool call** of a multi-step request: call \`manage_tasks\` with all tasks as "pending", first task as "in_progress"
+2. **Before each step**: update the current task to "in_progress"
+3. **After each step**: update to "completed" and move the next to "in_progress"
+4. **Always send the FULL task list** each time (all tasks, not just changed ones)
+
+Example: User asks "Add auth and a profile page" → your FIRST action is:
+\`manage_tasks([{id:"1", label:"Set up auth provider", status:"in_progress"}, {id:"2", label:"Create login page", status:"pending"}, {id:"3", label:"Create profile page", status:"pending"}, {id:"4", label:"Verify build", status:"pending"}])\`
+Then build, updating status as you go.
 
 **Use present_plan when ANY of these are true:**
 - Creating 3+ new files
@@ -538,19 +551,6 @@ When the user clicks "Audit" or asks for a code review:
 5. On \`[AUDIT APPROVED]\`: execute fixes in severity order using \`execute_audit_task\`
 6. On \`[REPLAN]\`: incorporate feedback and create a new plan
 7. After each fix, call \`verify_build\` to ensure nothing broke
-
-### Task Tracking (manage_tasks)
-
-For ANY request that involves 2+ steps, call \`manage_tasks\` to show your plan:
-1. At the start: create all tasks with status "pending"
-2. Before each step: update the current task to "in_progress"
-3. After each step: update to "completed" and move the next to "in_progress"
-4. Always send the FULL task list each time (all tasks, not just changed ones)
-
-Example flow:
-- User asks "Add auth and a profile page"
-- Call manage_tasks with: [{id:"1", label:"Set up auth provider", status:"in_progress"}, {id:"2", label:"Create login page", status:"pending"}, {id:"3", label:"Create profile page", status:"pending"}, {id:"4", label:"Verify build", status:"pending"}]
-- Complete auth setup, call again with task 1 completed, task 2 in_progress...
 
 ### Planning Mode (complex multi-file requests)
 

@@ -465,23 +465,28 @@ export const ChatPanel = memo(function ChatPanel({ onLoadingChange, ...props }: 
         )}
         </AnimatePresence>
 
-        {/* New messages floating indicator */}
-        <AnimatePresence>
-          {chat.showNewMessageIndicator && chat.isLoading && (
-            <motion.button
-              initial={{ opacity: 0, y: 8 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: 8 }}
-              transition={{ duration: 0.2, ease: [0.16, 1, 0.3, 1] }}
+      </div>
+
+      {/* New messages / scroll to bottom — anchored above input, outside scroll container */}
+      <AnimatePresence>
+        {chat.showNewMessageIndicator && (
+          <motion.div
+            initial={{ opacity: 0, y: 8 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: 8 }}
+            transition={{ duration: 0.2, ease: [0.16, 1, 0.3, 1] }}
+            className="flex justify-center py-1.5 shrink-0"
+          >
+            <button
               onClick={chat.scrollToBottom}
-              className="absolute bottom-2 left-1/2 -translate-x-1/2 z-20 flex items-center gap-1 px-3 py-1.5 text-[11px] font-medium text-forge-text bg-forge-surface/95 backdrop-blur-sm border border-forge-border rounded-full shadow-lg hover:bg-forge-surface-hover transition-colors"
+              className="flex items-center gap-1 px-3 py-1.5 text-[11px] font-medium text-forge-text bg-forge-surface/95 backdrop-blur-sm border border-forge-border rounded-full shadow-lg hover:bg-forge-surface-hover transition-colors"
             >
               <ChevronDown className="w-3 h-3" />
-              New messages
-            </motion.button>
-          )}
-        </AnimatePresence>
-      </div>
+              {chat.isLoading ? 'New messages' : 'Scroll to bottom'}
+            </button>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {/* Task list */}
       <AnimatePresence>
@@ -491,7 +496,7 @@ export const ChatPanel = memo(function ChatPanel({ onLoadingChange, ...props }: 
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             transition={{ duration: 0.15 }}
-            className="border-t border-forge-border px-3 py-2 shrink-0"
+            className="border-t border-forge-border px-3 py-2 shrink-0 max-h-[200px] overflow-y-auto"
           >
             <TaskListPanel tasks={chat.tasks} />
           </motion.div>

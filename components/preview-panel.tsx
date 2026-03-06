@@ -75,19 +75,16 @@ const PREVIEW_ERROR_SCRIPT = `<script>
 })();
 </script>`
 
-// Minimum files needed before auto-starting sandbox
+// Minimum files needed before auto-starting sandbox — start early so preview is
+// ready by the time user switches to it. Only needs package.json + any component.
 function isProjectReady(files: Record<string, string>): boolean {
   const paths = Object.keys(files)
-  if (paths.length < 3) return false
+  if (paths.length < 2) return false
   const hasPackageJson = paths.includes('package.json')
-  const hasMainFile = paths.some(p =>
-    p === 'app/page.tsx' || p === 'app/page.jsx' ||
-    p === 'src/app/page.tsx' || p === 'src/app/page.jsx' ||
-    p === 'pages/index.tsx' || p === 'pages/index.jsx' ||
-    p === 'src/App.tsx' || p === 'src/App.jsx' ||
-    p === 'index.html'
+  const hasAnyComponent = paths.some(p =>
+    p.endsWith('.tsx') || p.endsWith('.jsx') || p === 'index.html'
   )
-  return hasPackageJson && hasMainFile
+  return hasPackageJson && hasAnyComponent
 }
 
 function BuildingPlaceholder({ files }: { files: Record<string, string> }) {
@@ -509,15 +506,19 @@ export const PreviewPanel = memo(function PreviewPanel({ files, projectId, onFix
   const previewDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   useEffect(() => {
+    // Keep showing the last real preview instead of replacing with placeholder
+    // This ensures the user always sees their app, not a loading spinner, during AI edits
+    if (computedPreviewHtml === '__JSX_BUILDING_PLACEHOLDER__') return
+
     if (previewDebounceRef.current) clearTimeout(previewDebounceRef.current)
     previewDebounceRef.current = setTimeout(() => {
       setPreviewHtml(computedPreviewHtml)
       setPreviewError(computedPreviewHtml.includes('>Preview Error<') ? 'Preview rendering failed' : null)
       // Signal static preview is ready (only for real HTML, not placeholders)
-      if (computedPreviewHtml && computedPreviewHtml !== '__JSX_BUILDING_PLACEHOLDER__' && !computedPreviewHtml.includes('>Preview Error<')) {
+      if (computedPreviewHtml && !computedPreviewHtml.includes('>Preview Error<')) {
         onPreviewReady?.()
       }
-    }, 800)
+    }, 300)
     return () => {
       if (previewDebounceRef.current) clearTimeout(previewDebounceRef.current)
     }
@@ -664,7 +665,7 @@ export const PreviewPanel = memo(function PreviewPanel({ files, projectId, onFix
 
       hasAutoStartedRef.current = true
       startSandbox()
-    }, 500) // 0.5s debounce — start sandbox as fast as possible
+    }, 200) // Start sandbox ASAP — preview loads in background while user watches code
 
     return () => {
       if (autoStartTimeoutRef.current) clearTimeout(autoStartTimeoutRef.current)
@@ -704,7 +705,7 @@ export const PreviewPanel = memo(function PreviewPanel({ files, projectId, onFix
       } finally {
         setIsSyncing(false)
       }
-    }, 2000)
+    }, 800)
 
     return () => {
       if (syncTimeoutRef.current) clearTimeout(syncTimeoutRef.current)
