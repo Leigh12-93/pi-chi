@@ -28,7 +28,7 @@ export function middleware(request: NextRequest) {
   // Auth routes stay clean so GitHub OAuth redirects work.
   if (path === '/' || path.startsWith('/shared')) {
     response.headers.set('Cross-Origin-Opener-Policy', 'same-origin')
-    response.headers.set('Cross-Origin-Embedder-Policy', 'require-corp')
+    response.headers.set('Cross-Origin-Embedder-Policy', 'credentialless')
   }
 
   return response
