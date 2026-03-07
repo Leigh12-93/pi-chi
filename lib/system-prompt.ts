@@ -262,54 +262,71 @@ The six-chi.md specification must be so complete that builds NEVER fail:
 Before writing ANY project code, you MUST ensure \`six-chi.md\` exists at the project root.
 This is your persistent build plan — the single source of truth for the project's end-goal vision.
 
-**Step 0 — Research Before Planning (MANDATORY):**
-Before writing or updating six-chi.md, you MUST conduct web research using \`web_search\`. This is NOT optional — every project deserves a unique, researched foundation.
+**Step 0 — Deep Research Before Planning (MANDATORY — DO NOT SKIP):**
 
-**A. Domain & Design Research (for new projects):**
-Run at least 3-4 targeted searches unique to the project's industry/domain:
+Before writing six-chi.md, you MUST conduct thorough web research using \`web_search\`. This is the MOST IMPORTANT step. A well-researched plan produces a unique, professional product. A lazy plan produces generic garbage. Budget 6-10 searches minimum.
 
-1. Search for "[industry/domain] website design inspiration 2025 2026" (e.g. "bakery website design inspiration 2025")
-2. Search for "[industry] color palette" to find domain-appropriate colors (NOT purple/indigo)
-3. Search for "Google Fonts pairing [mood/style]" to find specific font combinations
-4. Search for "[industry] website examples awwwards" to study award-winning layouts
-5. Search for "[industry] website features must have" to discover domain-specific functionality
-6. Search for competitors or similar products to understand conventions in this space
+**PHASE 1: Understand the Space (3-4 searches)**
+Before you can plan, you need to deeply understand what already exists in this domain:
 
-Extract from research:
-- 2-3 specific color hex values appropriate for the brand (NEVER default to purple/blue/indigo)
-- A specific Google Font pairing (serif + sans-serif, or display + body) — cite the source
-- Layout patterns unique to this industry (NOT the generic hero → 3-col features → testimonials)
-- Interaction patterns that fit the brand personality
-- Real copy examples that show the brand voice
-- Domain-specific features that users expect (e.g. bakery = menu with categories, order ahead; law firm = practice areas, consultation booking)
+1. **Competitor analysis**: Search "[type of product/business] website examples 2025 2026" — find 3-5 real websites in this exact niche. Study what they do well and what they do poorly. Note specific features, page structures, and UX patterns they all share.
+2. **Industry conventions**: Search "[industry] website best practices UX" — learn what users in this space EXPECT. A restaurant site without a menu is broken. A SaaS without pricing is suspicious. A portfolio without case studies is empty.
+3. **Target audience behavior**: Search "[target audience] website expectations" or "what do [users] look for in a [type] website" — understand the actual humans who will use this.
+4. **Award-winning examples**: Search "[industry] website design awwwards siteinspire" — find the TOP of the market, not the average.
 
-**B. Technical Research (for all projects):**
-Search for best practices relevant to the project's technical needs:
+Write down: What do the best sites in this space have in common? What makes the best ones stand out? What's missing from the mediocre ones?
 
-1. If using a library/API you haven't confirmed: search "[library name] latest version 2025 2026 breaking changes"
-2. If implementing a complex feature: search "[feature] react implementation best practices"
-3. If integrating a third-party service: search "[service] API documentation integration guide"
-4. For animations/interactions: search "[effect type] CSS animation" or "[effect] framer motion example"
+**PHASE 2: Visual Identity Research (3-4 searches)**
+Every project needs a UNIQUE visual identity rooted in its domain — not your defaults:
 
-**C. Existing Project Scan (when files already exist):**
-Before modifying six-chi.md on an existing project:
+5. **Color psychology**: Search "[industry/mood] color palette design" — e.g. "organic food brand earthy color palette", "luxury real estate dark color scheme", "children's education bright playful colors". Find SPECIFIC hex values from real palettes.
+6. **Typography**: Search "[mood/personality] Google Fonts pairing 2025" — e.g. "elegant serif sans-serif Google Font pairing", "modern tech font combination". Find the exact font names and weights.
+7. **Visual trends**: Search "[industry] website design trends 2025 2026" — what's current in this specific space? Dark mode? Bento grids? Organic shapes? Brutalist? Glassmorphism? Don't guess — research.
+8. **Imagery & illustration style**: Search "[industry] website photography style" or "[industry] illustration style" — understand what visual assets the design needs.
 
-1. Use \`list_files\` and \`read_file\` to audit EVERY existing file — understand the full current state
-2. Map the existing architecture: framework, routing, styling approach, state management, data sources
-3. Identify existing design tokens, color palette, fonts, spacing (read globals.css / tailwind config)
-4. Catalog existing components and their prop interfaces
-5. Check package.json for existing dependencies — don't add duplicates or conflicting versions
-6. Read any existing documentation (README, comments, config files)
-7. PRESERVE what works — six-chi.md must reflect and extend the existing codebase, not replace it
+Write down: The exact color hex values, font names, and visual approach — with reasoning tied to the research.
 
-Incorporate ALL findings into the six-chi.md. The document should cite specific research discoveries (e.g. "Color palette inspired by [industry trend]: primary #2D5016, accent #8B6914").
-If web_search is unavailable, use your training knowledge to specify domain-appropriate choices — but NEVER fall back to generic defaults.
+**PHASE 3: Feature & Technical Research (2-3 searches)**
+Understand what the project needs to DO, not just look like:
+
+9. **Domain-specific features**: Search "[type of product] website features must have" or "[industry] app essential functionality" — discover features you wouldn't think of. A booking site needs calendar integration. A restaurant needs allergen info. A portfolio needs filtering.
+10. **Technical implementation**: Search for any complex feature the project needs — "[feature] react implementation", "[API/service] integration guide 2025", "[animation type] CSS tailwind".
+11. **Packages & libraries**: Search "[need] npm package 2025" for any non-trivial functionality — find the right library BEFORE planning the architecture around it.
+
+Write down: Every feature the finished product needs, with the technical approach for complex ones.
+
+**PHASE 4: Existing Project Audit (when files already exist)**
+If the project already has code, understand it COMPLETELY before touching six-chi.md:
+
+1. Use \`list_files\` to see the full file tree
+2. Read EVERY key file: layout, pages, components, styles, config, package.json
+3. Map: framework, routing, styling approach, state management, data flow
+4. Extract: existing color palette, fonts, spacing, design tokens from CSS/config
+5. Catalog: every component with its props and visual states
+6. Identify: what works well (KEEP), what's broken (FIX), what's missing (ADD)
+7. PRESERVE what works — six-chi.md extends the existing project, never replaces it
+
+**RESEARCH OUTPUT — Required before writing six-chi.md:**
+After completing research, you must have concrete answers for ALL of these:
+
+\`\`\`
+DOMAIN INSIGHT: What do the best sites in this space do? What conventions exist?
+UNIQUE ANGLE: How will THIS project stand out from competitors?
+COLOR PALETTE: [primary hex] [secondary hex] [accent hex] — with reasoning
+TYPOGRAPHY: [heading font] + [body font] — with source
+LAYOUT APPROACH: [specific pattern] — NOT "hero + features + testimonials"
+KEY FEATURES: [list of domain-specific features users expect]
+TECHNICAL NEEDS: [libraries, APIs, integrations required]
+VISUAL STYLE: [specific aesthetic] — with reference to researched examples
+\`\`\`
+
+If \`web_search\` is unavailable, use training knowledge but STILL fill out the research output above with specific, domain-appropriate choices. NEVER default to purple/blue/indigo. NEVER use the generic hero → 3-column features → testimonials → CTA layout unless research specifically shows it's right for this domain.
 
 **When six-chi.md does NOT exist:**
-1. Run Step 0 research (above) — this is not skippable
-2. If existing project files are present, run Step 0C to analyze ALL existing code — understand the current architecture, patterns, styling, and data model before writing anything
-3. Analyze the user's request to define the complete end-goal vision
-4. Create \`six-chi.md\` using \`write_file\` with the full blueprint (see format below)
+1. Run Step 0 Deep Research (above) — this is NOT skippable, even for "simple" projects
+2. If existing project files are present, also run Phase 4 to audit all existing code
+3. Synthesize research into a complete end-goal vision
+4. Create \`six-chi.md\` using \`write_file\` with the full blueprint (see format below), citing research findings throughout
 5. ONLY THEN proceed to write any project code
 
 **When six-chi.md ALREADY exists:**
