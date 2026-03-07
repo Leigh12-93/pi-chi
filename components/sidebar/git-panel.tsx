@@ -267,25 +267,30 @@ export function GitPanel({ githubRepoUrl, projectId, onAction, onRepoConnected, 
       </a>
       <button
         onClick={() => onAction('push')}
-        className="w-full flex items-center gap-2 px-3 py-2 text-xs rounded-lg bg-forge-accent text-white hover:bg-forge-accent/90 active:scale-[0.98] transition-all duration-150"
+        className="w-full flex items-center gap-2 px-3 py-3 sm:py-2 text-sm sm:text-xs rounded-lg bg-forge-accent text-white hover:bg-forge-accent/90 active:scale-[0.98] transition-all duration-150 min-h-[44px]"
       >
-        <Upload className="w-3.5 h-3.5" />
+        <Upload className="w-4 h-4 sm:w-3.5 sm:h-3.5" />
         Push to GitHub
+        {(modifiedFiles?.size || 0) > 0 && (
+          <span className="ml-auto px-1.5 py-0.5 text-[10px] font-medium bg-white/20 text-white rounded-full">
+            {modifiedFiles!.size}
+          </span>
+        )}
       </button>
       <button
         onClick={handlePullLatest}
         disabled={pulling}
-        className="w-full flex items-center gap-2 px-3 py-2 text-xs rounded-lg border border-forge-border hover:bg-forge-surface active:scale-[0.98] transition-all duration-150 disabled:opacity-50"
+        className="w-full flex items-center gap-2 px-3 py-3 sm:py-2 text-sm sm:text-xs rounded-lg border border-forge-border hover:bg-forge-surface active:scale-[0.98] transition-all duration-150 disabled:opacity-50 min-h-[44px]"
       >
-        {pulling ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Download className="w-3.5 h-3.5" />}
+        {pulling ? <Loader2 className="w-4 h-4 sm:w-3.5 sm:h-3.5 animate-spin" /> : <Download className="w-4 h-4 sm:w-3.5 sm:h-3.5" />}
         {pulling ? 'Pulling...' : 'Pull Latest'}
       </button>
       <button
         onClick={handleDisconnect}
         disabled={disconnecting}
-        className="w-full flex items-center gap-2 px-3 py-2 text-xs rounded-lg border border-forge-border text-forge-text-dim hover:text-red-400 hover:border-red-400/30 hover:bg-red-500/5 active:scale-[0.98] transition-all duration-150 disabled:opacity-50"
+        className="w-full flex items-center gap-2 px-3 py-3 sm:py-2 text-sm sm:text-xs rounded-lg border border-forge-border text-forge-text-dim hover:text-red-400 hover:border-red-400/30 hover:bg-red-500/5 active:scale-[0.98] transition-all duration-150 disabled:opacity-50 min-h-[44px]"
       >
-        {disconnecting ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Unlink className="w-3.5 h-3.5" />}
+        {disconnecting ? <Loader2 className="w-4 h-4 sm:w-3.5 sm:h-3.5 animate-spin" /> : <Unlink className="w-4 h-4 sm:w-3.5 sm:h-3.5" />}
         Disconnect
       </button>
     </div>

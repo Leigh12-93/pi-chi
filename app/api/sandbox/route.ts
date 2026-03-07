@@ -11,7 +11,7 @@ import { sandboxLimiter, sandboxSyncLimiter } from '@/lib/rate-limit'
 import { getSession } from '@/lib/auth'
 import { supabaseFetch } from '@/lib/supabase-fetch'
 
-const MAX_FILES = 200    // reject absurdly large projects
+const MAX_FILES = 500    // reject absurdly large projects
 const MAX_BODY = 8 << 20 // 8MB request body guard
 
 /** Validate all file values are strings (not objects, nulls, etc.) */

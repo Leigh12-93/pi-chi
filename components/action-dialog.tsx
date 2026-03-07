@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect, useRef, useCallback } from 'react'
-import { X, Loader2, CheckCircle, XCircle, ExternalLink, Copy, Check, RefreshCw } from 'lucide-react'
+import { X, Loader2, CheckCircle, XCircle, ExternalLink, Copy, Check, RefreshCw, GitCommit, Upload, Package, Rocket } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
 interface ActionField {
@@ -443,31 +443,88 @@ export function TaskPollingDialog({
         )}
 
         {/* Running */}
-        {state === 'running' && (
-          <div className="flex flex-col items-center py-6">
-            <Loader2 className="w-8 h-8 text-forge-accent animate-spin mb-3" />
-            <p className="text-xs text-forge-text font-medium mb-1">
-              {progressText || 'Starting...'}
-            </p>
-            <p className="text-[10px] text-forge-text-dim tabular-nums">{elapsed}s</p>
-            <div className="w-full max-w-xs mt-3">
-              <div className="h-1.5 bg-forge-surface rounded-full overflow-hidden" role="progressbar" aria-label="Operation progress">
-                <div
-                  className="h-full bg-gradient-to-r from-forge-accent to-blue-500 rounded-full transition-all duration-1000"
-                  style={{
-                    width: progressText.includes('Done') ? '100%'
-                      : progressText.includes('commit') || progressText.includes('Pushing') ? '85%'
-                      : progressText.includes('tree') ? '75%'
-                      : progressText.includes('Uploading') ? `${Math.min(30 + elapsed * 2, 65)}%`
-                      : progressText.includes('Building') ? `${Math.min(40 + elapsed, 80)}%`
-                      : progressText.includes('Creating') ? '25%'
-                      : `${Math.min(10 + elapsed, 30)}%`
-                  }}
-                />
+        {state === 'running' && (() => {
+          const isDeploy = taskType === 'deploy'
+          const isGit = taskType === 'github_push' || taskType === 'github_create'
+          const pt = progressText.toLowerCase()
+
+          // Determine current phase index
+          const gitPhases = [
+            { label: 'Preparing', icon: Package, match: (t: string) => !t || t.includes('start') || t.includes('prepar') },
+            { label: 'Uploading', icon: Upload, match: (t: string) => t.includes('upload') || t.includes('blob') },
+            { label: 'Building tree', icon: GitCommit, match: (t: string) => t.includes('tree') || t.includes('commit') },
+            { label: 'Pushing', icon: Rocket, match: (t: string) => t.includes('push') || t.includes('ref') || t.includes('done') },
+          ]
+          const deployPhases = [
+            { label: 'Uploading', icon: Upload, match: (t: string) => !t || t.includes('start') || t.includes('upload') || t.includes('creat') },
+            { label: 'Building', icon: Package, match: (t: string) => t.includes('build') },
+            { label: 'Deploying', icon: Rocket, match: (t: string) => t.includes('deploy') || t.includes('ready') || t.includes('done') },
+          ]
+          const phases = isGit ? gitPhases : isDeploy ? deployPhases : []
+          let activePhase = 0
+          for (let i = phases.length - 1; i >= 0; i--) {
+            if (phases[i].match(pt)) { activePhase = i; break }
+          }
+
+          const progressWidth = progressText.includes('Done') ? '100%'
+            : progressText.includes('commit') || progressText.includes('Pushing') ? '85%'
+            : progressText.includes('tree') ? '75%'
+            : progressText.includes('Uploading') ? `${Math.min(30 + elapsed * 2, 65)}%`
+            : progressText.includes('Building') ? `${Math.min(40 + elapsed, 80)}%`
+            : progressText.includes('Creating') ? '25%'
+            : `${Math.min(10 + elapsed, 30)}%`
+
+          return (
+            <div className="flex flex-col items-center py-5">
+              {/* Phase steps */}
+              {phases.length > 0 && (
+                <div className="flex items-center gap-1 sm:gap-2 mb-4 w-full justify-center">
+                  {phases.map((phase, i) => {
+                    const PhaseIcon = phase.icon
+                    const isActive = i === activePhase
+                    const isDone = i < activePhase
+                    return (
+                      <div key={phase.label} className="flex items-center gap-1 sm:gap-2">
+                        {i > 0 && (
+                          <div className={cn('w-4 sm:w-6 h-px transition-colors duration-500', isDone ? 'bg-emerald-500' : 'bg-forge-border')} />
+                        )}
+                        <div className={cn(
+                          'flex items-center gap-1.5 px-2 py-1.5 rounded-lg text-[11px] sm:text-xs font-medium transition-all duration-300',
+                          isActive ? 'bg-forge-accent/15 text-forge-accent scale-105' : isDone ? 'text-emerald-500' : 'text-forge-text-dim/50',
+                        )}>
+                          {isDone ? (
+                            <Check className="w-3.5 h-3.5" />
+                          ) : isActive ? (
+                            <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                          ) : (
+                            <PhaseIcon className="w-3.5 h-3.5" />
+                          )}
+                          <span className="hidden sm:inline">{phase.label}</span>
+                        </div>
+                      </div>
+                    )
+                  })}
+                </div>
+              )}
+
+              {/* Progress text */}
+              <p className="text-xs text-forge-text font-medium mb-1">
+                {progressText || 'Starting...'}
+              </p>
+              <p className="text-[10px] text-forge-text-dim tabular-nums">{elapsed}s</p>
+
+              {/* Progress bar */}
+              <div className="w-full max-w-xs mt-3">
+                <div className="h-1.5 bg-forge-surface rounded-full overflow-hidden" role="progressbar" aria-label="Operation progress">
+                  <div
+                    className="h-full bg-gradient-to-r from-forge-accent to-blue-500 rounded-full transition-all duration-1000"
+                    style={{ width: progressWidth }}
+                  />
+                </div>
               </div>
             </div>
-          </div>
-        )}
+          )
+        })()}
 
         {/* Success */}
         {state === 'success' && (
