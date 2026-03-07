@@ -536,6 +536,14 @@ export async function syncV0Files(
       return { ok: true, synced: 0, demoUrl: session.demoUrl }
     }
 
+    // If package.json changed, do a full re-init so npm install runs with new dependencies
+    const packageJsonChanged = prepared.some(f => f.name === 'package.json')
+    if (packageJsonChanged) {
+      log(`package.json changed — full re-init for dependency install`)
+      const result = await createV0Sandbox(projectId, files)
+      return { ok: result.ok, synced: result.ok ? (result.fileCount || 0) : 0, demoUrl: result.demoUrl, error: result.error }
+    }
+
     if (session.chatId && session.versionId) {
       try {
         const batches = chunk(prepared, V0_FILE_LIMIT)
