@@ -1151,8 +1151,8 @@ html.dark [data-sonner-toast] [data-description] {
 /* ─── Forge Polish: Composer Focus Ring ──────────────────── */
 .composer-focus-glow:focus-within {
   border-color: var(--color-forge-accent);
-  outline: 2px solid var(--color-forge-ring);
-  outline-offset: -1px;
+  outline: none;
+  box-shadow: 0 0 0 2px var(--color-forge-ring);
 }
 
 /* ─── Forge Polish: Approval Card Pulse ──────────────────── */
