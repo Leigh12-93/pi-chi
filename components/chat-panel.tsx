@@ -402,7 +402,7 @@ export const ChatPanel = memo(function ChatPanel({ onLoadingChange, ...props }: 
               )}
             </AnimatePresence>
 
-            {/* Streaming task checklist — sticky at bottom of scroll area */}
+            {/* Activity / thinking — inline in thread like a message */}
             <AnimatePresence>
             {chat.isLoading && (
               <motion.div
@@ -410,7 +410,7 @@ export const ChatPanel = memo(function ChatPanel({ onLoadingChange, ...props }: 
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0, y: -4 }}
                 transition={{ duration: 0.2, ease: [0.16, 1, 0.3, 1] }}
-                className="sticky bottom-0 z-10 bg-gradient-to-t from-forge-bg via-forge-bg/95 to-transparent pt-4 pb-1 -mb-3"
+                className="py-1"
               >
                 {/* Completed steps — checkbox checklist */}
                 {chat.currentActivity?.recentCompleted && chat.currentActivity.recentCompleted.length > 0 && (
