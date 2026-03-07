@@ -54,6 +54,7 @@ export const TOOL_LABELS: Record<string, { label: string; Icon: LucideIcon; colo
   scaffold_component: { label: 'Scaffolding component', Icon: Sparkles, color: 'indigo' },
   generate_env_file: { label: 'Generating .env.example', Icon: FileText, color: 'green' },
   request_env_vars: { label: 'Environment setup', Icon: Key, color: 'amber' },
+  connect_service: { label: 'Service connection', Icon: Plug, color: 'indigo' },
   start_sandbox: { label: 'Starting sandbox', Icon: Rocket, color: 'green' },
   stop_sandbox: { label: 'Stopping sandbox', Icon: Terminal, color: 'red' },
   sandbox_status: { label: 'Checking sandbox', Icon: Rocket, color: 'blue' },
@@ -178,7 +179,7 @@ export const TOOL_VARIANTS: Record<string, ToolVariant> = {
   delete_file: 'destructive', forge_modify_own_source: 'destructive',
   forge_revert_commit: 'destructive', forge_delete_branch: 'destructive',
   run_build: 'warn', forge_check_build: 'warn', db_mutate: 'warn',
-  check_types: 'warn', request_env_vars: 'warn',
+  check_types: 'warn', request_env_vars: 'warn', connect_service: 'warn',
 }
 
 export const variantCardClasses: Record<ToolVariant, { border: string; bg: string }> = {
@@ -202,4 +203,5 @@ export const TOOL_COMPLETE_LABELS: Record<string, string> = {
   db_introspect: 'Inspected', validate_file: 'Validated', check_coherence: 'Checked',
   get_all_files: 'Got manifest', web_search: 'Searched web', capture_preview: 'Captured',
   generate_tests: 'Generated tests', run_dev_server: 'Started server',
+  connect_service: 'Connected service',
 }

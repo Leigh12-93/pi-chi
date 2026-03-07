@@ -20,6 +20,7 @@ import { PlanCard } from './plan-card'
 import { AskCard } from './ask-card'
 import { CheckpointCard } from './checkpoint-card'
 import { AuditFindingsCard } from './audit-findings-card'
+import { ServiceConnectCard } from './service-connect-card'
 import { CollapsibleToolGroup, groupToolInvocations, type RenderItem } from './tool-group'
 import { ToolResultDetail, getInlineSummary } from './tool-result-detail'
 
@@ -646,6 +647,22 @@ export const MessageItem = memo(function MessageItem({
                       onDismiss={() => {
                         onSendMessage?.('[AUDIT DISMISSED] No fixes needed.')
                       }}
+                    />
+                  )
+                }
+              }
+
+              // ── Service connect card (connect_service gate) ──
+              if (inv.toolName === 'connect_service' && inv.state === 'result') {
+                const connectData = (inv.result && typeof inv.result === 'object' ? inv.result : inv.args) as Record<string, unknown>
+                if (connectData?.__connect_gate || connectData?.service) {
+                  return (
+                    <ServiceConnectCard
+                      key={partIdx}
+                      service={String(connectData.service || '')}
+                      message={connectData.message ? String(connectData.message) : undefined}
+                      fields={Array.isArray(connectData.fields) ? connectData.fields as any : undefined}
+                      onSendMessage={onSendMessage}
                     />
                   )
                 }

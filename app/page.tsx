@@ -385,6 +385,38 @@ export default function ForgePage() {
       try { await fetch('/api/settings', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ googleApiKey: googleKey }) }) } catch {}
     }
 
+    // 5b. Auto-detect Stripe credentials
+    const stripeSecretKey = envVars['STRIPE_SECRET_KEY'] || envVars['STRIPE_SK']
+    const stripePublishableKey = envVars['STRIPE_PUBLISHABLE_KEY'] || envVars['NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY'] || envVars['REACT_APP_STRIPE_PUBLISHABLE_KEY']
+    const stripeWebhookSecret = envVars['STRIPE_WEBHOOK_SECRET']
+    if (stripeSecretKey?.startsWith('sk_live_') || stripeSecretKey?.startsWith('sk_test_')) {
+      const stripeBody: Record<string, string> = { stripeSecretKey, skipValidation: 'true' } as any
+      if (stripePublishableKey?.startsWith('pk_')) stripeBody.stripePublishableKey = stripePublishableKey
+      if (stripeWebhookSecret?.startsWith('whsec_')) stripeBody.stripeWebhookSecret = stripeWebhookSecret
+      try { await fetch('/api/settings', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(stripeBody) }) } catch {}
+    }
+
+    // 6. Auto-save all env vars to global env var store (merge, don't overwrite)
+    if (Object.keys(envVars).length > 0) {
+      try {
+        const existingRes = await fetch('/api/settings/env-export')
+        const existingData = existingRes.ok ? await existingRes.json() : { variables: [] }
+        const existingVars: Array<{ key: string; value: string }> = existingData.variables || []
+        const existingKeys = new Set(existingVars.map((v: { key: string }) => v.key))
+        const newVars = Object.entries(envVars)
+          .filter(([k]) => !existingKeys.has(k))
+          .map(([key, value]) => ({ key, value }))
+        if (newVars.length > 0) {
+          const merged = [...existingVars, ...newVars]
+          await fetch('/api/settings/env-export', {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ variables: merged }),
+          })
+        }
+      } catch {}
+    }
+
     // 5. Auto-detect Vercel project linked to this GitHub repo + import its env vars
     try {
       const res = await fetch('/api/vercel/projects')
@@ -422,6 +454,48 @@ export default function ForgePage() {
               }
             }
           } catch {}
+        }
+      }
+    } catch {}
+
+    // 7. Auto-inject saved global env vars into .env.local for vars the project needs but are empty/missing
+    try {
+      const globalRes = await fetch('/api/settings/env-export')
+      if (globalRes.ok) {
+        const globalData = await globalRes.json()
+        const savedVars: Array<{ key: string; value: string }> = globalData.variables || []
+        if (savedVars.length > 0) {
+          const envContent = importedFiles['.env.local'] || importedFiles['.env'] || ''
+          const lines = envContent.split('\n')
+          const injected: string[] = []
+          for (const sv of savedVars) {
+            // Check if this key exists in ANY env file
+            const existsWithValue = Object.values(importedFiles).some(content => {
+              if (!content) return false
+              return content.split('\n').some(line => {
+                const t = line.trim()
+                if (t.startsWith('#') || !t.includes('=')) return false
+                const k = t.slice(0, t.indexOf('=')).trim()
+                const v = t.slice(t.indexOf('=') + 1).trim().replace(/^["']|["']$/g, '')
+                return k === sv.key && v.length > 0
+              })
+            })
+            if (!existsWithValue) {
+              // Check if key is referenced in code (import.meta.env, process.env)
+              const isReferenced = Object.entries(importedFiles).some(([path, content]) => {
+                if (path.startsWith('.env') || !content) return false
+                return content.includes(`process.env.${sv.key}`) || content.includes(`import.meta.env.${sv.key}`) || content.includes(`env.${sv.key}`)
+              })
+              if (isReferenced) {
+                injected.push(`${sv.key}=${sv.value}`)
+              }
+            }
+          }
+          if (injected.length > 0) {
+            const existing = importedFiles['.env.local'] || ''
+            const updated = [existing.trim(), '# Auto-injected from saved env vars', ...injected].filter(Boolean).join('\n') + '\n'
+            onFilesUpdate?.({ '.env.local': updated })
+          }
         }
       }
     } catch {}

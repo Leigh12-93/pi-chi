@@ -39,11 +39,12 @@ export function GitPanel({ githubRepoUrl, projectId, onAction, onRepoConnected, 
   useEffect(() => {
     if (!showConnect || repos.length > 0) return
     setLoadingRepos(true)
-    fetch('/api/github/repos')
+    fetch('/api/github/repos?per_page=100')
       .then(r => r.json())
       .then(data => {
-        if (Array.isArray(data)) {
-          setRepos(data.sort((a: GithubRepo, b: GithubRepo) =>
+        const list = Array.isArray(data) ? data : data.repos || []
+        if (list.length > 0) {
+          setRepos(list.sort((a: GithubRepo, b: GithubRepo) =>
             new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime()
           ))
         }

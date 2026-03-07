@@ -54,24 +54,17 @@ export function createPlanningTools(_ctx: ToolContext) {
           warnings.push(`LOW CONFIDENCE (${confidence}%): Consider using present_plan to get user approval before building`)
         }
 
+        // Return only actionable feedback — inputs are already in the conversation
+        // as tool call args, so echoing them wastes context window tokens
         return {
           acknowledged: true,
-          plan,
           files,
-          approach,
-          architecture: {
-            dataModel: dataModel || null,
-            stateManagement: stateManagement || null,
-            apiContracts: apiContracts || null,
-            errorStrategy: errorStrategy || null,
-          },
-          confidence: confidence ?? null,
-          uncertainties: uncertainties || [],
-          fragileAssumption: fragileAssumption || null,
-          warnings,
-          next: warnings.length > 0
-            ? `Address these warnings before building: ${warnings.join('; ')}`
-            : 'Start building immediately. Your next action must be a tool call.',
+          ...(warnings.length > 0 ? {
+            warnings,
+            next: `Address these warnings before building: ${warnings.join('; ')}`,
+          } : {
+            next: 'Start building immediately. Your next action must be a tool call.',
+          }),
         }
       },
     }),

@@ -10,10 +10,11 @@ import { DbPanel } from './sidebar/db-panel'
 import { GooglePanel } from './sidebar/google-panel'
 import { SnapshotsPanel } from './sidebar/snapshots-panel'
 import { AnthropicPanel } from './sidebar/anthropic-panel'
+import { StripePanel } from './sidebar/stripe-panel'
 import type { FileNode } from '@/lib/types'
 import type { Snapshot } from './version-history'
 
-export type SidebarTab = 'anthropic' | 'git' | 'deploy' | 'env' | 'db' | 'google' | 'snapshots'
+export type SidebarTab = 'anthropic' | 'git' | 'deploy' | 'env' | 'db' | 'google' | 'stripe' | 'snapshots'
 
 // ─── Brand SVG icons for sidebar ────────────────────────────────
 
@@ -62,10 +63,18 @@ function GoogleIcon({ className }: { className?: string }) {
   )
 }
 
+function StripeIcon({ className }: { className?: string }) {
+  return (
+    <svg className={className} viewBox="0 0 28 28" fill="currentColor">
+      <path d="M13.111 11.217c0-1.09.893-1.51 2.374-1.51 2.123 0 4.806.643 6.929 1.79V5.396c-2.318-.92-4.606-1.283-6.929-1.283C10.68 4.113 7.5 6.72 7.5 11.465c0 7.371 10.15 6.198 10.15 9.375 0 1.29-1.123 1.71-2.693 1.71-2.33 0-5.313-.96-7.677-2.254v6.064c2.614 1.112 5.254 1.586 7.677 1.586 4.943 0 8.342-2.45 8.342-7.254-.03-7.952-10.188-6.543-10.188-9.475z" />
+    </svg>
+  )
+}
+
 function AnthropicIcon({ className }: { className?: string }) {
   return (
     <svg className={className} viewBox="0 0 46 32" fill="currentColor">
-      <path d="M32.73 0H26.l-13.27 32h6.73L32.73 0ZM13.27 0 0 32h6.9l2.73-6.72h13.82l2.73 6.72h6.9L19.81 0h-6.54Zm.63 19.52 4.18-10.28 4.19 10.28H13.9Z" />
+      <path d="M32.73 0h-6.73L13.27 32h6.73L32.73 0ZM13.27 0 0 32h6.9l2.73-6.72h13.82l2.73 6.72h6.9L19.81 0h-6.54Zm.63 19.52 4.18-10.28 4.19 10.28H13.9Z" />
     </svg>
   )
 }
@@ -79,6 +88,7 @@ const TABS: { id: SidebarTab; icon: TabIcon; label: string; activeColor?: string
   { id: 'env', icon: Key, label: 'Environment', activeColor: 'text-amber-400', activeBg: 'bg-amber-500/10' },
   { id: 'db', icon: SupabaseIcon, label: 'Supabase', activeColor: 'text-emerald-400', activeBg: 'bg-emerald-500/10' },
   { id: 'google', icon: GoogleIcon, label: 'Google', activeBg: 'bg-blue-500/10' },
+  { id: 'stripe', icon: StripeIcon, label: 'Stripe', activeColor: 'text-[#635BFF]', activeBg: 'bg-[#635BFF]/10' },
   { id: 'snapshots', icon: History, label: 'Snapshots', activeColor: 'text-purple-400', activeBg: 'bg-purple-500/10' },
 ]
 
@@ -95,7 +105,7 @@ export function ActivityBar({ activeTab, onTabChange }: ActivityBarProps) {
   }
 
   return (
-    <div className="w-11 shrink-0 h-full bg-forge-panel border-r border-forge-border flex flex-col items-center pt-2 gap-0.5" role="tablist" aria-label="Sidebar panels" aria-orientation="vertical">
+    <div className="group/actbar w-11 hover:w-40 shrink-0 h-full bg-forge-panel border-r border-forge-border flex flex-col pt-2 gap-0.5 transition-[width] duration-200 ease-out overflow-hidden" role="tablist" aria-label="Sidebar panels" aria-orientation="vertical">
       {TABS.map(tab => (
         <button
           key={tab.id}
@@ -105,13 +115,14 @@ export function ActivityBar({ activeTab, onTabChange }: ActivityBarProps) {
           onClick={() => handleClick(tab.id)}
           title={tab.label}
           className={cn(
-            'relative w-9 h-9 flex items-center justify-center rounded-lg transition-colors',
+            'relative mx-1 h-9 flex items-center gap-2.5 px-2 rounded-lg transition-colors whitespace-nowrap',
             activeTab === tab.id
               ? cn(tab.activeColor || 'text-forge-accent', tab.activeBg || 'bg-forge-accent/10')
               : 'text-forge-text-dim hover:text-forge-text hover:bg-forge-surface',
           )}
         >
-          <tab.icon className="w-[18px] h-[18px]" />
+          <tab.icon className="w-[18px] h-[18px] shrink-0" />
+          <span className="text-xs font-medium opacity-0 group-hover/actbar:opacity-100 transition-opacity duration-200">{tab.label}</span>
           {activeTab === tab.id && (
             <span className="absolute left-0 top-1.5 bottom-1.5 w-0.5 bg-forge-accent rounded-r-full transition-all duration-200 shadow-[2px_0_8px_-1px_rgba(99,102,241,0.3)]" />
           )}
@@ -180,6 +191,9 @@ export function SidebarContent({
       )}
       {activeTab === 'google' && (
         <GooglePanel fileContents={fileContents} onFileChange={onFileChange} />
+      )}
+      {activeTab === 'stripe' && (
+        <StripePanel fileContents={fileContents} onFileChange={onFileChange} />
       )}
       {activeTab === 'snapshots' && (
         <SnapshotsPanel

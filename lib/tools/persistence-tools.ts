@@ -103,6 +103,39 @@ export function createPersistenceTools(ctx: ToolContext) {
       },
     }),
 
+    connect_service: tool({
+      description: `Prompt the user to connect an external service by showing an inline card with input fields. Use this when the user needs to set up credentials for a service, or when you detect that a service is needed but not configured.
+
+Supported services:
+- "stripe" — Stripe payment processing (secret key + optional publishable key, webhook secret)
+- "supabase" — Supabase database (project URL + service role key)
+- "anthropic" — Anthropic API (API key starting with sk-ant-)
+- "vercel" — Vercel deployment (deploy token)
+- "google" — Google Cloud (API key starting with AIza)
+- "github" — GitHub OAuth (shows sign-in button)
+
+You can also provide custom fields to collect any credentials not covered by the defaults.`,
+      inputSchema: z.object({
+        service: z.enum(['stripe', 'supabase', 'anthropic', 'vercel', 'google', 'github']).describe('Which service to connect'),
+        message: z.string().optional().describe('Custom message to show above the connection form'),
+        fields: z.array(z.object({
+          name: z.string().describe('Display label for the field'),
+          key: z.string().describe('API settings key (e.g. stripeSecretKey)'),
+          placeholder: z.string().optional(),
+          required: z.boolean().optional(),
+          sensitive: z.boolean().optional(),
+        })).optional().describe('Override default fields with custom ones'),
+      }),
+      execute: async ({ service, message, fields }) => {
+        return {
+          __connect_gate: true,
+          service,
+          message: message || undefined,
+          fields: fields || undefined,
+        }
+      },
+    }),
+
     save_preference: tool({
       description: 'Save a learned user preference for future sessions. Preferences persist across projects.',
       inputSchema: z.object({

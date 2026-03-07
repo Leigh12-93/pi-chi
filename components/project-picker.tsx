@@ -6,7 +6,8 @@ import {
   Sparkles, FolderOpen, Trash2,
   Github, Clock, Globe, ExternalLink, Loader2,
   Lock, Star, GitBranch, Download, GitFork, Archive, Search, X,
-  AlertTriangle, BarChart3, User, ShoppingBag, ArrowUpDown,
+  AlertTriangle, BarChart3, User, ShoppingBag, ArrowUpDown, Key,
+  Plus, Trash2 as Trash2Icon, Eye, EyeOff, CheckCircle2, Copy,
 } from 'lucide-react'
 import { toast } from 'sonner'
 import { formatRelative } from '@/lib/utils'
@@ -95,12 +96,82 @@ export function ProjectPicker({ onSelect, savedProjects, loadingProjects, onDele
   const [reposHasMore, setReposHasMore] = useState(false)
   const [reposPage, setReposPage] = useState(1)
   const [importingRepo, setImportingRepo] = useState<string | null>(null)
-  const [tab, setTab] = useState<'projects' | 'github'>('projects')
+  const [tab, setTab] = useState<'projects' | 'github' | 'env'>('projects')
   const [searchQuery, setSearchQuery] = useState('')
   const [deleteConfirm, setDeleteConfirm] = useState<{ id: string; name: string } | null>(null)
   const [sortPref, setSortPref] = useState<SortPref>(() => {
     try { return (localStorage.getItem('forge-sort-pref') as SortPref) || 'updated' } catch { return 'updated' }
   })
+
+  // ── Global Env Vars (persisted to user settings) ──
+  const [globalEnvVars, setGlobalEnvVars] = useState<Array<{ key: string; value: string }>>([])
+  const [loadingEnvVars, setLoadingEnvVars] = useState(false)
+  const [savingEnvVars, setSavingEnvVars] = useState(false)
+  const [envVarDirty, setEnvVarDirty] = useState(false)
+  const [newEnvKey, setNewEnvKey] = useState('')
+  const [newEnvValue, setNewEnvValue] = useState('')
+  const [showValues, setShowValues] = useState<Record<number, boolean>>({})
+
+  const loadGlobalEnvVars = async () => {
+    setLoadingEnvVars(true)
+    try {
+      const res = await fetch('/api/settings/env-export')
+      if (res.ok) {
+        const data = await res.json()
+        if (Array.isArray(data.variables)) {
+          setGlobalEnvVars(data.variables)
+        }
+      }
+    } catch {} finally { setLoadingEnvVars(false) }
+  }
+
+  const saveGlobalEnvVars = async () => {
+    setSavingEnvVars(true)
+    try {
+      const res = await fetch('/api/settings/env-export', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ variables: globalEnvVars }),
+      })
+      if (res.ok) {
+        toast.success('Environment variables saved')
+        setEnvVarDirty(false)
+      } else {
+        toast.error('Failed to save')
+      }
+    } catch { toast.error('Network error') }
+    finally { setSavingEnvVars(false) }
+  }
+
+  const addEnvVar = () => {
+    const k = newEnvKey.trim()
+    const v = newEnvValue.trim()
+    if (!k) return
+    if (globalEnvVars.some(e => e.key === k)) {
+      toast.error(`${k} already exists`)
+      return
+    }
+    setGlobalEnvVars(prev => [...prev, { key: k, value: v }])
+    setNewEnvKey('')
+    setNewEnvValue('')
+    setEnvVarDirty(true)
+  }
+
+  const removeEnvVar = (idx: number) => {
+    setGlobalEnvVars(prev => prev.filter((_, i) => i !== idx))
+    setEnvVarDirty(true)
+  }
+
+  const updateEnvVar = (idx: number, field: 'key' | 'value', val: string) => {
+    setGlobalEnvVars(prev => prev.map((e, i) => i === idx ? { ...e, [field]: val } : e))
+    setEnvVarDirty(true)
+  }
+
+  useEffect(() => {
+    if (tab === 'env' && isLoggedIn && globalEnvVars.length === 0 && !loadingEnvVars) {
+      loadGlobalEnvVars()
+    }
+  }, [tab, isLoggedIn]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const sortedProjects = useMemo(() => {
     const filtered = savedProjects.filter(p => !searchQuery || p.name.toLowerCase().includes(searchQuery.toLowerCase()) || p.description?.toLowerCase().includes(searchQuery.toLowerCase()))
@@ -308,7 +379,24 @@ export function ProjectPicker({ onSelect, savedProjects, loadingProjects, onDele
                   <motion.span layoutId="picker-tab-indicator" className="absolute bottom-0 left-0 right-0 h-0.5 bg-forge-accent rounded-full" transition={{ type: 'spring', stiffness: 400, damping: 30 }} />
                 )}
               </button>
-              {(loadingProjects || loadingRepos) && (
+              <button
+                onClick={() => setTab('env')}
+                className={`relative flex items-center gap-1.5 px-3 py-2 text-xs font-medium transition-colors ${
+                  tab === 'env'
+                    ? 'text-forge-accent'
+                    : 'text-forge-text-dim hover:text-forge-text'
+                }`}
+              >
+                <Key className="w-3.5 h-3.5" />
+                Env Vars
+                {globalEnvVars.length > 0 && (
+                  <span className="ml-1 text-[10px] px-1.5 py-0.5 rounded-full bg-forge-surface">{globalEnvVars.length}</span>
+                )}
+                {tab === 'env' && (
+                  <motion.span layoutId="picker-tab-indicator" className="absolute bottom-0 left-0 right-0 h-0.5 bg-forge-accent rounded-full" transition={{ type: 'spring', stiffness: 400, damping: 30 }} />
+                )}
+              </button>
+              {(loadingProjects || loadingRepos || loadingEnvVars) && (
                 <Loader2 className="w-3.5 h-3.5 text-forge-text-dim animate-spin ml-auto" />
               )}
             </div>
@@ -556,6 +644,131 @@ export function ProjectPicker({ onSelect, savedProjects, loadingProjects, onDele
                   </div>
                 )}
               </>
+            )}
+
+            {/* Env Vars Tab */}
+            {tab === 'env' && (
+              <div className="space-y-4">
+                <p className="text-xs text-forge-text-dim">
+                  Save environment variables here. The AI will auto-inject them into projects that need them.
+                </p>
+
+                {/* Add new env var */}
+                <div className="flex flex-col sm:flex-row gap-2">
+                  <input
+                    type="text"
+                    value={newEnvKey}
+                    onChange={e => setNewEnvKey(e.target.value.toUpperCase().replace(/[^A-Z0-9_]/g, ''))}
+                    onKeyDown={e => e.key === 'Enter' && addEnvVar()}
+                    placeholder="VARIABLE_NAME"
+                    className="flex-1 sm:flex-[2] bg-forge-surface border border-forge-border rounded-lg px-3 py-2 text-xs font-mono text-forge-text placeholder:text-forge-text-dim/40 outline-none focus:border-forge-accent/50 focus:ring-2 focus:ring-forge-accent/10 transition-all"
+                  />
+                  <input
+                    type="text"
+                    value={newEnvValue}
+                    onChange={e => setNewEnvValue(e.target.value)}
+                    onKeyDown={e => e.key === 'Enter' && addEnvVar()}
+                    placeholder="value"
+                    className="flex-1 sm:flex-[3] bg-forge-surface border border-forge-border rounded-lg px-3 py-2 text-xs font-mono text-forge-text placeholder:text-forge-text-dim/40 outline-none focus:border-forge-accent/50 focus:ring-2 focus:ring-forge-accent/10 transition-all"
+                  />
+                  <button
+                    onClick={addEnvVar}
+                    disabled={!newEnvKey.trim()}
+                    className="flex items-center justify-center gap-1.5 px-3 py-2 text-xs font-medium rounded-lg bg-forge-accent text-white hover:bg-forge-accent-hover disabled:opacity-40 disabled:cursor-not-allowed active:scale-95 transition-all"
+                  >
+                    <Plus className="w-3 h-3" />
+                    Add
+                  </button>
+                </div>
+
+                {/* Env var list */}
+                {loadingEnvVars ? (
+                  <div className="flex items-center justify-center py-12">
+                    <Loader2 className="w-5 h-5 text-forge-text-dim animate-spin" />
+                  </div>
+                ) : globalEnvVars.length === 0 ? (
+                  <div className="flex flex-col items-center py-12 border border-dashed border-forge-border rounded-2xl">
+                    <div className="w-12 h-12 rounded-xl bg-forge-surface flex items-center justify-center mb-3">
+                      <Key className="w-6 h-6 text-forge-text-dim/40" />
+                    </div>
+                    <p className="text-sm text-forge-text-dim font-medium mb-1">No environment variables</p>
+                    <p className="text-xs text-forge-text-dim/60">Add variables above — they&apos;ll be available to all projects</p>
+                  </div>
+                ) : (
+                  <div className="space-y-1.5">
+                    {globalEnvVars.map((env, i) => {
+                      const isSensitive = /secret|key|token|password|api/i.test(env.key)
+                      const visible = showValues[i] ?? false
+                      return (
+                        <div key={i} className="group flex items-center gap-2 bg-forge-panel border border-forge-border rounded-lg px-3 py-2 hover:border-forge-accent/30 transition-colors">
+                          <input
+                            type="text"
+                            value={env.key}
+                            onChange={e => updateEnvVar(i, 'key', e.target.value.toUpperCase().replace(/[^A-Z0-9_]/g, ''))}
+                            className="flex-[2] min-w-0 bg-transparent text-xs font-mono font-medium text-forge-text outline-none"
+                          />
+                          <span className="text-forge-text-dim/30">=</span>
+                          <input
+                            type={isSensitive && !visible ? 'password' : 'text'}
+                            value={env.value}
+                            onChange={e => updateEnvVar(i, 'value', e.target.value)}
+                            className="flex-[3] min-w-0 bg-transparent text-xs font-mono text-forge-text-dim outline-none"
+                          />
+                          <div className="flex items-center gap-0.5 shrink-0 opacity-0 group-hover:opacity-100 transition-opacity">
+                            {isSensitive && (
+                              <button
+                                onClick={() => setShowValues(prev => ({ ...prev, [i]: !prev[i] }))}
+                                className="p-1 rounded text-forge-text-dim/50 hover:text-forge-text transition-colors"
+                                title={visible ? 'Hide value' : 'Show value'}
+                              >
+                                {visible ? <EyeOff className="w-3 h-3" /> : <Eye className="w-3 h-3" />}
+                              </button>
+                            )}
+                            <button
+                              onClick={() => {
+                                navigator.clipboard.writeText(`${env.key}=${env.value}`)
+                                toast.success('Copied to clipboard')
+                              }}
+                              className="p-1 rounded text-forge-text-dim/50 hover:text-forge-text transition-colors"
+                              title="Copy"
+                            >
+                              <Copy className="w-3 h-3" />
+                            </button>
+                            <button
+                              onClick={() => removeEnvVar(i)}
+                              className="p-1 rounded text-forge-text-dim/50 hover:text-forge-danger transition-colors"
+                              title="Remove"
+                            >
+                              <Trash2Icon className="w-3 h-3" />
+                            </button>
+                          </div>
+                        </div>
+                      )
+                    })}
+                  </div>
+                )}
+
+                {/* Save button */}
+                {globalEnvVars.length > 0 && (
+                  <div className="flex items-center justify-between pt-2">
+                    <span className="text-[10px] text-forge-text-dim/50">
+                      {globalEnvVars.length} variable{globalEnvVars.length !== 1 ? 's' : ''} {envVarDirty ? '(unsaved changes)' : ''}
+                    </span>
+                    <button
+                      onClick={saveGlobalEnvVars}
+                      disabled={savingEnvVars || !envVarDirty}
+                      className="flex items-center gap-1.5 px-4 py-2 text-xs font-medium rounded-lg bg-forge-accent text-white hover:bg-forge-accent-hover disabled:opacity-40 disabled:cursor-not-allowed active:scale-95 transition-all"
+                    >
+                      {savingEnvVars ? (
+                        <Loader2 className="w-3 h-3 animate-spin" />
+                      ) : !envVarDirty ? (
+                        <CheckCircle2 className="w-3 h-3" />
+                      ) : null}
+                      {savingEnvVars ? 'Saving...' : envVarDirty ? 'Save Variables' : 'Saved'}
+                    </button>
+                  </div>
+                )}
+              </div>
             )}
           </div>
         )}

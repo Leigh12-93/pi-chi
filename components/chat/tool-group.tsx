@@ -10,7 +10,7 @@ import { ToolResultDetail, getInlineSummary } from './tool-result-detail'
 
 export const SPECIAL_TOOLS = new Set([
   'think', 'suggest_improvement', 'request_env_vars',
-  'deploy_to_vercel', 'check_task_status',
+  'deploy_to_vercel', 'check_task_status', 'connect_service',
 ])
 
 export interface ToolGroupData {

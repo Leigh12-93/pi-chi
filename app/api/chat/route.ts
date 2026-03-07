@@ -12,7 +12,6 @@ import { TaskStore } from '@/lib/background-tasks'
 import { getSession, decryptToken } from '@/lib/auth'
 import { supabaseFetch as supabaseFetchDirect } from '@/lib/supabase-fetch'
 import { MEMORY_MARKER, buildSystemPrompt } from '@/lib/system-prompt'
-import { getPromptExample } from '@/lib/prompt-examples'
 import { VirtualFS } from '@/lib/virtual-fs'
 import { compactMessages } from '@/lib/compaction'
 import { GITHUB_TOKEN, githubFetch } from '@/lib/github'
@@ -87,6 +86,88 @@ const HAIKU_RE = /fix typo|rename|change color|change text|update title|small ch
 // Repo owner — only this GitHub user can use self-modification tools
 const FORGE_OWNER = 'leigh12-93'
 
+// ═══════════════════════════════════════════════════════════════════
+// Conditional tool inclusion — only send tool categories the user needs
+// Saves 8,000-15,000 tokens per request by excluding unused tools
+// ═══════════════════════════════════════════════════════════════════
+
+const TOOL_CATEGORY_PATTERNS: Record<string, RegExp> = {
+  project: /scaffold|new project|template|create.*project|start.*project/i,
+  github: /github|git\b|push|pull\b|commit|repo|branch|pr\b|merge/i,
+  deploy: /deploy|vercel|env\b|domain|sandbox|preview|live/i,
+  selfMod: /yourself|self.*mod|upgrade.*self|improve.*self|forge_|your own|your source|your code/i,
+  db: /database|table\b|schema|supabase|query|insert|select\b|row|column|db_/i,
+  terminal: /run\b|command|terminal|install|server|npm|start.*dev/i,
+  audit: /audit|code review|scan|review.*code/i,
+  google: /google|sheet|calendar|gmail|drive|spreadsheet|email/i,
+  mcp: /mcp|plugin|external.*server/i,
+  inspection: /validate|coherence|capture.*preview|reference|diagnose/i,
+  generation: /generate.*test|dependency.*health/i,
+  webSearch: /search.*web|look.*up|find.*out|documentation|how to\b|what is\b/i,
+  persistence: /memory|preference|history|chat.*history/i,
+}
+
+function selectTools(
+  lastUserText: string,
+  ctx: ToolContext,
+  isForgeOwner: boolean,
+  isFirstMessage: boolean,
+  fileCount: number,
+): Record<string, any> {
+  const text = lastUserText.toLowerCase()
+
+  // Core tools — ALWAYS included
+  const tools: Record<string, any> = {
+    ...createFileTools(ctx),
+    ...createTaskTools(ctx),
+    ...createTestingTools(ctx), // build verification is mandatory
+  }
+
+  // Planning tools are inside createUtilityTools — we need them always
+  // But we can conditionally include sub-categories
+  // For now, always include planning + model selection (small overhead)
+  // The big savings come from excluding GitHub, Google, Deploy, Self-mod, etc.
+
+  // Check which optional categories match
+  const matches = new Set<string>()
+  for (const [category, pattern] of Object.entries(TOOL_CATEGORY_PATTERNS)) {
+    if (pattern.test(text)) matches.add(category)
+  }
+
+  // First message: always include persistence (auto-load memory)
+  if (isFirstMessage) matches.add('persistence')
+
+  // Building (multi-file) tasks: include inspection + generation
+  if (fileCount > 2 || matches.has('project')) {
+    matches.add('inspection')
+    matches.add('generation')
+  }
+
+  // Include utility tools (planning, inspection, generation, model, search, persistence, mcp)
+  // These are relatively small — always include the core utility set
+  tools['...utility'] = undefined // placeholder — we'll spread below
+  Object.assign(tools, createUtilityTools(ctx))
+
+  // Conditional heavy categories
+  if (matches.has('project')) Object.assign(tools, createProjectTools(ctx))
+  if (matches.has('github')) Object.assign(tools, createGithubTools(ctx))
+  if (matches.has('deploy')) Object.assign(tools, createDeployTools(ctx))
+  if (matches.has('selfMod') && isForgeOwner) Object.assign(tools, createSelfModTools(ctx))
+  if (matches.has('db')) Object.assign(tools, createDbTools(ctx))
+  if (matches.has('terminal')) Object.assign(tools, createTerminalTools(ctx))
+  if (matches.has('audit')) Object.assign(tools, createAuditTools(ctx))
+  if (matches.has('google')) Object.assign(tools, createGoogleTools(ctx))
+
+  // Clean up placeholder
+  delete tools['...utility']
+
+  const toolCount = Object.keys(tools).length
+  const estimatedSchemaTokens = Math.round(toolCount * 220) // ~220 tokens per tool schema average
+  console.log(`[forge:tools] ${toolCount} tools included (est. ${estimatedSchemaTokens} schema tokens), categories: ${[...matches].join(', ') || 'core-only'}`)
+
+  return tools
+}
+
 function classifyModelComplexity(messages: any[], fileCount: number): { model: string; reason: string } {
   const lastMsg = messages.findLast((m: any) => m.role === 'user')
   let text = ''
@@ -116,6 +197,35 @@ function classifyModelComplexity(messages: any[], fileCount: number): { model: s
 
   // Default: Sonnet for balanced performance
   return { model: 'claude-sonnet-4-20250514', reason: 'Standard task — using Sonnet' }
+}
+
+// ═══════════════════════════════════════════════════════════════════
+// Dynamic extended thinking budget — more thinking for complex tasks,
+// less for simple ones. Better first-attempt code = fewer retries.
+// ═══════════════════════════════════════════════════════════════════
+
+const COMPLEX_TASK_RE = /architect|refactor|redesign|migrate|system design|rewrite|full rewrite|build.*from scratch|implement.*auth|implement.*database|design.*api|security|performance|convert.*to|complex|multiple.*files|entire/i
+const SIMPLE_TASK_RE = /fix|typo|rename|change.*color|change.*text|update|small|quick|add.*comment|remove.*line|delete.*line|explain|what is|what does|how does/i
+
+function getThinkingBudget(model: string, userText: string, fileCount: number): number {
+  if (model === 'claude-sonnet-4-20250514') {
+    // Sonnet: modest budget. Thinking at $15/M is cheap but improves code quality.
+    // Complex tasks get more; simple get baseline.
+    if (COMPLEX_TASK_RE.test(userText) || fileCount > 10) return 6000
+    return 4000
+  }
+
+  // Opus 4.6: scale thinking budget by complexity
+  const wordCount = userText.split(/\s+/).length
+
+  // Complex architecture / multi-file refactors — give it room to think deeply
+  if (COMPLEX_TASK_RE.test(userText) || (wordCount > 150 && fileCount > 8)) return 16000
+
+  // Simple edits / questions — minimal thinking needed
+  if (SIMPLE_TASK_RE.test(userText) && wordCount < 40) return 3000
+
+  // Default: standard budget
+  return 8000
 }
 
 // ═══════════════════════════════════════════════════════════════════
@@ -296,12 +406,6 @@ export async function POST(req: Request) {
     modelAutoRouted = true
   }
 
-  // In-request task store
-  const taskStore = new TaskStore()
-
-  // Edit fail tracking
-  const editFailCounts = getEditFailCounts(projectId)
-
   // Load project memory for system prompt injection (cached per project, 1-min TTL)
   let projectMemory: Record<string, string> = {}
   if (projectId) {
@@ -356,7 +460,7 @@ export async function POST(req: Request) {
     manifestStr = lines.join('\n')
   }
 
-  // ── Extract last user message text for system prompt tiering ──
+  // ── Extract last user message text for system prompt tiering + tool selection ──
   const lastUserMessage = (body.messages || []).findLast((m: any) => m.role === 'user') as any
   let lastUserText = ''
   if (lastUserMessage) {
@@ -369,6 +473,35 @@ export async function POST(req: Request) {
         .join(' ')
     }
   }
+
+  // In-request task store
+  const taskStore = new TaskStore()
+
+  // Edit fail tracking
+  const editFailCounts = getEditFailCounts(projectId)
+
+  // Build tool context (needed early for conditional tool selection)
+  const ctx: ToolContext = {
+    vfs,
+    projectName,
+    projectId,
+    effectiveGithubToken,
+    clientEnvVars,
+    editFailCounts,
+    taskStore,
+    defaultTimeout: 30000,
+    supabaseFetch,
+    githubFetch,
+    githubUsername: (session as any).githubUsername || session.user?.name || 'unknown',
+    userVercelToken: userVercelToken || undefined,
+    googleAccessToken: undefined,
+  }
+
+  // Conditional tool selection — only include tools relevant to this message
+  const isForgeOwner = session.githubUsername.toLowerCase() === FORGE_OWNER
+  const rawMessages0: UIMessage[] = body.messages || []
+  const isFirstMessage = rawMessages0.length <= 1
+  const allTools = selectTools(lastUserText, ctx, isForgeOwner, isFirstMessage, Object.keys(safeFiles).length)
 
   // ── Cost optimization: trim conversation history ──────────────
   const MAX_HISTORY = 30
@@ -463,20 +596,32 @@ export async function POST(req: Request) {
     }
   }
 
+  // Cap active file injection at 150 lines — larger files use read_file on demand
+  let activeFileSection = ''
+  if (activeFile && activeFileContent) {
+    const activeLines = activeFileContent.split('\n')
+    if (activeLines.length <= 150) {
+      activeFileSection = `\n\nUser is currently viewing: ${activeFile}\n\`\`\`\n${activeFileContent}\n\`\`\``
+    } else {
+      const head = activeLines.slice(0, 50).join('\n')
+      const tail = activeLines.slice(-50).join('\n')
+      activeFileSection = `\n\nUser is currently viewing: ${activeFile} (${activeLines.length} lines — showing first/last 50, use read_file for full content)\n\`\`\`\n${head}\n\n... [${activeLines.length - 100} lines omitted] ...\n\n${tail}\n\`\`\``
+    }
+  }
+
   const systemPromptStr = buildSystemPrompt(lastUserText).replace(MEMORY_MARKER, memorySection)
-    + (activeFile && activeFileContent
-      ? `\n\nUser is currently viewing: ${activeFile}\n\`\`\`\n${activeFileContent}\n\`\`\``
-      : '')
+    + activeFileSection
     + sixChiSection
     + `\n\n---\nProject: "${projectName}"${projectId ? ` (id: ${projectId})` : ''}\nFile manifest:\n${manifestStr}`
 
-  // Token estimation: JSON.stringify/4 underestimates real Anthropic token count
-  // because tool schemas, message framing, and code tokenization add ~40% overhead.
-  // Use /3 instead of /4 for a safer estimate.
+  // Token estimation: /3 divisor (not /4) because tool schemas, framing, and code
+  // tokenization add ~40% overhead vs prose.
   let messageTokens = JSON.stringify(trimmedMessages).length / 3
   const systemTokens = systemPromptStr.length / 3
-  const TOOL_SCHEMA_OVERHEAD = 20000 // ~40 tools with Zod schemas, descriptions, enums
-  const SAFETY_BUFFER = 4000 // framing tokens, message metadata, caching headers
+  // Dynamic tool schema overhead based on actual included tools (~220 tokens per tool)
+  const toolCount = Object.keys(allTools).length
+  const TOOL_SCHEMA_OVERHEAD = Math.round(toolCount * 220)
+  const SAFETY_BUFFER = 4000
   let estimatedInputTokens = messageTokens + systemTokens + TOOL_SCHEMA_OVERHEAD + SAFETY_BUFFER
 
   const MODEL_CONTEXT_LIMITS: Record<string, number> = {
@@ -515,7 +660,7 @@ export async function POST(req: Request) {
     compactionOccurred = result.compacted
     if (compactionOccurred) {
       // Recalculate token estimates after compaction
-      messageTokens = JSON.stringify(trimmedMessages).length / 4
+      messageTokens = JSON.stringify(trimmedMessages).length / 3
       estimatedInputTokens = messageTokens + systemTokens + TOOL_SCHEMA_OVERHEAD + SAFETY_BUFFER
       compactedTokensSaved = Math.round(preCompactionTokens - estimatedInputTokens)
       console.log(`[forge] rid=${requestId} Compaction saved ~${compactedTokensSaved} tokens (${Math.round(preCompactionTokens)} → ${Math.round(estimatedInputTokens)})`)
@@ -627,46 +772,6 @@ export async function POST(req: Request) {
   const streamAbort = new AbortController()
   const streamTimeout = setTimeout(() => streamAbort.abort('Stream timeout: 10 minutes exceeded'), 10 * 60 * 1000)
 
-  // Build tool context
-  const ctx: ToolContext = {
-    vfs,
-    projectName,
-    projectId,
-    effectiveGithubToken,
-    clientEnvVars,
-    editFailCounts,
-    taskStore,
-    defaultTimeout: 30000,
-    supabaseFetch,
-    githubFetch,
-    githubUsername: (session as any).githubUsername || session.user?.name || 'unknown',
-    userVercelToken: userVercelToken || undefined,
-    // Google credentials loaded from user settings (conditional)
-    googleAccessToken: undefined,
-  }
-
-  // Structural prompt example
-  const lastUserMsg = messages.findLast((m: any) => m.role === 'user')
-  const promptExample = lastUserMsg ? getPromptExample(typeof lastUserMsg.content === 'string' ? lastUserMsg.content : '') : null
-
-  const allTools = {
-    ...createFileTools(ctx),
-    ...createProjectTools(ctx),
-    ...createGithubTools(ctx),
-    ...createDeployTools(ctx),
-    // Self-mod tools restricted to repo owner only (S-16 security gate)
-    ...(session.githubUsername.toLowerCase() === FORGE_OWNER ? createSelfModTools(ctx) : {}),
-    ...createDbTools(ctx),
-    ...createUtilityTools(ctx),
-    ...createTerminalTools(ctx),
-    ...createTestingTools(ctx),
-    ...createAuditTools(ctx),
-    ...createTaskTools(ctx),
-    // Google tools (only included if user has connected Google)
-    // Note: tool availability is checked at call time via getGoogleCredentials
-    ...createGoogleTools(ctx),
-  }
-
   try {
     // AI SDK v6: Use createUIMessageStream for custom data + streamText
     const stream = createUIMessageStream({
@@ -706,8 +811,7 @@ export async function POST(req: Request) {
         // Use @ai-sdk/anthropic provider — BYOK key if available, else server key
         const result = streamText({
           model: aiProvider(selectedModel),
-          system: systemPromptStr
-            + (promptExample ? `\n\n## Structural Guide for This Request\n${promptExample}` : ''),
+          system: systemPromptStr,
           messages,
           maxOutputTokens: dynamicMaxTokens,
           stopWhen: stepCountIs(MODEL_MAX_STEPS[selectedModel] || 70),
@@ -717,21 +821,23 @@ export async function POST(req: Request) {
           // with a text-only response before actually building anything.
           // NOTE: toolChoice 'required' is INCOMPATIBLE with Anthropic extended thinking
           // (API error: "Thinking may not be enabled when tool_choice forces tool use")
-          // so we only use it for non-thinking models. For Opus 4.6, the system prompt
-          // instructs continuous tool calling instead.
-          ...(selectedModel !== 'claude-opus-4-6' ? {
+          // so we skip it for models using thinking (Opus 4.6 + Sonnet 4).
+          // The system prompt instructs continuous tool calling instead.
+          ...(!['claude-opus-4-6', 'claude-sonnet-4-20250514'].includes(selectedModel) ? {
             toolChoice: 'required' as const,
             prepareStep: ({ stepNumber }: { stepNumber: number }) => ({
               toolChoice: stepNumber < 2 ? ('required' as const) : ('auto' as const),
             }),
           } : {}),
           // Enable Anthropic prompt caching — 90% input token discount on cached prefix
-          // For Opus 4.6, also enable extended thinking for better agentic reasoning
+          // Extended thinking: improves first-attempt code quality → fewer retries → net cheaper
+          // Opus 4.6: dynamic budget scaled by task complexity (2K-16K)
+          // Sonnet 4: modest budget (4K) — cheap thinking ($15/M) but meaningfully better code
           providerOptions: {
             anthropic: {
               cacheControl: { type: 'ephemeral' },
-              ...(selectedModel === 'claude-opus-4-6' ? {
-                thinking: { type: 'enabled', budgetTokens: 10000 },
+              ...((selectedModel === 'claude-opus-4-6' || selectedModel === 'claude-sonnet-4-20250514') ? {
+                thinking: { type: 'enabled', budgetTokens: getThinkingBudget(selectedModel, lastUserText, Object.keys(safeFiles).length) },
               } : {}),
             },
           },
