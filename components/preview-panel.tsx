@@ -1462,7 +1462,9 @@ export const PreviewPanel = memo(function PreviewPanel({ files, projectId, onFix
               srcDoc={previewHtml === '__JSX_BUILDING_PLACEHOLDER__' ? '' : previewHtml}
               className={cn(
                 'w-full h-full border-0 absolute inset-0 transition-opacity duration-300',
-                (isSandboxActive || showCachedPreview) ? 'opacity-0 pointer-events-none' : 'opacity-100',
+                // Hide static preview when a live preview is fully loaded
+                // Keep visible while WebContainer iframe is still loading
+                (isSandboxActive || showCachedPreview || (wcPreviewUrl && !iframeLoading)) ? 'opacity-0 pointer-events-none' : 'opacity-100',
               )}
               sandbox="allow-scripts allow-same-origin allow-forms"
               title="Static Preview"
@@ -1853,13 +1855,22 @@ export const PreviewPanel = memo(function PreviewPanel({ files, projectId, onFix
           )}
 
           {/* WebContainer live preview — takes priority over v0 sandbox */}
+          {/* Hidden while loading so the static HTML preview stays visible underneath */}
           {wcPreviewUrl && (
             <>
+              {iframeLoading && (
+                <div className="absolute top-3 right-3 z-20">
+                  <Loader2 className="w-4 h-4 animate-spin text-forge-accent" />
+                </div>
+              )}
               <iframe
                 id="forge-preview-iframe"
                 key={`wc-${wcPreviewUrl}`}
                 src={wcPreviewUrl}
-                className="w-full h-full border-0 absolute inset-0"
+                className={cn(
+                  'w-full h-full border-0 absolute inset-0 transition-opacity duration-300',
+                  iframeLoading ? 'opacity-0' : 'opacity-100',
+                )}
                 title="Live Preview"
                 allow="cross-origin-isolated"
                 onLoad={(e) => {
