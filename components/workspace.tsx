@@ -715,14 +715,8 @@ export function Workspace({
     const prevCount = prevFileCountRef.current
     prevFileCountRef.current = currentCount
 
-    // Only auto-switch on mobile when NOT in preview and files were added/modified
-    if (currentCount > prevCount && currentCount >= 3 && mobileTab === 'chat' && !userInteractingRef.current) {
-      // Debounce to avoid flickering during rapid AI writes
-      if (mobileAutoSwitchTimerRef.current) clearTimeout(mobileAutoSwitchTimerRef.current)
-      mobileAutoSwitchTimerRef.current = setTimeout(() => {
-        setMobileTab('preview')
-      }, 3000) // Wait 3s for AI to finish the current batch before switching
-    }
+    // Mobile auto-switch disabled — user controls tab navigation manually
+    // Previously auto-switched to preview after 3+ files, but users found it disruptive
 
     return () => {
       if (mobileAutoSwitchTimerRef.current) clearTimeout(mobileAutoSwitchTimerRef.current)
@@ -1207,7 +1201,7 @@ export function Workspace({
       {/* Mobile layout */}
       <div className="flex-1 flex flex-col md:hidden overflow-hidden">
         <OfflineIndicator />
-        <div className="flex-1 overflow-hidden" onTouchStart={mobileSwipe.onTouchStart} onTouchEnd={mobileSwipe.onTouchEnd}>
+        <div className="flex-1 overflow-hidden rounded-t-2xl" onTouchStart={mobileSwipe.onTouchStart} onTouchEnd={mobileSwipe.onTouchEnd}>
           {mobileTab === 'chat' && chatPanel}
           {mobileTab === 'editor' && (
             <div className="h-full flex flex-col bg-forge-surface">
