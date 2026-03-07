@@ -296,9 +296,33 @@ async function submitAndPollDeploy(
   const fileCount = Object.keys(files).length
   const fw = framework || detectFramework(files) || 'static'
   const teamParam = VERCEL_TEAM ? `?teamId=${VERCEL_TEAM}` : ''
-  const deployName = projectName.replace(/\s+/g, '-').toLowerCase().replace(/[^a-z0-9-]/g, '').slice(0, 52)
+  const baseName = projectName.replace(/\s+/g, '-').toLowerCase().replace(/[^a-z0-9-]/g, '')
+  const deployName = (baseName.startsWith('forge-') ? baseName : `forge-${baseName}`).slice(0, 52)
 
   await setProgress('upload', `Uploading ${fileCount} files...`, { fileCount, framework: fw })
+
+  // Find or create Vercel project so deployments link to it
+  let vercelProjectId: string | undefined
+  try {
+    const projRes = await fetch(`https://api.vercel.com/v9/projects/${deployName}${teamParam}`, {
+      headers: { Authorization: `Bearer ${VERCEL_TOKEN}` },
+    })
+    if (projRes.ok) {
+      const projData = await projRes.json()
+      vercelProjectId = projData.id
+    } else if (projRes.status === 404) {
+      // Create the project
+      const createRes = await fetch(`https://api.vercel.com/v10/projects${teamParam}`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${VERCEL_TOKEN}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: deployName, framework: fw === 'static' ? undefined : fw }),
+      })
+      if (createRes.ok) {
+        const createData = await createRes.json()
+        vercelProjectId = createData.id
+      }
+    }
+  } catch { /* non-critical — deploy without project link */ }
 
   const fileEntries = Object.entries(files).map(([file, data]) => ({ file, data }))
 
@@ -310,6 +334,7 @@ async function submitAndPollDeploy(
     },
     body: JSON.stringify({
       name: deployName,
+      ...(vercelProjectId ? { project: vercelProjectId } : {}),
       files: fileEntries,
       projectSettings: { framework: fw === 'static' ? undefined : fw },
     }),

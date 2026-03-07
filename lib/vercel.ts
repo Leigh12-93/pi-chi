@@ -35,6 +35,29 @@ export async function vercelDeploy(name: string, files: Record<string, string>, 
   await progress('Uploading files...')
   // When using user's token, skip team param (deploys to their personal account)
   const teamParam = (!userToken && VERCEL_TEAM) ? `?teamId=${VERCEL_TEAM}` : ''
+
+  // Find or create Vercel project so deployments link properly
+  let vercelProjectId: string | undefined
+  try {
+    const projRes = await fetch(`https://api.vercel.com/v9/projects/${deployName}${teamParam}`, {
+      headers: { Authorization: `Bearer ${deployToken}` },
+    })
+    if (projRes.ok) {
+      const projData = await projRes.json()
+      vercelProjectId = projData.id
+    } else if (projRes.status === 404) {
+      const createRes = await fetch(`https://api.vercel.com/v10/projects${teamParam}`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${deployToken}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: deployName, framework: fw }),
+      })
+      if (createRes.ok) {
+        const createData = await createRes.json()
+        vercelProjectId = createData.id
+      }
+    }
+  } catch { /* non-critical — deploy without project link */ }
+
   const uploadCtrl = new AbortController()
   const uploadTimeout = setTimeout(() => uploadCtrl.abort(), 30000)
   const res = await fetch(`https://api.vercel.com/v13/deployments${teamParam}`, {
@@ -45,6 +68,7 @@ export async function vercelDeploy(name: string, files: Record<string, string>, 
     },
     body: JSON.stringify({
       name: deployName,
+      ...(vercelProjectId ? { project: vercelProjectId } : {}),
       files: fileEntries,
       projectSettings: { framework: fw },
       ...(envVars && Object.keys(envVars).length > 0 ? { env: envVars } : {}),

@@ -1146,6 +1146,9 @@ html.dark [data-sonner-toast] [data-description] {
 /* ─── Forge Polish: Textarea Smooth Height ───────────────── */
 .chat-textarea-smooth {
   transition: height 0.1s ease-out;
+  border: none !important;
+  outline: none !important;
+  box-shadow: none !important;
 }
 
 /* ─── Forge Polish: Composer Focus Ring ──────────────────── */

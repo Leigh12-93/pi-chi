@@ -53,7 +53,7 @@ export function DeployPanel({ projectId, files, projectName, onClose, onSuccess,
   const [copied, setCopied] = useState(false)
   const [isBuildError, setIsBuildError] = useState(false)
   const [retryCount, setRetryCount] = useState(0)
-  const [showLogs, setShowLogs] = useState(false)
+  const [showLogs, setShowLogs] = useState(true)
   const [exiting, setExiting] = useState(false)
   const [fixedFilesApplied, setFixedFilesApplied] = useState(false)
   const logsRef = useRef<HTMLDivElement>(null)
