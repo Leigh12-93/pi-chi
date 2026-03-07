@@ -99,6 +99,26 @@ export async function githubFetch(path: string, token: string, options: RequestI
   throw lastError || new Error('GitHub API request failed after retries')
 }
 
+// ─── Default branch detection with cache ─────────────────────
+
+const branchCache = new Map<string, { branch: string; expires: number }>()
+
+/** Get the default branch for a GitHub repo (cached 5 min) */
+export async function getDefaultBranch(owner: string, repo: string, token: string): Promise<string> {
+  const key = `${owner}/${repo}`
+  const cached = branchCache.get(key)
+  if (cached && cached.expires > Date.now()) return cached.branch
+
+  try {
+    const data = await githubFetch(`/repos/${owner}/${repo}`, token)
+    const branch = data?.default_branch || 'main'
+    branchCache.set(key, { branch, expires: Date.now() + 5 * 60 * 1000 })
+    return branch
+  } catch {
+    return 'main'
+  }
+}
+
 /** Run async operations in parallel batches with inter-batch delay */
 export async function batchParallel<T, R>(
   items: T[],

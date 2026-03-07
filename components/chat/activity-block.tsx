@@ -29,6 +29,7 @@ interface ActivityBlockProps {
   stepCount: number
   status: string
   tasks: TaskItem[]
+  messageCost?: { inputTokens: number; outputTokens: number; cost: number; model: string } | null
 }
 
 /**
@@ -126,6 +127,7 @@ export function ActivityBlock({
   stepCount,
   status,
   tasks,
+  messageCost,
 }: ActivityBlockProps) {
   // Rotating thinking messages
   const [messageIdx, setMessageIdx] = useState(0)
@@ -146,7 +148,7 @@ export function ActivityBlock({
     if (wasLoadingRef.current && !isLoading) {
       setCompletionSnapshot({ stepCount, elapsed })
       setShowCompletion(true)
-      const timer = setTimeout(() => setShowCompletion(false), 3000)
+      const timer = setTimeout(() => setShowCompletion(false), 5000)
       return () => clearTimeout(timer)
     }
     wasLoadingRef.current = isLoading
@@ -171,6 +173,11 @@ export function ActivityBlock({
     const parts: string[] = []
     if (completionSnapshot.elapsed > 0) parts.push(formatElapsed(completionSnapshot.elapsed))
     if (completionSnapshot.stepCount > 0) parts.push(`${completionSnapshot.stepCount} action${completionSnapshot.stepCount !== 1 ? 's' : ''}`)
+    if (messageCost) {
+      const totalTok = messageCost.inputTokens + messageCost.outputTokens
+      parts.push(totalTok > 1000 ? `${(totalTok / 1000).toFixed(1)}k tok` : `${totalTok} tok`)
+      parts.push(`$${messageCost.cost < 0.01 ? messageCost.cost.toFixed(4) : messageCost.cost.toFixed(3)}`)
+    }
 
     return (
       <motion.div

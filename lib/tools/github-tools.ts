@@ -1,6 +1,6 @@
 import { tool } from 'ai'
 import { z } from 'zod'
-import { GITHUB_API } from '@/lib/github'
+import { GITHUB_API, getDefaultBranch } from '@/lib/github'
 import { batchParallel } from '@/lib/github'
 import { TaskStore } from '@/lib/background-tasks'
 import type { ToolContext } from './types'
@@ -117,7 +117,7 @@ export function createGithubTools(ctx: ToolContext) {
       execute: async ({ owner, repo, message, branch, pushAll }) => {
         const token = ctx.effectiveGithubToken
         if (!token) return { error: 'Not authenticated. Sign in with GitHub.' }
-        const branchName = branch || 'main'
+        const branchName = branch || await getDefaultBranch(owner, repo, token)
 
         // Determine which files to push
         const changedFiles = ctx.vfs.getChangedFiles()
@@ -212,7 +212,7 @@ export function createGithubTools(ctx: ToolContext) {
       execute: async ({ owner, repo, paths, message, branch }) => {
         const token = ctx.effectiveGithubToken
         if (!token) return { error: 'Not authenticated. Sign in with GitHub.' }
-        const branchName = branch || 'main'
+        const branchName = branch || await getDefaultBranch(owner, repo, token)
 
         // Collect file contents from VFS
         const filesToPush: Record<string, string> = {}
@@ -293,7 +293,7 @@ export function createGithubTools(ctx: ToolContext) {
         const token = ctx.effectiveGithubToken
         if (!token) return { error: 'Not authenticated. Sign in with GitHub.' }
 
-        const branchName = branch || 'main'
+        const branchName = branch || await getDefaultBranch(owner, repo, token)
         const result = await ctx.githubFetch(
           `/repos/${owner}/${repo}/contents/${path}?ref=${branchName}`,
           token
@@ -328,7 +328,7 @@ export function createGithubTools(ctx: ToolContext) {
         const token = ctx.effectiveGithubToken
         if (!token) return { error: 'Not authenticated. Sign in with GitHub.' }
 
-        const branchName = branch || 'main'
+        const branchName = branch || await getDefaultBranch(owner, repo, token)
         const dirPath = path || ''
         const result = await ctx.githubFetch(
           `/repos/${owner}/${repo}/contents/${dirPath}?ref=${branchName}`,
@@ -368,7 +368,7 @@ export function createGithubTools(ctx: ToolContext) {
           return { error: `File too large (${Math.round(content.length / 1024)}KB). Maximum is 500KB.` }
         }
 
-        const branchName = branch || 'main'
+        const branchName = branch || await getDefaultBranch(owner, repo, token)
 
         // Get current file SHA
         const existing = await ctx.githubFetch(`/repos/${owner}/${repo}/contents/${path}?ref=${branchName}`, token)

@@ -39,15 +39,20 @@ export const ChatPanel = memo(function ChatPanel({ onLoadingChange, onSessionCos
   useEffect(() => {
     const vv = window.visualViewport
     if (!vv) return
+    let rafId: number
     const handler = () => {
-      if (composerRef.current) {
-        const offset = window.innerHeight - vv.height - vv.offsetTop
-        composerRef.current.style.transform = offset > 0 ? `translateY(-${offset}px)` : ''
-      }
+      cancelAnimationFrame(rafId)
+      rafId = requestAnimationFrame(() => {
+        if (composerRef.current) {
+          const offset = window.innerHeight - vv.height - vv.offsetTop
+          composerRef.current.style.transform = offset > 0 ? `translateY(-${offset}px)` : ''
+        }
+      })
     }
     vv.addEventListener('resize', handler)
     vv.addEventListener('scroll', handler)
     return () => {
+      cancelAnimationFrame(rafId)
       vv.removeEventListener('resize', handler)
       vv.removeEventListener('scroll', handler)
     }
@@ -227,6 +232,10 @@ export const ChatPanel = memo(function ChatPanel({ onLoadingChange, onSessionCos
                 stepCount={chat.stepCount}
                 status={chat.status}
                 tasks={chat.tasks}
+                messageCost={(() => {
+                  const lastAssistant = [...chat.messages].reverse().find(m => m.role === 'assistant')
+                  return lastAssistant ? chat.getMessageCost(lastAssistant.id) : null
+                })()}
               />
             </AnimatePresence>
 
@@ -335,7 +344,7 @@ export const ChatPanel = memo(function ChatPanel({ onLoadingChange, onSessionCos
         {/* Composer */}
         <div
           ref={composerRef}
-          className="p-3 transition-transform duration-100"
+          className="p-3 transition-transform duration-200 ease-out"
           onDragOver={(e) => { e.preventDefault(); setIsDraggingChat(true) }}
           onDragLeave={() => setIsDraggingChat(false)}
           onDrop={async (e) => {
@@ -413,7 +422,10 @@ export const ChatPanel = memo(function ChatPanel({ onLoadingChange, onSessionCos
               inputMode="text"
               placeholder={chat.isEmpty ? 'Describe what you want to build...' : 'Ask for changes, new features, fixes...'}
               rows={1}
-              className="w-full bg-transparent px-3 py-3 text-[13.5px] text-forge-text placeholder:text-forge-text-dim/40 outline-none border-none shadow-none focus:shadow-none focus-visible:shadow-none resize-none chat-textarea-smooth"
+              autoCorrect="off"
+              autoCapitalize="off"
+              spellCheck={false}
+              className="w-full bg-transparent px-3 py-3 text-base sm:text-[13.5px] text-forge-text placeholder:text-forge-text-dim/40 outline-none border-none shadow-none focus:shadow-none focus-visible:shadow-none resize-none chat-textarea-smooth"
             />
 
             {/* Action bar */}

@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server'
 import { getSession } from '@/lib/auth'
-import { githubFetch } from '@/lib/github'
+import { githubFetch, getDefaultBranch } from '@/lib/github'
 
 /** GET /api/github/branches?owner=X&repo=Y — list branches */
 export async function GET(req: Request) {
@@ -29,14 +29,15 @@ export async function POST(req: Request) {
   if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
   const body = await req.json()
-  const { owner, repo, branch, from = 'main' } = body
+  const { owner, repo, branch, from: fromBranch } = body
 
   if (!owner || !repo || !branch) {
     return NextResponse.json({ error: 'owner, repo, and branch are required' }, { status: 400 })
   }
 
   try {
-    // Get the SHA of the source branch
+    // Get the SHA of the source branch (auto-detect default if not specified)
+    const from = fromBranch || await getDefaultBranch(owner, repo, session.accessToken)
     const refData = await githubFetch(`/repos/${owner}/${repo}/git/ref/heads/${from}`, session.accessToken)
     const sha = (refData as any).object?.sha
 

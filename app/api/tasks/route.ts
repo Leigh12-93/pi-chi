@@ -2,7 +2,7 @@ import { NextResponse, after } from 'next/server'
 import { getSession } from '@/lib/auth'
 import { isValidUUID } from '@/lib/validate'
 import { supabaseFetch } from '@/lib/supabase-fetch'
-import { githubFetch, batchParallel, GITHUB_TOKEN as LIB_GITHUB_TOKEN } from '@/lib/github'
+import { githubFetch, batchParallel, GITHUB_TOKEN as LIB_GITHUB_TOKEN, getDefaultBranch } from '@/lib/github'
 import { detectFramework, VERCEL_TOKEN as LIB_VERCEL_TOKEN, VERCEL_TEAM as LIB_VERCEL_TEAM } from '@/lib/vercel'
 
 const VERCEL_TOKEN = LIB_VERCEL_TOKEN
@@ -685,7 +685,7 @@ async function executeGithubPush(taskId: string, params: {
   const token = params.githubToken || GITHUB_TOKEN
   if (!token) throw new Error('Not authenticated. Sign in with GitHub.')
   const startTime = Date.now()
-  const branchName = params.branch || 'main'
+  const branchName = params.branch || await getDefaultBranch(params.owner, params.repo, token)
 
   await updateProgress(taskId, `Fetching ${branchName} branch...`)
 
