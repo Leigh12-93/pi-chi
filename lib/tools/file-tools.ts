@@ -73,6 +73,37 @@ export function createFileTools(ctx: ToolContext) {
         const safePath = VirtualFS.sanitizePath(path)
         if (!safePath) return { error: `Invalid file path: ${path}` }
         const { content: finalContent, warnings: smartWarnings } = applySmartDefaults(safePath, content)
+
+        // Check for npm imports not in package.json (the #1 cause of broken previews)
+        const ext = safePath.split('.').pop() || ''
+        if (['ts', 'tsx', 'js', 'jsx', 'mjs'].includes(ext)) {
+          const pkgContent = vfs.read('package.json')
+          if (pkgContent) {
+            try {
+              const pkg = JSON.parse(pkgContent)
+              const allDeps = { ...pkg.dependencies, ...pkg.devDependencies }
+              // Match: import ... from 'package-name' (not relative ./ or ../ or @/ paths)
+              const npmImportRe = /(?:import|require)\s*(?:\(?\s*['"]|[\w{},\s*]+from\s*['"])([^.'"][^'"]*)['"]/g
+              let m: RegExpExecArray | null
+              const missing: string[] = []
+              while ((m = npmImportRe.exec(finalContent)) !== null) {
+                // Get the package name (scoped packages: @scope/name, regular: name)
+                const spec = m[1]
+                const pkgName = spec.startsWith('@') ? spec.split('/').slice(0, 2).join('/') : spec.split('/')[0]
+                // Skip Node builtins and already-installed packages
+                const builtins = new Set(['react', 'react-dom', 'react/jsx-runtime', 'next', 'fs', 'path', 'url', 'http', 'https', 'crypto', 'stream', 'util', 'os', 'events', 'buffer', 'child_process', 'assert', 'querystring', 'zlib', 'net', 'tls', 'dns'])
+                if (!builtins.has(pkgName) && !(pkgName in allDeps)) {
+                  missing.push(pkgName)
+                }
+              }
+              const uniqueMissing = [...new Set(missing)]
+              if (uniqueMissing.length > 0) {
+                smartWarnings.push(`MISSING DEPENDENCIES: ${uniqueMissing.join(', ')} — call add_dependency for each IMMEDIATELY or the preview will crash`)
+              }
+            } catch { /* malformed package.json, skip check */ }
+          }
+        }
+
         vfs.write(safePath, finalContent)
         return {
           ok: true,
