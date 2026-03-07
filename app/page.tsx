@@ -50,6 +50,8 @@ export default function ForgePage() {
   const [pendingMessage, setPendingMessage] = useState<string | null>(null)
   const [deletingProjectId, setDeletingProjectId] = useState<string | null>(null)
   const [githubRepoUrl, setGithubRepoUrl] = useState<string | null>(null)
+  const [vercelUrl, setVercelUrl] = useState<string | null>(null)
+  const [currentBranch, setCurrentBranch] = useState<string>('main')
   const [onboardingDismissed, setOnboardingDismissed] = useState(() => {
     try { return sessionStorage.getItem('forge_onboarding_done') === '1' } catch { return false }
   })
@@ -115,6 +117,7 @@ export default function ForgePage() {
               setProjectName(data.name)
               setFiles(data.files || {})
               setGithubRepoUrl(data.github_repo_url || null)
+              setVercelUrl(data.vercel_url || null)
               lastSavedHash.current = hashFileMapDeep(data.files || {})
               // Restore active file if it still exists
               if (stored.activeFile && data.files?.[stored.activeFile]) {
@@ -512,6 +515,7 @@ export default function ForgePage() {
           setProjectName(data.name)
           setFiles(data.files || {})
           setGithubRepoUrl(data.github_repo_url || null)
+          setVercelUrl(data.vercel_url || null)
           lastSavedHash.current = hashFileMapDeep(data.files || {})
           setActiveFile(null)
           return
@@ -735,6 +739,10 @@ export default function ForgePage() {
         githubRepoUrl={githubRepoUrl}
         onGithubRepoUrlChange={setGithubRepoUrl}
         githubUsername={session?.githubUsername}
+        vercelUrl={vercelUrl}
+        onVercelUrlChange={setVercelUrl}
+        currentBranch={currentBranch}
+        onBranchChange={setCurrentBranch}
       />
     </ErrorBoundary>
   )

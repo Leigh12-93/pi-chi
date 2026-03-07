@@ -18,10 +18,11 @@ interface WorkspaceActionsDeps {
   githubToken?: string
   githubRepoUrl: string | null
   onGithubRepoUrlChange?: (url: string | null) => void
+  onVercelUrlChange?: (url: string | null) => void
 }
 
 export function useWorkspaceActions(deps: WorkspaceActionsDeps) {
-  const { state, files, projectId, projectName, activeFile, onFileSelect, onFileChange, onFileDelete, onBulkFileUpdate, onManualSave, githubToken, githubRepoUrl, onGithubRepoUrlChange } = deps
+  const { state, files, projectId, projectName, activeFile, onFileSelect, onFileChange, onFileDelete, onBulkFileUpdate, onManualSave, githubToken, githubRepoUrl, onGithubRepoUrlChange, onVercelUrlChange } = deps
 
   const handleFileSelect = useCallback((path: string) => {
     onFileSelect(path)
@@ -256,11 +257,13 @@ export function useWorkspaceActions(deps: WorkspaceActionsDeps) {
       if (!githubRepoUrl) autoConnectRepo(repoUrl)
     } else if (result.url) {
       // deploy success
+      const deployUrl = String(result.url)
       toast.success('Deployed successfully', {
-        description: String(result.url),
-        action: { label: 'Open', onClick: () => window.open(String(result.url), '_blank') },
+        description: deployUrl,
+        action: { label: 'Open', onClick: () => window.open(deployUrl, '_blank') },
       })
-      state.setPendingChatMessage(`[System] Operation completed successfully. URL: ${result.url}`)
+      state.setPendingChatMessage(`[System] Operation completed successfully. URL: ${deployUrl}`)
+      onVercelUrlChange?.(deployUrl)
     } else if (result.commitSha) {
       // github_push success — auto-connect if not already connected
       toast.success('Pushed to GitHub', { description: `Commit: ${String(result.commitSha).slice(0, 7)}` })

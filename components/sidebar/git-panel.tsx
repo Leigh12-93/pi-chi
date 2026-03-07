@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { GitBranch, Upload, FolderInput, ExternalLink, Link, Loader2, Search, Unlink, Download } from 'lucide-react'
+import { BranchMenu } from '../branch-menu'
 import { toast } from 'sonner'
 
 interface GitPanelProps {
@@ -13,6 +14,8 @@ interface GitPanelProps {
   files?: Record<string, string>
   onBulkFileUpdate?: (files: Record<string, string>, opts?: { replace?: boolean }) => void
   modifiedFiles?: Set<string>
+  currentBranch?: string
+  onBranchChange?: (branch: string) => void
 }
 
 interface GithubRepo {
@@ -22,7 +25,7 @@ interface GithubRepo {
   updated_at: string
 }
 
-export function GitPanel({ githubRepoUrl, projectId, onAction, onRepoConnected, onRepoDisconnected, files, onBulkFileUpdate, modifiedFiles }: GitPanelProps) {
+export function GitPanel({ githubRepoUrl, projectId, onAction, onRepoConnected, onRepoDisconnected, files, onBulkFileUpdate, modifiedFiles, currentBranch, onBranchChange }: GitPanelProps) {
   const [showConnect, setShowConnect] = useState(false)
   const [repoInput, setRepoInput] = useState('')
   const [connecting, setConnecting] = useState(false)
@@ -265,6 +268,11 @@ export function GitPanel({ githubRepoUrl, projectId, onAction, onRepoConnected, 
         <span className="truncate">{repoName}</span>
         <ExternalLink className="w-3 h-3 shrink-0" />
       </a>
+      {(() => {
+        const match = githubRepoUrl.match(/github\.com\/([^/]+)\/([^/]+)/)
+        if (!match) return null
+        return <BranchMenu owner={match[1]} repo={match[2].replace(/\.git$/, '')} currentBranch={currentBranch} onSwitch={onBranchChange} />
+      })()}
       <button
         onClick={() => onAction('push')}
         className="w-full flex items-center gap-2 px-3 py-3 sm:py-2 text-sm sm:text-xs rounded-lg bg-forge-accent text-white hover:bg-forge-accent/90 active:scale-[0.98] transition-all duration-150 min-h-[44px]"

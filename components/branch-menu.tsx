@@ -25,7 +25,14 @@ export function BranchMenu({ owner, repo, currentBranch = 'main', onSwitch }: Br
     fetch(`/api/github/branches?owner=${owner}&repo=${repo}`)
       .then(r => r.json())
       .then(data => {
-        if (Array.isArray(data)) setBranches(data.map((b: any) => b.name || b))
+        if (Array.isArray(data)) {
+          const names = data.map((b: any) => b.name || b)
+          setBranches(names)
+          // Auto-detect: if currentBranch not in list, switch to first available branch
+          if (names.length > 0 && !names.includes(currentBranch)) {
+            onSwitch?.(names[0])
+          }
+        }
       })
       .catch(() => {})
       .finally(() => setLoading(false))

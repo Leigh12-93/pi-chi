@@ -173,6 +173,8 @@ interface SidebarContentProps {
   onCreateSnapshot: () => void
   onOpenMcpManager?: () => void
   sessionCost?: { cost: number; inputTokens: number; outputTokens: number }
+  currentBranch?: string
+  onBranchChange?: (branch: string) => void
 }
 
 export function SidebarContent({
@@ -181,6 +183,7 @@ export function SidebarContent({
   githubRepoUrl, projectId, vercelProjectId, onAction, onFileChange,
   onOpenDbExplorer, onOpenSettings, onRepoConnected, onRepoDisconnected, onBulkFileUpdate, onVercelConnected, snapshots,
   onOpenVersionHistory, onRestoreSnapshot, onCreateSnapshot, onOpenMcpManager, sessionCost,
+  currentBranch, onBranchChange,
 }: SidebarContentProps) {
   return (
     <div className="h-full overflow-y-auto bg-forge-panel animate-sidebar-in">
@@ -188,7 +191,7 @@ export function SidebarContent({
         <AnthropicPanel onOpenSettings={onOpenSettings} onOpenMcpManager={onOpenMcpManager} sessionCost={sessionCost} fileContents={fileContents} />
       )}
       {activeTab === 'git' && (
-        <GitPanel githubRepoUrl={githubRepoUrl} projectId={projectId} onAction={onAction} onRepoConnected={onRepoConnected} onRepoDisconnected={onRepoDisconnected} files={fileContents} onBulkFileUpdate={onBulkFileUpdate} modifiedFiles={modifiedFiles} />
+        <GitPanel githubRepoUrl={githubRepoUrl} projectId={projectId} onAction={onAction} onRepoConnected={onRepoConnected} onRepoDisconnected={onRepoDisconnected} files={fileContents} onBulkFileUpdate={onBulkFileUpdate} modifiedFiles={modifiedFiles} currentBranch={currentBranch} onBranchChange={onBranchChange} />
       )}
       {activeTab === 'deploy' && (
         <DeployPanel onAction={onAction} projectId={projectId} vercelProjectId={vercelProjectId} onVercelConnected={onVercelConnected} onOpenSettings={onOpenSettings} fileContents={fileContents} />

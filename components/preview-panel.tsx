@@ -329,6 +329,9 @@ export const PreviewPanel = memo(function PreviewPanel({ files, projectId, onFix
 
   // Sandbox state
   const [sandboxStatus, setSandboxStatus] = useState<SandboxStatus>('idle')
+  const [sandboxUnavailable, setSandboxUnavailable] = useState(false)
+  const [idleOverlayExpired, setIdleOverlayExpired] = useState(false)
+  const idleOverlayTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const [sandboxUrl, setSandboxUrl] = useState<string | null>(null)
   const [sandboxError, setSandboxError] = useState<string | null>(null)
   const [cachedSandboxUrl, setCachedSandboxUrl] = useState<string | null>(null)
@@ -462,10 +465,24 @@ export const PreviewPanel = memo(function PreviewPanel({ files, projectId, onFix
     if (projectId && sandboxAvailableRef.current === null) {
       fetch('/api/sandbox?check=true')
         .then(res => res.json())
-        .then(data => { sandboxAvailableRef.current = data.available === true })
-        .catch(() => { sandboxAvailableRef.current = false })
+        .then(data => {
+          sandboxAvailableRef.current = data.available === true
+          if (!data.available) setSandboxUnavailable(true)
+        })
+        .catch(() => { sandboxAvailableRef.current = false; setSandboxUnavailable(true) })
     }
   }, [projectId])
+
+  // Idle overlay timeout — if sandbox hasn't started in 15s, drop overlay to show static preview
+  useEffect(() => {
+    if (sandboxStatus === 'idle' && !sandboxUnavailable && Object.keys(files).length > 0) {
+      idleOverlayTimerRef.current = setTimeout(() => setIdleOverlayExpired(true), 15000)
+      return () => { if (idleOverlayTimerRef.current) clearTimeout(idleOverlayTimerRef.current) }
+    }
+    // Reset when sandbox starts or project changes
+    setIdleOverlayExpired(false)
+    return () => { if (idleOverlayTimerRef.current) clearTimeout(idleOverlayTimerRef.current) }
+  }, [sandboxStatus, sandboxUnavailable, projectId]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Cache sandbox URL when it's live so we can show it after sandbox dies
   useEffect(() => {
@@ -852,6 +869,8 @@ export const PreviewPanel = memo(function PreviewPanel({ files, projectId, onFix
     setIsCrossfading(false)
     hasAutoStartedRef.current = false // allow re-auto-start on next file change
     sandboxAvailableRef.current = null // re-check availability on next attempt
+    setSandboxUnavailable(false)
+    setIdleOverlayExpired(false)
     retryCountRef.current = 0
     addLog('Stopped — will auto-restart on next change', 'system', 'sandbox')
   }, [projectId, addLog])
@@ -873,8 +892,10 @@ export const PreviewPanel = memo(function PreviewPanel({ files, projectId, onFix
           const res = await fetch('/api/sandbox?check=true')
           const data = await res.json()
           sandboxAvailableRef.current = data.available === true
+          if (!data.available) setSandboxUnavailable(true)
         } catch {
           sandboxAvailableRef.current = false
+          setSandboxUnavailable(true)
         }
       }
 
@@ -1609,8 +1630,8 @@ export const PreviewPanel = memo(function PreviewPanel({ files, projectId, onFix
             </div>
           )}
 
-          {/* Auto-starting status — shown while sandbox is idle and files exist (relaxed from isProjectReady) */}
-          {sandboxStatus === 'idle' && !showCachedPreview && Object.keys(files).length > 0 && (
+          {/* Auto-starting status — shown while sandbox is idle and files exist, hidden if sandbox unavailable or timed out */}
+          {sandboxStatus === 'idle' && !showCachedPreview && !sandboxUnavailable && !idleOverlayExpired && Object.keys(files).length > 0 && (
             <div className="absolute inset-0 z-10 flex items-center justify-center bg-forge-bg/80 backdrop-blur-sm">
               <div className="flex flex-col items-center gap-4 animate-fade-in px-6">
                 <div className="relative">

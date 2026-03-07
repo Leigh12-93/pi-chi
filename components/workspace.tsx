@@ -66,6 +66,10 @@ interface WorkspaceProps {
   githubRepoUrl?: string | null
   onGithubRepoUrlChange?: (url: string | null) => void
   githubUsername?: string
+  vercelUrl?: string | null
+  onVercelUrlChange?: (url: string | null) => void
+  currentBranch?: string
+  onBranchChange?: (branch: string) => void
 }
 
 export function Workspace(props: WorkspaceProps) {
@@ -75,6 +79,7 @@ export function Workspace(props: WorkspaceProps) {
     githubToken, autoSaveError, saveStatus: parentSaveStatus, onManualSave, onUpdateSettings,
     initialPendingMessage, onInitialPendingMessageSent, githubRepoUrl,
     onGithubRepoUrlChange, githubUsername,
+    vercelUrl, onVercelUrlChange, currentBranch, onBranchChange,
   } = props
 
   // ─── Hooks ───────────────────────────────────────────────
@@ -84,7 +89,7 @@ export function Workspace(props: WorkspaceProps) {
   const actions = useWorkspaceActions({
     state, files, projectId, projectName, activeFile,
     onFileSelect, onFileChange, onFileDelete, onBulkFileUpdate, onManualSave, githubToken,
-    githubRepoUrl: githubRepoUrl || null, onGithubRepoUrlChange,
+    githubRepoUrl: githubRepoUrl || null, onGithubRepoUrlChange, onVercelUrlChange,
   })
 
   // ─── Session cost (for Anthropic sidebar panel) ─────────
@@ -222,6 +227,8 @@ export function Workspace(props: WorkspaceProps) {
     onCreateSnapshot: actions.handleCreateSnapshot,
     onOpenMcpManager: () => state.setShowMcpManager(true),
     sessionCost,
+    currentBranch,
+    onBranchChange,
   }
 
   // ─── Shared panel elements ───────────────────────────────
@@ -301,6 +308,9 @@ export function Workspace(props: WorkspaceProps) {
           />
         }
         githubRepoUrl={githubRepoUrl}
+        vercelUrl={vercelUrl}
+        currentBranch={currentBranch}
+        onBranchChange={onBranchChange}
       />
 
       {/* ═══ Desktop layout ═══ */}
@@ -600,10 +610,11 @@ export function Workspace(props: WorkspaceProps) {
           return [
             { name: 'owner', label: 'Owner', placeholder: 'your-username', required: true, defaultValue: connectedOwner },
             { name: 'repo', label: 'Repository', placeholder: 'my-project', required: true, defaultValue: connectedRepo },
+            { name: 'branch', label: 'Branch', placeholder: 'main', defaultValue: currentBranch || 'main' },
             { name: 'message', label: 'Commit Message', placeholder: 'Update from Forge', defaultValue: 'Update from Forge' },
           ]
         })()}
-        buildParams={(fv) => ({ owner: fv.owner, repo: fv.repo, message: fv.message || 'Update from Forge', files, githubToken })}
+        buildParams={(fv) => ({ owner: fv.owner, repo: fv.repo, branch: fv.branch || currentBranch || 'main', message: fv.message || 'Update from Forge', files, githubToken })}
         onSuccess={actions.handleDialogSuccess} onFix={actions.handleDialogFix}
       />
       <ActionDialog open={state.activeDialog === 'import'} onClose={() => state.setActiveDialog(null)} title="Import from GitHub" description={`Import files from a GitHub repository into "${projectName}". Existing files with the same path will be overwritten.`} confirmLabel="Import"

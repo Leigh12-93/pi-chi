@@ -6,7 +6,7 @@ import {
   FolderOpen, FileText, Github, LogOut,
   Rocket, Upload, Save, GitBranch, Download, FolderInput,
   Loader2, Check, Search, ChevronRight, Sun, Moon, Share2,
-  Menu, X,
+  Menu, X, Globe,
 } from 'lucide-react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { BranchMenu } from './branch-menu'
@@ -22,6 +22,9 @@ interface HeaderProps {
   onOpenCommandPalette?: () => void
   notificationSlot?: React.ReactNode
   githubRepoUrl?: string | null
+  vercelUrl?: string | null
+  currentBranch?: string
+  onBranchChange?: (branch: string) => void
 }
 
 const actions: Array<{ id: string; icon: typeof Save; label: string; tip: string } | 'separator'> = [
@@ -36,7 +39,7 @@ const actions: Array<{ id: string; icon: typeof Save; label: string; tip: string
   { id: 'share', icon: Share2, label: 'Share', tip: 'Copy share link' },
 ]
 
-export function Header({ projectName, onSwitchProject, fileCount, onAction, saveStatus = 'idle', onOpenCommandPalette, notificationSlot, githubRepoUrl }: HeaderProps) {
+export function Header({ projectName, onSwitchProject, fileCount, onAction, saveStatus = 'idle', onOpenCommandPalette, notificationSlot, githubRepoUrl, vercelUrl, currentBranch, onBranchChange }: HeaderProps) {
   const { session, status } = useSession()
   const { theme, toggleTheme } = useTheme()
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
@@ -93,7 +96,7 @@ export function Header({ projectName, onSwitchProject, fileCount, onAction, save
         {githubRepoUrl && (() => {
           const match = githubRepoUrl.match(/github\.com\/([^/]+)\/([^/]+)/)
           if (!match) return null
-          return <BranchMenu owner={match[1]} repo={match[2].replace(/\.git$/, '')} />
+          return <BranchMenu owner={match[1]} repo={match[2].replace(/\.git$/, '')} currentBranch={currentBranch} onSwitch={onBranchChange} />
         })()}
       </div>
 
@@ -177,6 +180,28 @@ export function Header({ projectName, onSwitchProject, fileCount, onAction, save
             </a>
           )}
         </div>
+
+        {/* Mobile deploy buttons — visible on mobile when project has a deployed URL */}
+        {vercelUrl && (
+          <a
+            href={vercelUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="md:hidden p-2 rounded-lg text-emerald-500 hover:text-emerald-400 hover:bg-forge-surface transition-all"
+            title="View live site"
+            aria-label="View live site"
+          >
+            <Globe className="w-4.5 h-4.5" />
+          </a>
+        )}
+        <button
+          onClick={() => onAction?.('deploy')}
+          className="md:hidden p-2 rounded-lg text-forge-text-dim hover:text-forge-accent hover:bg-forge-surface transition-all"
+          title="Deploy"
+          aria-label="Deploy to Vercel"
+        >
+          <Rocket className="w-4.5 h-4.5" />
+        </button>
 
         {/* Mobile hamburger */}
         <div className="md:hidden relative" ref={menuRef}>
