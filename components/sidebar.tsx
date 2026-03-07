@@ -133,6 +133,8 @@ interface SidebarContentProps {
   onOpenDbExplorer: () => void
   onOpenSettings?: () => void
   onRepoConnected?: (url: string) => void
+  onRepoDisconnected?: () => void
+  onBulkFileUpdate?: (files: Record<string, string>, opts?: { replace?: boolean }) => void
   onVercelConnected?: (id: string) => void
   snapshots: Snapshot[]
   onOpenVersionHistory: () => void
@@ -144,13 +146,13 @@ export function SidebarContent({
   activeTab, fileTree, activeFile, onFileSelect, onFileDelete, onFileRename,
   onFileCreate, fileContents, modifiedFiles, aiEditingFiles, fileDiffs,
   githubRepoUrl, projectId, vercelProjectId, onAction, onFileChange,
-  onOpenDbExplorer, onOpenSettings, onRepoConnected, onVercelConnected, snapshots,
+  onOpenDbExplorer, onOpenSettings, onRepoConnected, onRepoDisconnected, onBulkFileUpdate, onVercelConnected, snapshots,
   onOpenVersionHistory, onRestoreSnapshot, onCreateSnapshot,
 }: SidebarContentProps) {
   return (
     <div className="h-full overflow-y-auto bg-forge-panel animate-sidebar-in">
       {activeTab === 'git' && (
-        <GitPanel githubRepoUrl={githubRepoUrl} projectId={projectId} onAction={onAction} onRepoConnected={onRepoConnected} />
+        <GitPanel githubRepoUrl={githubRepoUrl} projectId={projectId} onAction={onAction} onRepoConnected={onRepoConnected} onRepoDisconnected={onRepoDisconnected} files={fileContents} onBulkFileUpdate={onBulkFileUpdate} modifiedFiles={modifiedFiles} />
       )}
       {activeTab === 'deploy' && (
         <DeployPanel onAction={onAction} projectId={projectId} vercelProjectId={vercelProjectId} onVercelConnected={onVercelConnected} onOpenSettings={onOpenSettings} />

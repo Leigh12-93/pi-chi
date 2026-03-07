@@ -5,7 +5,7 @@ import { useSession } from '@/components/session-provider'
 import { Workspace } from '@/components/workspace'
 import { ProjectPicker } from '@/components/project-picker'
 import { ErrorBoundary } from '@/components/error-boundary'
-import { SignInPage } from '@/components/sign-in-page'
+import { LandingPage } from '@/components/landing/landing-page'
 import { ApiKeyGate } from '@/components/api-key-gate'
 import { Onboarding } from '@/components/onboarding'
 import { hashFileMapDeep } from '@/lib/utils'
@@ -509,7 +509,7 @@ export default function ForgePage() {
   }
 
   if (status === 'unauthenticated') {
-    return <SignInPage />
+    return <LandingPage />
   }
 
   // API key gate: require BYOK before proceeding
@@ -623,6 +623,8 @@ export default function ForgePage() {
         initialPendingMessage={pendingMessage}
         onInitialPendingMessageSent={() => setPendingMessage(null)}
         githubRepoUrl={githubRepoUrl}
+        onGithubRepoUrlChange={setGithubRepoUrl}
+        githubUsername={session?.githubUsername}
       />
     </ErrorBoundary>
   )

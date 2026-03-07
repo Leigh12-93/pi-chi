@@ -64,6 +64,8 @@ interface WorkspaceProps {
   initialPendingMessage?: string | null
   onInitialPendingMessageSent?: () => void
   githubRepoUrl?: string | null
+  onGithubRepoUrlChange?: (url: string | null) => void
+  githubUsername?: string
 }
 
 export function Workspace(props: WorkspaceProps) {
@@ -72,6 +74,7 @@ export function Workspace(props: WorkspaceProps) {
     onFileSelect, onFileChange, onFileDelete, onBulkFileUpdate, onSwitchProject,
     githubToken, autoSaveError, saveStatus: parentSaveStatus, onManualSave, onUpdateSettings,
     initialPendingMessage, onInitialPendingMessageSent, githubRepoUrl,
+    onGithubRepoUrlChange, githubUsername,
   } = props
 
   // ─── Hooks ───────────────────────────────────────────────
@@ -81,6 +84,7 @@ export function Workspace(props: WorkspaceProps) {
   const actions = useWorkspaceActions({
     state, files, projectId, projectName, activeFile,
     onFileSelect, onFileChange, onFileDelete, onBulkFileUpdate, onManualSave, githubToken,
+    githubRepoUrl: githubRepoUrl || null, onGithubRepoUrlChange,
   })
 
   // ─── WebContainer ────────────────────────────────────────
@@ -183,7 +187,28 @@ export function Workspace(props: WorkspaceProps) {
     onFileChange,
     onOpenDbExplorer: () => state.setShowDbExplorer(true),
     onOpenSettings: () => { state.setSettingsDefaultTab('supabase'); state.setShowEditorSettings(true) },
-    onRepoConnected: (url: string) => toast.success('Repository connected', { description: url.replace('https://github.com/', '') }),
+    onRepoConnected: async (url: string) => {
+      if (projectId) {
+        try {
+          const res = await fetch(`/api/projects/${projectId}/connect`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ github_repo_url: url }),
+          })
+          if (!res.ok) {
+            toast.error('Failed to connect repository')
+            return
+          }
+        } catch {
+          toast.error('Failed to connect repository')
+          return
+        }
+      }
+      onGithubRepoUrlChange?.(url)
+      toast.success('Repository connected', { description: url.replace('https://github.com/', '') })
+    },
+    onRepoDisconnected: () => { onGithubRepoUrlChange?.(null) },
+    onBulkFileUpdate,
     onVercelConnected: (id: string) => { state.setVercelProjectId(id); toast.success('Vercel project connected') },
     snapshots: state.snapshots,
     onOpenVersionHistory: () => state.setShowVersionHistory(true),
@@ -528,17 +553,22 @@ export function Workspace(props: WorkspaceProps) {
         onSuccess={actions.handleDialogSuccess} onFix={actions.handleDialogFix}
       />
       <TaskPollingDialog open={state.activeDialog === 'push'} onClose={() => state.setActiveDialog(null)} title="Push to GitHub" description={`Push all ${Object.keys(files).length} files to an existing GitHub repository.`} confirmLabel="Push" taskType="github_push" projectId={projectId}
-        fields={[
-          { name: 'owner', label: 'Owner', placeholder: 'your-username', required: true },
-          { name: 'repo', label: 'Repository', placeholder: 'my-project', required: true },
-          { name: 'message', label: 'Commit Message', placeholder: 'Update from Forge', defaultValue: 'Update from Forge' },
-        ]}
+        fields={(() => {
+          const parts = githubRepoUrl?.replace('https://github.com/', '').split('/') || []
+          const connectedOwner = parts[0] || ''
+          const connectedRepo = parts[1] || ''
+          return [
+            { name: 'owner', label: 'Owner', placeholder: 'your-username', required: true, defaultValue: connectedOwner },
+            { name: 'repo', label: 'Repository', placeholder: 'my-project', required: true, defaultValue: connectedRepo },
+            { name: 'message', label: 'Commit Message', placeholder: 'Update from Forge', defaultValue: 'Update from Forge' },
+          ]
+        })()}
         buildParams={(fv) => ({ owner: fv.owner, repo: fv.repo, message: fv.message || 'Update from Forge', files, githubToken })}
         onSuccess={actions.handleDialogSuccess} onFix={actions.handleDialogFix}
       />
       <ActionDialog open={state.activeDialog === 'import'} onClose={() => state.setActiveDialog(null)} title="Import from GitHub" description={`Import files from a GitHub repository into "${projectName}". Existing files with the same path will be overwritten.`} confirmLabel="Import"
         fields={[
-          { name: 'owner', label: 'Owner', placeholder: 'username or org', required: true },
+          { name: 'owner', label: 'Owner', placeholder: 'username or org', required: true, defaultValue: githubUsername || '' },
           { name: 'repo', label: 'Repository', placeholder: 'my-project', required: true },
           { name: 'branch', label: 'Branch', placeholder: 'main (auto-detected if empty)' },
         ]}

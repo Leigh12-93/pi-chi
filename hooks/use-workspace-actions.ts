@@ -16,10 +16,12 @@ interface WorkspaceActionsDeps {
   onBulkFileUpdate: (files: Record<string, string>, opts?: { replace?: boolean }) => void
   onManualSave?: () => Promise<void>
   githubToken?: string
+  githubRepoUrl: string | null
+  onGithubRepoUrlChange?: (url: string | null) => void
 }
 
 export function useWorkspaceActions(deps: WorkspaceActionsDeps) {
-  const { state, files, projectId, projectName, activeFile, onFileSelect, onFileChange, onFileDelete, onBulkFileUpdate, onManualSave, githubToken } = deps
+  const { state, files, projectId, projectName, activeFile, onFileSelect, onFileChange, onFileDelete, onBulkFileUpdate, onManualSave, githubToken, githubRepoUrl, onGithubRepoUrlChange } = deps
 
   const handleFileSelect = useCallback((path: string) => {
     onFileSelect(path)
@@ -228,18 +230,46 @@ export function useWorkspaceActions(deps: WorkspaceActionsDeps) {
     }
   }, [handleDownload, handleSave, files, projectId, state.setSnapshots, state.setShowDeployPanel, state.setActiveDialog])
 
+  const autoConnectRepo = useCallback(async (repoUrl: string) => {
+    if (!projectId || !repoUrl) return
+    try {
+      const res = await fetch(`/api/projects/${projectId}/connect`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ github_repo_url: repoUrl }),
+      })
+      if (res.ok) {
+        onGithubRepoUrlChange?.(repoUrl)
+      }
+    } catch {}
+  }, [projectId, onGithubRepoUrlChange])
+
   const handleDialogSuccess = useCallback((result: Record<string, unknown>) => {
-    if (result.url) {
+    if (result.url && result.repoName) {
+      // github_create success — auto-connect the new repo
+      const repoUrl = String(result.url)
+      toast.success('Repository created', {
+        description: repoUrl.replace('https://github.com/', ''),
+        action: { label: 'Open', onClick: () => window.open(repoUrl, '_blank') },
+      })
+      state.setPendingChatMessage(`[System] Repository created. URL: ${repoUrl}`)
+      if (!githubRepoUrl) autoConnectRepo(repoUrl)
+    } else if (result.url) {
+      // deploy success
       toast.success('Deployed successfully', {
         description: String(result.url),
         action: { label: 'Open', onClick: () => window.open(String(result.url), '_blank') },
       })
       state.setPendingChatMessage(`[System] Operation completed successfully. URL: ${result.url}`)
     } else if (result.commitSha) {
+      // github_push success — auto-connect if not already connected
       toast.success('Pushed to GitHub', { description: `Commit: ${String(result.commitSha).slice(0, 7)}` })
       state.setPendingChatMessage(`[System] Pushed to GitHub. Commit: ${String(result.commitSha).slice(0, 7)}`)
+      if (!githubRepoUrl && result.repoUrl) {
+        autoConnectRepo(String(result.repoUrl))
+      }
     }
-  }, [state.setPendingChatMessage])
+  }, [state.setPendingChatMessage, githubRepoUrl, autoConnectRepo])
 
   const handleDialogFix = useCallback((errorMessage: string) => {
     state.setPendingChatMessage(`The deploy failed with these build errors. Please fix them:\n\n\`\`\`\n${errorMessage}\n\`\`\``)

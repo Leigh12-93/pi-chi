@@ -1,13 +1,18 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { GitBranch, Upload, FolderInput, ExternalLink, Link, Loader2, Search } from 'lucide-react'
+import { GitBranch, Upload, FolderInput, ExternalLink, Link, Loader2, Search, Unlink, Download } from 'lucide-react'
+import { toast } from 'sonner'
 
 interface GitPanelProps {
   githubRepoUrl: string | null
   projectId: string | null
   onAction: (action: string) => void
   onRepoConnected?: (url: string) => void
+  onRepoDisconnected?: () => void
+  files?: Record<string, string>
+  onBulkFileUpdate?: (files: Record<string, string>, opts?: { replace?: boolean }) => void
+  modifiedFiles?: Set<string>
 }
 
 interface GithubRepo {
@@ -17,11 +22,13 @@ interface GithubRepo {
   updated_at: string
 }
 
-export function GitPanel({ githubRepoUrl, projectId, onAction, onRepoConnected }: GitPanelProps) {
+export function GitPanel({ githubRepoUrl, projectId, onAction, onRepoConnected, onRepoDisconnected, files, onBulkFileUpdate, modifiedFiles }: GitPanelProps) {
   const [showConnect, setShowConnect] = useState(false)
   const [repoInput, setRepoInput] = useState('')
   const [connecting, setConnecting] = useState(false)
   const [error, setError] = useState('')
+  const [pulling, setPulling] = useState(false)
+  const [disconnecting, setDisconnecting] = useState(false)
 
   // Auto-loaded repos from GitHub
   const [repos, setRepos] = useState<GithubRepo[]>([])
@@ -81,7 +88,64 @@ export function GitPanel({ githubRepoUrl, projectId, onAction, onRepoConnected }
     }
   }
 
+  const handlePullLatest = async () => {
+    if (!githubRepoUrl || !onBulkFileUpdate) return
+    const parts = githubRepoUrl.replace('https://github.com/', '').split('/')
+    const owner = parts[0]
+    const repo = parts[1]
+    if (!owner || !repo) return
+
+    setPulling(true)
+    try {
+      const res = await fetch('/api/github/import', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ owner, repo }),
+      })
+      if (!res.ok) {
+        const data = await res.json()
+        toast.error('Pull failed', { description: data.error || `HTTP ${res.status}` })
+        return
+      }
+      const data = await res.json()
+      if (data.files && Object.keys(data.files).length > 0) {
+        onBulkFileUpdate({ ...(files || {}), ...data.files })
+        toast.success(`Pulled ${data.fileCount} files`, {
+          description: `From ${owner}/${repo}${data.branch ? ` (${data.branch})` : ''}`,
+        })
+      } else {
+        toast.info('No files found in repository')
+      }
+    } catch {
+      toast.error('Pull failed', { description: 'Network error' })
+    } finally {
+      setPulling(false)
+    }
+  }
+
+  const handleDisconnect = async () => {
+    if (!projectId) return
+    setDisconnecting(true)
+    try {
+      const res = await fetch(`/api/projects/${projectId}/connect`, {
+        method: 'DELETE',
+      })
+      if (res.ok) {
+        onRepoDisconnected?.()
+        toast.success('Repository disconnected')
+      } else {
+        toast.error('Failed to disconnect')
+      }
+    } catch {
+      toast.error('Failed to disconnect')
+    } finally {
+      setDisconnecting(false)
+    }
+  }
+
   if (!githubRepoUrl) {
+    const changedCount = modifiedFiles?.size || 0
+
     return (
       <div className="p-3 space-y-3">
         <p className="text-xs text-forge-text-dim">No repository connected</p>
@@ -164,6 +228,18 @@ export function GitPanel({ githubRepoUrl, projectId, onAction, onRepoConnected }
           </div>
         )}
         <button
+          onClick={() => onAction('push')}
+          className="w-full flex items-center gap-2 px-3 py-2 text-xs rounded-lg border border-forge-border hover:bg-forge-surface active:scale-[0.98] transition-all duration-150"
+        >
+          <Upload className="w-3.5 h-3.5" />
+          Push to GitHub
+          {changedCount > 0 && (
+            <span className="ml-auto px-1.5 py-0.5 text-[10px] font-medium bg-forge-accent/15 text-forge-accent rounded-full">
+              {changedCount}
+            </span>
+          )}
+        </button>
+        <button
           onClick={() => onAction('import')}
           className="w-full flex items-center gap-2 px-3 py-2 text-xs rounded-lg border border-forge-border hover:bg-forge-surface active:scale-[0.98] transition-all duration-150"
         >
@@ -196,11 +272,20 @@ export function GitPanel({ githubRepoUrl, projectId, onAction, onRepoConnected }
         Push to GitHub
       </button>
       <button
-        onClick={() => onAction('import')}
-        className="w-full flex items-center gap-2 px-3 py-2 text-xs rounded-lg border border-forge-border hover:bg-forge-surface active:scale-[0.98] transition-all duration-150"
+        onClick={handlePullLatest}
+        disabled={pulling}
+        className="w-full flex items-center gap-2 px-3 py-2 text-xs rounded-lg border border-forge-border hover:bg-forge-surface active:scale-[0.98] transition-all duration-150 disabled:opacity-50"
       >
-        <FolderInput className="w-3.5 h-3.5" />
-        Pull Latest
+        {pulling ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Download className="w-3.5 h-3.5" />}
+        {pulling ? 'Pulling...' : 'Pull Latest'}
+      </button>
+      <button
+        onClick={handleDisconnect}
+        disabled={disconnecting}
+        className="w-full flex items-center gap-2 px-3 py-2 text-xs rounded-lg border border-forge-border text-forge-text-dim hover:text-red-400 hover:border-red-400/30 hover:bg-red-500/5 active:scale-[0.98] transition-all duration-150 disabled:opacity-50"
+      >
+        {disconnecting ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Unlink className="w-3.5 h-3.5" />}
+        Disconnect
       </button>
     </div>
   )
