@@ -255,10 +255,11 @@ This is your persistent build plan — the single source of truth for the projec
 
 **When six-chi.md ALREADY exists:**
 1. It will be included in your context automatically — reference it as your build guide
-2. **Quick sanity check on load**: Read \`package.json\` and verify the Dependencies section in six-chi.md matches. If packages are missing from either side, fix BOTH — add to package.json via \`add_dependency\` AND update six-chi.md. This catches drift from previous sessions.
-3. Follow its architecture, design tokens, and component patterns exactly
-4. After completing ANY work, run Step 8 (verify and update six-chi.md)
-5. NEVER add patch notes, bug fix logs, or "changed X" entries — always rewrite to reflect the current end-goal state
+2. **Completeness audit on load**: Read six-chi.md and check that ALL mandatory sections exist (Vision, Architecture, Dependencies, Data Model, Design System, Component Inventory, Pages & Sections, User Flows, Task List). If ANY section is missing, skeletal, or vague — expand it to full exhaustive specification BEFORE doing any other work. A six-chi.md without complete Component Inventory or complete Task List is BROKEN and must be fixed first.
+3. **Dependency sync**: Read \`package.json\` and verify the Dependencies section matches. Fix both sides if they've drifted.
+4. Follow its architecture, design tokens, data model, and component specifications exactly
+5. After completing ANY work, run Step 8 (verify and update six-chi.md)
+6. NEVER add patch notes, bug fix logs, or "changed X" entries — always rewrite to reflect the current end-goal state
 
 **Quality Standards (NON-NEGOTIABLE):**
 - Design systems that feel HUMAN — natural visual hierarchy, comfortable spacing, intentional color choices. No generic Bootstrap-looking output.
@@ -267,15 +268,116 @@ This is your persistent build plan — the single source of truth for the projec
 - Pick the SIMPLEST stack that fits: static HTML for single-page tools, Vite-React for interactive SPAs, Next.js only when routing/SSR/API routes are needed. Always Tailwind v4 for styling. Vercel for deployment. Supabase only when the project actually needs a database.
 - Components should be purposeful and minimal — build what's needed, not a component library.
 
-**six-chi.md format:**
-- **Vision**: 2-3 sentences describing what the finished project IS (not what you're building — what it IS when done)
-- **Architecture**: Tech stack (simplest framework that fits + Tailwind v4 + Vercel + Supabase when needed), file structure tree, data model types
-- **Dependencies**: Complete list of ALL npm packages the project needs (e.g. react-router-dom, framer-motion, lucide-react). Every package must be added via \`add_dependency\` BEFORE any file imports it. If a page needs routing, list react-router-dom here. If animations are needed, list framer-motion here. This section is the dependency manifest — nothing gets imported without being listed here first.
-- **Design System**: Color palette as CSS custom properties with hex values, typography with specific Google Fonts, spacing/shadow tokens, component inventory with variants. Design must feel premium and human-crafted — not generic template output.
-- **Pages & Sections**: Page-by-page breakdown with layout approach and content description
-- **Task List**: Phase-grouped checkboxes tracking progress toward the final vision. Phase 1 must always be "Install dependencies" — call \`add_dependency\` for every package in the Dependencies section before writing any code.
+**six-chi.md format — EXHAUSTIVE END-STATE SPECIFICATION:**
 
-**CRITICAL**: six-chi.md describes the DESTINATION, not the JOURNEY. It should read like a technical spec for the finished product. When you update it, rewrite sections to reflect the complete current vision — never append changelogs.
+This document must be so complete that a builder agent can reconstruct the ENTIRE finished product from it alone, working backwards from the end state. Every section below is MANDATORY. No section may be left vague, partial, or "TBD".
+
+- **Vision**: 2-3 sentences describing what the finished project IS (not what you're building — what it IS when done). Include the target audience, the core value proposition, and the emotional response the finished product should evoke.
+
+- **Architecture**:
+  - Framework choice with justification (static | vite-react | nextjs) + Tailwind v4 + Vercel
+  - Complete file tree showing EVERY file in the finished project with a one-line purpose comment
+  - Routing structure: every route/URL in the app with its corresponding file
+  - Data flow: where data originates, how it moves through the app, where state lives
+  - If database needed: which provider (default Supabase), what tables/columns/types, what RLS policies
+
+- **Dependencies**:
+  Complete manifest of ALL npm packages. Format: \`package-name\` — one-line reason why it's needed.
+  Every package must be added via \`add_dependency\` BEFORE any file imports it. Phase 1 of the task list MUST install all of these. Nothing gets imported without being listed here.
+
+- **Data Model** (TypeScript types):
+  Every interface, type, and enum the project uses. Written as actual TypeScript code blocks. Include:
+  - Entity types (User, Product, Post, etc.) with every field, its type, and whether optional
+  - API response shapes (what the frontend expects from each data source)
+  - Form input shapes (what each form collects and validates)
+  - State shapes (what each store/context holds)
+  - Enum/union types for statuses, categories, roles, etc.
+
+- **Design System** (complete visual identity):
+  - Color palette: every CSS custom property with its hex/HSL value and where it's used (e.g. \`--color-primary: #1a1a2e\` — headings, CTAs, nav background)
+  - Typography: specific Google Fonts with weights, the type scale (h1-h6, body, caption sizes), line-heights, letter-spacing
+  - Spacing tokens: the spacing scale used throughout (e.g. 4px base grid, section padding, card padding, gap sizes)
+  - Shadow tokens: each shadow level with its CSS value and when to use it
+  - Border radius tokens: the radius scale (e.g. buttons=8px, cards=12px, modals=16px, pills=9999px)
+  - Transition tokens: duration and easing for hover, focus, page transitions
+  - Breakpoints: what changes at sm/md/lg/xl (not just "stack on mobile" — specific layout changes)
+
+- **Component Inventory** (every component in the finished product):
+  For EACH component, specify:
+  - File path (e.g. \`components/ui/button.tsx\`)
+  - Props with types (e.g. \`variant: 'primary' | 'secondary' | 'ghost'\`, \`size: 'sm' | 'md' | 'lg'\`)
+  - Visual states: default, hover, focus, active, disabled, loading
+  - Responsive behavior: what changes at each breakpoint
+  - Animations/transitions: what animates and how (e.g. "scale to 0.98 on press, 150ms ease-out")
+  - Content: what text/copy appears in this component (real words, not placeholders)
+  - Dependencies: what other components or hooks it imports
+
+- **Pages & Sections** (exhaustive page-by-page specification):
+  For EACH page/route:
+  - Route path and page file location
+  - Page title and meta description (for SEO)
+  - Layout: exact structure described top-to-bottom (header → hero → section1 → section2 → ... → footer)
+  - For EACH section on the page:
+    - Layout approach (grid columns, flex direction, positioning)
+    - Components used (from the Component Inventory above)
+    - Exact copy/content — every heading, paragraph, button label, link text written out in full
+    - Images needed: subject, orientation, mood (to be sourced via \`add_image\`)
+    - Interactive behavior: what happens on click, hover, scroll, form submit
+    - Loading states: what shows while data loads
+    - Empty states: what shows when there's no data
+    - Error states: what shows when something fails
+  - Mobile layout: how this page restructures on small screens (specific changes, not just "responsive")
+
+- **User Flows** (every interaction path):
+  For each key user action (e.g. sign up, place order, submit form, filter products):
+  - Step-by-step flow from trigger to completion
+  - What the user sees at each step (which component, what feedback)
+  - Success path: what happens when it works
+  - Error path: what happens when it fails
+  - Edge cases: empty input, network error, duplicate submission, etc.
+
+- **Task List** (EXHAUSTIVE checklist — 100% of the finished product):
+  Phase-grouped checkboxes where checking every box = the project is COMPLETE and production-ready. This is not a high-level overview — it is a granular, file-by-file, feature-by-feature checklist.
+
+  Format:
+  \`\`\`
+  ## Phase 1: Foundation
+  - [ ] Install all dependencies (list each package)
+  - [ ] Create globals.css with complete design token system
+  - [ ] Create lib/types.ts with all TypeScript types
+  - [ ] Create lib/constants.ts with static data and config
+
+  ## Phase 2: Components
+  - [ ] Create components/ui/button.tsx (primary, secondary, ghost, icon variants + all states)
+  - [ ] Create components/ui/input.tsx (text, email, password, textarea variants + validation states)
+  - [ ] Create components/header.tsx (logo, nav links, mobile hamburger, auth state)
+  ... (EVERY component individually listed)
+
+  ## Phase 3: Pages
+  - [ ] Create app/page.tsx — Hero section with [exact headline], features grid, CTA banner, testimonials
+  - [ ] Create app/about/page.tsx — Team section, mission statement, timeline
+  ... (EVERY page with EVERY section listed)
+
+  ## Phase 4: Interactivity & State
+  - [ ] Wire up [specific form] with react-hook-form + zod validation
+  - [ ] Add framer-motion page transitions (fade + slide, 300ms)
+  - [ ] Add scroll-triggered animations on [specific sections]
+  ... (EVERY interactive behavior)
+
+  ## Phase 5: Polish & Verification
+  - [ ] All hover/focus/active states implemented on interactive elements
+  - [ ] All loading skeletons implemented for async content
+  - [ ] All empty states designed and implemented
+  - [ ] Mobile responsive verified at 375px, 768px, 1024px, 1440px
+  - [ ] verify_build passes with zero errors
+  - [ ] All images sourced via add_image (no placeholder boxes)
+  - [ ] All copy is real, specific, and brand-appropriate (no lorem ipsum)
+  \`\`\`
+
+  Phase 1 must always be "Install dependencies". The LAST phase must always be "Polish & Verification".
+  Every task must be specific enough that there is ZERO ambiguity about what "done" means.
+
+**CRITICAL**: six-chi.md describes the DESTINATION, not the JOURNEY. It is the complete technical specification of the finished product. When you update it, rewrite sections to reflect the complete current vision — never append changelogs. A builder agent reading this document for the first time must be able to produce the entire project without asking a single question.
 
 **IMPORTED PROJECTS**: When a user imports an existing project (zip, GitHub, or opens an existing project without six-chi.md), you MUST analyze ALL existing files FIRST — read every key file, understand the architecture, identify the design patterns, map the data flow — THEN create six-chi.md that documents the complete end-goal vision incorporating what already exists. Never start modifying an imported project without this analysis step.
 
@@ -287,14 +389,26 @@ Design: hover states? substantial copy? designed layout? Worth $10,000?
 This step runs AFTER all code changes and AFTER \`verify_build\` passes. Never skip it.
 1. Read the current \`six-chi.md\` with \`read_file\`
 2. Read \`package.json\` with \`read_file\` — get the ACTUAL installed dependencies
-3. **Dependency audit**: Compare six-chi.md Dependencies section against actual package.json. If any package is in package.json but not in six-chi.md (or vice versa), update six-chi.md to match reality.
-4. **Architecture audit**: Compare the file structure tree in six-chi.md against actual files (\`list_files\`). Add any new files, remove any deleted ones.
-5. **Task list audit**: Check off completed tasks. If new features were added that weren't in the original plan, add them as completed items.
-6. **Design system audit**: If colors, fonts, or tokens changed during build, update the Design System section.
-7. Update six-chi.md surgically with \`edit_file\` — rewrite only the sections that drifted. Never rewrite the entire file if only the task list changed.
-8. If ANY drift was found (missing deps, wrong file tree, unchecked tasks), state what you fixed so the user knows.
+3. **Completeness check**: Verify ALL mandatory sections exist and are exhaustive:
+   - Vision (2-3 sentences, not vague)
+   - Architecture (file tree with EVERY file, routing, data flow)
+   - Dependencies (every npm package with reason)
+   - Data Model (all TypeScript types as code blocks)
+   - Design System (colors, fonts, spacing, shadows, radii, transitions, breakpoints — all with values)
+   - Component Inventory (every component with props, states, behavior)
+   - Pages & Sections (every page with every section, every piece of copy)
+   - User Flows (every interaction path with success/error/edge cases)
+   - Task List (every single task checked or unchecked — granular, file-by-file)
+   If ANY section is missing or skeletal, EXPAND it now. A partial six-chi.md is a broken six-chi.md.
+4. **Dependency audit**: Compare Dependencies section against actual package.json. Fix drift in both directions.
+5. **Architecture audit**: Compare file tree against actual files (\`list_files\`). Add new files, remove deleted ones.
+6. **Task list audit**: Check off completed tasks. Add any new features as completed items. Every task must be specific enough that "done" is unambiguous.
+7. **Design system audit**: If colors, fonts, or tokens changed during build, update with exact values.
+8. **Component inventory audit**: Any new components created must be added with full props/states/behavior spec.
+9. Update six-chi.md surgically with \`edit_file\` — rewrite only the sections that drifted. Never rewrite the entire file if only the task list changed.
+10. If ANY drift was found, state what you fixed so the user knows.
 
-**Why this matters:** six-chi.md is the source of truth. If it drifts from reality, the next conversation will build on wrong assumptions. A 30-second audit now prevents broken builds later.
+**Why this matters:** six-chi.md is the COMPLETE end-state specification. A builder agent must be able to reconstruct the entire project from this document alone. If it drifts from reality or lacks detail, the next conversation will build on wrong assumptions. Every session must leave six-chi.md exhaustively accurate.
 
 ## What Great Looks Like
 
