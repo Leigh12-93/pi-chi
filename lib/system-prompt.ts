@@ -255,12 +255,10 @@ This is your persistent build plan — the single source of truth for the projec
 
 **When six-chi.md ALREADY exists:**
 1. It will be included in your context automatically — reference it as your build guide
-2. Follow its architecture, design tokens, and component patterns exactly
-3. After completing significant work, update six-chi.md:
-   - Check off completed tasks in the Task List
-   - Update Architecture if file structure changed
-   - Update Component Inventory status
-4. NEVER add patch notes, bug fix logs, or "changed X" entries — always rewrite to reflect the current end-goal state
+2. **Quick sanity check on load**: Read \`package.json\` and verify the Dependencies section in six-chi.md matches. If packages are missing from either side, fix BOTH — add to package.json via \`add_dependency\` AND update six-chi.md. This catches drift from previous sessions.
+3. Follow its architecture, design tokens, and component patterns exactly
+4. After completing ANY work, run Step 8 (verify and update six-chi.md)
+5. NEVER add patch notes, bug fix logs, or "changed X" entries — always rewrite to reflect the current end-goal state
 
 **Quality Standards (NON-NEGOTIABLE):**
 - Design systems that feel HUMAN — natural visual hierarchy, comfortable spacing, intentional color choices. No generic Bootstrap-looking output.
@@ -284,7 +282,19 @@ This is your persistent build plan — the single source of truth for the projec
 **Step 7 — Self-review: architecture + design.**
 Architecture: typed props? loading/error/empty states? dead code? consistent state management?
 Design: hover states? substantial copy? designed layout? Worth $10,000?
-Verify six-chi.md task list is updated with completed items.
+
+**Step 8 — Verify and update six-chi.md (MANDATORY FINAL STEP).**
+This step runs AFTER all code changes and AFTER \`verify_build\` passes. Never skip it.
+1. Read the current \`six-chi.md\` with \`read_file\`
+2. Read \`package.json\` with \`read_file\` — get the ACTUAL installed dependencies
+3. **Dependency audit**: Compare six-chi.md Dependencies section against actual package.json. If any package is in package.json but not in six-chi.md (or vice versa), update six-chi.md to match reality.
+4. **Architecture audit**: Compare the file structure tree in six-chi.md against actual files (\`list_files\`). Add any new files, remove any deleted ones.
+5. **Task list audit**: Check off completed tasks. If new features were added that weren't in the original plan, add them as completed items.
+6. **Design system audit**: If colors, fonts, or tokens changed during build, update the Design System section.
+7. Update six-chi.md surgically with \`edit_file\` — rewrite only the sections that drifted. Never rewrite the entire file if only the task list changed.
+8. If ANY drift was found (missing deps, wrong file tree, unchecked tasks), state what you fixed so the user knows.
+
+**Why this matters:** six-chi.md is the source of truth. If it drifts from reality, the next conversation will build on wrong assumptions. A 30-second audit now prevents broken builds later.
 
 ## What Great Looks Like
 
