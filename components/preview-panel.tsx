@@ -344,6 +344,7 @@ export const PreviewPanel = memo(function PreviewPanel({ files, projectId, onFix
   const retryTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null) // clear retry on unmount
   const consoleEndRef = useRef<HTMLDivElement | null>(null) // auto-scroll console
   const [iframeLoading, setIframeLoading] = useState(false) // iframe load indicator
+  const [wcIframeReady, setWcIframeReady] = useState(false) // WC iframe fully loaded (not just URL set)
   const [buildPhase, setBuildPhase] = useState<BuildPhase>(null) // phased lifecycle
   const [isCrossfading, setIsCrossfading] = useState(false) // transition from building to live
   const crossfadeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null) // cleanup crossfade
@@ -375,9 +376,14 @@ export const PreviewPanel = memo(function PreviewPanel({ files, projectId, onFix
     setNavCount(0)
   }, [wcPreviewUrl, sandboxUrl])
 
-  // Set loading state when WebContainer URL changes
+  // Set loading state when WebContainer URL changes — reset ready flag
   useEffect(() => {
-    if (wcPreviewUrl) setIframeLoading(true)
+    if (wcPreviewUrl) {
+      setIframeLoading(true)
+      setWcIframeReady(false)
+    } else {
+      setWcIframeReady(false)
+    }
   }, [wcPreviewUrl])
 
   const handleGoBack = useCallback(() => {
@@ -650,6 +656,48 @@ export const PreviewPanel = memo(function PreviewPanel({ files, projectId, onFix
 
       const hasTailwind = projectType === 'nextjs' || projectType === 'vite' || previewCss.includes('tailwindcss') || previewCss.includes('tailwind')
 
+      // Detect Google Maps usage — inject Maps JS API into preview
+      const allContent = Object.values(files).join('\n')
+      const usesGoogleMaps = allContent.includes('maps.googleapis.com') ||
+        allContent.includes('@react-google-maps') ||
+        allContent.includes('google-map-react') ||
+        allContent.includes('GoogleMap') ||
+        allContent.includes('useJsApiLoader') ||
+        jsx.includes('id="map"') || jsx.includes('id="google-map"')
+
+      // Extract Google Maps API key from env files
+      let mapsApiKey = ''
+      if (usesGoogleMaps) {
+        for (const [p, c] of Object.entries(files)) {
+          const fname = p.split('/').pop() || ''
+          if (fname.startsWith('.env')) {
+            const match = c.match(/(?:NEXT_PUBLIC_GOOGLE_MAPS_KEY|GOOGLE_MAPS_API_KEY|REACT_APP_GOOGLE_MAPS_KEY|GOOGLE_API_KEY)\s*=\s*(.+)/m)
+            if (match) { mapsApiKey = match[1].trim().replace(/^["']|["']$/g, ''); break }
+          }
+        }
+      }
+
+      // Detect Google Fonts — extract font family URLs from CSS/HTML
+      const fontUrls: string[] = []
+      for (const [p, c] of Object.entries(files)) {
+        if (p.endsWith('.css') || p.endsWith('.html')) {
+          const matches = c.matchAll(/(https:\/\/fonts\.googleapis\.com\/css2?\?[^"'\s)]+)/g)
+          for (const m of matches) {
+            if (!fontUrls.includes(m[1])) fontUrls.push(m[1])
+          }
+        }
+      }
+
+      const googleMapsScript = usesGoogleMaps && mapsApiKey
+        ? `<script src="https://maps.googleapis.com/maps/api/js?key=${mapsApiKey}&libraries=places,marker"></script>`
+        : usesGoogleMaps
+        ? `<!-- Google Maps detected but no API key found in env files -->`
+        : ''
+
+      const googleFontsLinks = fontUrls.map(url =>
+        `<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link href="${url}" rel="stylesheet">`
+      ).join('\n  ')
+
       return `<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -658,6 +706,8 @@ export const PreviewPanel = memo(function PreviewPanel({ files, projectId, onFix
   <title>Preview</title>
   ${PREVIEW_ERROR_SCRIPT}
   ${hasTailwind ? '<script src="https://cdn.tailwindcss.com"></script>' : ''}
+  ${googleMapsScript}
+  ${googleFontsLinks}
   <style>
     ${previewCss.replace(/@import\s+"tailwindcss";\s*/g, '').replace(/@import\s+'tailwindcss';\s*/g, '')}
     body { margin: 0; font-family: system-ui, -apple-system, sans-serif; }
@@ -1131,7 +1181,7 @@ export const PreviewPanel = memo(function PreviewPanel({ files, projectId, onFix
   const showCachedPreview = isSandboxOffline && sandboxStatus !== 'error'
 
   // Display URL for the URL bar — shows current path when live, phase label during build
-  const isLivePreview = !!(wcPreviewUrl || isSandboxActive)
+  const isLivePreview = !!(wcIframeReady || isSandboxActive)
   const displayUrl = isLivePreview
     ? currentPath
     : isSandboxLoading
@@ -1462,9 +1512,8 @@ export const PreviewPanel = memo(function PreviewPanel({ files, projectId, onFix
               srcDoc={previewHtml === '__JSX_BUILDING_PLACEHOLDER__' ? '' : previewHtml}
               className={cn(
                 'w-full h-full border-0 absolute inset-0 transition-opacity duration-300',
-                // Hide static preview when a live preview is fully loaded
-                // Keep visible while WebContainer iframe is still loading
-                (isSandboxActive || showCachedPreview || (wcPreviewUrl && !iframeLoading)) ? 'opacity-0 pointer-events-none' : 'opacity-100',
+                // Hide static preview when a live preview (sandbox or WC) is active
+                (isSandboxActive || showCachedPreview || wcIframeReady) ? 'opacity-0 pointer-events-none' : 'opacity-100',
               )}
               sandbox="allow-scripts allow-same-origin allow-forms"
               title="Static Preview"
@@ -1854,49 +1903,10 @@ export const PreviewPanel = memo(function PreviewPanel({ files, projectId, onFix
             </div>
           )}
 
-          {/* WebContainer live preview — takes priority over v0 sandbox */}
-          {/* Hidden while loading so the static HTML preview stays visible underneath */}
-          {wcPreviewUrl && (
+          {/* Live sandbox iframe — stays visible while WebContainer is loading */}
+          {isSandboxActive && (
             <>
-              {iframeLoading && (
-                <div className="absolute top-3 right-3 z-20">
-                  <Loader2 className="w-4 h-4 animate-spin text-forge-accent" />
-                </div>
-              )}
-              <iframe
-                id="forge-preview-iframe"
-                key={`wc-${wcPreviewUrl}`}
-                src={wcPreviewUrl}
-                className={cn(
-                  'w-full h-full border-0 absolute inset-0 transition-opacity duration-300',
-                  iframeLoading ? 'opacity-0' : 'opacity-100',
-                )}
-                title="Live Preview"
-                allow="cross-origin-isolated"
-                onLoad={(e) => {
-                  setIframeLoading(false)
-                  setIframeError(null)
-                  onPreviewReady?.()
-                  // Track navigation — try to read URL, fall back for cross-origin
-                  try {
-                    const url = (e.target as HTMLIFrameElement).contentWindow?.location.href
-                    if (url) {
-                      const parsed = new URL(url)
-                      setCurrentPath(parsed.pathname + parsed.search + parsed.hash)
-                    }
-                  } catch {
-                    setNavCount(prev => prev + 1)
-                  }
-                }}
-                onError={() => setIframeError('Preview failed to load')}
-              />
-            </>
-          )}
-
-          {/* Live sandbox iframe (fallback when WebContainer is not available) */}
-          {!wcPreviewUrl && isSandboxActive && (
-            <>
-              {iframeLoading && (
+              {iframeLoading && !wcPreviewUrl && (
                 <div className="absolute inset-0 z-10 pointer-events-none">
                   <div className="absolute inset-0 animate-shimmer" />
                   <div className="absolute top-3 right-3">
@@ -1905,14 +1915,18 @@ export const PreviewPanel = memo(function PreviewPanel({ files, projectId, onFix
                 </div>
               )}
               <iframe
-                id="forge-preview-iframe"
+                id={(!wcPreviewUrl || wcIframeReady) ? undefined : 'forge-preview-iframe'}
                 key={`sandbox-${refreshKey}`}
                 src={sandboxUrl}
-                className="w-full h-full border-0 absolute inset-0"
+                className={cn(
+                  'w-full h-full border-0 absolute inset-0 transition-opacity duration-500',
+                  // Hide sandbox once WC iframe is fully loaded
+                  wcIframeReady ? 'opacity-0 pointer-events-none' : 'opacity-100',
+                )}
                 title="Live Preview"
                 allow="cross-origin-isolated"
                 onLoad={(e) => {
-                  setIframeLoading(false)
+                  if (!wcPreviewUrl) setIframeLoading(false)
                   setIframeError(null)
                   setSandboxError(null)
                   // Trigger ready phase + crossfade
@@ -1924,8 +1938,47 @@ export const PreviewPanel = memo(function PreviewPanel({ files, projectId, onFix
                       setBuildPhase(null)
                     }, 600) // matches CSS crossfade duration
                   }
-                  onPreviewReady?.()
+                  if (!wcPreviewUrl) onPreviewReady?.()
                   // Track navigation
+                  try {
+                    const url = (e.target as HTMLIFrameElement).contentWindow?.location.href
+                    if (url) {
+                      const parsed = new URL(url)
+                      if (!wcIframeReady) setCurrentPath(parsed.pathname + parsed.search + parsed.hash)
+                    }
+                  } catch {
+                    if (!wcIframeReady) setNavCount(prev => prev + 1)
+                  }
+                }}
+                onError={() => { if (!wcPreviewUrl) setIframeError('Preview failed to load') }}
+              />
+            </>
+          )}
+
+          {/* WebContainer live preview — renders on top, fades in when loaded */}
+          {wcPreviewUrl && (
+            <>
+              {!wcIframeReady && (
+                <div className="absolute top-3 right-3 z-20">
+                  <Loader2 className="w-4 h-4 animate-spin text-forge-accent" />
+                </div>
+              )}
+              <iframe
+                id="forge-preview-iframe"
+                key={`wc-${wcPreviewUrl}`}
+                src={wcPreviewUrl}
+                className={cn(
+                  'w-full h-full border-0 absolute inset-0 transition-opacity duration-500',
+                  wcIframeReady ? 'opacity-100' : 'opacity-0 pointer-events-none',
+                )}
+                title="Live Preview"
+                allow="cross-origin-isolated"
+                onLoad={(e) => {
+                  setWcIframeReady(true)
+                  setIframeLoading(false)
+                  setIframeError(null)
+                  onPreviewReady?.()
+                  // Track navigation — try to read URL, fall back for cross-origin
                   try {
                     const url = (e.target as HTMLIFrameElement).contentWindow?.location.href
                     if (url) {
