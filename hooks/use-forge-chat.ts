@@ -647,9 +647,21 @@ export function useForgeChat(props: UseForgeChatProps) {
   }, [sendMessage])
 
   // ─── Send / register / pending ────────────────────────────────
+  const clearTasks = useCallback(() => {
+    setTasks([])
+    latestTasksRef.current = []
+    if (taskDebounceRef.current) {
+      clearTimeout(taskDebounceRef.current)
+      taskDebounceRef.current = null
+    }
+  }, [])
+
   const handleSend = useCallback((text?: string) => {
     const content = (text || input).trim()
     if (!content && attachments.length === 0) return
+
+    // Clear tasks from previous turn
+    clearTasks()
 
     // Capture state before clearing
     const currentAttachments = [...attachments]
@@ -985,6 +997,6 @@ export function useForgeChat(props: UseForgeChatProps) {
     handleRegenerate, handleEnvVarsSave, handleCancelTask, handleScroll,
     handleClearChat, handleAttachFiles, handleRemoveAttachment,
     setEditingMessageId, setEditingContent, setClearConfirm,
-    stop, regenerate, setMessages, formatElapsed, stoppedByUserRef,
+    stop, regenerate, setMessages, formatElapsed, stoppedByUserRef, clearTasks,
   }
 }

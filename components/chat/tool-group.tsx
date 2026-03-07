@@ -4,7 +4,7 @@ import { useState } from 'react'
 import { CheckCircle, ChevronDown, ChevronRight, Terminal, Loader2, Search, Pencil, GitBranch, Database } from 'lucide-react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { cn } from '@/lib/utils'
-import { TOOL_LABELS, colorClasses } from '@/lib/chat/constants'
+import { TOOL_LABELS, colorClasses, TOOL_VARIANTS, variantCardClasses, TOOL_COMPLETE_LABELS } from '@/lib/chat/constants'
 import { getToolSummary, type ToolInvocation } from '@/lib/chat/tool-utils'
 import { ToolResultDetail, getInlineSummary } from './tool-result-detail'
 
@@ -131,30 +131,42 @@ export function CollapsibleToolGroup({ tools }: { tools: ToolGroupData['tools'] 
 
   const fileCount = tools.length
 
+  // Determine dominant variant for the group card
+  const dominantTool = (() => {
+    const counts: Record<string, number> = {}
+    for (const t of tools) counts[t.toolName] = (counts[t.toolName] || 0) + 1
+    return Object.entries(counts).sort((a, b) => b[1] - a[1])[0]?.[0] || ''
+  })()
+  const variant = TOOL_VARIANTS[dominantTool] || 'default'
+  const vc = variantCardClasses[variant]
+
   return (
     <motion.div
       initial={{ opacity: 0, y: 4 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.2 }}
-      className="tool-timeline-group"
+      className={cn('rounded-xl border overflow-hidden transition-all duration-300', vc.border, vc.bg)}
     >
       <button
         onClick={() => setExpanded(!expanded)}
-        className="flex items-center gap-2.5 w-full py-1 text-[13px] text-forge-text-dim hover:text-forge-text transition-colors group/toolbtn"
+        className="flex items-center gap-2.5 w-full px-3.5 py-2 text-[13px] text-forge-text-dim hover:text-forge-text transition-colors group/toolbtn"
       >
         <div className={cn('w-5 h-5 rounded-md flex items-center justify-center shrink-0', colorClasses[groupMeta.color] || colorClasses.gray)}>
           <groupMeta.Icon className="w-3 h-3" />
         </div>
-        <span className="flex-1 text-left font-medium">{groupMeta.label}</span>
-        <span className="text-[11px] text-forge-text-dim/40 font-mono shrink-0 mr-1">{fileCount} file{fileCount !== 1 ? 's' : ''}</span>
-        <ChevronDown className={cn('w-3.5 h-3.5 text-forge-text-dim/40 transition-transform duration-200', expanded && 'rotate-180')} />
+        <span className="flex-1 text-left font-medium text-[12px]">{groupMeta.label}</span>
+        <div className="flex items-center gap-1.5 shrink-0">
+          <span className="text-[10.5px] text-forge-text-dim/40 font-mono">{fileCount} file{fileCount !== 1 ? 's' : ''}</span>
+          <CheckCircle className="w-3 h-3 text-emerald-500/50" />
+          <ChevronDown className={cn('w-3 h-3 text-forge-text-dim/20 transition-transform duration-200', expanded && 'rotate-180')} />
+        </div>
       </button>
 
       {/* Compact file chips row - always visible */}
       {!expanded && fileChips.length > 0 && (
-        <div className="flex flex-wrap gap-1.5 pl-[30px] pb-1">
+        <div className="flex flex-wrap gap-1.5 px-3.5 pb-2">
           {fileChips.map(([name, count]) => (
-            <span key={name} className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md text-[11px] font-mono text-forge-text-dim/60 bg-forge-surface border border-forge-border/40">
+            <span key={name} className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md text-[11px] font-mono text-forge-text-dim/60 bg-forge-surface/50 border border-forge-border/30">
               <CheckCircle className="w-3 h-3 text-emerald-500/70" />
               {name}
               {count > 1 && <span className="text-forge-text-dim/40">x{count}</span>}
@@ -172,7 +184,7 @@ export function CollapsibleToolGroup({ tools }: { tools: ToolGroupData['tools'] 
             transition={{ type: 'spring', stiffness: 500, damping: 32 }}
             className="overflow-hidden"
           >
-            <div className="ml-2.5 border-l border-forge-border/40 pl-4 py-1 space-y-0.5">
+            <div className="border-t border-forge-border/20 px-3.5 py-2 space-y-0.5">
               {tools.map((t, i) => (
                 <GroupedToolDetail key={t.partIdx} tool={t} index={i} />
               ))}
@@ -205,8 +217,8 @@ function GroupedToolDetail({ tool: t, index: i }: { tool: ToolGroupData['tools']
         tabIndex={0}
         onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') setDetailOpen(!detailOpen) }}
       >
-        <div className="w-1.5 h-1.5 rounded-full bg-emerald-400/60 shrink-0 -ml-[21px]" />
-        <span className="text-forge-text-dim/50 shrink-0">{info.label}</span>
+        <CheckCircle className="w-3 h-3 text-emerald-500/40 shrink-0" />
+        <span className="text-forge-text-dim/50 shrink-0">{TOOL_COMPLETE_LABELS[t.toolName] || info.label}</span>
         <span className="font-mono shrink-0">{fileInfo.name}</span>
         {fileInfo.path && <span className="tool-timeline-path hidden sm:inline">{fileInfo.path}</span>}
         {summary && (

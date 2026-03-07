@@ -15,6 +15,7 @@ import { MODEL_OPTIONS, QUICK_ACTIONS } from '@/lib/chat/constants'
 import { MessageItem } from '@/components/chat/message-item'
 import { ApprovalCard } from '@/components/approval-card'
 import { ActivityBlock } from '@/components/chat/activity-block'
+import { TaskListPanel } from '@/components/chat/task-list-panel'
 import { useForgeChat, type UseForgeChatProps } from '@/hooks/use-forge-chat'
 import { useVoiceInput } from '@/hooks/use-voice-input'
 import { toast } from 'sonner'
@@ -285,6 +286,21 @@ export const ChatPanel = memo(function ChatPanel({ onLoadingChange, ...props }: 
               <ChevronDown className="w-3 h-3" />
               {chat.isLoading ? 'New messages' : 'Scroll to bottom'}
             </button>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Pinned task list — persistent above input */}
+      <AnimatePresence>
+        {chat.tasks.length > 0 && (
+          <motion.div
+            initial={{ opacity: 0, height: 0 }}
+            animate={{ opacity: 1, height: 'auto' }}
+            exit={{ opacity: 0, height: 0 }}
+            transition={{ duration: 0.2, ease: [0.16, 1, 0.3, 1] }}
+            className="shrink-0 px-3 pb-1"
+          >
+            <TaskListPanel tasks={chat.tasks} />
           </motion.div>
         )}
       </AnimatePresence>

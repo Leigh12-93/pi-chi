@@ -164,3 +164,42 @@ export const colorClasses: Record<string, string> = {
   cyan: 'text-cyan-600 bg-cyan-50 dark:text-cyan-400 dark:bg-cyan-950/40',
   amber: 'text-amber-600 bg-amber-50 dark:text-amber-400 dark:bg-amber-950/40',
 }
+
+/** v0-style tool variant for card coloring */
+export type ToolVariant = 'default' | 'success' | 'info' | 'warn' | 'destructive'
+
+export const TOOL_VARIANTS: Record<string, ToolVariant> = {
+  write_file: 'success', create_project: 'success', scaffold_component: 'success',
+  save_project: 'success', add_dependency: 'success', install_package: 'success',
+  verify_build: 'success', validate_file: 'success', generate_env_file: 'success',
+  run_command: 'success', run_dev_server: 'success',
+  edit_file: 'info', rename_file: 'info', github_push_update: 'info',
+  github_push_files: 'info', github_pull_latest: 'info',
+  delete_file: 'destructive', forge_modify_own_source: 'destructive',
+  forge_revert_commit: 'destructive', forge_delete_branch: 'destructive',
+  run_build: 'warn', forge_check_build: 'warn', db_mutate: 'warn',
+  check_types: 'warn', request_env_vars: 'warn',
+}
+
+export const variantCardClasses: Record<ToolVariant, { border: string; bg: string }> = {
+  default: { border: 'border-forge-border/50', bg: 'bg-forge-surface/20' },
+  success: { border: 'border-emerald-500/20 dark:border-emerald-500/15', bg: 'bg-emerald-50/30 dark:bg-emerald-950/20' },
+  info: { border: 'border-sky-500/20 dark:border-sky-500/15', bg: 'bg-sky-50/30 dark:bg-sky-950/20' },
+  warn: { border: 'border-amber-500/20 dark:border-amber-500/15', bg: 'bg-amber-50/30 dark:bg-amber-950/20' },
+  destructive: { border: 'border-red-500/20 dark:border-red-500/15', bg: 'bg-red-50/30 dark:bg-red-950/20' },
+}
+
+/** Past-tense labels for completed tool invocations (v0-style) */
+export const TOOL_COMPLETE_LABELS: Record<string, string> = {
+  write_file: 'Wrote', edit_file: 'Edited', read_file: 'Read',
+  delete_file: 'Deleted', rename_file: 'Renamed', list_files: 'Listed',
+  search_files: 'Searched', grep_files: 'Grepped', create_project: 'Scaffolded',
+  add_dependency: 'Installed', install_package: 'Installed', save_project: 'Saved',
+  run_command: 'Ran', run_build: 'Built', verify_build: 'Verified',
+  run_tests: 'Tested', check_types: 'Checked types', scaffold_component: 'Scaffolded',
+  github_push_update: 'Pushed', github_push_files: 'Pushed', github_pull_latest: 'Pulled',
+  deploy_to_vercel: 'Deployed', db_query: 'Queried', db_mutate: 'Modified',
+  db_introspect: 'Inspected', validate_file: 'Validated', check_coherence: 'Checked',
+  get_all_files: 'Got manifest', web_search: 'Searched web', capture_preview: 'Captured',
+  generate_tests: 'Generated tests', run_dev_server: 'Started server',
+}

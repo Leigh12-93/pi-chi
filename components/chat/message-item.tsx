@@ -11,7 +11,7 @@ import {
 import { formatTokens, estimateCost } from '@/lib/chat/constants'
 import { motion, AnimatePresence } from 'framer-motion'
 import { cn } from '@/lib/utils'
-import { TOOL_LABELS, colorClasses } from '@/lib/chat/constants'
+import { TOOL_LABELS, colorClasses, TOOL_VARIANTS, variantCardClasses, TOOL_COMPLETE_LABELS } from '@/lib/chat/constants'
 import { getToolSummary, getFriendlyError, type ToolInvocation } from '@/lib/chat/tool-utils'
 import { cachedRenderMarkdown } from '@/lib/chat/markdown'
 import { ThinkPanel, type ThinkPanelProps } from './think-panel'
@@ -266,7 +266,7 @@ function getTextContent(message: ChatMessage): string {
   return ''
 }
 
-/** Wrapper that makes a tool timeline item expandable with detail dropdown */
+/** v0-style card wrapper for tool invocations with variant coloring and collapsible detail */
 function ExpandableToolItem({ toolName, args, result, canExpand, children }: {
   toolName: string
   args: Record<string, unknown>
@@ -275,37 +275,38 @@ function ExpandableToolItem({ toolName, args, result, canExpand, children }: {
   children: React.ReactNode
 }) {
   const [expanded, setExpanded] = useState(false)
-
-  if (!canExpand) {
-    return (
-      <motion.div
-        initial={{ opacity: 0, y: 4 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.2, ease: [0.16, 1, 0.3, 1] }}
-        className="tool-timeline-item"
-      >
-        {children}
-      </motion.div>
-    )
-  }
+  const variant = TOOL_VARIANTS[toolName] || 'default'
+  const vc = variantCardClasses[variant]
 
   return (
     <motion.div
       initial={{ opacity: 0, y: 4 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.2, ease: [0.16, 1, 0.3, 1] }}
-      className={cn('tool-timeline-item', expanded && 'tool-timeline-expanded')}
+      className={cn('rounded-xl border overflow-hidden transition-all duration-300', vc.border, vc.bg)}
     >
-      <div onClick={() => setExpanded(!expanded)} role="button" tabIndex={0} onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') setExpanded(!expanded) }}>
+      <div
+        className={cn('px-3.5 py-2', canExpand && 'cursor-pointer')}
+        onClick={canExpand ? () => setExpanded(!expanded) : undefined}
+        role={canExpand ? 'button' : undefined}
+        tabIndex={canExpand ? 0 : undefined}
+        onKeyDown={canExpand ? e => { if (e.key === 'Enter' || e.key === ' ') setExpanded(!expanded) } : undefined}
+      >
         {children}
       </div>
       <AnimatePresence>
         {expanded && (
-          <ToolResultDetail
-            toolName={toolName}
-            args={args}
-            result={result || null}
-          />
+          <motion.div
+            initial={{ height: 0, opacity: 0 }}
+            animate={{ height: 'auto', opacity: 1 }}
+            exit={{ height: 0, opacity: 0 }}
+            transition={{ type: 'spring', stiffness: 500, damping: 32 }}
+            className="overflow-hidden"
+          >
+            <div className="border-t border-forge-border/20 px-3.5 py-2.5">
+              <ToolResultDetail toolName={toolName} args={args} result={result || null} />
+            </div>
+          </motion.div>
         )}
       </AnimatePresence>
     </motion.div>
@@ -810,6 +811,11 @@ export const MessageItem = memo(function MessageItem({
               // Completed tools are expandable
               const canExpand = !isRunning && inv.state === 'result'
 
+              // Past-tense label for completed tools (v0-style)
+              const completeLabel = !isRunning && !hasError
+                ? TOOL_COMPLETE_LABELS[inv.toolName] || info.label
+                : info.label
+
               return (
                 <ExpandableToolItem
                   key={partIdx}
@@ -818,7 +824,7 @@ export const MessageItem = memo(function MessageItem({
                   result={inv.result as Record<string, unknown> | undefined}
                   canExpand={canExpand}
                 >
-                  <div className={cn('flex items-center gap-2.5 py-1 relative', canExpand && 'cursor-pointer')}>
+                  <div className="flex items-center gap-2.5 relative">
                     {/* Icon node */}
                     <div className={cn(
                       'w-5 h-5 rounded-md flex items-center justify-center shrink-0 z-[1]',
@@ -841,10 +847,10 @@ export const MessageItem = memo(function MessageItem({
                       ) : (
                         <>
                           <span className={cn(
-                            'text-[13px] shrink-0',
-                            isRunning ? 'text-forge-text font-medium shimmer-text' : 'text-forge-text-dim'
+                            'text-[12px] shrink-0',
+                            isRunning ? 'text-forge-text/70 font-medium shimmer-text' : 'text-forge-text-dim/70'
                           )}>
-                            {info.label}
+                            {isRunning ? info.label : completeLabel}
                           </span>
                           {fileName && (
                             <span className="flex items-baseline gap-1.5 min-w-0 truncate">
@@ -868,14 +874,19 @@ export const MessageItem = memo(function MessageItem({
                       )}
                     </div>
 
-                    {/* Chevron for expandable / duration for running */}
+                    {/* Status indicators */}
                     {isRunning ? (
                       <span className="text-[11px] text-forge-text-dim/30 font-mono shrink-0 tabular-nums">
                         ...
                       </span>
-                    ) : canExpand ? (
-                      <ChevronRight className="w-3 h-3 text-forge-text-dim/20 shrink-0 transition-transform duration-200 expand-chevron" />
-                    ) : null}
+                    ) : hasError ? null : (
+                      <div className="flex items-center gap-1.5 shrink-0">
+                        <CheckCircle className="w-3 h-3 text-emerald-500/50" />
+                        {canExpand && (
+                          <ChevronRight className="w-3 h-3 text-forge-text-dim/20 transition-transform duration-200 expand-chevron" />
+                        )}
+                      </div>
+                    )}
                   </div>
                 </ExpandableToolItem>
               )

@@ -6,7 +6,7 @@ import { motion, AnimatePresence } from 'framer-motion'
 import { cn } from '@/lib/utils'
 import { TOOL_LABELS, colorClasses } from '@/lib/chat/constants'
 import { getGroupMeta, getToolFileInfo } from '@/components/chat/tool-group'
-import { TaskListPanel, type TaskItem } from '@/components/chat/task-list-panel'
+import type { TaskItem } from '@/components/chat/task-list-panel'
 
 const THINKING_MESSAGES = [
   'Thinking deeply',
@@ -274,12 +274,6 @@ export function ActivityBlock({
             </div>
           )}
 
-          {/* Task list */}
-          {tasks.length > 0 && (
-            <div className="mt-2">
-              <TaskListPanel tasks={tasks} />
-            </div>
-          )}
         </div>
       </motion.div>
     )

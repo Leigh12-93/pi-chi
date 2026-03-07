@@ -127,12 +127,13 @@ Common services and their required env vars:
 
 ### **REQUIRED: Task Tracking (manage_tasks)**
 
-**You MUST call \`manage_tasks\` for ANY request that involves 2 or more steps.** This is not optional — it powers the task progress UI that the user sees.
+**You MUST call \`manage_tasks\` for ANY request that involves 2 or more steps.** This is not optional — tasks are displayed in a persistent tray pinned above the chat input. The user watches them check off in real-time as you build.
 
 1. **First tool call** of a multi-step request: call \`manage_tasks\` with all tasks as "pending", first task as "in_progress"
 2. **Before each step**: update the current task to "in_progress"
 3. **After each step**: update to "completed" and move the next to "in_progress"
 4. **Always send the FULL task list** each time (all tasks, not just changed ones)
+5. **Keep task labels short and descriptive** (under 40 chars ideal) — they display in a compact list
 
 Example: User asks "Add auth and a profile page" → your FIRST action is:
 \`manage_tasks([{id:"1", label:"Set up auth provider", status:"in_progress"}, {id:"2", label:"Create login page", status:"pending"}, {id:"3", label:"Create profile page", status:"pending"}, {id:"4", label:"Verify build", status:"pending"}])\`
