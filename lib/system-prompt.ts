@@ -393,9 +393,23 @@ This document must be so complete that a builder agent can reconstruct the ENTIR
     ERRORS: { 400: "reason", 401: "reason", 404: "reason" }
     SIDE EFFECTS: [what else happens — emails sent, records created, cache invalidated]
 
-- **Design System** (complete visual identity):
-  - Color palette: every CSS custom property with its hex/HSL value and where it's used (e.g. \`--color-primary: #1a1a2e\` — headings, CTAs, nav background)
-  - Typography: specific Google Fonts with weights, the type scale (h1-h6, body, caption sizes), line-heights, letter-spacing
+- **Design System** (complete visual identity — with code):
+  - Color palette: every CSS custom property with its hex/HSL value and where it's used (e.g. \`--color-primary: #1a1a2e\` — headings, CTAs, nav background). Include the FULL \`@theme\` block as a code example:
+    \`\`\`css
+    @theme {
+      --color-primary: #1a1a2e;
+      --color-secondary: #e2e8f0;
+      /* ... every token */
+    }
+    \`\`\`
+  - Typography: specific Google Fonts with weights, the type scale (h1-h6, body, caption sizes), line-heights, letter-spacing. Include the font import and Tailwind classes:
+    \`\`\`
+    Font: "Playfair Display" 700 (headings) + "Inter" 400/500/600 (body)
+    h1: text-5xl md:text-7xl font-bold tracking-tight leading-[1.1]
+    h2: text-3xl md:text-4xl font-bold tracking-tight
+    body: text-base leading-relaxed
+    caption: text-sm text-muted
+    \`\`\`
   - Spacing tokens: the spacing scale used throughout (e.g. 4px base grid, section padding, card padding, gap sizes)
   - Shadow tokens: each shadow level with its CSS value and when to use it
   - Border radius tokens: the radius scale (e.g. buttons=8px, cards=12px, modals=16px, pills=9999px)
@@ -411,6 +425,22 @@ This document must be so complete that a builder agent can reconstruct the ENTIR
   - Animations/transitions: what animates and how (e.g. "scale to 0.98 on press, 150ms ease-out")
   - Content: what text/copy appears in this component (real words, not placeholders)
   - Dependencies: what other components or hooks it imports
+  - **Code example**: Include a representative JSX snippet showing the component's structure and key Tailwind classes. The builder should be able to copy-paste this as a starting point. Example:
+    \`\`\`tsx
+    <button className="px-6 py-3 bg-primary text-white rounded-xl font-medium
+      hover:bg-primary/90 active:scale-[0.98] transition-all duration-150
+      disabled:opacity-50 disabled:cursor-not-allowed">
+      {children}
+    </button>
+    \`\`\`
+
+  **Include code examples for:**
+  - Every reusable UI component (buttons, inputs, cards, modals)
+  - Complex layout patterns (grid systems, responsive containers, sidebar layouts)
+  - Animation patterns (hover effects, page transitions, scroll reveals)
+  - Form patterns (validation, error display, submission handling)
+  - Data fetching patterns (loading states, error boundaries, empty states)
+  - Any pattern that appears more than once — define it here so the builder copies it consistently
 
 - **Pages & Sections** (exhaustive page-by-page specification):
   For EACH page/route:
@@ -436,46 +466,91 @@ This document must be so complete that a builder agent can reconstruct the ENTIR
   - Error path: what happens when it fails
   - Edge cases: empty input, network error, duplicate submission, etc.
 
-- **Task List** (EXHAUSTIVE checklist — 100% of the finished product):
-  Phase-grouped checkboxes where checking every box = the project is COMPLETE and production-ready. This is not a high-level overview — it is a granular, file-by-file, feature-by-feature checklist.
+- **Task List** (EXHAUSTIVE step-by-step build instructions — the builder follows this EXACTLY):
+  This is NOT a vague overview. It is a precise, ordered, file-by-file recipe. A builder agent reads this top-to-bottom and produces the COMPLETE finished product by following every step. Each task must specify:
+  - The EXACT file to create/modify
+  - WHAT goes in it (reference the Component Inventory or code examples above)
+  - WHAT to verify after (run_build, visual check, specific behavior)
 
   Format:
   \`\`\`
-  ## Phase 1: Foundation
-  - [ ] Install all dependencies (list each package)
-  - [ ] Create globals.css with complete design token system
-  - [ ] Create lib/types.ts with all TypeScript types
-  - [ ] Create lib/constants.ts with static data and config
+  ## Phase 1: Foundation & Dependencies
+  - [ ] Install dependencies: \`react-hook-form\`, \`zod\`, \`@hookform/resolvers\`, \`framer-motion\`, \`lucide-react\` (list EVERY package)
+  - [ ] run_build — verify clean install
+  - [ ] Create \`app/globals.css\` — @import tailwindcss, @theme block with ALL design tokens (list every color, font, spacing token from Design System section)
+  - [ ] Create \`lib/types.ts\` — ALL TypeScript interfaces from Data Model section (copy them verbatim)
+  - [ ] Create \`lib/constants.ts\` — navigation links array, feature cards data, testimonial data, social links, site metadata
+  - [ ] Create \`lib/utils.ts\` — cn() helper, formatDate(), any shared utilities
+  - [ ] run_build — verify foundation compiles
 
-  ## Phase 2: Components
-  - [ ] Create components/ui/button.tsx (primary, secondary, ghost, icon variants + all states)
-  - [ ] Create components/ui/input.tsx (text, email, password, textarea variants + validation states)
-  - [ ] Create components/header.tsx (logo, nav links, mobile hamburger, auth state)
-  ... (EVERY component individually listed)
+  ## Phase 2: Layout Shell
+  - [ ] Create \`components/header.tsx\` — logo (left), nav links (center), CTA button (right), mobile hamburger menu with slide-out drawer. Sticky on scroll with backdrop blur. Include code: [reference Component Inventory]
+  - [ ] Create \`components/footer.tsx\` — 4-column grid (brand, links, links, contact), social icons, copyright. Code: [reference Component Inventory]
+  - [ ] Create \`app/layout.tsx\` — html lang, font imports, Header + {children} + Footer, metadata export
+  - [ ] run_build — verify layout shell renders
 
-  ## Phase 3: Pages
-  - [ ] Create app/page.tsx — Hero section with [exact headline], features grid, CTA banner, testimonials
-  - [ ] Create app/about/page.tsx — Team section, mission statement, timeline
-  ... (EVERY page with EVERY section listed)
+  ## Phase 3: Reusable Components (build BEFORE pages)
+  - [ ] Create \`components/ui/button.tsx\` — primary/secondary/ghost/outline variants, sm/md/lg sizes, loading spinner state, disabled state. Code: [reference Component Inventory]
+  - [ ] Create \`components/ui/input.tsx\` — text/email/password/textarea, label, error message, required indicator. Code: [reference Component Inventory]
+  - [ ] Create \`components/ui/card.tsx\` — image slot, title, description, CTA link, hover lift animation
+  - [ ] Create \`components/[name].tsx\` — [description with exact content and behavior]
+  ... (EVERY component — one task per component, each with specific content)
+  - [ ] run_build — verify all components compile
 
-  ## Phase 4: Interactivity & State
-  - [ ] Wire up [specific form] with react-hook-form + zod validation
-  - [ ] Add framer-motion page transitions (fade + slide, 300ms)
-  - [ ] Add scroll-triggered animations on [specific sections]
-  ... (EVERY interactive behavior)
+  ## Phase 4: Pages (one task per page, sections listed explicitly)
+  - [ ] Create \`app/page.tsx\`:
+    Section 1 — Hero: headline "[exact text]", subheading "[exact text]", CTA button "[label]" linking to [route], background [description]
+    Section 2 — Features: 3-column grid of [FeatureCard] with icon/title/description for each (list all 3)
+    Section 3 — [Name]: [exact layout and content]
+    Section 4 — CTA Banner: "[exact headline]", "[exact description]", button "[label]"
+  - [ ] run_build — verify home page compiles
+  - [ ] Create \`app/[route]/page.tsx\`:
+    Section 1 — [exact content]
+    Section 2 — [exact content]
+  - [ ] run_build — verify page compiles
+  ... (EVERY page — one task per page, EVERY section spelled out with exact content)
 
-  ## Phase 5: Polish & Verification
-  - [ ] All hover/focus/active states implemented on interactive elements
-  - [ ] All loading skeletons implemented for async content
-  - [ ] All empty states designed and implemented
-  - [ ] Mobile responsive verified at 375px, 768px, 1024px, 1440px
-  - [ ] verify_build passes with zero errors
-  - [ ] All images sourced via add_image (no placeholder boxes)
-  - [ ] All copy is real, specific, and brand-appropriate (no lorem ipsum)
+  ## Phase 5: Interactivity & Data
+  - [ ] Wire [specific form] in [specific file]: react-hook-form + zod schema with fields [list fields], validation [list rules], submit handler [what happens], success/error feedback [what shows]
+  - [ ] Add page transitions in layout.tsx: framer-motion AnimatePresence, fade+slide 300ms
+  - [ ] Add scroll animations on [page] [section]: intersection observer, staggered fade-up, 100ms delay between items
+  - [ ] Add [specific interaction]: [exact behavior description]
+  ... (EVERY interactive behavior — specific file, specific behavior, specific feedback)
+
+  ## Phase 6: Images & Content
+  - [ ] Source hero image via add_image: "[subject description]", [orientation], used in [file] [section]
+  - [ ] Source [section] images: "[description]" x [count]
+  - [ ] Replace ALL placeholder text with final copy (audit every page)
+  - [ ] Verify no "Lorem ipsum", "Coming soon", "TODO", or "[placeholder]" text remains
+
+  ## Phase 7: Mobile & Responsive
+  - [ ] Verify header: hamburger menu at md breakpoint, drawer animation, touch targets 44px+
+  - [ ] Verify [page]: [specific layout change] at [breakpoint] (e.g. "features grid → single column at sm")
+  - [ ] Verify footer: stack columns vertically at md
+  - [ ] Test at 375px (iPhone SE), 768px (iPad), 1024px (laptop), 1440px (desktop)
+
+  ## Phase 8: Polish & Final Verification
+  - [ ] All hover states: buttons scale/color, cards lift, links underline
+  - [ ] All focus-visible states: ring on interactive elements for keyboard nav
+  - [ ] All transitions: 150ms ease on interactive elements, 300ms on layout shifts
+  - [ ] Loading skeletons for any async content
+  - [ ] Empty states for any list/grid that could be empty
+  - [ ] Error boundaries around dynamic sections
+  - [ ] Metadata: title, description, og:image for every page
+  - [ ] run_build — MUST pass with zero errors
+  - [ ] verify_build — types + build + tests all green
+  - [ ] Visual review via capture_preview — does it look like a $10,000 website?
   \`\`\`
 
-  Phase 1 must always be "Install dependencies". The LAST phase must always be "Polish & Verification".
-  Every task must be specific enough that there is ZERO ambiguity about what "done" means.
+  **Task List Rules:**
+  - Phase 1 ALWAYS starts with dependency installation + run_build
+  - Every phase ends with run_build verification
+  - Every task names the EXACT file to create/modify
+  - Every page task lists EVERY section with EXACT content
+  - Every component task references code examples from Component Inventory
+  - The LAST phase is ALWAYS Polish & Final Verification
+  - A builder following this list top-to-bottom with ZERO creative decisions produces the finished product
+  - If the builder would need to ask "what goes here?" — the task is too vague. Rewrite it.
 
 **CRITICAL**: six-chi.md describes the DESTINATION, not the JOURNEY. It is the complete technical specification of the finished product. When you update it, rewrite sections to reflect the complete current vision — never append changelogs. A builder agent reading this document for the first time must be able to produce the entire project without asking a single question.
 
