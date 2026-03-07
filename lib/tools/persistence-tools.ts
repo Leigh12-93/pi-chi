@@ -30,6 +30,67 @@ export function createPersistenceTools(ctx: ToolContext) {
       },
     }),
 
+    get_stored_env_vars: tool({
+      description: `Load the user's stored global environment variables (API keys, secrets, tokens). These are pre-saved by the user in the Environment panel and encrypted at rest.
+
+Use this tool:
+- BEFORE deploying — auto-inject stored env vars into Vercel deployment
+- When project needs API keys — check if the user already has them stored before asking
+- To auto-populate .env files — write stored keys into project .env.local
+- When connecting services — check for existing keys (STRIPE_SECRET_KEY, SUPABASE_URL, etc.)
+
+Returns key names and values. NEVER expose values in chat — only reference by name.`,
+      inputSchema: z.object({
+        filter: z.string().optional().describe('Optional prefix filter, e.g. "STRIPE" to only get Stripe-related vars'),
+      }),
+      execute: async ({ filter }) => {
+        if (!ctx.githubUsername) return { error: 'No authenticated user' }
+
+        try {
+          // Fetch from internal API — handles decryption of both credential columns and global_env_vars
+          const columns = 'encrypted_supabase_url,encrypted_supabase_key,encrypted_api_key,encrypted_google_api_key,global_env_vars'
+          const result = await supabaseFetch(
+            `/forge_user_settings?github_username=eq.${encodeURIComponent(ctx.githubUsername)}&select=${columns}`,
+          )
+
+          if (!result.ok || !Array.isArray(result.data) || result.data.length === 0) {
+            return { variables: [], count: 0, message: 'No stored environment variables found. User can add them in the Environment sidebar panel.' }
+          }
+
+          const row = result.data[0] as Record<string, unknown>
+
+          // Decrypt global_env_vars (encrypted JSON array)
+          let variables: Array<{ key: string; value: string }> = []
+          const rawEnvVars = row.global_env_vars as string | null
+          if (rawEnvVars) {
+            try {
+              const { decryptToken } = await import('@/lib/auth')
+              const decrypted = await decryptToken(rawEnvVars.replace(/^v1:/, ''))
+              variables = JSON.parse(decrypted)
+            } catch {
+              try { variables = JSON.parse(rawEnvVars) } catch { /* skip */ }
+            }
+          }
+
+          // Apply filter if provided
+          if (filter) {
+            const prefix = filter.toUpperCase()
+            variables = variables.filter(v => v.key.toUpperCase().includes(prefix))
+          }
+
+          return {
+            variables: variables.map(v => ({ key: v.key, value: v.value })),
+            count: variables.length,
+            message: variables.length > 0
+              ? `Found ${variables.length} stored env var(s): ${variables.map(v => v.key).join(', ')}`
+              : 'No matching stored environment variables. User can add them in the Environment sidebar panel.',
+          }
+        } catch (err) {
+          return { error: `Failed to load stored env vars: ${err instanceof Error ? err.message : String(err)}` }
+        }
+      },
+    }),
+
     load_chat_history: tool({
       description: 'Load previous chat messages for this project from the database.',
       inputSchema: z.object({}),

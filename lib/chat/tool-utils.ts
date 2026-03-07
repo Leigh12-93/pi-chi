@@ -69,6 +69,7 @@ export function getToolSummary(toolName: string, args: Record<string, unknown>, 
     case 'scaffold_component': return args.name ? `${args.name}` : 'Scaffolding...'
     case 'generate_env_file': return data?.ok ? '.env.example created' : 'Generating...'
     case 'request_env_vars': return 'Environment setup'
+    case 'get_stored_env_vars': return data?.count != null ? `${data.count} stored key(s)` : 'Loading keys...'
     case 'connect_service': return args.service ? `Connect ${args.service}` : 'Service connection'
     case 'start_sandbox': return data?.ok ? 'Sandbox started' : 'Starting...'
     case 'stop_sandbox': return data?.ok ? 'Sandbox stopped' : 'Stopping...'
@@ -258,6 +259,7 @@ export function getPhaseLabel(lastToolName: string | null): string {
 
     // Env / config
     case 'request_env_vars':
+    case 'get_stored_env_vars':
     case 'set_custom_domain':
     case 'connect_service':
       return 'Configuring environment'

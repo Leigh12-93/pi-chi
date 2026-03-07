@@ -91,6 +91,7 @@ const TOOL_LABELS: Record<string, { label: string; Icon: LucideIcon; color: stri
   scaffold_component: { label: 'Scaffolding component', Icon: Sparkles, color: 'indigo' },
   generate_env_file: { label: 'Generating .env.example', Icon: FileText, color: 'green' },
   request_env_vars: { label: 'Environment setup', Icon: Key, color: 'amber' },
+  get_stored_env_vars: { label: 'Loading stored keys', Icon: Key, color: 'green' },
   start_sandbox: { label: 'Starting sandbox', Icon: Rocket, color: 'green' },
   stop_sandbox: { label: 'Stopping sandbox', Icon: Terminal, color: 'red' },
   sandbox_status: { label: 'Checking sandbox', Icon: Rocket, color: 'blue' },

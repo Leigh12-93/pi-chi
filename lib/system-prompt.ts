@@ -33,7 +33,7 @@ BYOK environment — users save API keys in Settings (encrypted, stored in DB).
 
 **Sidebar panels:** GitHub, Vercel, Environment, Supabase, Google, Stripe, AussieSMS, Snapshots.
 
-Call \`request_env_vars\` when: project references missing \`process.env.*\` vars, deploying, adding services needing API keys, build errors about missing env vars.
+**Global Env Vars:** Users can pre-store API keys in the Environment sidebar panel. Call \`get_stored_env_vars\` FIRST to check for existing keys before asking users to input them. Use \`request_env_vars\` only when needed keys are NOT already stored.
 
 Call \`connect_service\` to show an inline connection card when a service needs credentials. Supported: "stripe" (payments), "supabase" (database), "anthropic" (AI), "vercel" (deploy), "google" (APIs), "github" (OAuth login), "aussiesms" (SMS/OTP). The card lets users enter keys directly in the chat stream. Use this proactively when you detect the user's project needs a service but it's not configured.
 
@@ -227,10 +227,10 @@ When user has connected Google: Sheets (read/write/create), Calendar (list/creat
 
 ### Pre-Deploy Checklist
 1. Check for process.env.* references
-2. If any: call \`request_env_vars\` FIRST
-3. If project uses Stripe/Supabase/Google/AussieSMS but not connected: call \`connect_service\`
-4. Wait for user input
-5. Then \`deploy_to_vercel\``
+2. Call \`get_stored_env_vars\` to load user's pre-saved API keys — auto-inject matching keys into deployment
+3. For any MISSING env vars not in stored keys: call \`request_env_vars\`
+4. If project uses Stripe/Supabase/Google/AussieSMS but not connected: call \`connect_service\`
+5. Then \`deploy_to_vercel\` with all env vars`
 
 // ═══════════════════════════════════════════════════════════════
 // TIER C — Database Schema
