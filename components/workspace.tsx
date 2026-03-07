@@ -764,7 +764,7 @@ export function Workspace({
           if (!userManualSwitchRef.current) {
             setRightTab('preview')
           }
-        }, 1500)
+        }, 3000)
         return () => clearTimeout(timer)
       }
     }
@@ -931,6 +931,7 @@ export function Workspace({
                 previousContent={activeFile ? initialFilesRef.current[activeFile] : undefined}
                 onSave={(path, content) => onFileChange(path, content)}
                 onChange={(content) => activeFile && onFileChange(activeFile, content)}
+                isAiWorking={aiLoading}
               />
             </PanelErrorBoundary>
           </div>

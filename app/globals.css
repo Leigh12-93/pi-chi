@@ -112,11 +112,21 @@ button:active:not(:disabled), [role="button"]:active:not(:disabled) {
   background-color: var(--color-forge-surface) !important;
 }
 
-/* AI diff decorations in Monaco editor */
-.ai-diff-added-line { background: rgba(16, 185, 129, 0.1); }
-.ai-diff-modified-line { background: rgba(220, 38, 38, 0.08); }
-.ai-diff-added-glyph { background: rgb(16, 185, 129); width: 3px !important; margin-left: 3px; }
-.ai-diff-modified-glyph { background: rgb(220, 38, 38); width: 3px !important; margin-left: 3px; }
+/* AI diff decorations in Monaco editor — animated reveal */
+@keyframes diff-line-reveal {
+  0% { background-color: rgba(16, 185, 129, 0.35); }
+  100% { background-color: rgba(16, 185, 129, 0.1); }
+}
+.ai-diff-added-line { animation: diff-line-reveal 0.5s ease-out forwards; }
+.ai-diff-added-glyph { animation: diff-line-reveal 0.5s ease-out forwards; background: rgb(16, 185, 129); width: 3px !important; margin-left: 3px; }
+
+@keyframes diff-line-flash {
+  0% { background-color: rgba(59, 130, 246, 0.4); }
+  50% { background-color: rgba(59, 130, 246, 0.2); }
+  100% { background-color: rgba(59, 130, 246, 0.08); }
+}
+.ai-diff-modified-line { animation: diff-line-flash 0.8s ease-out forwards; }
+.ai-diff-modified-glyph { animation: diff-line-flash 0.8s ease-out forwards; background: rgb(59, 130, 246); width: 3px !important; margin-left: 3px; }
 
 /* Dark toast overrides (sonner) */
 html.dark [data-sonner-toast] {
@@ -1141,8 +1151,8 @@ html.dark [data-sonner-toast] [data-description] {
 /* ─── Forge Polish: Composer Focus Ring ──────────────────── */
 .composer-focus-glow:focus-within {
   border-color: var(--color-forge-accent);
-  box-shadow: 0 0 0 2px var(--color-forge-ring);
-  border-radius: 12px;
+  outline: 2px solid var(--color-forge-ring);
+  outline-offset: -1px;
 }
 
 /* ─── Forge Polish: Approval Card Pulse ──────────────────── */

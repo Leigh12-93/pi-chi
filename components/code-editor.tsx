@@ -29,9 +29,10 @@ interface CodeEditorProps {
   onSave: (path: string, content: string) => void
   onChange: (content: string) => void
   readOnly?: boolean
+  isAiWorking?: boolean
 }
 
-export const CodeEditor = memo(function CodeEditor({ path, content, previousContent, onSave, onChange, readOnly }: CodeEditorProps) {
+export const CodeEditor = memo(function CodeEditor({ path, content, previousContent, onSave, onChange, readOnly, isAiWorking }: CodeEditorProps) {
   const editorRef = useRef<Parameters<OnMount>[0] | null>(null)
   const pathRef = useRef(path)
   const onSaveRef = useRef(onSave)
@@ -116,6 +117,7 @@ export const CodeEditor = memo(function CodeEditor({ path, content, previousCont
   }, [content, path])
 
   // Diff decorations: highlight lines that changed from previousContent
+  // Staggered reveal for large changes, auto-scroll to first change, persist during AI work
   useEffect(() => {
     if (!editorRef.current || !previousContent || previousContent === content) {
       // Clear decorations when no diff
@@ -131,13 +133,12 @@ export const CodeEditor = memo(function CodeEditor({ path, content, previousCont
 
     const oldLines = previousContent.split('\n')
     const newLines = content.split('\n')
-    const decorations: any[] = []
+    const allDecorations: any[] = []
 
-    const maxLines = Math.max(oldLines.length, newLines.length)
     for (let i = 0; i < newLines.length; i++) {
       if (i >= oldLines.length) {
         // Added line
-        decorations.push({
+        allDecorations.push({
           range: new monaco.Range(i + 1, 1, i + 1, 1),
           options: {
             isWholeLine: true,
@@ -147,7 +148,7 @@ export const CodeEditor = memo(function CodeEditor({ path, content, previousCont
         })
       } else if (oldLines[i] !== newLines[i]) {
         // Modified line
-        decorations.push({
+        allDecorations.push({
           range: new monaco.Range(i + 1, 1, i + 1, 1),
           options: {
             isWholeLine: true,
@@ -158,18 +159,60 @@ export const CodeEditor = memo(function CodeEditor({ path, content, previousCont
       }
     }
 
-    const ids = editor.deltaDecorations(prevDecorationsRef.current, decorations)
-    prevDecorationsRef.current = ids
+    // Staggered reveal: apply decorations in batches for visual roll-down effect
+    const BATCH_SIZE = 20
+    const STAGGER_MS = 15
 
-    // Auto-clear decorations after 5 seconds
-    if (diffClearTimerRef.current) clearTimeout(diffClearTimerRef.current)
-    diffClearTimerRef.current = setTimeout(() => {
-      if (editorRef.current) {
-        editorRef.current.deltaDecorations(prevDecorationsRef.current, [])
-        prevDecorationsRef.current = []
+    if (allDecorations.length <= BATCH_SIZE) {
+      // Small change — apply all at once
+      const ids = editor.deltaDecorations(prevDecorationsRef.current, allDecorations)
+      prevDecorationsRef.current = ids
+    } else {
+      // Large change — stagger in batches for typewriter effect
+      let idx = 0
+      const applyBatch = () => {
+        if (!editorRef.current) return
+        const batch = allDecorations.slice(0, idx + BATCH_SIZE)
+        const ids = editorRef.current.deltaDecorations(prevDecorationsRef.current, batch)
+        prevDecorationsRef.current = ids
+        idx += BATCH_SIZE
+        if (idx < allDecorations.length) {
+          setTimeout(applyBatch, STAGGER_MS)
+        }
       }
-    }, 5000)
-  }, [previousContent, content])
+      applyBatch()
+    }
+
+    // Auto-scroll to first changed line
+    if (allDecorations.length > 0) {
+      const firstLine = allDecorations[0].range.startLineNumber
+      editor.revealLineInCenter(firstLine)
+    }
+
+    // Auto-clear: persist during AI work, clear 8s after content settles
+    if (diffClearTimerRef.current) clearTimeout(diffClearTimerRef.current)
+    if (!isAiWorking) {
+      diffClearTimerRef.current = setTimeout(() => {
+        if (editorRef.current) {
+          editorRef.current.deltaDecorations(prevDecorationsRef.current, [])
+          prevDecorationsRef.current = []
+        }
+      }, 8000)
+    }
+  }, [previousContent, content, isAiWorking])
+
+  // When AI stops working, start the clear timer for any remaining decorations
+  useEffect(() => {
+    if (!isAiWorking && prevDecorationsRef.current.length > 0) {
+      if (diffClearTimerRef.current) clearTimeout(diffClearTimerRef.current)
+      diffClearTimerRef.current = setTimeout(() => {
+        if (editorRef.current) {
+          editorRef.current.deltaDecorations(prevDecorationsRef.current, [])
+          prevDecorationsRef.current = []
+        }
+      }, 8000)
+    }
+  }, [isAiWorking])
 
   if (!path) {
     return (
