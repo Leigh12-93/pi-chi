@@ -22,7 +22,7 @@ export function scaffoldNextJS(name: string, description?: string): Record<strin
         '@types/node': '^22.15.21', '@types/react': '^19.1.4', typescript: '^5.8.3',
       },
     }, null, 2),
-    'next.config.ts': `import type { NextConfig } from 'next'\nconst nextConfig: NextConfig = {}\nexport default nextConfig\n`,
+    'next.config.mjs': `/** @type {import('next').NextConfig} */\nconst nextConfig = {}\nexport default nextConfig\n`,
     'tsconfig.json': JSON.stringify({
       compilerOptions: {
         target: 'ES2017', lib: ['dom', 'dom.iterable', 'esnext'], allowJs: true, skipLibCheck: true,

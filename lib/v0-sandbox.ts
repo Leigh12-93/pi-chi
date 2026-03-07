@@ -194,10 +194,29 @@ function prepareFiles(files: Record<string, string>): {
   let totalSize = 0
   const prepared: Array<{ name: string; content: string }> = []
 
+  // Convert next.config.ts → next.config.mjs (sandbox environments may not support TS configs)
+  let hasNextConfigMjs = false
+  let hasNextConfigJs = false
+  for (const rawName of Object.keys(files)) {
+    const n = rawName.replace(/\\/g, '/')
+    if (n === 'next.config.mjs') hasNextConfigMjs = true
+    if (n === 'next.config.js') hasNextConfigJs = true
+  }
+
   for (const [rawName, rawContent] of Object.entries(files)) {
-    const name = rawName.replace(/\\/g, '/')
+    let name = rawName.replace(/\\/g, '/')
+    let content = rawContent
+
     // Patch Next.js version in package.json to avoid WebContainer crash
-    const content = name === 'package.json' ? patchNextVersion(rawContent) : rawContent
+    if (name === 'package.json') content = patchNextVersion(rawContent)
+
+    // Convert next.config.ts → next.config.mjs
+    if (name === 'next.config.ts' && !hasNextConfigMjs && !hasNextConfigJs) {
+      name = 'next.config.mjs'
+      content = content
+        .replace(/import\s+type\s+\{[^}]*\}\s+from\s+['"][^'"]*['"]\s*;?\n?/g, '')
+        .replace(/:\s*NextConfig/g, '')
+    }
 
     if (shouldSkipFile(name, content)) {
       skipped++

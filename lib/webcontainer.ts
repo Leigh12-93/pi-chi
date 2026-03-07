@@ -54,22 +54,37 @@ export function filesToFileSystemTree(files: Record<string, string>): FileSystem
   return tree
 }
 
-/** Next.js 15.5.x crashes on WebContainers with "workUnitAsyncStorage" invariant error.
- *  Pin to ~15.4.1 (last working minor) when the version would resolve to >=15.5.0.
- *  See: https://github.com/vercel/next.js/issues/84026 */
-function patchNextVersionInFiles(files: Record<string, string>): Record<string, string> {
-  const pkgContent = files['package.json']
-  if (!pkgContent) return files
-  try {
-    const pkg = JSON.parse(pkgContent)
-    const ver: string = pkg.dependencies?.next
-    if (!ver) return files
-    if (/^\^15(\.\d+)?(\.\d+)?$/.test(ver) || /^~15\.5/.test(ver) || ver === '15' || /^>=?\s*15\.5/.test(ver)) {
-      pkg.dependencies.next = '~15.4.1'
-      return { ...files, 'package.json': JSON.stringify(pkg, null, 2) }
-    }
-  } catch { /* malformed JSON — pass through */ }
-  return files
+/** Patch files for WebContainer compatibility:
+ *  1. Pin Next.js to ~15.4.1 to avoid 15.5.x workUnitAsyncStorage crash (vercel/next.js#84026)
+ *  2. Convert next.config.ts → next.config.mjs (WebContainer can't transpile TS configs) */
+function patchFilesForWebContainer(files: Record<string, string>): Record<string, string> {
+  let patched = { ...files }
+
+  // Convert next.config.ts to next.config.mjs (TS configs not supported in WebContainer)
+  if (patched['next.config.ts'] && !patched['next.config.mjs'] && !patched['next.config.js']) {
+    const tsContent = patched['next.config.ts']
+    // Strip TypeScript syntax (import type, type annotations) → plain JS
+    const mjsContent = tsContent
+      .replace(/import\s+type\s+\{[^}]*\}\s+from\s+['"][^'"]*['"]\s*;?\n?/g, '')
+      .replace(/:\s*NextConfig/g, '')
+    patched['next.config.mjs'] = mjsContent || '/** @type {import("next").NextConfig} */\nconst nextConfig = {}\nexport default nextConfig\n'
+    delete patched['next.config.ts']
+  }
+
+  // Pin Next.js version to avoid 15.5.x WebContainer crash
+  const pkgContent = patched['package.json']
+  if (pkgContent) {
+    try {
+      const pkg = JSON.parse(pkgContent)
+      const ver: string = pkg.dependencies?.next
+      if (ver && (/^\^15(\.\d+)?(\.\d+)?$/.test(ver) || /^~15\.5/.test(ver) || ver === '15' || /^>=?\s*15\.5/.test(ver))) {
+        pkg.dependencies.next = '~15.4.1'
+        patched['package.json'] = JSON.stringify(pkg, null, 2)
+      }
+    } catch { /* malformed JSON — pass through */ }
+  }
+
+  return patched
 }
 
 /**
@@ -92,8 +107,8 @@ export async function mountAndStart(
   try {
     onStatusChange?.('mounting')
 
-    // Patch Next.js version to avoid WebContainer crash (15.5.x is broken)
-    const patchedFiles = patchNextVersionInFiles(files)
+    // Patch files for WebContainer compatibility (version pin + TS config conversion)
+    const patchedFiles = patchFilesForWebContainer(files)
 
     // Mount all files
     const tree = filesToFileSystemTree(patchedFiles)
