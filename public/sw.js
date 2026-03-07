@@ -1,4 +1,4 @@
-const CACHE_NAME = 'sixchi-v4'
+const CACHE_NAME = 'sixchi-v5'
 const PRECACHE = ['/', '/icons/icon-192.png', '/icons/icon-512.png']
 const MAX_STATIC_ENTRIES = 50
 

@@ -1,6 +1,6 @@
 'use client'
 
-import { useMemo, useEffect, useRef } from 'react'
+import { useState, useMemo, useEffect, useRef, useCallback } from 'react'
 import { Panel, PanelGroup, PanelResizeHandle } from 'react-resizable-panels'
 import { ChatPanel } from './chat-panel'
 import { CodeEditor } from './code-editor'
@@ -86,6 +86,12 @@ export function Workspace(props: WorkspaceProps) {
     onFileSelect, onFileChange, onFileDelete, onBulkFileUpdate, onManualSave, githubToken,
     githubRepoUrl: githubRepoUrl || null, onGithubRepoUrlChange,
   })
+
+  // ─── Session cost (for Anthropic sidebar panel) ─────────
+  const [sessionCost, setSessionCost] = useState<{ cost: number; inputTokens: number; outputTokens: number }>({ cost: 0, inputTokens: 0, outputTokens: 0 })
+  const handleSessionCostChange = useCallback((cost: { cost: number; inputTokens: number; outputTokens: number }) => {
+    setSessionCost(cost)
+  }, [])
 
   // ─── WebContainer ────────────────────────────────────────
   const wc = useWebcontainer({
@@ -214,6 +220,8 @@ export function Workspace(props: WorkspaceProps) {
     onOpenVersionHistory: () => state.setShowVersionHistory(true),
     onRestoreSnapshot: actions.handleRestoreSnapshot,
     onCreateSnapshot: actions.handleCreateSnapshot,
+    onOpenMcpManager: () => state.setShowMcpManager(true),
+    sessionCost,
   }
 
   // ─── Shared panel elements ───────────────────────────────
@@ -232,6 +240,7 @@ export function Workspace(props: WorkspaceProps) {
         onPendingMessageSent={() => state.setPendingChatMessage(null)}
         activeFile={activeFile}
         onLoadingChange={actions.handleAiLoadingChange}
+        onSessionCostChange={handleSessionCostChange}
       />
     </PanelErrorBoundary>
   )
@@ -510,7 +519,7 @@ export function Workspace(props: WorkspaceProps) {
               <div className="flex-1 overflow-y-auto">
                 <SidebarContent activeTab={state.sidebarTab || 'git'} {...sidebarContentProps} />
                 <div className="flex items-center gap-1 p-3 border-t border-forge-border">
-                  {(['git', 'deploy', 'env', 'db', 'snapshots'] as SidebarTab[]).map(tab => (
+                  {(['anthropic', 'git', 'deploy', 'env', 'db', 'snapshots'] as SidebarTab[]).map(tab => (
                     <button key={tab} onClick={() => state.setSidebarTab(tab)} className={cn('px-2.5 py-1.5 text-[11px] rounded-lg transition-colors capitalize', (state.sidebarTab || 'git') === tab ? 'bg-forge-surface text-forge-text font-medium' : 'text-forge-text-dim hover:text-forge-text')}>{tab}</button>
                   ))}
                 </div>

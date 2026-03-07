@@ -337,44 +337,60 @@ export default function ForgePage() {
   // Auto-audit dispatch removed — user triggers audits manually
 
   /** After importing from GitHub, auto-detect and connect integrations (fire-and-forget) */
-  const autoConnectFromImport = useCallback(async (importedFiles: Record<string, string>, repoUrl: string, newProjectId: string) => {
-    // 1. Auto-detect Supabase credentials from env files and save to user settings
-    const envFiles = ['.env.local', '.env', '.env.development', '.env.production']
-    for (const envFile of envFiles) {
+  const autoConnectFromImport = useCallback(async (importedFiles: Record<string, string>, repoUrl: string, newProjectId: string, onFilesUpdate?: (files: Record<string, string>) => void) => {
+    // Parse all env vars from project files
+    const envFileNames = ['.env.local', '.env', '.env.development', '.env.production']
+    const envVars: Record<string, string> = {}
+    for (const envFile of envFileNames) {
       const content = importedFiles[envFile]
       if (!content) continue
-      let sbUrl = ''
-      let sbKey = ''
       for (const line of content.split('\n')) {
         const trimmed = line.trim()
         if (trimmed.startsWith('#') || !trimmed.includes('=')) continue
         const eqIdx = trimmed.indexOf('=')
         const k = trimmed.slice(0, eqIdx).trim()
         const v = trimmed.slice(eqIdx + 1).trim().replace(/^["']|["']$/g, '')
-        if (k.includes('SUPABASE') && k.includes('URL') && v.startsWith('https://')) sbUrl = v
-        if (k.includes('SUPABASE') && (k.includes('SERVICE_ROLE') || k.includes('ANON')) && v.startsWith('ey')) {
-          if (k.includes('SERVICE_ROLE') || !sbKey) sbKey = v
-        }
-      }
-      if (sbUrl && sbKey) {
-        try {
-          await fetch('/api/settings', {
-            method: 'PUT',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ supabaseUrl: sbUrl, supabaseKey: sbKey, skipValidation: true }),
-          })
-        } catch {}
-        break
+        if (k && v && !envVars[k]) envVars[k] = v
       }
     }
 
-    // 2. Auto-detect Vercel project linked to this GitHub repo
+    // 1. Auto-detect Supabase credentials
+    let sbUrl = ''
+    let sbKey = ''
+    for (const [k, v] of Object.entries(envVars)) {
+      if (k.includes('SUPABASE') && k.includes('URL') && v.startsWith('https://')) sbUrl = v
+      if (k.includes('SUPABASE') && (k.includes('SERVICE_ROLE') || k.includes('ANON')) && v.startsWith('ey')) {
+        if (k.includes('SERVICE_ROLE') || !sbKey) sbKey = v
+      }
+    }
+    if (sbUrl && sbKey) {
+      try { await fetch('/api/settings', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ supabaseUrl: sbUrl, supabaseKey: sbKey, skipValidation: true }) }) } catch {}
+    }
+
+    // 2. Auto-detect Anthropic API key
+    const anthropicKey = envVars['ANTHROPIC_API_KEY']
+    if (anthropicKey?.startsWith('sk-ant-')) {
+      try { await fetch('/api/settings', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ apiKey: anthropicKey, skipValidation: true }) }) } catch {}
+    }
+
+    // 3. Auto-detect Vercel/deploy token
+    const vercelToken = envVars['FORGE_DEPLOY_TOKEN'] || envVars['VERCEL_TOKEN']
+    if (vercelToken) {
+      try { await fetch('/api/settings', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ vercelToken, skipValidation: true }) }) } catch {}
+    }
+
+    // 4. Auto-detect Google API key
+    const googleKey = envVars['GOOGLE_API_KEY'] || envVars['NEXT_PUBLIC_GOOGLE_API_KEY']
+    if (googleKey?.startsWith('AIza')) {
+      try { await fetch('/api/settings', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ googleApiKey: googleKey }) }) } catch {}
+    }
+
+    // 5. Auto-detect Vercel project linked to this GitHub repo + import its env vars
     try {
       const res = await fetch('/api/vercel/projects')
       if (res.ok) {
         const data = await res.json()
         const projects = Array.isArray(data) ? data : data.projects || []
-        // Match by GitHub repo URL
         const repoPath = repoUrl.replace('https://github.com/', '').toLowerCase()
         const match = projects.find((p: any) => {
           const linked = p.link?.repo?.toLowerCase() || p.link?.repoSlug?.toLowerCase() || ''
@@ -386,6 +402,26 @@ export default function ForgePage() {
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ vercel_project_id: match.id }),
           })
+          // Import Vercel env vars into .env.local
+          try {
+            const envRes = await fetch(`/api/vercel/env?projectId=${match.id}`)
+            if (envRes.ok) {
+              const vercelEnvs = await envRes.json()
+              if (Array.isArray(vercelEnvs) && vercelEnvs.length > 0) {
+                const existing = importedFiles['.env.local'] || ''
+                const existingKeys = new Set(
+                  existing.split('\n').filter(l => !l.startsWith('#') && l.includes('=')).map(l => l.split('=')[0].trim())
+                )
+                const newVars = vercelEnvs
+                  .filter((e: any) => e.value && !existingKeys.has(e.key))
+                  .map((e: any) => `${e.key}=${e.value}`)
+                if (newVars.length > 0) {
+                  const updatedEnv = [existing.trim(), '# Vercel Environment Variables', ...newVars].filter(Boolean).join('\n') + '\n'
+                  onFilesUpdate?.({ '.env.local': updatedEnv })
+                }
+              }
+            }
+          } catch {}
         }
       }
     } catch {}
@@ -453,7 +489,7 @@ export default function ForgePage() {
 
     // Auto-connect integrations from imported files (fire-and-forget)
     if (initialFiles && meta?.githubRepoUrl && newProjectId) {
-      autoConnectFromImport(initialFiles, meta.githubRepoUrl, newProjectId)
+      autoConnectFromImport(initialFiles, meta.githubRepoUrl, newProjectId, handleBulkFileUpdate)
     }
 
     // Auto-scan on import disabled — user triggers audits manually via chat

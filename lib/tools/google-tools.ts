@@ -6,11 +6,19 @@ import { getGoogleCredentials } from '@/lib/google-auth'
 export function createGoogleTools(ctx: ToolContext) {
   const { githubUsername } = ctx
 
-  async function getToken(): Promise<{ token: string } | { error: string }> {
+  async function getToken(): Promise<{ token: string; apiKey?: string } | { error: string }> {
     if (!githubUsername) return { error: 'No session — Google tools require authentication' }
     const result = await getGoogleCredentials(githubUsername)
     if (result.error || !result.credentials) return { error: result.error || 'No credentials' }
-    return { token: result.credentials.accessToken }
+    return { token: result.credentials.accessToken, apiKey: result.credentials.apiKey }
+  }
+
+  async function getApiKey(): Promise<{ apiKey: string } | { error: string }> {
+    if (!githubUsername) return { error: 'No session' }
+    const result = await getGoogleCredentials(githubUsername)
+    if (result.error || !result.credentials) return { error: result.error || 'No credentials' }
+    if (!result.credentials.apiKey) return { error: 'No Google API key configured. Add one in the Google panel.' }
+    return { apiKey: result.credentials.apiKey }
   }
 
   async function gFetch(url: string, init?: RequestInit): Promise<{ ok: boolean; data: unknown; error?: string }> {
@@ -22,6 +30,22 @@ export function createGoogleTools(ctx: ToolContext) {
         headers: { Authorization: `Bearer ${auth.token}`, 'Content-Type': 'application/json', ...init?.headers },
         signal: AbortSignal.timeout(15000),
       })
+      if (!res.ok) return { ok: false, data: null, error: `Google API: HTTP ${res.status}` }
+      const data = await res.json().catch(() => ({}))
+      return { ok: true, data }
+    } catch (err: unknown) {
+      return { ok: false, data: null, error: err instanceof Error ? err.message : String(err) }
+    }
+  }
+
+  // API-key-based fetch (for Maps, YouTube, Translate)
+  async function keyFetch(url: string): Promise<{ ok: boolean; data: unknown; error?: string }> {
+    const auth = await getApiKey()
+    if ('error' in auth) return { ok: false, data: null, error: auth.error }
+    const separator = url.includes('?') ? '&' : '?'
+    const fullUrl = `${url}${separator}key=${auth.apiKey}`
+    try {
+      const res = await fetch(fullUrl, { signal: AbortSignal.timeout(15000) })
       if (!res.ok) return { ok: false, data: null, error: `Google API: HTTP ${res.status}` }
       const data = await res.json().catch(() => ({}))
       return { ok: true, data }
@@ -283,6 +307,197 @@ export function createGoogleTools(ctx: ToolContext) {
           return { ok: true, content: text.slice(0, 50000), truncated: text.length > 50000 }
         } catch (err: unknown) {
           return { error: err instanceof Error ? err.message : String(err) }
+        }
+      },
+    }),
+
+    // ── Google Maps (API Key) ──────────────────────────────
+    google_maps_geocode: tool({
+      description: 'Convert an address to latitude/longitude coordinates, or reverse geocode coordinates to an address. Uses Google Maps Geocoding API (requires API key).',
+      inputSchema: z.object({
+        address: z.string().optional().describe('Address to geocode (e.g., "1600 Amphitheatre Parkway, Mountain View, CA")'),
+        latlng: z.string().optional().describe('Coordinates for reverse geocoding (e.g., "40.714224,-73.961452")'),
+      }),
+      execute: async ({ address, latlng }) => {
+        if (!address && !latlng) return { error: 'Provide either address or latlng' }
+        const params = new URLSearchParams()
+        if (address) params.set('address', address)
+        if (latlng) params.set('latlng', latlng)
+        const result = await keyFetch(`https://maps.googleapis.com/maps/api/geocode/json?${params}`)
+        if (!result.ok) return { error: result.error }
+        const d = result.data as any
+        if (d.status !== 'OK') return { error: `Geocoding: ${d.status} — ${d.error_message || 'No results'}` }
+        const results = (d.results || []).slice(0, 3).map((r: any) => ({
+          formattedAddress: r.formatted_address,
+          lat: r.geometry?.location?.lat,
+          lng: r.geometry?.location?.lng,
+          placeId: r.place_id,
+          types: r.types,
+        }))
+        return { ok: true, results }
+      },
+    }),
+
+    google_maps_directions: tool({
+      description: 'Get directions between two locations. Returns route steps, distance, and duration. Uses Google Maps Directions API (requires API key).',
+      inputSchema: z.object({
+        origin: z.string().describe('Starting location (address or lat,lng)'),
+        destination: z.string().describe('Ending location (address or lat,lng)'),
+        mode: z.enum(['driving', 'walking', 'bicycling', 'transit']).default('driving'),
+        alternatives: z.boolean().default(false).describe('Return alternative routes'),
+      }),
+      execute: async ({ origin, destination, mode, alternatives }) => {
+        const params = new URLSearchParams({
+          origin,
+          destination,
+          mode,
+          alternatives: String(alternatives),
+        })
+        const result = await keyFetch(`https://maps.googleapis.com/maps/api/directions/json?${params}`)
+        if (!result.ok) return { error: result.error }
+        const d = result.data as any
+        if (d.status !== 'OK') return { error: `Directions: ${d.status} — ${d.error_message || 'No route'}` }
+        const routes = (d.routes || []).slice(0, 3).map((r: any) => {
+          const leg = r.legs?.[0]
+          return {
+            summary: r.summary,
+            distance: leg?.distance?.text,
+            duration: leg?.duration?.text,
+            startAddress: leg?.start_address,
+            endAddress: leg?.end_address,
+            steps: (leg?.steps || []).slice(0, 20).map((s: any) => ({
+              instruction: s.html_instructions?.replace(/<[^>]*>/g, ''),
+              distance: s.distance?.text,
+              duration: s.duration?.text,
+              travelMode: s.travel_mode,
+            })),
+          }
+        })
+        return { ok: true, routes }
+      },
+    }),
+
+    google_maps_places_search: tool({
+      description: 'Search for places near a location. Returns business names, addresses, ratings. Uses Google Maps Places API (requires API key).',
+      inputSchema: z.object({
+        query: z.string().describe('Search query (e.g., "pizza near Times Square")'),
+        location: z.string().optional().describe('Center point as lat,lng (e.g., "40.758,-73.9855")'),
+        radius: z.number().optional().describe('Search radius in meters (max 50000)'),
+        type: z.string().optional().describe('Place type filter (e.g., "restaurant", "hospital", "gas_station")'),
+      }),
+      execute: async ({ query, location, radius, type }) => {
+        const params = new URLSearchParams({ query })
+        if (location) params.set('location', location)
+        if (radius) params.set('radius', String(Math.min(radius, 50000)))
+        if (type) params.set('type', type)
+        const result = await keyFetch(`https://maps.googleapis.com/maps/api/place/textsearch/json?${params}`)
+        if (!result.ok) return { error: result.error }
+        const d = result.data as any
+        if (d.status !== 'OK' && d.status !== 'ZERO_RESULTS') {
+          return { error: `Places: ${d.status} — ${d.error_message || 'Error'}` }
+        }
+        const places = (d.results || []).slice(0, 10).map((p: any) => ({
+          name: p.name,
+          address: p.formatted_address,
+          rating: p.rating,
+          userRatingsTotal: p.user_ratings_total,
+          priceLevel: p.price_level,
+          types: p.types?.slice(0, 5),
+          placeId: p.place_id,
+          lat: p.geometry?.location?.lat,
+          lng: p.geometry?.location?.lng,
+          openNow: p.opening_hours?.open_now,
+        }))
+        return { ok: true, places, count: places.length }
+      },
+    }),
+
+    // ── YouTube Data API (API Key) ──────────────────────────────
+    google_youtube_search: tool({
+      description: 'Search YouTube videos. Returns video titles, channels, view counts. Uses YouTube Data API v3 (requires API key).',
+      inputSchema: z.object({
+        query: z.string().describe('Search query'),
+        maxResults: z.number().default(5).describe('Number of results (max 25)'),
+        order: z.enum(['relevance', 'date', 'viewCount', 'rating']).default('relevance'),
+        type: z.enum(['video', 'channel', 'playlist']).default('video'),
+      }),
+      execute: async ({ query, maxResults, order, type }) => {
+        const params = new URLSearchParams({
+          part: 'snippet',
+          q: query,
+          maxResults: String(Math.min(maxResults, 25)),
+          order,
+          type,
+        })
+        const result = await keyFetch(`https://www.googleapis.com/youtube/v3/search?${params}`)
+        if (!result.ok) return { error: result.error }
+        const d = result.data as any
+        const items = (d.items || []).map((item: any) => ({
+          title: item.snippet?.title,
+          description: item.snippet?.description?.slice(0, 200),
+          channelTitle: item.snippet?.channelTitle,
+          publishedAt: item.snippet?.publishedAt,
+          videoId: item.id?.videoId,
+          channelId: item.id?.channelId || item.snippet?.channelId,
+          playlistId: item.id?.playlistId,
+          thumbnail: item.snippet?.thumbnails?.medium?.url,
+        }))
+        return { ok: true, items, totalResults: d.pageInfo?.totalResults }
+      },
+    }),
+
+    google_youtube_video_info: tool({
+      description: 'Get detailed information about a YouTube video by ID. Returns title, description, view count, likes, duration. Uses YouTube Data API v3 (requires API key).',
+      inputSchema: z.object({
+        videoId: z.string().describe('YouTube video ID (e.g., "dQw4w9WgXcQ")'),
+      }),
+      execute: async ({ videoId }) => {
+        const params = new URLSearchParams({
+          part: 'snippet,statistics,contentDetails',
+          id: videoId,
+        })
+        const result = await keyFetch(`https://www.googleapis.com/youtube/v3/videos?${params}`)
+        if (!result.ok) return { error: result.error }
+        const d = result.data as any
+        const video = d.items?.[0]
+        if (!video) return { error: 'Video not found' }
+        return {
+          ok: true,
+          title: video.snippet?.title,
+          description: video.snippet?.description?.slice(0, 1000),
+          channelTitle: video.snippet?.channelTitle,
+          publishedAt: video.snippet?.publishedAt,
+          duration: video.contentDetails?.duration,
+          viewCount: video.statistics?.viewCount,
+          likeCount: video.statistics?.likeCount,
+          commentCount: video.statistics?.commentCount,
+          tags: video.snippet?.tags?.slice(0, 15),
+          categoryId: video.snippet?.categoryId,
+        }
+      },
+    }),
+
+    // ── Google Translate (API Key) ──────────────────────────────
+    google_translate_text: tool({
+      description: 'Translate text between languages using Google Cloud Translation API (requires API key). Supports 100+ languages.',
+      inputSchema: z.object({
+        text: z.string().describe('Text to translate'),
+        target: z.string().describe('Target language code (e.g., "es", "fr", "ja", "de", "zh")'),
+        source: z.string().optional().describe('Source language code (auto-detected if omitted)'),
+      }),
+      execute: async ({ text, target, source }) => {
+        const params = new URLSearchParams({ q: text, target })
+        if (source) params.set('source', source)
+        const result = await keyFetch(`https://translation.googleapis.com/language/translate/v2?${params}`)
+        if (!result.ok) return { error: result.error }
+        const d = result.data as any
+        const translation = d.data?.translations?.[0]
+        if (!translation) return { error: 'No translation returned' }
+        return {
+          ok: true,
+          translatedText: translation.translatedText,
+          detectedSourceLanguage: translation.detectedSourceLanguage,
+          targetLanguage: target,
         }
       },
     }),

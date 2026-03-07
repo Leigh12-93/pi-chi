@@ -9,10 +9,11 @@ import { EnvPanel } from './sidebar/env-panel'
 import { DbPanel } from './sidebar/db-panel'
 import { GooglePanel } from './sidebar/google-panel'
 import { SnapshotsPanel } from './sidebar/snapshots-panel'
+import { AnthropicPanel } from './sidebar/anthropic-panel'
 import type { FileNode } from '@/lib/types'
 import type { Snapshot } from './version-history'
 
-export type SidebarTab = 'git' | 'deploy' | 'env' | 'db' | 'google' | 'snapshots'
+export type SidebarTab = 'anthropic' | 'git' | 'deploy' | 'env' | 'db' | 'google' | 'snapshots'
 
 // ─── Brand SVG icons for sidebar ────────────────────────────────
 
@@ -61,9 +62,18 @@ function GoogleIcon({ className }: { className?: string }) {
   )
 }
 
+function AnthropicIcon({ className }: { className?: string }) {
+  return (
+    <svg className={className} viewBox="0 0 46 32" fill="currentColor">
+      <path d="M32.73 0H26.l-13.27 32h6.73L32.73 0ZM13.27 0 0 32h6.9l2.73-6.72h13.82l2.73 6.72h6.9L19.81 0h-6.54Zm.63 19.52 4.18-10.28 4.19 10.28H13.9Z" />
+    </svg>
+  )
+}
+
 type TabIcon = React.FC<{ className?: string }>
 
 const TABS: { id: SidebarTab; icon: TabIcon; label: string; activeColor?: string; activeBg?: string }[] = [
+  { id: 'anthropic', icon: AnthropicIcon, label: 'Anthropic', activeColor: 'text-[#D4A574]', activeBg: 'bg-[#D4A574]/10' },
   { id: 'git', icon: GitHubIcon, label: 'GitHub' },
   { id: 'deploy', icon: VercelIcon, label: 'Vercel' },
   { id: 'env', icon: Key, label: 'Environment', activeColor: 'text-amber-400', activeBg: 'bg-amber-500/10' },
@@ -140,6 +150,8 @@ interface SidebarContentProps {
   onOpenVersionHistory: () => void
   onRestoreSnapshot: (snap: Snapshot) => void
   onCreateSnapshot: () => void
+  onOpenMcpManager?: () => void
+  sessionCost?: { cost: number; inputTokens: number; outputTokens: number }
 }
 
 export function SidebarContent({
@@ -147,15 +159,18 @@ export function SidebarContent({
   onFileCreate, fileContents, modifiedFiles, aiEditingFiles, fileDiffs,
   githubRepoUrl, projectId, vercelProjectId, onAction, onFileChange,
   onOpenDbExplorer, onOpenSettings, onRepoConnected, onRepoDisconnected, onBulkFileUpdate, onVercelConnected, snapshots,
-  onOpenVersionHistory, onRestoreSnapshot, onCreateSnapshot,
+  onOpenVersionHistory, onRestoreSnapshot, onCreateSnapshot, onOpenMcpManager, sessionCost,
 }: SidebarContentProps) {
   return (
     <div className="h-full overflow-y-auto bg-forge-panel animate-sidebar-in">
+      {activeTab === 'anthropic' && (
+        <AnthropicPanel onOpenSettings={onOpenSettings} onOpenMcpManager={onOpenMcpManager} sessionCost={sessionCost} fileContents={fileContents} />
+      )}
       {activeTab === 'git' && (
         <GitPanel githubRepoUrl={githubRepoUrl} projectId={projectId} onAction={onAction} onRepoConnected={onRepoConnected} onRepoDisconnected={onRepoDisconnected} files={fileContents} onBulkFileUpdate={onBulkFileUpdate} modifiedFiles={modifiedFiles} />
       )}
       {activeTab === 'deploy' && (
-        <DeployPanel onAction={onAction} projectId={projectId} vercelProjectId={vercelProjectId} onVercelConnected={onVercelConnected} onOpenSettings={onOpenSettings} />
+        <DeployPanel onAction={onAction} projectId={projectId} vercelProjectId={vercelProjectId} onVercelConnected={onVercelConnected} onOpenSettings={onOpenSettings} fileContents={fileContents} />
       )}
       {activeTab === 'env' && (
         <EnvPanel fileContents={fileContents} onFileChange={onFileChange} vercelProjectId={vercelProjectId} />

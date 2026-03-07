@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo, useRef } from 'react'
 import { Rocket, Download, Link, ExternalLink, Loader2, Check, LogIn, AlertCircle, Settings } from 'lucide-react'
 
 interface VercelProject {
@@ -15,9 +15,28 @@ interface DeployPanelProps {
   vercelProjectId?: string | null
   onVercelConnected?: (id: string) => void
   onOpenSettings?: () => void
+  fileContents?: Record<string, string>
 }
 
-export function DeployPanel({ onAction, projectId, vercelProjectId, onVercelConnected, onOpenSettings }: DeployPanelProps) {
+/** Detect Vercel/deploy token from project env files */
+function detectVercelTokenFromEnv(fileContents: Record<string, string>): string | null {
+  const envFiles = ['.env.local', '.env', '.env.development', '.env.production']
+  for (const envFile of envFiles) {
+    const content = fileContents[envFile]
+    if (!content) continue
+    for (const line of content.split('\n')) {
+      const trimmed = line.trim()
+      if (trimmed.startsWith('#') || !trimmed.includes('=')) continue
+      const eqIdx = trimmed.indexOf('=')
+      const k = trimmed.slice(0, eqIdx).trim()
+      const v = trimmed.slice(eqIdx + 1).trim().replace(/^["']|["']$/g, '')
+      if ((k === 'FORGE_DEPLOY_TOKEN' || k === 'VERCEL_TOKEN') && v.length > 10) return v
+    }
+  }
+  return null
+}
+
+export function DeployPanel({ onAction, projectId, vercelProjectId, onVercelConnected, onOpenSettings, fileContents }: DeployPanelProps) {
   const [showConnect, setShowConnect] = useState(false)
   const [vercelProjects, setVercelProjects] = useState<VercelProject[]>([])
   const [loadingProjects, setLoadingProjects] = useState(false)
@@ -26,6 +45,10 @@ export function DeployPanel({ onAction, projectId, vercelProjectId, onVercelConn
   const [error, setError] = useState('')
   const [needsAuth, setNeedsAuth] = useState(false)
   const [hasOAuth, setHasOAuth] = useState(false)
+
+  // Auto-detect Vercel token from env files
+  const detectedToken = useMemo(() => fileContents ? detectVercelTokenFromEnv(fileContents) : null, [fileContents])
+  const autoSaved = useRef(false)
 
   // Check if OAuth is available on mount
   useEffect(() => {
@@ -37,6 +60,19 @@ export function DeployPanel({ onAction, projectId, vercelProjectId, onVercelConn
       })
       .catch(() => {})
   }, [])
+
+  // Auto-save detected Vercel token from env files (fire-and-forget)
+  useEffect(() => {
+    if (!detectedToken || !needsAuth || autoSaved.current) return
+    autoSaved.current = true
+    fetch('/api/settings', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ vercelToken: detectedToken, skipValidation: true }),
+    }).then(() => {
+      setNeedsAuth(false)
+    }).catch(() => {})
+  }, [detectedToken, needsAuth])
 
   // Fetch Vercel projects when connect section is opened
   useEffect(() => {

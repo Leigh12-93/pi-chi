@@ -102,32 +102,35 @@ export async function PUT(req: Request) {
       return NextResponse.json({ error: 'Invalid API key format. Must start with sk-ant-' }, { status: 400 })
     }
 
-    try {
-      const res = await fetch('https://api.anthropic.com/v1/messages', {
-        method: 'POST',
-        headers: {
-          'x-api-key': trimmed,
-          'anthropic-version': '2023-06-01',
-          'content-type': 'application/json',
-        },
-        body: JSON.stringify({
-          model: 'claude-sonnet-4-20250514',
-          max_tokens: 1,
-          messages: [{ role: 'user', content: 'Hi' }],
-        }),
-        signal: AbortSignal.timeout(15000),
-      })
+    // Skip validation when auto-saving from env detection (already verified by the panel)
+    if (!body.skipValidation) {
+      try {
+        const res = await fetch('https://api.anthropic.com/v1/messages', {
+          method: 'POST',
+          headers: {
+            'x-api-key': trimmed,
+            'anthropic-version': '2023-06-01',
+            'content-type': 'application/json',
+          },
+          body: JSON.stringify({
+            model: 'claude-sonnet-4-20250514',
+            max_tokens: 1,
+            messages: [{ role: 'user', content: 'Hi' }],
+          }),
+          signal: AbortSignal.timeout(15000),
+        })
 
-      if (!res.ok) {
-        const err = await res.json().catch(() => ({}))
+        if (!res.ok) {
+          const err = await res.json().catch(() => ({}))
+          return NextResponse.json({
+            error: `API key validation failed: ${(err as any).error?.message || `HTTP ${res.status}`}`,
+          }, { status: 400 })
+        }
+      } catch (err: any) {
         return NextResponse.json({
-          error: `API key validation failed: ${(err as any).error?.message || `HTTP ${res.status}`}`,
+          error: `API key validation failed: ${err.message || 'Network error'}`,
         }, { status: 400 })
       }
-    } catch (err: any) {
-      return NextResponse.json({
-        error: `API key validation failed: ${err.message || 'Network error'}`,
-      }, { status: 400 })
     }
 
     const encrypted = await encryptToken(trimmed)
@@ -139,22 +142,25 @@ export async function PUT(req: Request) {
   if (vercelToken) {
     const trimmed = vercelToken.trim()
 
-    // Validate by listing projects
-    try {
-      const res = await fetch('https://api.vercel.com/v9/projects?limit=1', {
-        headers: { Authorization: `Bearer ${trimmed}` },
-        signal: AbortSignal.timeout(10000),
-      })
-      if (!res.ok) {
-        const err = await res.json().catch(() => ({}))
+    // Skip validation when auto-saving from env detection
+    if (!body.skipValidation) {
+      // Validate by listing projects
+      try {
+        const res = await fetch('https://api.vercel.com/v9/projects?limit=1', {
+          headers: { Authorization: `Bearer ${trimmed}` },
+          signal: AbortSignal.timeout(10000),
+        })
+        if (!res.ok) {
+          const err = await res.json().catch(() => ({}))
+          return NextResponse.json({
+            error: `Vercel token validation failed: ${(err as any).error?.message || `HTTP ${res.status}`}`,
+          }, { status: 400 })
+        }
+      } catch (err: any) {
         return NextResponse.json({
-          error: `Vercel token validation failed: ${(err as any).error?.message || `HTTP ${res.status}`}`,
+          error: `Vercel token validation failed: ${err.message || 'Network error'}`,
         }, { status: 400 })
       }
-    } catch (err: any) {
-      return NextResponse.json({
-        error: `Vercel token validation failed: ${err.message || 'Network error'}`,
-      }, { status: 400 })
     }
 
     const encrypted = await encryptToken(trimmed)

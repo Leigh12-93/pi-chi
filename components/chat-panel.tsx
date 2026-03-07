@@ -22,9 +22,10 @@ import { toast } from 'sonner'
 
 export type ChatPanelProps = UseForgeChatProps & {
   onLoadingChange?: (isLoading: boolean) => void
+  onSessionCostChange?: (cost: { cost: number; inputTokens: number; outputTokens: number }) => void
 }
 
-export const ChatPanel = memo(function ChatPanel({ onLoadingChange, ...props }: ChatPanelProps) {
+export const ChatPanel = memo(function ChatPanel({ onLoadingChange, onSessionCostChange, ...props }: ChatPanelProps) {
   const chat = useForgeChat(props)
   const [isDraggingChat, setIsDraggingChat] = useState(false)
   const [dismissedError, setDismissedError] = useState<string | null>(null)
@@ -66,6 +67,11 @@ export const ChatPanel = memo(function ChatPanel({ onLoadingChange, ...props }: 
   useEffect(() => {
     onLoadingChange?.(chat.isLoading)
   }, [chat.isLoading, onLoadingChange])
+
+  // Bubble session cost to parent (sidebar panel)
+  useEffect(() => {
+    onSessionCostChange?.(chat.sessionCost)
+  }, [chat.sessionCost, onSessionCostChange])
 
   return (
     <ErrorBoundary>
