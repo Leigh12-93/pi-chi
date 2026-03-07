@@ -1920,8 +1920,7 @@ export const PreviewPanel = memo(function PreviewPanel({ files, projectId, onFix
                 src={sandboxUrl}
                 className={cn(
                   'w-full h-full border-0 absolute inset-0 transition-opacity duration-500',
-                  // Hide sandbox once WC iframe is fully loaded
-                  wcIframeReady ? 'opacity-0 pointer-events-none' : 'opacity-100',
+                  'opacity-100',
                 )}
                 title="Live Preview"
                 allow="cross-origin-isolated"
@@ -1955,8 +1954,9 @@ export const PreviewPanel = memo(function PreviewPanel({ files, projectId, onFix
             </>
           )}
 
-          {/* WebContainer live preview — renders on top, fades in when loaded */}
-          {wcPreviewUrl && (
+          {/* WebContainer live preview — only used as fallback when v0 sandbox is NOT active.
+              Next.js 15.5.x crashes in WebContainers (vercel/next.js#84026), so prefer v0. */}
+          {wcPreviewUrl && !isSandboxActive && (
             <>
               {!wcIframeReady && (
                 <div className="absolute top-3 right-3 z-20">
