@@ -49,6 +49,9 @@ const editFailCache = new Map<string, { counts: Map<string, number>; ts: number 
 // Project memory cache — avoids DB round-trip on every message
 const memoryCache = new Map<string, { data: Record<string, string>; ts: number }>()
 const MEMORY_TTL = 60_000 // 1 minute
+
+// six-chi.md content cache — hash-based, avoids full injection on every message
+const sixChiCache = new Map<string, { hash: string; vision: string; taskList: string; full: string }>()
 function getEditFailCounts(projectId: string | null): Map<string, number> {
   const key = projectId || '_anon'
   const now = Date.now()
@@ -438,10 +441,33 @@ export async function POST(req: Request) {
   const memorySection = Object.keys(projectMemory).length > 0
     ? `\n\n## Project Memory (persisted across sessions)\n\`\`\`json\n${JSON.stringify(projectMemory, null, 2)}\n\`\`\``
     : '\n\n(No project memory saved yet — use save_memory to persist insights.)'
+  // Inject six-chi.md blueprint — token-optimized with hash-based caching
+  const sixChiContent = vfs.read('six-chi.md')
+  let sixChiSection = ''
+  if (sixChiContent) {
+    const hash = sixChiContent.length + ':' + sixChiContent.slice(0, 100)
+    const cached = sixChiCache.get(projectId || '_anon')
+    const isFirstMessage = trimmedMessages.length <= 1
+    const contentChanged = !cached || cached.hash !== hash
+
+    if (isFirstMessage || contentChanged) {
+      // Full injection — first message or content was updated
+      sixChiSection = `\n\n## Project Blueprint (six-chi.md)\n${sixChiContent.slice(0, 4096)}`
+      // Parse and cache the Vision + Task List sections for subsequent messages
+      const visionMatch = sixChiContent.match(/## Vision\n([\s\S]*?)(?=\n## )/)?.[1]?.trim() || ''
+      const taskMatch = sixChiContent.match(/## Task List\n([\s\S]*?)$/)?.[1]?.trim() || ''
+      sixChiCache.set(projectId || '_anon', { hash, vision: visionMatch, taskList: taskMatch, full: sixChiContent })
+    } else {
+      // Condensed injection — vision + tasks only (~200 tokens vs ~1000)
+      sixChiSection = `\n\n## Project Blueprint (six-chi.md — condensed)\nVision: ${cached.vision}\n\nTask List:\n${cached.taskList}\n\n(Full blueprint in six-chi.md — use read_file for architecture/design details)`
+    }
+  }
+
   const systemPromptStr = buildSystemPrompt(lastUserText).replace(MEMORY_MARKER, memorySection)
     + (activeFile && activeFileContent
       ? `\n\nUser is currently viewing: ${activeFile}\n\`\`\`\n${activeFileContent}\n\`\`\``
       : '')
+    + sixChiSection
     + `\n\n---\nProject: "${projectName}"${projectId ? ` (id: ${projectId})` : ''}\nFile manifest:\n${manifestStr}`
 
   // Token estimation: JSON.stringify/4 underestimates real Anthropic token count

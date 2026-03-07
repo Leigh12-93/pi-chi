@@ -646,20 +646,6 @@ export function useForgeChat(props: UseForgeChatProps) {
     return () => window.removeEventListener('forge:preview-error', handler)
   }, [sendMessage])
 
-  // ─── Listen for auto-audit trigger (from project load/import) ──
-  useEffect(() => {
-    const handler = (e: Event) => {
-      const detail = (e as CustomEvent).detail
-      if (!detail?.message) return
-      if (detail.projectId && detail.projectId !== projectIdRef.current) return
-      if (!isLoading && detail.message) {
-        sendMessage({ text: detail.message })
-      }
-    }
-    window.addEventListener('forge:auto-audit', handler)
-    return () => window.removeEventListener('forge:auto-audit', handler)
-  }, [isLoading, sendMessage])
-
   // ─── Send / register / pending ────────────────────────────────
   const handleSend = useCallback((text?: string) => {
     const content = (text || input).trim()

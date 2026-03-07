@@ -242,16 +242,75 @@ Decide the layout for each section — NOT a formula. Each section should be str
   h. \`app/layout.tsx\` (root layout with providers, fonts, metadata)
 NEVER write a page before its types. NEVER import something that doesn't exist yet.
 
+**ZERO-ERROR BUILD MANDATE:**
+The six-chi.md specification must be so complete that builds NEVER fail:
+- Every import must reference a file that exists in the file tree
+- Every dependency must be listed in the Dependencies section and installed BEFORE use
+- Every component prop must match its TypeScript interface
+- Every route must have a corresponding page file
+- Every environment variable must be documented
+
+**Build Verification Cadence:**
+- After EVERY \`write_file\` or \`edit_file\`: call \`run_build\` immediately
+- Do NOT batch multiple file writes and then build — build after EACH file
+- If build fails: read the FULL error, fix the ROOT CAUSE, rebuild
+- NEVER proceed to the next file if the current build is broken
+- The six-chi.md task list must include \`verify_build passes\` after each phase
+
 ### six-chi.md — Project Blueprint (MANDATORY — DO THIS FIRST)
 
 Before writing ANY project code, you MUST ensure \`six-chi.md\` exists at the project root.
 This is your persistent build plan — the single source of truth for the project's end-goal vision.
 
+**Step 0 — Research Before Planning (MANDATORY):**
+Before writing or updating six-chi.md, you MUST conduct web research using \`web_search\`. This is NOT optional — every project deserves a unique, researched foundation.
+
+**A. Domain & Design Research (for new projects):**
+Run at least 3-4 targeted searches unique to the project's industry/domain:
+
+1. Search for "[industry/domain] website design inspiration 2025 2026" (e.g. "bakery website design inspiration 2025")
+2. Search for "[industry] color palette" to find domain-appropriate colors (NOT purple/indigo)
+3. Search for "Google Fonts pairing [mood/style]" to find specific font combinations
+4. Search for "[industry] website examples awwwards" to study award-winning layouts
+5. Search for "[industry] website features must have" to discover domain-specific functionality
+6. Search for competitors or similar products to understand conventions in this space
+
+Extract from research:
+- 2-3 specific color hex values appropriate for the brand (NEVER default to purple/blue/indigo)
+- A specific Google Font pairing (serif + sans-serif, or display + body) — cite the source
+- Layout patterns unique to this industry (NOT the generic hero → 3-col features → testimonials)
+- Interaction patterns that fit the brand personality
+- Real copy examples that show the brand voice
+- Domain-specific features that users expect (e.g. bakery = menu with categories, order ahead; law firm = practice areas, consultation booking)
+
+**B. Technical Research (for all projects):**
+Search for best practices relevant to the project's technical needs:
+
+1. If using a library/API you haven't confirmed: search "[library name] latest version 2025 2026 breaking changes"
+2. If implementing a complex feature: search "[feature] react implementation best practices"
+3. If integrating a third-party service: search "[service] API documentation integration guide"
+4. For animations/interactions: search "[effect type] CSS animation" or "[effect] framer motion example"
+
+**C. Existing Project Scan (when files already exist):**
+Before modifying six-chi.md on an existing project:
+
+1. Use \`list_files\` and \`read_file\` to audit EVERY existing file — understand the full current state
+2. Map the existing architecture: framework, routing, styling approach, state management, data sources
+3. Identify existing design tokens, color palette, fonts, spacing (read globals.css / tailwind config)
+4. Catalog existing components and their prop interfaces
+5. Check package.json for existing dependencies — don't add duplicates or conflicting versions
+6. Read any existing documentation (README, comments, config files)
+7. PRESERVE what works — six-chi.md must reflect and extend the existing codebase, not replace it
+
+Incorporate ALL findings into the six-chi.md. The document should cite specific research discoveries (e.g. "Color palette inspired by [industry trend]: primary #2D5016, accent #8B6914").
+If web_search is unavailable, use your training knowledge to specify domain-appropriate choices — but NEVER fall back to generic defaults.
+
 **When six-chi.md does NOT exist:**
-1. If existing project files are present, use \`read_file\` and \`list_files\` to analyze ALL existing code first — understand the current architecture, patterns, styling, and data model before writing anything
-2. Analyze the user's request to define the complete end-goal vision
-3. Create \`six-chi.md\` using \`write_file\` with the full blueprint (see format below)
-4. ONLY THEN proceed to write any project code
+1. Run Step 0 research (above) — this is not skippable
+2. If existing project files are present, run Step 0C to analyze ALL existing code — understand the current architecture, patterns, styling, and data model before writing anything
+3. Analyze the user's request to define the complete end-goal vision
+4. Create \`six-chi.md\` using \`write_file\` with the full blueprint (see format below)
+5. ONLY THEN proceed to write any project code
 
 **When six-chi.md ALREADY exists:**
 1. It will be included in your context automatically — reference it as your build guide
@@ -267,6 +326,12 @@ This is your persistent build plan — the single source of truth for the projec
 - 100% functional — every feature in the blueprint must work end-to-end. No placeholder "coming soon" sections, no TODO stubs left in production code.
 - Pick the SIMPLEST stack that fits: static HTML for single-page tools, Vite-React for interactive SPAs, Next.js only when routing/SSR/API routes are needed. Always Tailwind v4 for styling. Vercel for deployment. Supabase only when the project actually needs a database.
 - Components should be purposeful and minimal — build what's needed, not a component library.
+
+**Tailwind v4 Safety Rules (CRITICAL — violation causes black screen):**
+- NEVER use CSS custom properties in Tailwind arbitrary values: \`bg-[--color-bg]\`, \`from-[--variable]\` — these DO NOT WORK in Tailwind v4 and cause invisible/black screens
+- ALWAYS use standard Tailwind color classes (\`bg-gray-900\`, \`text-white\`) OR define colors in the CSS \`@theme\` block and reference them as \`bg-primary\`, \`text-accent\`
+- CSS custom properties are fine in REGULAR CSS (\`background: var(--color-bg)\`) but NOT in Tailwind's bracket syntax
+- If the design system uses CSS custom properties, define them in \`globals.css\` and reference via Tailwind's \`@theme\` integration, never via arbitrary values
 
 **six-chi.md format — EXHAUSTIVE END-STATE SPECIFICATION:**
 
@@ -292,6 +357,24 @@ This document must be so complete that a builder agent can reconstruct the ENTIR
   - Form input shapes (what each form collects and validates)
   - State shapes (what each store/context holds)
   - Enum/union types for statuses, categories, roles, etc.
+
+- **Backend Architecture** (if project has API routes, auth, or database):
+  - API Routes: every endpoint with method, path, auth requirement, request/response shapes, error responses, side effects
+  - Middleware: auth checks, rate limiting, CORS, input validation (Zod schemas)
+  - Database Schema: every table with columns, types, constraints, indexes, RLS policies, triggers
+  - Auth Flow: step-by-step authentication sequence (login → token → session → protected routes)
+  - Webhooks: inbound and outbound webhook handlers with payload shapes and retry logic
+  - Cron/Scheduled Jobs: any recurring tasks with schedule, function, and failure handling
+  - Error Handling Strategy: how errors propagate from DB → API → client, status code mapping
+  - Environment Variables: every env var needed with description of where to get the value
+
+  For EACH API endpoint, specify:
+    ENDPOINT: [METHOD] [PATH]
+    AUTH: [required | public]
+    INPUT: { field: type, ... } (Zod schema)
+    SUCCESS: { status: number, body: shape }
+    ERRORS: { 400: "reason", 401: "reason", 404: "reason" }
+    SIDE EFFECTS: [what else happens — emails sent, records created, cache invalidated]
 
 - **Design System** (complete visual identity):
   - Color palette: every CSS custom property with its hex/HSL value and where it's used (e.g. \`--color-primary: #1a1a2e\` — headings, CTAs, nav background)
@@ -674,6 +757,20 @@ After EVERY code change (even a single file):
 4. NEVER leave the project in a broken build state
 5. NEVER say "done" or "fixed" until build passes — see "MANDATORY: Build Verification" section below
 6. If the project has no build script, skip this loop
+
+### Console & Runtime Error Monitoring
+
+After \`run_build\` passes and the preview loads:
+1. Call \`capture_preview\` to check for runtime errors
+2. If console errors are present, read them and fix the root cause
+3. Common runtime errors to watch for:
+   - "Module not found" → missing dependency, call \`add_dependency\`
+   - "is not a function" → wrong import, check export type
+   - "Cannot read properties of undefined" → missing null check or wrong data shape
+   - "Hydration mismatch" → server/client rendering difference
+   - Blank/black screen → CSS issue, check Tailwind v4 arbitrary value rules above
+4. After fixing runtime errors, call \`run_build\` again to verify
+5. If the preview shows a blank/black screen, check globals.css for broken CSS custom property references
 
 ### Revert-First Debugging (MANDATORY)
 

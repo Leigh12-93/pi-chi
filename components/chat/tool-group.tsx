@@ -82,7 +82,7 @@ export function groupToolInvocations(parts: Array<any>): RenderItem[] {
 }
 
 /** Get a v0-style group icon & label based on the dominant tool type */
-function getGroupMeta(tools: ToolGroupData['tools']): { Icon: typeof Search; label: string; color: string } {
+export function getGroupMeta(tools: ToolGroupData['tools']): { Icon: typeof Search; label: string; color: string } {
   const counts: Record<string, number> = {}
   for (const t of tools) counts[t.toolName] = (counts[t.toolName] || 0) + 1
   const dominant = Object.entries(counts).sort((a, b) => b[1] - a[1])[0]?.[0] || ''
@@ -101,7 +101,7 @@ function getGroupMeta(tools: ToolGroupData['tools']): { Icon: typeof Search; lab
 }
 
 /** Get filename + truncated path for a tool call */
-function getToolFileInfo(t: { toolName: string; args: Record<string, unknown> }): { name: string; path: string } {
+export function getToolFileInfo(t: { toolName: string; args: Record<string, unknown> }): { name: string; path: string } {
   const args = t.args as Record<string, string>
   const filePath = args.path || args.file || args.filePath || args.file_path || args.pattern || ''
   if (filePath) {

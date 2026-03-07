@@ -53,7 +53,7 @@ export default function ForgePage() {
   const [onboardingDismissed, setOnboardingDismissed] = useState(() => {
     try { return sessionStorage.getItem('forge_onboarding_done') === '1' } catch { return false }
   })
-  const [pendingAuditMessage, setPendingAuditMessage] = useState<string | null>(null)
+  // pendingAuditMessage removed — auto-scan disabled, user triggers manually
 
   // Concurrent-tab detection: warn if another tab is editing the same project
   useEffect(() => {
@@ -120,24 +120,8 @@ export default function ForgePage() {
               if (stored.activeFile && data.files?.[stored.activeFile]) {
                 setActiveFile(stored.activeFile)
               }
-              // Auto-scan if project hasn't been scanned in 7+ days
-              const projectFiles = data.files || {}
-              const fileCount = Object.keys(projectFiles).length
-              if (fileCount >= 3) {
-                try {
-                  const lastAuditFile = projectFiles['.forge/last-audit.json']
-                  const lastScan = lastAuditFile ? JSON.parse(lastAuditFile).timestamp : null
-                  const daysSinceScan = lastScan ? (Date.now() - new Date(lastScan).getTime()) / 86400000 : Infinity
-                  if (daysSinceScan > 7) {
-                    setPendingAuditMessage(
-                      '[AUTO-SCAN] This project hasn\'t been scanned in ' +
-                      (lastScan ? `${Math.floor(daysSinceScan)} days` : 'ever') + '. ' +
-                      'Run a deep architectural scan focusing on structural issues and codebase errors. ' +
-                      'Do NOT change any UI or content.'
-                    )
-                  }
-                } catch { /* ignore parse errors */ }
-              }
+              // Auto-scan disabled — user triggers audits manually via chat
+              // Previous behavior silently fired scans on load, spamming the chat
             } else {
               // Project was deleted — clear storage
               sessionStorage.removeItem('forge_active_project')
@@ -350,17 +334,7 @@ export default function ForgePage() {
     }
   }, [projectId, files, handleManualSave])
 
-  // Auto-audit: dispatch pending audit message after project load settles
-  useEffect(() => {
-    if (!pendingAuditMessage || !projectId) return
-    const timer = setTimeout(() => {
-      window.dispatchEvent(new CustomEvent('forge:auto-audit', {
-        detail: { message: pendingAuditMessage, projectId }
-      }))
-      setPendingAuditMessage(null)
-    }, 1500) // Wait for project to fully load
-    return () => clearTimeout(timer)
-  }, [pendingAuditMessage, projectId])
+  // Auto-audit dispatch removed — user triggers audits manually
 
   /** After importing from GitHub, auto-detect and connect integrations (fire-and-forget) */
   const autoConnectFromImport = useCallback(async (importedFiles: Record<string, string>, repoUrl: string, newProjectId: string) => {
@@ -482,17 +456,7 @@ export default function ForgePage() {
       autoConnectFromImport(initialFiles, meta.githubRepoUrl, newProjectId)
     }
 
-    // Auto-scan imported projects with 3+ files
-    if (initialFiles && Object.keys(initialFiles).length >= 3) {
-      setPendingAuditMessage(
-        '[AUTO-SCAN] This project was just imported. Run a deep architectural scan: ' +
-        'analyze the codebase structure, find architectural bugs, structural issues, ' +
-        'and codebase errors. Do NOT change any UI or content. Focus on: ' +
-        'missing dependencies, broken imports, incorrect patterns, config issues, ' +
-        'type safety gaps, security vulnerabilities, and architectural inconsistencies. ' +
-        'Present findings with severity ratings.'
-      )
-    }
+    // Auto-scan on import disabled — user triggers audits manually via chat
   }, [session])
 
   const handleFileChange = useCallback((path: string, content: string) => {

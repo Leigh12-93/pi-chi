@@ -375,6 +375,11 @@ export const PreviewPanel = memo(function PreviewPanel({ files, projectId, onFix
     setNavCount(0)
   }, [wcPreviewUrl, sandboxUrl])
 
+  // Set loading state when WebContainer URL changes
+  useEffect(() => {
+    if (wcPreviewUrl) setIframeLoading(true)
+  }, [wcPreviewUrl])
+
   const handleGoBack = useCallback(() => {
     try {
       const iframe = document.getElementById('forge-preview-iframe') as HTMLIFrameElement
@@ -553,6 +558,12 @@ export const PreviewPanel = memo(function PreviewPanel({ files, projectId, onFix
   const previewMainFile = files['src/App.tsx'] || files['src/App.jsx'] || files['app/page.tsx'] || files['app/page.jsx'] || files['src/app/page.tsx'] || files['src/app/page.jsx'] || files['pages/index.tsx'] || files['pages/index.jsx'] || ''
   const previewIndexHtml = files['index.html'] || ''
   const previewCss = files['app/globals.css'] || files['src/index.css'] || ''
+  // For static projects, track all CSS/JS file content so preview updates when they change
+  const staticAssetsHash = useMemo(() => {
+    if (projectType !== 'static') return ''
+    const assetFiles = Object.entries(files).filter(([k]) => k.endsWith('.css') || k.endsWith('.js'))
+    return assetFiles.map(([k, v]) => k + ':' + v.length).join('|')
+  }, [files, projectType])
   const previewFileCount = Object.keys(files).length
 
   // Compute preview HTML — only reruns when preview-relevant content actually changes
@@ -563,11 +574,41 @@ export const PreviewPanel = memo(function PreviewPanel({ files, projectId, onFix
       }
 
       if (projectType === 'static' && previewIndexHtml) {
-        const headIdx = previewIndexHtml.toLowerCase().indexOf('<head>')
+        // Inline all external CSS and JS files referenced in the HTML
+        // srcdoc iframes have no server, so <link href="style.css"> and <script src="script.js"> won't resolve
+        let inlinedHtml = previewIndexHtml
+
+        // Inline <link rel="stylesheet" href="..."> → <style>contents</style>
+        inlinedHtml = inlinedHtml.replace(
+          /<link\s+[^>]*rel=["']stylesheet["'][^>]*href=["']([^"']+)["'][^>]*\/?>/gi,
+          (_match, href) => {
+            const cssContent = files[href] || files[href.replace(/^\.\//, '')]
+            return cssContent ? `<style>\n${cssContent}\n</style>` : ''
+          }
+        )
+        // Also handle href before rel order
+        inlinedHtml = inlinedHtml.replace(
+          /<link\s+[^>]*href=["']([^"']+)["'][^>]*rel=["']stylesheet["'][^>]*\/?>/gi,
+          (_match, href) => {
+            const cssContent = files[href] || files[href.replace(/^\.\//, '')]
+            return cssContent ? `<style>\n${cssContent}\n</style>` : ''
+          }
+        )
+
+        // Inline <script src="..."></script> → <script>contents</script>
+        inlinedHtml = inlinedHtml.replace(
+          /<script\s+[^>]*src=["']([^"']+)["'][^>]*><\/script>/gi,
+          (_match, src) => {
+            const jsContent = files[src] || files[src.replace(/^\.\//, '')]
+            return jsContent ? `<script>\n${jsContent}\n</script>` : ''
+          }
+        )
+
+        const headIdx = inlinedHtml.toLowerCase().indexOf('<head>')
         if (headIdx !== -1) {
-          return previewIndexHtml.slice(0, headIdx + 6) + PREVIEW_ERROR_SCRIPT + previewIndexHtml.slice(headIdx + 6)
+          return inlinedHtml.slice(0, headIdx + 6) + PREVIEW_ERROR_SCRIPT + inlinedHtml.slice(headIdx + 6)
         }
-        return PREVIEW_ERROR_SCRIPT + previewIndexHtml
+        return PREVIEW_ERROR_SCRIPT + inlinedHtml
       }
 
       if (!previewMainFile) {
@@ -630,7 +671,7 @@ export const PreviewPanel = memo(function PreviewPanel({ files, projectId, onFix
       const errorMessage = error instanceof Error ? error.message : 'Unknown error'
       return createEmptyState('Preview Error', errorMessage)
     }
-  }, [previewFileCount, projectType, previewMainFile, previewIndexHtml, previewCss])
+  }, [previewFileCount, projectType, previewMainFile, previewIndexHtml, previewCss, staticAssetsHash, files])
 
   // Debounced preview — prevents iframe from flickering during rapid AI file writes
   // The iframe srcDoc only updates after 800ms of stability
@@ -797,7 +838,7 @@ export const PreviewPanel = memo(function PreviewPanel({ files, projectId, onFix
 
       hasAutoStartedRef.current = true
       startSandbox()
-    }, 200) // Start sandbox ASAP — preview loads in background while user watches code
+    }, 600) // Slight delay so "Preparing preview" animation is visible before transition to initializing
 
     return () => {
       if (autoStartTimeoutRef.current) clearTimeout(autoStartTimeoutRef.current)
@@ -1461,8 +1502,8 @@ export const PreviewPanel = memo(function PreviewPanel({ files, projectId, onFix
           )}
 
           {/* Building animation — shows a miniature page being painted with phase stepper */}
-          {/* Visible during: initializing, any active build phase, or crossfade-out to live */}
-          {(isSandboxLoading || !!buildPhase || isCrossfading) && (
+          {/* Visible during: initializing, any active build phase, crossfade-out, OR iframe still loading */}
+          {(isSandboxLoading || !!buildPhase || isCrossfading || iframeLoading) && (
             <div className={cn('sixchi-loader-scene', isCrossfading && 'forge-ready-crossfade')}>
               {/* Radial gradient background */}
               <div className="sixchi-bg-mesh" />
@@ -1520,8 +1561,8 @@ export const PreviewPanel = memo(function PreviewPanel({ files, projectId, onFix
             </div>
           )}
 
-          {/* Auto-starting status — shown briefly while sandbox initializes automatically */}
-          {sandboxStatus === 'idle' && !showCachedPreview && isProjectReady(files) && (
+          {/* Auto-starting status — shown while sandbox is idle and files exist (relaxed from isProjectReady) */}
+          {sandboxStatus === 'idle' && !showCachedPreview && Object.keys(files).length > 0 && (
             <div className="absolute inset-0 z-10 flex items-center justify-center bg-forge-bg/80 backdrop-blur-sm">
               <div className="flex flex-col items-center gap-4 animate-fade-in px-6">
                 <div className="relative">
