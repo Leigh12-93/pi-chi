@@ -465,12 +465,12 @@ async function _createV0SandboxInner(
   session.chatId = chat.id
   session.versionId = chat.latestVersion?.id || ''
   session.demoUrl = chat.latestVersion?.demoUrl || ''
-  const versionStatus = chat.latestVersion?.status || 'pending'
-  // Only mark as running when BOTH demoUrl exists AND version build completed
-  session.status = (session.demoUrl && versionStatus === 'completed') ? 'running' : 'initializing'
+  // Mark running as soon as demoUrl exists — v0 file-based inits may never
+  // transition status to 'completed', so requiring it would stall forever
+  session.status = session.demoUrl ? 'running' : 'initializing'
   activeSessions.set(projectId, session)
 
-  log(`chat ${session.chatId} created, demoUrl: ${session.demoUrl ? 'yes' : 'pending'}, versionStatus: ${versionStatus}`)
+  log(`chat ${session.chatId} created, demoUrl: ${session.demoUrl ? 'yes' : 'pending'}, status: ${chat.latestVersion?.status || 'unknown'}`)
 
   // Overflow batches
   if (overflowFiles.length > 0 && session.chatId && session.versionId) {
@@ -495,9 +495,9 @@ async function _createV0SandboxInner(
     }
   }
 
-  // Poll for demoUrl AND completed status
+  // Poll for demoUrl if not yet available
   if (session.status !== 'running' && session.versionId) {
-    log('polling for demoUrl + completed status...')
+    log('polling for demoUrl...')
     for (let i = 0; i < POLL_MAX_ATTEMPTS; i++) {
       const delay = Math.min(POLL_BASE_MS * Math.pow(1.4, i), 8000)
       await new Promise(r => setTimeout(r, delay))
@@ -507,10 +507,8 @@ async function _createV0SandboxInner(
         if (v?.demoUrl) {
           session.demoUrl = v.demoUrl
           session.versionId = v.id
-        }
-        if (v?.demoUrl && v?.status === 'completed') {
           session.status = 'running'
-          log(`demoUrl ready + build completed after ${i + 1} polls`)
+          log(`demoUrl ready after ${i + 1} polls`)
           break
         }
         if (v?.status === 'failed') {
