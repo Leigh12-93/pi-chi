@@ -54,6 +54,24 @@ export function filesToFileSystemTree(files: Record<string, string>): FileSystem
   return tree
 }
 
+/** Next.js 15.5.x crashes on WebContainers with "workUnitAsyncStorage" invariant error.
+ *  Pin to ~15.4.1 (last working minor) when the version would resolve to >=15.5.0.
+ *  See: https://github.com/vercel/next.js/issues/84026 */
+function patchNextVersionInFiles(files: Record<string, string>): Record<string, string> {
+  const pkgContent = files['package.json']
+  if (!pkgContent) return files
+  try {
+    const pkg = JSON.parse(pkgContent)
+    const ver: string = pkg.dependencies?.next
+    if (!ver) return files
+    if (/^\^15(\.\d+)?(\.\d+)?$/.test(ver) || /^~15\.5/.test(ver) || ver === '15' || /^>=?\s*15\.5/.test(ver)) {
+      pkg.dependencies.next = '~15.4.1'
+      return { ...files, 'package.json': JSON.stringify(pkg, null, 2) }
+    }
+  } catch { /* malformed JSON — pass through */ }
+  return files
+}
+
 /**
  * Mount files into WebContainer, run npm install, start dev server.
  * Returns a cleanup function.
@@ -74,8 +92,11 @@ export async function mountAndStart(
   try {
     onStatusChange?.('mounting')
 
+    // Patch Next.js version to avoid WebContainer crash (15.5.x is broken)
+    const patchedFiles = patchNextVersionInFiles(files)
+
     // Mount all files
-    const tree = filesToFileSystemTree(files)
+    const tree = filesToFileSystemTree(patchedFiles)
     await wc.mount(tree)
 
     // Check if package.json exists — if not, skip install

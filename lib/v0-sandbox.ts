@@ -167,6 +167,24 @@ function shouldSkipFile(name: string, content: string): boolean {
   return false
 }
 
+/** Next.js 15.5.x crashes on WebContainers with "workUnitAsyncStorage" invariant error.
+ *  Pin to ~15.4.1 (last working minor) when the version would resolve to >=15.5.0.
+ *  See: https://github.com/vercel/next.js/issues/84026 */
+function patchNextVersion(pkgContent: string): string {
+  try {
+    const pkg = JSON.parse(pkgContent)
+    const deps = pkg.dependencies || {}
+    const ver: string = deps.next
+    if (!ver) return pkgContent
+    // Match caret/tilde ranges that would resolve to 15.5+ (e.g. ^15.3.3, ^15.4.0, ^15)
+    if (/^\^15(\.\d+)?(\.\d+)?$/.test(ver) || /^~15\.5/.test(ver) || ver === '15' || /^>=?\s*15\.5/.test(ver)) {
+      deps.next = '~15.4.1'
+      return JSON.stringify(pkg, null, 2)
+    }
+  } catch { /* malformed JSON — pass through unchanged */ }
+  return pkgContent
+}
+
 function prepareFiles(files: Record<string, string>): {
   prepared: Array<{ name: string; content: string }>
   skipped: number
@@ -176,8 +194,10 @@ function prepareFiles(files: Record<string, string>): {
   let totalSize = 0
   const prepared: Array<{ name: string; content: string }> = []
 
-  for (const [rawName, content] of Object.entries(files)) {
+  for (const [rawName, rawContent] of Object.entries(files)) {
     const name = rawName.replace(/\\/g, '/')
+    // Patch Next.js version in package.json to avoid WebContainer crash
+    const content = name === 'package.json' ? patchNextVersion(rawContent) : rawContent
 
     if (shouldSkipFile(name, content)) {
       skipped++

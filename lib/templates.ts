@@ -14,7 +14,7 @@ export function scaffoldNextJS(name: string, description?: string): Record<strin
       name, version: '0.1.0', private: true,
       scripts: { dev: 'next dev', build: 'next build', start: 'next start' },
       dependencies: {
-        next: '^15.3.3', react: '^19.1.0', 'react-dom': '^19.1.0',
+        next: '~15.4.1', react: '^19.1.0', 'react-dom': '^19.1.0',
         'lucide-react': '^0.511.0', clsx: '^2.1.1', 'tailwind-merge': '^3.3.0',
       },
       devDependencies: {
