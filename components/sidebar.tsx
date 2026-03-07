@@ -90,7 +90,7 @@ function AnthropicIcon({ className }: { className?: string }) {
 
 type TabIcon = React.FC<{ className?: string }>
 
-const TABS: { id: SidebarTab; icon: TabIcon; label: string; activeColor?: string; activeBg?: string }[] = [
+export const TABS: { id: SidebarTab; icon: TabIcon; label: string; activeColor?: string; activeBg?: string }[] = [
   { id: 'anthropic', icon: AnthropicIcon, label: 'Anthropic', activeColor: 'text-[#D4A574]', activeBg: 'bg-[#D4A574]/10' },
   { id: 'git', icon: GitHubIcon, label: 'GitHub', activeColor: 'text-white', activeBg: 'bg-white/10' },
   { id: 'deploy', icon: VercelIcon, label: 'Vercel', activeColor: 'text-white', activeBg: 'bg-white/10' },

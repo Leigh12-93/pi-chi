@@ -6,7 +6,7 @@ import { ChatPanel } from './chat-panel'
 import { CodeEditor } from './code-editor'
 import { EditorTabs } from './editor-tabs'
 import { FileTree } from './file-tree'
-import { ActivityBar, SidebarContent, type SidebarTab } from './sidebar'
+import { ActivityBar, SidebarContent, TABS as SIDEBAR_TABS, type SidebarTab } from './sidebar'
 import { PreviewPanel } from './preview-panel'
 import { TerminalPanel } from './terminal-panel'
 import { Header } from './header'
@@ -40,7 +40,7 @@ import { useWorkspaceEffects } from '@/hooks/use-workspace-effects'
 import { detectFramework } from '@/lib/vercel'
 import { motion, AnimatePresence } from 'framer-motion'
 import {
-  MessageSquare, FolderTree, Code2, Eye, Save, Rocket, Upload, GitBranch, Download,
+  MessageSquare, FolderTree, Code2, Eye, Save, Rocket, Upload, GitBranch, Download, ChevronDown,
   SidebarOpen, FolderInput, Keyboard, Settings2, Search, History, Terminal, Plug, Pin, PinOff, Menu,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
@@ -505,25 +505,56 @@ export function Workspace(props: WorkspaceProps) {
           )}
           {state.mobileTab === 'preview' && <PreviewPanel files={files} projectId={projectId} onFixErrors={(msg) => state.setPendingChatMessage(msg)} onCapturePreview={(msg) => state.setPendingChatMessage(msg)} onPreviewReady={actions.handlePreviewReady} wcPreviewUrl={wc.previewUrl} />}
           {state.mobileTab === 'menu' && (
-            <div className="h-full flex flex-col bg-forge-panel overflow-y-auto">
-              <div className="px-4 py-3 border-b border-forge-border"><h2 className="text-sm font-medium text-forge-text">Menu</h2></div>
-              <div className="p-3 space-y-1">
-                <button onClick={() => { state.setShowSettings(true); actions.handleMobileTabSwitch('chat') }} className="flex items-center gap-3 w-full px-3 py-2.5 text-sm text-forge-text rounded-lg hover:bg-forge-surface transition-colors"><Settings2 className="w-4 h-4 text-forge-text-dim" /> Project Settings</button>
-                <button onClick={() => { state.setShowFileSearch(true); actions.handleMobileTabSwitch('editor') }} className="flex items-center gap-3 w-full px-3 py-2.5 text-sm text-forge-text rounded-lg hover:bg-forge-surface transition-colors"><Search className="w-4 h-4 text-forge-text-dim" /> Search Files</button>
-                <button onClick={() => state.setShowVersionHistory(true)} className="flex items-center gap-3 w-full px-3 py-2.5 text-sm text-forge-text rounded-lg hover:bg-forge-surface transition-colors"><History className="w-4 h-4 text-forge-text-dim" /> Version History</button>
-                <button onClick={() => { state.setShowDeployPanel(true); actions.handleMobileTabSwitch('chat') }} className="flex items-center gap-3 w-full px-3 py-2.5 text-sm text-forge-text rounded-lg hover:bg-forge-surface transition-colors"><Rocket className="w-4 h-4 text-forge-text-dim" /> Deploy</button>
-                <button onClick={() => state.setShowEditorSettings(true)} className="flex items-center gap-3 w-full px-3 py-2.5 text-sm text-forge-text rounded-lg hover:bg-forge-surface transition-colors"><Keyboard className="w-4 h-4 text-forge-text-dim" /> Editor Settings</button>
-                <button onClick={() => state.setShowMcpManager(true)} className="flex items-center gap-3 w-full px-3 py-2.5 text-sm text-forge-text rounded-lg hover:bg-forge-surface transition-colors"><Plug className="w-4 h-4 text-forge-text-dim" /> MCP Servers</button>
-              </div>
-              <div className="px-4 py-2 border-t border-forge-border"><span className="text-[10px] uppercase tracking-wider text-forge-text-dim font-medium">Integrations</span></div>
-              <div className="flex-1 overflow-y-auto">
-                <SidebarContent activeTab={state.sidebarTab || 'git'} {...sidebarContentProps} />
-                <div className="flex items-center gap-1 p-3 border-t border-forge-border">
-                  {(['anthropic', 'git', 'deploy', 'env', 'db', 'snapshots'] as SidebarTab[]).map(tab => (
-                    <button key={tab} onClick={() => state.setSidebarTab(tab)} className={cn('px-2.5 py-1.5 text-[11px] rounded-lg transition-colors capitalize', (state.sidebarTab || 'git') === tab ? 'bg-forge-surface text-forge-text font-medium' : 'text-forge-text-dim hover:text-forge-text')}>{tab}</button>
-                  ))}
+            <div className="h-full flex flex-col bg-forge-panel">
+              {/* If a sidebar panel is open, show it with a back button */}
+              {state.sidebarTab ? (
+                <>
+                  <div className="flex items-center gap-2 px-3 py-2.5 border-b border-forge-border shrink-0">
+                    <button onClick={() => state.setSidebarTab(null)} className="flex items-center gap-1.5 px-2 py-1.5 text-xs text-forge-text-dim hover:text-forge-text active:bg-forge-surface rounded-lg transition-colors min-h-[36px]">
+                      <ChevronDown className="w-4 h-4 rotate-90" />
+                      <span>Back</span>
+                    </button>
+                    <span className="text-xs font-medium text-forge-text">{SIDEBAR_TABS.find(t => t.id === state.sidebarTab)?.label}</span>
+                  </div>
+                  <div className="flex-1 overflow-y-auto">
+                    <SidebarContent activeTab={state.sidebarTab} {...sidebarContentProps} />
+                  </div>
+                </>
+              ) : (
+                <div className="flex-1 overflow-y-auto">
+                  <div className="px-4 py-3 border-b border-forge-border"><h2 className="text-sm font-medium text-forge-text">Menu</h2></div>
+
+                  {/* Quick actions */}
+                  <div className="p-3 space-y-0.5">
+                    <button onClick={() => { state.setShowSettings(true); actions.handleMobileTabSwitch('chat') }} className="flex items-center gap-3 w-full px-3 py-3 text-sm text-forge-text rounded-xl hover:bg-forge-surface active:bg-forge-surface/80 transition-colors"><Settings2 className="w-5 h-5 text-forge-text-dim" /> Project Settings</button>
+                    <button onClick={() => { state.setShowFileSearch(true); actions.handleMobileTabSwitch('editor') }} className="flex items-center gap-3 w-full px-3 py-3 text-sm text-forge-text rounded-xl hover:bg-forge-surface active:bg-forge-surface/80 transition-colors"><Search className="w-5 h-5 text-forge-text-dim" /> Search Files</button>
+                    <button onClick={() => state.setShowVersionHistory(true)} className="flex items-center gap-3 w-full px-3 py-3 text-sm text-forge-text rounded-xl hover:bg-forge-surface active:bg-forge-surface/80 transition-colors"><History className="w-5 h-5 text-forge-text-dim" /> Version History</button>
+                    <button onClick={() => { state.setShowDeployPanel(true); actions.handleMobileTabSwitch('chat') }} className="flex items-center gap-3 w-full px-3 py-3 text-sm text-forge-text rounded-xl hover:bg-forge-surface active:bg-forge-surface/80 transition-colors"><Rocket className="w-5 h-5 text-forge-text-dim" /> Deploy</button>
+                    <button onClick={() => state.setShowEditorSettings(true)} className="flex items-center gap-3 w-full px-3 py-3 text-sm text-forge-text rounded-xl hover:bg-forge-surface active:bg-forge-surface/80 transition-colors"><Keyboard className="w-5 h-5 text-forge-text-dim" /> Editor Settings</button>
+                    <button onClick={() => state.setShowMcpManager(true)} className="flex items-center gap-3 w-full px-3 py-3 text-sm text-forge-text rounded-xl hover:bg-forge-surface active:bg-forge-surface/80 transition-colors"><Plug className="w-5 h-5 text-forge-text-dim" /> MCP Servers</button>
+                  </div>
+
+                  {/* Integrations grid */}
+                  <div className="px-4 py-2 border-t border-forge-border">
+                    <span className="text-[10px] uppercase tracking-wider text-forge-text-dim font-medium">Integrations</span>
+                  </div>
+                  <div className="grid grid-cols-3 gap-2 px-3 pb-4">
+                    {SIDEBAR_TABS.map(tab => (
+                      <button
+                        key={tab.id}
+                        onClick={() => state.setSidebarTab(tab.id)}
+                        className={cn(
+                          'flex flex-col items-center gap-1.5 px-2 py-3 rounded-xl border transition-all active:scale-95 min-h-[72px]',
+                          'border-forge-border/50 bg-forge-surface/30 hover:bg-forge-surface active:bg-forge-surface/80',
+                        )}
+                      >
+                        <tab.icon className={cn('w-6 h-6', tab.activeColor || 'text-forge-text-dim')} />
+                        <span className="text-[10px] font-medium text-forge-text leading-tight text-center">{tab.label}</span>
+                      </button>
+                    ))}
+                  </div>
                 </div>
-              </div>
+              )}
             </div>
           )}
         </div>

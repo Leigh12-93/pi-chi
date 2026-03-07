@@ -243,29 +243,29 @@ export function SmsPanel({ fileContents, onFileChange }: SmsPanelProps) {
         )}
 
         {/* Manual setup form */}
-        <div className="space-y-2">
+        <div className="space-y-2.5">
           <div className="relative">
             <input
               type={showApiKey ? 'text' : 'password'}
               placeholder="AussieSMS API Key"
               value={apiKey}
               onChange={e => setApiKey(e.target.value)}
-              className="w-full px-2 py-1.5 pr-7 text-xs font-mono bg-forge-bg border border-forge-border rounded-md focus:outline-none focus:border-cyan-500"
+              className="w-full px-3 py-2.5 pr-10 text-sm font-mono bg-forge-bg border border-forge-border rounded-lg focus:outline-none focus:border-cyan-500 min-h-[44px]"
             />
             <button
               onClick={() => setShowApiKey(!showApiKey)}
-              className="absolute right-1.5 top-1/2 -translate-y-1/2 text-forge-text-dim hover:text-forge-text"
+              className="absolute right-2 top-1/2 -translate-y-1/2 p-1.5 text-forge-text-dim hover:text-forge-text active:scale-95 transition-all"
             >
-              {showApiKey ? <EyeOff className="w-3 h-3" /> : <Eye className="w-3 h-3" />}
+              {showApiKey ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
             </button>
           </div>
 
           <button
             onClick={handleSave}
             disabled={saving === 'key' || !apiKey.trim()}
-            className="w-full flex items-center justify-center gap-1.5 px-3 py-2 text-xs rounded-md bg-cyan-600 text-white hover:bg-cyan-500 disabled:opacity-40 disabled:cursor-not-allowed transition-colors font-medium"
+            className="w-full flex items-center justify-center gap-2 px-3 py-3 text-sm rounded-lg bg-cyan-600 text-white hover:bg-cyan-500 active:bg-cyan-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors font-medium min-h-[44px]"
           >
-            {saving === 'key' ? <Loader2 className="w-3 h-3 animate-spin" /> : <MessageSquare className="w-3.5 h-3.5" />}
+            {saving === 'key' ? <Loader2 className="w-4 h-4 animate-spin" /> : <MessageSquare className="w-4 h-4" />}
             Connect AussieSMS
           </button>
         </div>
@@ -361,38 +361,40 @@ export function SmsPanel({ fileContents, onFileChange }: SmsPanelProps) {
       </div>
 
       {/* ══════ Test SMS ══════ */}
-      <div className="rounded-md border border-forge-border">
+      <div className="rounded-lg border border-forge-border">
         <button
           onClick={() => toggleSection('test')}
-          className="w-full flex items-center gap-2 px-2.5 py-2 text-left hover:bg-forge-surface/50 transition-colors"
+          className="w-full flex items-center gap-2.5 px-3 py-2.5 text-left hover:bg-forge-surface/50 active:bg-forge-surface/80 transition-colors min-h-[44px]"
         >
-          <ChevronDown className={`w-3 h-3 text-forge-text-dim transition-transform ${activeSection === 'test' ? '' : '-rotate-90'}`} />
-          <Send className="w-3.5 h-3.5 text-forge-text-dim" />
-          <span className="text-[11px] font-medium text-forge-text flex-1">Test SMS</span>
+          <ChevronDown className={`w-3.5 h-3.5 text-forge-text-dim transition-transform ${activeSection === 'test' ? '' : '-rotate-90'}`} />
+          <Send className="w-4 h-4 text-forge-text-dim" />
+          <span className="text-xs font-medium text-forge-text flex-1">Test SMS</span>
         </button>
 
         {activeSection === 'test' && (
-          <div className="border-t border-forge-border/50 px-2.5 py-2 space-y-2">
+          <div className="border-t border-forge-border/50 px-3 py-3 space-y-2.5">
             <input
               type="tel"
+              inputMode="tel"
+              autoComplete="tel"
               placeholder="Phone number (e.g. +61412345678)"
               value={testTo}
               onChange={e => setTestTo(e.target.value)}
-              className="w-full px-2 py-1.5 text-xs font-mono bg-forge-bg border border-forge-border rounded-md focus:outline-none focus:border-cyan-500"
+              className="w-full px-3 py-2.5 text-sm font-mono bg-forge-bg border border-forge-border rounded-lg focus:outline-none focus:border-cyan-500 min-h-[44px]"
             />
             <textarea
               placeholder="Message..."
               value={testMessage}
               onChange={e => setTestMessage(e.target.value)}
-              rows={2}
-              className="w-full px-2 py-1.5 text-xs bg-forge-bg border border-forge-border rounded-md focus:outline-none focus:border-cyan-500 resize-none"
+              rows={3}
+              className="w-full px-3 py-2.5 text-sm bg-forge-bg border border-forge-border rounded-lg focus:outline-none focus:border-cyan-500 resize-none"
             />
             <button
               onClick={handleTestSms}
               disabled={sendingTest || !testTo.trim() || !testMessage.trim()}
-              className="w-full flex items-center justify-center gap-1 px-2 py-1.5 text-[10px] rounded bg-cyan-600 text-white hover:bg-cyan-500 disabled:opacity-40 disabled:cursor-not-allowed transition-colors font-medium"
+              className="w-full flex items-center justify-center gap-2 px-3 py-2.5 text-xs rounded-lg bg-cyan-600 text-white hover:bg-cyan-500 active:bg-cyan-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors font-medium min-h-[44px]"
             >
-              {sendingTest ? <Loader2 className="w-3 h-3 animate-spin" /> : <Send className="w-3 h-3" />}
+              {sendingTest ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
               {sendingTest ? 'Sending...' : 'Send Test SMS'}
             </button>
           </div>
@@ -400,26 +402,26 @@ export function SmsPanel({ fileContents, onFileChange }: SmsPanelProps) {
       </div>
 
       {/* ══════ AI Tools ══════ */}
-      <div className="rounded-md border border-forge-border">
+      <div className="rounded-lg border border-forge-border">
         <button
           onClick={() => toggleSection('tools')}
-          className="w-full flex items-center gap-2 px-2.5 py-2 text-left hover:bg-forge-surface/50 transition-colors"
+          className="w-full flex items-center gap-2.5 px-3 py-2.5 text-left hover:bg-forge-surface/50 active:bg-forge-surface/80 transition-colors min-h-[44px]"
         >
-          <ChevronDown className={`w-3 h-3 text-forge-text-dim transition-transform ${activeSection === 'tools' ? '' : '-rotate-90'}`} />
-          <Zap className="w-3.5 h-3.5 text-forge-text-dim" />
-          <span className="text-[11px] font-medium text-forge-text flex-1">AI Tools</span>
-          <span className="text-[9px] text-forge-text-dim">{SMS_TOOLS.length} available</span>
+          <ChevronDown className={`w-3.5 h-3.5 text-forge-text-dim transition-transform ${activeSection === 'tools' ? '' : '-rotate-90'}`} />
+          <Zap className="w-4 h-4 text-forge-text-dim" />
+          <span className="text-xs font-medium text-forge-text flex-1">AI Tools</span>
+          <span className="text-[10px] text-forge-text-dim">{SMS_TOOLS.length} available</span>
         </button>
 
         {activeSection === 'tools' && (
-          <div className="border-t border-forge-border/50 px-2.5 py-2">
-            <div className="space-y-0.5">
+          <div className="border-t border-forge-border/50 px-3 py-2.5">
+            <div className="space-y-1.5">
               {SMS_TOOLS.map(t => (
-                <div key={t.name} className="flex items-start gap-1.5 py-0.5">
-                  <Zap className="w-2.5 h-2.5 shrink-0 mt-0.5 text-cyan-400" />
+                <div key={t.name} className="flex items-start gap-2 py-1">
+                  <Zap className="w-3 h-3 shrink-0 mt-0.5 text-cyan-400" />
                   <div className="min-w-0">
-                    <span className="text-[9px] font-mono text-forge-text block">{t.name}</span>
-                    <span className="text-[8px] text-forge-text-dim">{t.description}</span>
+                    <span className="text-[10px] font-mono text-forge-text block">{t.name}</span>
+                    <span className="text-[9px] text-forge-text-dim">{t.description}</span>
                   </div>
                 </div>
               ))}
@@ -429,27 +431,27 @@ export function SmsPanel({ fileContents, onFileChange }: SmsPanelProps) {
       </div>
 
       {/* ══════ Quick Links ══════ */}
-      <div className="rounded-md border border-forge-border">
+      <div className="rounded-lg border border-forge-border">
         <button
           onClick={() => toggleSection('links')}
-          className="w-full flex items-center gap-2 px-2.5 py-2 text-left hover:bg-forge-surface/50 transition-colors"
+          className="w-full flex items-center gap-2.5 px-3 py-2.5 text-left hover:bg-forge-surface/50 active:bg-forge-surface/80 transition-colors min-h-[44px]"
         >
-          <ChevronDown className={`w-3 h-3 text-forge-text-dim transition-transform ${activeSection === 'links' ? '' : '-rotate-90'}`} />
-          <ExternalLink className="w-3.5 h-3.5 text-forge-text-dim" />
-          <span className="text-[11px] font-medium text-forge-text flex-1">Quick Links</span>
+          <ChevronDown className={`w-3.5 h-3.5 text-forge-text-dim transition-transform ${activeSection === 'links' ? '' : '-rotate-90'}`} />
+          <ExternalLink className="w-4 h-4 text-forge-text-dim" />
+          <span className="text-xs font-medium text-forge-text flex-1">Quick Links</span>
         </button>
 
         {activeSection === 'links' && (
-          <div className="border-t border-forge-border/50 px-2.5 py-2 space-y-1">
+          <div className="border-t border-forge-border/50 px-3 py-2 space-y-0.5">
             {QUICK_LINKS.map(link => (
               <a
                 key={link.label}
                 href={link.url}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="flex items-center gap-1.5 py-0.5 text-[10px] text-forge-text-dim hover:text-cyan-400 transition-colors"
+                className="flex items-center gap-2 py-2 text-xs text-forge-text-dim hover:text-cyan-400 active:text-cyan-300 transition-colors min-h-[40px]"
               >
-                <link.icon className="w-3 h-3" />
+                <link.icon className="w-4 h-4" />
                 {link.label}
               </a>
             ))}
@@ -458,22 +460,22 @@ export function SmsPanel({ fileContents, onFileChange }: SmsPanelProps) {
       </div>
 
       {/* ══════ Credentials ══════ */}
-      <div className="rounded-md border border-forge-border bg-forge-surface/30 p-2.5">
-        <div className="flex items-center justify-between mb-1.5">
+      <div className="rounded-lg border border-forge-border bg-forge-surface/30 p-3">
+        <div className="flex items-center justify-between mb-2">
           <span className="text-[10px] text-forge-text-dim font-medium">Saved Credentials</span>
         </div>
-        <div className="flex flex-wrap gap-1.5 mb-2">
+        <div className="flex flex-wrap gap-2 mb-3">
           {settings.hasAussieSmsApiKey && (
-            <span className="flex items-center gap-1 text-[9px] text-green-400">
-              <CheckCircle2 className="w-2.5 h-2.5" /> API Key
+            <span className="flex items-center gap-1.5 text-[10px] text-green-400">
+              <CheckCircle2 className="w-3 h-3" /> API Key
             </span>
           )}
         </div>
         <button
           onClick={handleDelete}
-          className="flex items-center gap-1 text-[10px] text-red-400 hover:text-red-300 transition-colors"
+          className="flex items-center gap-1.5 py-2 text-xs text-red-400 hover:text-red-300 active:text-red-200 transition-colors min-h-[40px]"
         >
-          <Trash2 className="w-2.5 h-2.5" /> Remove AussieSMS credentials
+          <Trash2 className="w-3.5 h-3.5" /> Remove AussieSMS credentials
         </button>
       </div>
     </div>
