@@ -422,7 +422,7 @@ export function Workspace(props: WorkspaceProps) {
                     )}
                     {state.rightTab === 'terminal' && (
                       <PanelErrorBoundary name="Terminal">
-                        <TerminalPanel getShellProcess={wc.getShellProcess} wcReady={wc.status === 'ready'} />
+                        <TerminalPanel getShellProcess={wc.getShellProcess} wcReady={wc.status !== 'idle' && wc.status !== 'booting' && wc.status !== 'mounting'} />
                       </PanelErrorBoundary>
                     )}
                     <div className={cn(
