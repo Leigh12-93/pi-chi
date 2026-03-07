@@ -391,7 +391,7 @@ export const ChatPanel = memo(function ChatPanel({ onLoadingChange, ...props }: 
               inputMode="text"
               placeholder={chat.isEmpty ? 'Describe what you want to build...' : 'Ask for changes, new features, fixes...'}
               rows={1}
-              className="w-full bg-transparent px-3 py-3 text-[13.5px] text-forge-text placeholder:text-forge-text-dim/40 outline-none border-none resize-none chat-textarea-smooth"
+              className="w-full bg-transparent px-3 py-3 text-[13.5px] text-forge-text placeholder:text-forge-text-dim/40 outline-none border-none shadow-none focus:shadow-none focus-visible:shadow-none resize-none chat-textarea-smooth"
             />
 
             {/* Action bar */}
