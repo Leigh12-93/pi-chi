@@ -1,205 +1,26 @@
 'use client'
 
-import { useState, useRef, useEffect, useMemo, memo } from 'react'
+import { useState, useRef, useEffect, memo } from 'react'
 import {
-  Loader2, Check, Trash2, Brain,
+  Loader2, Check, Trash2,
   Sparkles, ArrowUp, StopCircle,
   AlertTriangle, ChevronDown, Clock,
   Globe, FileText, FolderPlus,
-  Paperclip, ImageIcon, X, CheckCircle, Mic,
+  Paperclip, ImageIcon, X, Mic,
 } from 'lucide-react'
-import { TOOL_LABELS, colorClasses } from '@/lib/chat/constants'
-import { getPhaseLabel } from '@/lib/chat/tool-utils'
 import { cn } from '@/lib/utils'
 import { ErrorBoundary } from '@/components/error-boundary'
 import { motion, AnimatePresence } from 'framer-motion'
 import { MODEL_OPTIONS, QUICK_ACTIONS } from '@/lib/chat/constants'
 import { MessageItem } from '@/components/chat/message-item'
 import { ApprovalCard } from '@/components/approval-card'
-import { TaskListPanel } from '@/components/chat/task-list-panel'
+import { ActivityBlock } from '@/components/chat/activity-block'
 import { useForgeChat, type UseForgeChatProps } from '@/hooks/use-forge-chat'
 import { useVoiceInput } from '@/hooks/use-voice-input'
 import { toast } from 'sonner'
 
-/** Rotating messages shown during extended thinking (Opus etc.) */
-const THINKING_MESSAGES = [
-  'Thinking deeply',
-  'Reasoning through the problem',
-  'Analyzing your codebase',
-  'Considering the best approach',
-  'Planning the implementation',
-  'Evaluating options',
-  'Working through the details',
-  'Almost ready',
-]
-
-const THINKING_MILESTONES = [
-  { at: 10, text: 'This model thinks before responding' },
-  { at: 30, text: 'Deep reasoning in progress' },
-  { at: 60, text: 'Still working - complex problems take time' },
-  { at: 120, text: 'Extended thinking - hang tight' },
-  { at: 180, text: 'Long reasoning session - almost there' },
-  { at: 240, text: 'This is a deep one - still going' },
-  { at: 300, text: 'Nearly done thinking' },
-]
-
-function ThinkingIndicator({ elapsed, formatElapsed, stepCount, lastCompletedToolName, status }: {
-  elapsed: number
-  formatElapsed: (s: number) => string
-  stepCount: number
-  lastCompletedToolName: string | null
-  status: string
-}) {
-  // Rotate through thinking messages every 6 seconds
-  const [messageIdx, setMessageIdx] = useState(0)
-  useEffect(() => {
-    const interval = setInterval(() => {
-      setMessageIdx(prev => (prev + 1) % THINKING_MESSAGES.length)
-    }, 6000)
-    return () => clearInterval(interval)
-  }, [])
-
-  // Get the appropriate milestone message based on elapsed time
-  const milestone = useMemo(() => {
-    let msg = ''
-    for (const m of THINKING_MILESTONES) {
-      if (elapsed >= m.at) msg = m.text
-    }
-    return msg
-  }, [elapsed])
-
-  const isSubmitted = status === 'submitted'
-  const isExtendedThinking = isSubmitted && elapsed >= 2
-  const phaseLabel = getPhaseLabel(lastCompletedToolName)
-
-  // Context line — what it just did or is working on
-  const contextLine = useMemo(() => {
-    if (stepCount > 0 && lastCompletedToolName) {
-      const lastAction = getPhaseLabel(lastCompletedToolName)
-      return `${stepCount} step${stepCount !== 1 ? 's' : ''} done — last: ${lastAction.toLowerCase()}`
-    }
-    if (stepCount > 0) return `${stepCount} step${stepCount !== 1 ? 's' : ''} completed`
-    return null
-  }, [stepCount, lastCompletedToolName])
-
-  // Extended thinking: flat inline timeline item (no card)
-  if (isExtendedThinking) {
-    return (
-      <motion.div
-        initial={{ opacity: 0, y: 4 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.25, ease: [0.16, 1, 0.3, 1] }}
-        className={cn("tool-timeline-item space-y-0.5", elapsed >= 10 && "thinking-glow rounded-lg px-1 -mx-1")}
-      >
-        <div className="flex items-center gap-2.5 py-1">
-          <div className="w-5 h-5 rounded-md bg-forge-accent/10 border border-forge-accent/20 flex items-center justify-center shrink-0 icon-glow-pulse">
-            <Brain className="w-3 h-3 text-forge-accent thinking-brain" />
-          </div>
-          <div className="flex-1 min-w-0 flex items-center gap-1.5">
-            <span className="text-[13px] text-forge-text font-medium shimmer-text thinking-text-rotate" key={messageIdx}>
-              {THINKING_MESSAGES[messageIdx]}
-            </span>
-            <span className="flex items-center gap-0.5">
-              <span className="typing-dot" />
-              <span className="typing-dot" />
-              <span className="typing-dot" />
-            </span>
-          </div>
-          <span className="text-[11px] text-forge-text-dim/40 font-mono shrink-0 tabular-nums">
-            {formatElapsed(elapsed)}
-          </span>
-        </div>
-        {/* Secondary breakdown line */}
-        {(milestone || contextLine) && (
-          <div className="pl-[30px] space-y-0.5">
-            {contextLine && (
-              <p className="text-[11px] text-forge-text-dim/50 tabular-nums">
-                {contextLine}
-              </p>
-            )}
-            {milestone && elapsed >= 10 && (
-              <p className="text-[11px] text-forge-text-dim/40 thinking-text-rotate" key={milestone}>
-                {milestone}
-              </p>
-            )}
-          </div>
-        )}
-      </motion.div>
-    )
-  }
-
-  // Standard between-tools indicator: flat inline timeline item (no card)
-  return (
-    <div className="tool-timeline-item">
-      <div className="flex items-center gap-2.5 py-1">
-        {isSubmitted ? (
-          <div className="w-5 h-5 rounded-md bg-forge-accent/10 flex items-center justify-center shrink-0 icon-glow-pulse">
-            <Brain className="w-3 h-3 text-forge-accent thinking-brain" />
-          </div>
-        ) : (
-          <div className="w-5 h-5 rounded-md bg-forge-surface flex items-center justify-center shrink-0">
-            <span className="flex items-center gap-0.5">
-              <span className="typing-dot !w-[3px] !h-[3px]" />
-              <span className="typing-dot !w-[3px] !h-[3px]" />
-              <span className="typing-dot !w-[3px] !h-[3px]" />
-            </span>
-          </div>
-        )}
-        <div className="flex-1 min-w-0">
-          <span className={cn('text-[13px] text-forge-text-dim', isSubmitted && 'shimmer-task')}>
-            {isSubmitted ? 'Thinking' : phaseLabel}
-          </span>
-          {isSubmitted && contextLine && (
-            <p className="text-[11px] text-forge-text-dim/40 mt-0.5">
-              {contextLine}
-            </p>
-          )}
-        </div>
-        {elapsed > 0 && (
-          <span className="text-[11px] text-forge-text-dim/40 font-mono shrink-0 tabular-nums">
-            {formatElapsed(elapsed)}
-          </span>
-        )}
-      </div>
-    </div>
-  )
-}
-
 export type ChatPanelProps = UseForgeChatProps & {
   onLoadingChange?: (isLoading: boolean) => void
-}
-
-/** Brief "response complete" signal -- flat inline timeline item */
-function CompletionSignal({ stepCount, elapsed, formatElapsed }: {
-  stepCount: number
-  elapsed: number
-  formatElapsed: (s: number) => string
-}) {
-  const parts: string[] = []
-  if (stepCount > 0) parts.push(`${stepCount} action${stepCount !== 1 ? 's' : ''}`)
-  if (elapsed > 0) parts.push(formatElapsed(elapsed))
-
-  return (
-    <motion.div
-      initial={{ opacity: 0, y: 4 }}
-      animate={{ opacity: 1, y: 0 }}
-      exit={{ opacity: 0, y: -4 }}
-      transition={{ duration: 0.25, ease: [0.16, 1, 0.3, 1] }}
-      className="tool-timeline-item response-complete-signal"
-    >
-      <div className="flex items-center gap-2.5 py-1">
-        <div className="w-5 h-5 rounded-md flex items-center justify-center shrink-0 text-emerald-600 bg-emerald-50 dark:text-emerald-400 dark:bg-emerald-950/40">
-          <CheckCircle className="w-3 h-3 animate-check-in" />
-        </div>
-        <span className="text-[13px] text-forge-text-dim font-medium">Done</span>
-        {parts.length > 0 && (
-          <span className="text-[11px] text-forge-text-dim/40">
-            {parts.join(' in ')}
-          </span>
-        )}
-      </div>
-    </motion.div>
-  )
 }
 
 export const ChatPanel = memo(function ChatPanel({ onLoadingChange, ...props }: ChatPanelProps) {
@@ -244,21 +65,6 @@ export const ChatPanel = memo(function ChatPanel({ onLoadingChange, ...props }: 
   useEffect(() => {
     onLoadingChange?.(chat.isLoading)
   }, [chat.isLoading, onLoadingChange])
-
-  // Track completion signal: show briefly when streaming ends
-  const [showComplete, setShowComplete] = useState(false)
-  const [completionStats, setCompletionStats] = useState({ stepCount: 0, elapsed: 0 })
-  const wasLoadingRef = useRef(false)
-  useEffect(() => {
-    if (wasLoadingRef.current && !chat.isLoading && !chat.error) {
-      // Streaming just finished
-      setCompletionStats({ stepCount: chat.stepCount, elapsed: chat.elapsed })
-      setShowComplete(true)
-      const timer = setTimeout(() => setShowComplete(false), 2500)
-      return () => clearTimeout(timer)
-    }
-    wasLoadingRef.current = chat.isLoading
-  }, [chat.isLoading, chat.error, chat.stepCount, chat.elapsed])
 
   return (
     <ErrorBoundary>
@@ -402,76 +208,19 @@ export const ChatPanel = memo(function ChatPanel({ onLoadingChange, ...props }: 
               )}
             </AnimatePresence>
 
-            {/* Activity / thinking — inline in thread like a message */}
+            {/* Unified activity stream — thinking, working, completion */}
             <AnimatePresence>
-            {chat.isLoading && (
-              <motion.div
-                initial={{ opacity: 0, y: 4 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: -4 }}
-                transition={{ duration: 0.2, ease: [0.16, 1, 0.3, 1] }}
-                className="py-1"
-              >
-                {/* Completed steps — checkbox checklist */}
-                {chat.currentActivity?.recentCompleted && chat.currentActivity.recentCompleted.length > 0 && (
-                  <div className="space-y-0.5 mb-1">
-                    {chat.currentActivity.recentCompleted.map((completed: { toolName: string; args: Record<string, unknown> }, idx: number) => {
-                      const cInfo = TOOL_LABELS[completed.toolName] || { label: completed.toolName.replace(/_/g, ' '), Icon: Check, color: 'gray' }
-                      const cArgs = completed.args as Record<string, string>
-                      const cPath = cArgs.path || cArgs.file || cArgs.filePath || cArgs.file_path || ''
-                      const cFileName = cPath ? cPath.split('/').pop() : ''
-                      return (
-                        <div key={`step-${idx}`} className="flex items-center gap-2 py-0.5 pl-1">
-                          <CheckCircle className="w-3.5 h-3.5 text-forge-success/70 shrink-0" />
-                          <span className="text-[12px] text-forge-text-dim/60 truncate">
-                            {cInfo.label}{cFileName ? ` — ${cFileName}` : ''}
-                          </span>
-                        </div>
-                      )
-                    })}
-                  </div>
-                )}
-                {/* Current active step or thinking indicator */}
-                {chat.currentActivity?.toolName ? (() => {
-                  const info = TOOL_LABELS[chat.currentActivity.toolName] || { label: chat.currentActivity.toolName.replace(/_/g, ' '), Icon: Loader2, color: 'gray' }
-                  const args = chat.currentActivity.args as Record<string, string>
-                  const filePath = args.path || args.file || args.filePath || args.file_path || ''
-                  const fileName = filePath ? filePath.split('/').pop() : ''
-                  return (
-                    <div className="flex items-center gap-2 py-0.5 pl-1">
-                      <Loader2 className="w-3.5 h-3.5 text-forge-accent animate-spin shrink-0" />
-                      <span className="text-[12px] text-forge-text font-medium shimmer-text truncate">
-                        {info.label}{fileName ? ` — ${fileName}` : ''}
-                      </span>
-                      {chat.elapsed > 0 && (
-                        <span className="text-[11px] text-forge-text-dim/40 font-mono shrink-0 tabular-nums ml-auto">
-                          {chat.formatElapsed(chat.elapsed)}
-                        </span>
-                      )}
-                    </div>
-                  )
-                })() : (
-                  <ThinkingIndicator
-                    elapsed={chat.elapsed}
-                    formatElapsed={chat.formatElapsed}
-                    stepCount={chat.stepCount}
-                    lastCompletedToolName={chat.lastCompletedToolName}
-                    status={chat.status}
-                  />
-                )}
-              </motion.div>
-            )}
-            </AnimatePresence>
-
-            {/* Response complete signal */}
-            <AnimatePresence>
-              {showComplete && !chat.isLoading && (
-                <CompletionSignal
-                  stepCount={completionStats.stepCount}
-                  elapsed={completionStats.elapsed}
-                  formatElapsed={chat.formatElapsed}
-                />
-              )}
+              <ActivityBlock
+                recentCompleted={chat.currentActivity?.recentCompleted || []}
+                activeToolName={chat.currentActivity?.toolName || ''}
+                activeToolArgs={chat.currentActivity?.args || {}}
+                isLoading={chat.isLoading}
+                elapsed={chat.elapsed}
+                formatElapsed={chat.formatElapsed}
+                stepCount={chat.stepCount}
+                status={chat.status}
+                tasks={chat.tasks}
+              />
             </AnimatePresence>
 
             {/* Error banner */}
@@ -540,23 +289,8 @@ export const ChatPanel = memo(function ChatPanel({ onLoadingChange, ...props }: 
         )}
       </AnimatePresence>
 
-      {/* Task list */}
-      <AnimatePresence>
-        {chat.tasks.length > 0 && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            transition={{ duration: 0.15 }}
-            className="border-t border-forge-border px-3 py-2 shrink-0 max-h-[200px] overflow-y-auto"
-          >
-            <TaskListPanel tasks={chat.tasks} />
-          </motion.div>
-        )}
-      </AnimatePresence>
-
       {/* Input area */}
-      <div className="border-t border-forge-border shrink-0 safe-bottom">
+      <div className="shrink-0 safe-bottom">
         {/* Voice interim text */}
         <AnimatePresence>
           {voice.isListening && (
@@ -657,7 +391,7 @@ export const ChatPanel = memo(function ChatPanel({ onLoadingChange, ...props }: 
               inputMode="text"
               placeholder={chat.isEmpty ? 'Describe what you want to build...' : 'Ask for changes, new features, fixes...'}
               rows={1}
-              className="w-full bg-transparent px-3 py-3 text-[13.5px] text-forge-text placeholder:text-forge-text-dim/40 outline-none resize-none chat-textarea-smooth"
+              className="w-full bg-transparent px-3 py-3 text-[13.5px] text-forge-text placeholder:text-forge-text-dim/40 outline-none border-none resize-none chat-textarea-smooth"
             />
 
             {/* Action bar */}
