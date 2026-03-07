@@ -376,14 +376,11 @@ export const PreviewPanel = memo(function PreviewPanel({ files, projectId, onFix
     setNavCount(0)
   }, [wcPreviewUrl, sandboxUrl])
 
-  // Set loading state when WebContainer URL changes — reset ready flag
+  // Reset WC ready flag when URL changes — but DON'T set iframeLoading here.
+  // The WC iframe only renders when sandbox is NOT active, so blindly setting
+  // iframeLoading=true creates an unresolvable state when both are running.
   useEffect(() => {
-    if (wcPreviewUrl) {
-      setIframeLoading(true)
-      setWcIframeReady(false)
-    } else {
-      setWcIframeReady(false)
-    }
+    setWcIframeReady(false)
   }, [wcPreviewUrl])
 
   const handleGoBack = useCallback(() => {
@@ -1925,7 +1922,7 @@ export const PreviewPanel = memo(function PreviewPanel({ files, projectId, onFix
                 title="Live Preview"
                 allow="cross-origin-isolated"
                 onLoad={(e) => {
-                  if (!wcPreviewUrl) setIframeLoading(false)
+                  setIframeLoading(false)
                   setIframeError(null)
                   setSandboxError(null)
                   // Trigger ready phase + crossfade
@@ -1937,7 +1934,7 @@ export const PreviewPanel = memo(function PreviewPanel({ files, projectId, onFix
                       setBuildPhase(null)
                     }, 600) // matches CSS crossfade duration
                   }
-                  if (!wcPreviewUrl) onPreviewReady?.()
+                  onPreviewReady?.()
                   // Track navigation
                   try {
                     const url = (e.target as HTMLIFrameElement).contentWindow?.location.href
@@ -1949,7 +1946,7 @@ export const PreviewPanel = memo(function PreviewPanel({ files, projectId, onFix
                     if (!wcIframeReady) setNavCount(prev => prev + 1)
                   }
                 }}
-                onError={() => { if (!wcPreviewUrl) setIframeError('Preview failed to load') }}
+                onError={() => setIframeError('Preview failed to load')}
               />
             </>
           )}

@@ -11,10 +11,11 @@ import { GooglePanel } from './sidebar/google-panel'
 import { SnapshotsPanel } from './sidebar/snapshots-panel'
 import { AnthropicPanel } from './sidebar/anthropic-panel'
 import { StripePanel } from './sidebar/stripe-panel'
+import { SmsPanel } from './sidebar/sms-panel'
 import type { FileNode } from '@/lib/types'
 import type { Snapshot } from './version-history'
 
-export type SidebarTab = 'anthropic' | 'git' | 'deploy' | 'env' | 'db' | 'google' | 'stripe' | 'snapshots'
+export type SidebarTab = 'anthropic' | 'git' | 'deploy' | 'env' | 'db' | 'google' | 'stripe' | 'sms' | 'snapshots'
 
 // ─── Brand SVG icons for sidebar ────────────────────────────────
 
@@ -71,6 +72,14 @@ function StripeIcon({ className }: { className?: string }) {
   )
 }
 
+function SmsIcon({ className }: { className?: string }) {
+  return (
+    <svg className={className} viewBox="0 0 24 24" fill="currentColor">
+      <path d="M20 2H4c-1.1 0-2 .9-2 2v18l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm0 14H5.17L4 17.17V4h16v12zM7 9h2v2H7zm4 0h2v2h-2zm4 0h2v2h-2z" />
+    </svg>
+  )
+}
+
 function AnthropicIcon({ className }: { className?: string }) {
   return (
     <svg className={className} viewBox="0 0 46 32" fill="currentColor">
@@ -83,12 +92,13 @@ type TabIcon = React.FC<{ className?: string }>
 
 const TABS: { id: SidebarTab; icon: TabIcon; label: string; activeColor?: string; activeBg?: string }[] = [
   { id: 'anthropic', icon: AnthropicIcon, label: 'Anthropic', activeColor: 'text-[#D4A574]', activeBg: 'bg-[#D4A574]/10' },
-  { id: 'git', icon: GitHubIcon, label: 'GitHub' },
-  { id: 'deploy', icon: VercelIcon, label: 'Vercel' },
+  { id: 'git', icon: GitHubIcon, label: 'GitHub', activeColor: 'text-white', activeBg: 'bg-white/10' },
+  { id: 'deploy', icon: VercelIcon, label: 'Vercel', activeColor: 'text-white', activeBg: 'bg-white/10' },
   { id: 'env', icon: Key, label: 'Environment', activeColor: 'text-amber-400', activeBg: 'bg-amber-500/10' },
   { id: 'db', icon: SupabaseIcon, label: 'Supabase', activeColor: 'text-emerald-400', activeBg: 'bg-emerald-500/10' },
   { id: 'google', icon: GoogleIcon, label: 'Google', activeBg: 'bg-blue-500/10' },
   { id: 'stripe', icon: StripeIcon, label: 'Stripe', activeColor: 'text-[#635BFF]', activeBg: 'bg-[#635BFF]/10' },
+  { id: 'sms', icon: SmsIcon, label: 'AussieSMS', activeColor: 'text-cyan-400', activeBg: 'bg-cyan-500/10' },
   { id: 'snapshots', icon: History, label: 'Snapshots', activeColor: 'text-purple-400', activeBg: 'bg-purple-500/10' },
 ]
 
@@ -194,6 +204,9 @@ export function SidebarContent({
       )}
       {activeTab === 'stripe' && (
         <StripePanel fileContents={fileContents} onFileChange={onFileChange} />
+      )}
+      {activeTab === 'sms' && (
+        <SmsPanel fileContents={fileContents} onFileChange={onFileChange} />
       )}
       {activeTab === 'snapshots' && (
         <SnapshotsPanel

@@ -84,6 +84,14 @@ function GoogleIcon({ className }: { className?: string }) {
   )
 }
 
+function SmsIcon({ className }: { className?: string }) {
+  return (
+    <svg className={className} viewBox="0 0 24 24" fill="currentColor">
+      <path d="M20 2H4c-1.1 0-2 .9-2 2v18l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm0 14H5.17L4 17.17V4h16v12zM7 9h2v2H7zm4 0h2v2h-2zm4 0h2v2h-2z" />
+    </svg>
+  )
+}
+
 const SERVICE_DEFS: Record<string, ServiceDef> = {
   stripe: {
     id: 'stripe',
@@ -169,6 +177,20 @@ const SERVICE_DEFS: Record<string, ServiceDef> = {
     fields: [],
     docsUrl: '',
     docsLabel: 'Sign in with GitHub',
+  },
+  aussiesms: {
+    id: 'aussiesms',
+    label: 'AussieSMS',
+    description: 'Connect your AussieSMS account to send SMS messages and OTP codes.',
+    color: 'text-cyan-400',
+    bgColor: 'bg-cyan-500/5',
+    borderColor: 'border-cyan-500/30',
+    icon: SmsIcon,
+    fields: [
+      { name: 'API Key', key: 'aussieSmsApiKey', placeholder: 'Your AussieSMS API key', required: true, sensitive: true },
+    ],
+    docsUrl: 'https://aussieotp.vercel.app/dashboard/api-keys',
+    docsLabel: 'Get API key from AussieSMS Dashboard',
   },
 }
 

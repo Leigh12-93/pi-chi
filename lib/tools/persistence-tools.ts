@@ -113,10 +113,11 @@ Supported services:
 - "vercel" — Vercel deployment (deploy token)
 - "google" — Google Cloud (API key starting with AIza)
 - "github" — GitHub OAuth (shows sign-in button)
+- "aussiesms" — AussieSMS gateway (API key for SMS/OTP)
 
 You can also provide custom fields to collect any credentials not covered by the defaults.`,
       inputSchema: z.object({
-        service: z.enum(['stripe', 'supabase', 'anthropic', 'vercel', 'google', 'github']).describe('Which service to connect'),
+        service: z.enum(['stripe', 'supabase', 'anthropic', 'vercel', 'google', 'github', 'aussiesms']).describe('Which service to connect'),
         message: z.string().optional().describe('Custom message to show above the connection form'),
         fields: z.array(z.object({
           name: z.string().describe('Display label for the field'),

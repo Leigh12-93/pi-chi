@@ -8,7 +8,7 @@ export async function GET() {
   if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
   const { data, ok } = await supabaseFetch(
-    `/forge_user_settings?github_username=eq.${encodeURIComponent(session.githubUsername)}&select=encrypted_api_key,api_key_validated_at,encrypted_vercel_token,encrypted_supabase_url,encrypted_supabase_key,encrypted_supabase_access_token,preferred_model,preferences,encrypted_google_client_id,encrypted_google_client_secret,encrypted_google_api_key,encrypted_google_service_account,encrypted_google_access_token,google_connected_email,google_connected_scopes,google_token_expiry,encrypted_stripe_secret_key,encrypted_stripe_publishable_key,encrypted_stripe_webhook_secret`,
+    `/forge_user_settings?github_username=eq.${encodeURIComponent(session.githubUsername)}&select=encrypted_api_key,api_key_validated_at,encrypted_vercel_token,encrypted_supabase_url,encrypted_supabase_key,encrypted_supabase_access_token,preferred_model,preferences,encrypted_google_client_id,encrypted_google_client_secret,encrypted_google_api_key,encrypted_google_service_account,encrypted_google_access_token,google_connected_email,google_connected_scopes,google_token_expiry,encrypted_stripe_secret_key,encrypted_stripe_publishable_key,encrypted_stripe_webhook_secret,encrypted_aussiesms_api_key`,
   )
 
   // Check which OAuth providers are configured
@@ -39,6 +39,7 @@ export async function GET() {
       hasStripeSecretKey: false,
       hasStripePublishableKey: false,
       hasStripeWebhookSecret: false,
+      hasAussieSmsApiKey: false,
     })
   }
 
@@ -88,6 +89,7 @@ export async function GET() {
     hasStripeSecretKey: !!row.encrypted_stripe_secret_key,
     hasStripePublishableKey: !!row.encrypted_stripe_publishable_key,
     hasStripeWebhookSecret: !!row.encrypted_stripe_webhook_secret,
+    hasAussieSmsApiKey: !!row.encrypted_aussiesms_api_key,
   })
 }
 
@@ -319,6 +321,36 @@ export async function PUT(req: Request) {
     updates.encrypted_stripe_webhook_secret = `v1:${await encryptToken(trimmed)}`
   }
 
+  // Validate and store AussieSMS API Key
+  if (body.aussieSmsApiKey) {
+    const trimmed = body.aussieSmsApiKey.trim()
+
+    if (!body.skipValidation) {
+      // Validate by calling the AussieSMS API — 400 = valid key (missing params), 401 = invalid key
+      try {
+        const res = await fetch('https://aussieotp.vercel.app/api/gateway/send', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'x-api-key': trimmed,
+          },
+          body: JSON.stringify({}),
+          signal: AbortSignal.timeout(10000),
+        })
+        if (res.status === 401 || res.status === 403) {
+          return NextResponse.json({ error: 'Invalid AussieSMS API key' }, { status: 400 })
+        }
+        // 400 = valid key but missing params (expected), 200 = also fine
+      } catch (err: any) {
+        return NextResponse.json({
+          error: `AussieSMS key validation failed: ${err.message || 'Network error'}`,
+        }, { status: 400 })
+      }
+    }
+
+    updates.encrypted_aussiesms_api_key = `v1:${await encryptToken(trimmed)}`
+  }
+
   if (preferredModel) updates.preferred_model = preferredModel
   if (preferences) updates.preferences = preferences
 
@@ -375,6 +407,8 @@ export async function DELETE(req: Request) {
     patch.encrypted_stripe_secret_key = null
     patch.encrypted_stripe_publishable_key = null
     patch.encrypted_stripe_webhook_secret = null
+  } else if (target === 'aussiesms') {
+    patch.encrypted_aussiesms_api_key = null
   } else {
     patch.encrypted_api_key = null
     patch.api_key_validated_at = null
