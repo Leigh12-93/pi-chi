@@ -56,6 +56,7 @@ export function DeployPanel({ projectId, files, projectName, onClose, onSuccess,
   const [showLogs, setShowLogs] = useState(true)
   const [exiting, setExiting] = useState(false)
   const [fixedFilesApplied, setFixedFilesApplied] = useState(false)
+  const [autoCollapsed, setAutoCollapsed] = useState(false) // auto-collapse on success
   const logsRef = useRef<HTMLDivElement>(null)
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null)
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null)
@@ -88,6 +89,24 @@ export function DeployPanel({ projectId, files, projectName, onClose, onSuccess,
       logsRef.current.scrollTop = logsRef.current.scrollHeight
     }
   }, [progressText])
+
+  // Auto-collapse on success: show URL pill for 10s then fade out
+  useEffect(() => {
+    if (status !== 'success') return
+    // Wait 2s showing full success UI, then collapse to URL pill
+    const collapseTimer = setTimeout(() => {
+      setAutoCollapsed(true)
+    }, 2000)
+    // After 12s total (2s full + 10s pill), fade out
+    const fadeTimer = setTimeout(() => {
+      setExiting(true)
+      setTimeout(onClose, 300)
+    }, 12000)
+    return () => {
+      clearTimeout(collapseTimer)
+      clearTimeout(fadeTimer)
+    }
+  }, [status, onClose])
 
   // Sync fixed files back to workspace when auto-fix succeeds
   useEffect(() => {
@@ -193,14 +212,38 @@ export function DeployPanel({ projectId, files, projectName, onClose, onSuccess,
   const stageCount = visibleStages.length
   const progressPercent = status === 'success' ? 100 : status === 'error' ? (stageIndex / stageCount) * 100 : Math.min(95, ((stageIndex / stageCount) * 100) + (elapsed % 20))
 
+  // Auto-collapsed success URL pill — shows production URL for 10s then fades
+  if (autoCollapsed && status === 'success' && result && typeof result.url === 'string') {
+    return (
+      <div className={cn('fixed bottom-4 right-4 left-4 sm:left-auto z-40', exiting ? 'deploy-exit' : 'deploy-enter')}>
+        <div
+          onClick={() => { setAutoCollapsed(false); setCollapsed(false) }}
+          className="group flex items-center gap-2.5 w-full sm:w-auto px-3.5 py-2.5 rounded-full border backdrop-blur-xl shadow-lg bg-forge-bg/90 border-emerald-500/20 hover:border-emerald-500/40 transition-all duration-200 cursor-pointer hover:scale-[1.02] active:scale-[0.98]"
+        >
+          <CheckCircle className="w-3.5 h-3.5 text-emerald-500 shrink-0" />
+          <a
+            href={String(result.url)}
+            target="_blank"
+            rel="noopener noreferrer"
+            onClick={(e) => e.stopPropagation()}
+            className="text-xs font-mono text-emerald-500 hover:text-emerald-400 truncate max-w-[260px] sm:max-w-[320px]"
+          >
+            {String(result.url).replace(/^https?:\/\//, '')}
+          </a>
+          <ExternalLink className="w-3 h-3 text-emerald-500/60 shrink-0" />
+        </div>
+      </div>
+    )
+  }
+
   // Collapsed mini indicator
   if (collapsed) {
     return (
-      <div className={cn('fixed bottom-4 right-4 z-40', exiting ? 'deploy-exit' : 'deploy-enter')}>
+      <div className={cn('fixed bottom-4 right-4 left-4 sm:left-auto z-40', exiting ? 'deploy-exit' : 'deploy-enter')}>
         <button
           onClick={() => setCollapsed(false)}
           className={cn(
-            'group flex items-center gap-2.5 pl-3 pr-3.5 py-2 rounded-full border backdrop-blur-xl shadow-lg transition-all duration-200',
+            'group flex items-center justify-center sm:justify-start gap-2.5 w-full sm:w-auto pl-3 pr-3.5 py-2.5 sm:py-2 rounded-full border backdrop-blur-xl shadow-lg transition-all duration-200',
             'hover:scale-[1.02] active:scale-[0.98]',
             status === 'deploying' && 'bg-forge-bg/90 border-forge-accent/20 hover:border-forge-accent/40 deploy-pill-glow',
             status === 'success' && 'bg-forge-bg/90 border-emerald-500/20 hover:border-emerald-500/40',
@@ -231,7 +274,7 @@ export function DeployPanel({ projectId, files, projectName, onClose, onSuccess,
 
   return (
     <div className={cn(
-      'fixed bottom-4 right-4 z-40 w-[440px] rounded-2xl border backdrop-blur-xl shadow-2xl flex flex-col overflow-hidden',
+      'fixed bottom-4 left-4 right-4 sm:left-auto sm:right-4 z-40 sm:w-[440px] rounded-2xl border backdrop-blur-xl shadow-2xl flex flex-col overflow-hidden',
       'bg-forge-bg/95 border-forge-border/60',
       exiting ? 'deploy-exit' : 'deploy-enter',
       status === 'deploying' && 'deploy-glow-accent',

@@ -1922,7 +1922,10 @@ export const PreviewPanel = memo(function PreviewPanel({ files, projectId, onFix
                 title="Live Preview"
                 allow="cross-origin-isolated"
                 onLoad={(e) => {
-                  setIframeLoading(false)
+                  // Only clear loading if WC isn't about to take over
+                  if (!wcPreviewUrl) {
+                    setIframeLoading(false)
+                  }
                   setIframeError(null)
                   setSandboxError(null)
                   // Trigger ready phase + crossfade

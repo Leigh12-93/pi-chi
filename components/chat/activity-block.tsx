@@ -146,10 +146,13 @@ export function ActivityBlock({
 
   useEffect(() => {
     if (wasLoadingRef.current && !isLoading) {
+      // Persist completion — stays visible until next loading cycle
       setCompletionSnapshot({ stepCount, elapsed })
       setShowCompletion(true)
-      const timer = setTimeout(() => setShowCompletion(false), 5000)
-      return () => clearTimeout(timer)
+    } else if (!wasLoadingRef.current && isLoading) {
+      // New loading cycle started — clear previous completion
+      setShowCompletion(false)
+      setCompletionSnapshot(null)
     }
     wasLoadingRef.current = isLoading
   }, [isLoading, stepCount, elapsed])

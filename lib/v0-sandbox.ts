@@ -465,10 +465,12 @@ async function _createV0SandboxInner(
   session.chatId = chat.id
   session.versionId = chat.latestVersion?.id || ''
   session.demoUrl = chat.latestVersion?.demoUrl || ''
-  session.status = session.demoUrl ? 'running' : 'initializing'
+  const versionStatus = chat.latestVersion?.status || 'pending'
+  // Only mark as running when BOTH demoUrl exists AND version build completed
+  session.status = (session.demoUrl && versionStatus === 'completed') ? 'running' : 'initializing'
   activeSessions.set(projectId, session)
 
-  log(`chat ${session.chatId} created, demoUrl: ${session.demoUrl ? 'yes' : 'pending'}`)
+  log(`chat ${session.chatId} created, demoUrl: ${session.demoUrl ? 'yes' : 'pending'}, versionStatus: ${versionStatus}`)
 
   // Overflow batches
   if (overflowFiles.length > 0 && session.chatId && session.versionId) {
@@ -493,9 +495,9 @@ async function _createV0SandboxInner(
     }
   }
 
-  // Poll for demoUrl
-  if (!session.demoUrl && session.versionId) {
-    log('polling for demoUrl...')
+  // Poll for demoUrl AND completed status
+  if (session.status !== 'running' && session.versionId) {
+    log('polling for demoUrl + completed status...')
     for (let i = 0; i < POLL_MAX_ATTEMPTS; i++) {
       const delay = Math.min(POLL_BASE_MS * Math.pow(1.4, i), 8000)
       await new Promise(r => setTimeout(r, delay))
@@ -505,8 +507,10 @@ async function _createV0SandboxInner(
         if (v?.demoUrl) {
           session.demoUrl = v.demoUrl
           session.versionId = v.id
+        }
+        if (v?.demoUrl && v?.status === 'completed') {
           session.status = 'running'
-          log(`demoUrl ready after ${i + 1} polls`)
+          log(`demoUrl ready + build completed after ${i + 1} polls`)
           break
         }
         if (v?.status === 'failed') {
@@ -515,6 +519,7 @@ async function _createV0SandboxInner(
           log('build failed')
           break
         }
+        log(`poll ${i + 1}: status=${v?.status}, demoUrl=${v?.demoUrl ? 'yes' : 'no'}`)
       } catch (err) {
         log(`poll ${i + 1} error: ${err instanceof Error ? err.message : err}`)
         if (i >= 4) break
