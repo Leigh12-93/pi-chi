@@ -189,6 +189,7 @@ function prepareFiles(files: Record<string, string>): {
   prepared: Array<{ name: string; content: string }>
   skipped: number
   totalSize: number
+  error?: string
 } {
   let skipped = 0
   let totalSize = 0
@@ -234,6 +235,17 @@ function prepareFiles(files: Record<string, string>): {
   }
 
   prepared.sort((a, b) => filePriority(a.name) - filePriority(b.name))
+  
+  // Check file count limit after filtering
+  if (prepared.length > 200) {
+    return {
+      prepared: [],
+      skipped: Object.keys(files).length,
+      totalSize: 0,
+      error: `Too many useful files (${prepared.length}). Max 200 after filtering. Consider removing test files or documentation.`
+    }
+  }
+  
   return { prepared, skipped, totalSize }
 }
 
@@ -433,7 +445,11 @@ async function _createV0SandboxInner(
   evictStaleSessions()
   await destroyV0Sandbox(projectId)
 
-  const { prepared, skipped, totalSize } = prepareFiles(files)
+  const { prepared, skipped, totalSize, error } = prepareFiles(files)
+
+  if (error) {
+    return { ok: false, status: 'error', error, skippedCount: skipped }
+  }
 
   if (prepared.length === 0) {
     return { ok: false, status: 'error', error: 'No uploadable files after filtering', skippedCount: skipped }
@@ -569,7 +585,11 @@ export async function syncV0Files(
 
     // Delta sync: only send changed/added files
     const delta = computeDelta(files, session.lastSyncedFiles)
-    const { prepared } = prepareFiles(delta)
+    const { prepared, error } = prepareFiles(delta)
+
+    if (error) {
+      return { ok: false, synced: 0, error }
+    }
 
     if (prepared.length === 0) {
       // Hash changed but no uploadable delta (could be skipped files changing)

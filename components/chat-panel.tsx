@@ -68,6 +68,19 @@ export const ChatPanel = memo(function ChatPanel({ onLoadingChange, onSessionCos
     onError: (msg) => toast.error(msg),
   })
 
+  // iOS keyboard handling - prevent viewport issues when keyboard opens
+  useEffect(() => {
+    if (typeof window !== 'undefined' && /iPhone|iPad/.test(navigator.userAgent)) {
+      const handleResize = () => {
+        const vh = window.innerHeight * 0.01
+        document.documentElement.style.setProperty('--vh', `${vh}px`)
+      }
+      window.addEventListener('resize', handleResize)
+      handleResize()
+      return () => window.removeEventListener('resize', handleResize)
+    }
+  }, [])
+
   // Bubble loading state to parent (workspace auto-switching)
   useEffect(() => {
     onLoadingChange?.(chat.isLoading)

@@ -84,13 +84,6 @@ export async function POST(req: NextRequest) {
     if (fileCount === 0) {
       return timedJson({ error: 'No files provided' }, { status: 400 }, start)
     }
-    if (fileCount > MAX_FILES) {
-      return timedJson(
-        { error: `Too many files (${fileCount}). Max ${MAX_FILES}.` },
-        { status: 400 },
-        start,
-      )
-    }
 
     if (!await verifyOwnership(projectId, session.githubUsername)) {
       return timedJson({ error: 'Project not found or access denied' }, { status: 403 }, start)
