@@ -27,24 +27,30 @@ const CLEANUP_INTERVAL_MS = 5 * 60 * 1000 // 5 min periodic cleanup
 const SKIP_EXACT = new Set([
   'package-lock.json', 'yarn.lock', 'pnpm-lock.yaml', 'bun.lockb',
   '.gitignore', '.gitattributes',
-  '.eslintrc.json', '.eslintrc.js', '.eslintrc.cjs', 'eslint.config.js', 'eslint.config.mjs',
-  '.prettierrc', '.prettierrc.json', '.prettierrc.js',
+  '.eslintrc.json', '.eslintrc.js', '.eslintrc.cjs', 'eslint.config.js', 'eslint.config.mjs', 'eslint.config.ts',
+  '.prettierrc', '.prettierrc.json', '.prettierrc.js', 'prettier.config.js', 'prettier.config.mjs',
   '.editorconfig',
   'tsconfig.node.json', 'tsconfig.build.json',
   '.env', '.env.local', '.env.production', '.env.development', '.env.test',
-  'README.md', 'readme.md', 'CHANGELOG.md', 'LICENSE', 'LICENSE.md',
-  '.npmrc', '.nvmrc', '.node-version',
+  'README.md', 'readme.md', 'CHANGELOG.md', 'LICENSE', 'LICENSE.md', 'CONTRIBUTING.md',
+  '.npmrc', '.nvmrc', '.node-version', '.tool-versions',
   'Dockerfile', 'docker-compose.yml', 'docker-compose.yaml',
   '.dockerignore',
-  'vercel.json',
-  'jest.config.ts', 'jest.config.js', 'vitest.config.ts',
+  'vercel.json', 'netlify.toml', 'fly.toml',
+  'jest.config.ts', 'jest.config.js', 'vitest.config.ts', 'vitest.config.js',
+  'playwright.config.ts', 'cypress.config.ts',
+  'CLAUDE.md', 'HANDOFF.md', 'PLAN.md', 'TODO.md',
 ])
 
 const SKIP_PREFIXES = [
   'node_modules/', '.git/', '.next/', 'dist/', 'build/', 'out/',
   '.vercel/', '.cache/', '.turbo/', '.husky/',
   '__tests__/', '__mocks__/', 'test/', 'tests/', 'coverage/',
-  '.github/', '.vscode/',
+  '.github/', '.vscode/', '.idea/',
+  'cypress/', 'e2e/', 'playwright/',
+  'docs/', 'doc/', 'documentation/',
+  'scripts/', 'tools/', 'fixtures/',
+  'storybook/', '.storybook/',
 ]
 
 const SKIP_EXTENSIONS = new Set([
@@ -235,17 +241,18 @@ function prepareFiles(files: Record<string, string>): {
   }
 
   prepared.sort((a, b) => filePriority(a.name) - filePriority(b.name))
-  
-  // Check file count limit after filtering
-  if (prepared.length > 200) {
-    return {
-      prepared: [],
-      skipped: Object.keys(files).length,
-      totalSize: 0,
-      error: `Too many useful files (${prepared.length}). Max 200 after filtering. Consider removing test files or documentation.`
-    }
+
+  // Trim to 200 file limit — drop lowest-priority files (end of sorted list)
+  const MAX_USEFUL_FILES = 200
+  if (prepared.length > MAX_USEFUL_FILES) {
+    const dropped = prepared.length - MAX_USEFUL_FILES
+    const droppedSize = prepared.slice(MAX_USEFUL_FILES).reduce((s, f) => s + f.content.length, 0)
+    prepared.length = MAX_USEFUL_FILES
+    totalSize -= droppedSize
+    skipped += dropped
+    log(`trimmed ${dropped} lowest-priority files to stay within ${MAX_USEFUL_FILES} limit`)
   }
-  
+
   return { prepared, skipped, totalSize }
 }
 
