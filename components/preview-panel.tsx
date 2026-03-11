@@ -377,6 +377,8 @@ export const PreviewPanel = memo(function PreviewPanel({ files, projectId, onFix
   const [captureFlash, setCaptureFlash] = useState(false)
   const [showFullscreenHint, setShowFullscreenHint] = useState(false)
   const [sandboxLoadFailed, setSandboxLoadFailed] = useState(false) // iframe loaded but content appears broken
+  const sandboxReadyAfterRef = useRef<number>(0) // earliest time to hide loading overlay
+  const sandboxReadyTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null) // deferred ready transition
 
   // Navigation state
   const [currentPath, setCurrentPath] = useState('/')
@@ -843,6 +845,21 @@ export const PreviewPanel = memo(function PreviewPanel({ files, projectId, onFix
       sandboxUrlRef.current = data.demoUrl
       setIframeLoading(true) // will be cleared by iframe onLoad
 
+      // Min build time — sandbox needs ~15s for npm install + dev server start.
+      // The first iframe onLoad fires for v0's loading page, not the actual app.
+      sandboxReadyAfterRef.current = Date.now() + 15_000
+
+      // Max build timeout — if build hasn't produced a working preview after 60s,
+      // drop the loading overlay so user can see what's happening or retry
+      if (buildPhaseTimeoutRef.current) clearTimeout(buildPhaseTimeoutRef.current)
+      buildPhaseTimeoutRef.current = setTimeout(() => {
+        if (buildPhase && buildPhase !== 'ready') {
+          setBuildPhase(null)
+          setIframeLoading(false)
+          addLog('Build taking longer than expected — showing preview as-is', 'warn', 'sandbox')
+        }
+      }, 60_000)
+
       // Phase: building -> starting (after brief build period)
       setTimeout(() => setBuildPhase('starting'), 800)
 
@@ -892,6 +909,7 @@ export const PreviewPanel = memo(function PreviewPanel({ files, projectId, onFix
     setSandboxUnavailable(false)
     setIdleOverlayExpired(false)
     setSandboxLoadFailed(false)
+    if (sandboxReadyTimerRef.current) { clearTimeout(sandboxReadyTimerRef.current); sandboxReadyTimerRef.current = null }
     retryCountRef.current = 0
     addLog('Stopped — will auto-restart on next change', 'system', 'sandbox')
   }, [projectId, addLog])
@@ -1064,8 +1082,12 @@ export const PreviewPanel = memo(function PreviewPanel({ files, projectId, onFix
         return // Unknown message format — ignore
       }
 
+      // Strip ANSI escape codes (terminal colors, cursor movement, spinners)
+      message = message.replace(/\x1b\[[0-9;]*[a-zA-Z]|\x1b\[[0-9]*[GK]|\[[\d;]*m/g, '').trim()
       message = message.slice(0, 1000)
       if (!message) return
+      // Drop pure spinner chars (npm install progress indicator)
+      if (/^[|/\-\\]$/.test(message)) return
 
       // Filter known sandbox/browser noise — log dimmed but don't auto-feed to AI
       const isNoise = isSandboxNoise(message)
@@ -1994,7 +2016,6 @@ export const PreviewPanel = memo(function PreviewPanel({ files, projectId, onFix
                     const iframe = e.target as HTMLIFrameElement
                     const doc = iframe.contentDocument
                     if (doc) {
-                      // Same-origin access succeeded → NOT the sandbox content (blocked/error page)
                       const body = doc.body?.textContent?.trim() || ''
                       if (!body || body.length < 10) {
                         setSandboxLoadFailed(true)
@@ -2005,19 +2026,34 @@ export const PreviewPanel = memo(function PreviewPanel({ files, projectId, onFix
                       }
                     }
                   } catch {
-                    // SecurityError = cross-origin = expected for real sandbox content (good!)
+                    // SecurityError = cross-origin = expected for real sandbox content
                   }
 
-                  // Trigger ready phase + crossfade
-                  if (buildPhase && buildPhase !== 'ready') {
-                    setBuildPhase('ready')
-                    setIsCrossfading(true)
-                    crossfadeTimerRef.current = setTimeout(() => {
-                      setIsCrossfading(false)
-                      setBuildPhase(null)
-                    }, 600) // matches CSS crossfade duration
+                  // Transition to ready — but respect minimum build time.
+                  // The first onLoad fires for v0's loading page while npm install runs.
+                  // The real app loads ~15-30s later. Keep the overlay until min time passes.
+                  const transitionToReady = () => {
+                    if (buildPhase && buildPhase !== 'ready') {
+                      setBuildPhase('ready')
+                      setIsCrossfading(true)
+                      crossfadeTimerRef.current = setTimeout(() => {
+                        setIsCrossfading(false)
+                        setBuildPhase(null)
+                      }, 600)
+                    }
+                    onPreviewReady?.()
                   }
-                  onPreviewReady?.()
+
+                  const now = Date.now()
+                  if (now >= sandboxReadyAfterRef.current) {
+                    // Min build time passed — transition immediately
+                    transitionToReady()
+                  } else {
+                    // Too early — defer transition until min build time
+                    if (sandboxReadyTimerRef.current) clearTimeout(sandboxReadyTimerRef.current)
+                    sandboxReadyTimerRef.current = setTimeout(transitionToReady, sandboxReadyAfterRef.current - now)
+                  }
+
                   // Track navigation
                   try {
                     const url = (e.target as HTMLIFrameElement).contentWindow?.location.href
