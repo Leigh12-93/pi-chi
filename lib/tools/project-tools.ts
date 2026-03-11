@@ -9,7 +9,7 @@ export function createProjectTools(ctx: ToolContext) {
 
   return {
     create_project: tool({
-      description: 'Scaffold a new project from a template. Always call this FIRST for new projects. Templates: nextjs (blank), vite-react, static, saas (landing page with hero/features/pricing), blog, dashboard (admin panel with sidebar/stats), ecommerce (product grid with cart), portfolio (developer portfolio), docs (documentation site with sidebar).',
+      description: 'Scaffold a new project from a template. Always call this FIRST for new projects. DEFAULT to nextjs unless user asks for something else. Templates: nextjs (default — full-stack React), vite-react (only if user explicitly requests Vite/SPA), static (simple HTML, no React), saas (landing page with hero/features/pricing), blog, dashboard (admin panel with sidebar/stats), ecommerce (product grid with cart), portfolio (developer portfolio), docs (documentation site with sidebar).',
       inputSchema: z.object({
         template: z.enum(['nextjs', 'vite-react', 'static', 'saas', 'blog', 'dashboard', 'ecommerce', 'portfolio', 'docs']).describe('Project template'),
         description: z.string().optional().describe('Project description'),
