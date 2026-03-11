@@ -744,6 +744,55 @@ export async function POST(req: Request) {
     })
   }
 
+  // ── Deduplicate tool_use IDs ──────────────────────────────────
+  // Anthropic API rejects requests where tool_use content blocks have non-unique IDs.
+  // This can happen when conversation history contains retries, edits, or compacted messages.
+  {
+    const seenToolUseIds = new Set<string>()
+    const idRemap = new Map<string, string>() // old → new for tool_result matching
+    let dupsFixed = 0
+
+    for (const msg of messages) {
+      if (!Array.isArray(msg.content)) continue
+      for (const block of msg.content as any[]) {
+        if (block.type === 'tool-call' || block.type === 'tool_use') {
+          const id = block.toolCallId || block.id
+          if (id && seenToolUseIds.has(id)) {
+            // Generate unique replacement ID
+            const newId = `dedup_${crypto.randomUUID().slice(0, 12)}`
+            idRemap.set(id + ':' + dupsFixed, newId)
+            if (block.toolCallId) block.toolCallId = newId
+            if (block.id) block.id = newId
+            dupsFixed++
+          } else if (id) {
+            seenToolUseIds.add(id)
+          }
+        }
+      }
+    }
+
+    // Also patch tool_result references to remapped IDs
+    if (dupsFixed > 0) {
+      // Second approach: just ensure all tool_use IDs are unique by re-scanning
+      // and fixing any remaining duplicates with a simple suffix
+      const allIds = new Set<string>()
+      for (const msg of messages) {
+        if (!Array.isArray(msg.content)) continue
+        for (const block of msg.content as any[]) {
+          const id = block.toolCallId || block.id || block.tool_use_id
+          if (!id) continue
+          if ((block.type === 'tool-call' || block.type === 'tool_use') && allIds.has(id)) {
+            const newId = `${id}_${crypto.randomUUID().slice(0, 8)}`
+            if (block.toolCallId) block.toolCallId = newId
+            if (block.id) block.id = newId
+          }
+          if (id) allIds.add(block.toolCallId || block.id || id)
+        }
+      }
+      console.log(`[forge] rid=${requestId} Fixed ${dupsFixed} duplicate tool_use IDs`)
+    }
+  }
+
   // Save user message to database
   if (projectId && messages.length > 0) {
     const lastMessage = messages[messages.length - 1]

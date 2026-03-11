@@ -83,6 +83,9 @@ export function useForgeChat(props: UseForgeChatProps) {
   useEffect(() => { envVarsRef.current = envVars }, [envVars])
   useEffect(() => { activeFileRef.current = activeFile }, [activeFile])
 
+  // ─── Elapsed time tracking (declared early — needed by onError for timeout detection) ──
+  const streamStartRef = useRef<number>(0)
+
   // ─── Pre-flight message compaction (runs before sending to server) ───
   function compactMessagesForSend(msgs: any[]): any[] {
     if (msgs.length <= 10) return msgs
@@ -176,6 +179,9 @@ export function useForgeChat(props: UseForgeChatProps) {
   // status instead of isLoading, and parts-based messages
   const retryAfterCompactRef = useRef(false)
   const pendingRetryTextRef = useRef<string | null>(null)
+  const autoContinueRef = useRef(false) // tracks if an auto-continue is pending
+  const autoContinueCountRef = useRef(0) // prevent infinite loops
+  const MAX_AUTO_CONTINUES = 5
 
   const {
     messages,
@@ -189,6 +195,28 @@ export function useForgeChat(props: UseForgeChatProps) {
     transport,
     onError: (err) => {
       console.error('Chat error:', err)
+
+      // ── Smart timeout auto-continue ─────────────────────────
+      // If the stream died after 4+ minutes, it's the Vercel 300s timeout.
+      // Auto-send a continuation message so the AI picks up where it left off.
+      const elapsedMs = Date.now() - (streamStartRef.current || 0)
+      const isTimeout = elapsedMs > 240_000 || err.message?.includes('408') || err.message?.includes('timeout') || err.message?.includes('abort')
+
+      if (isTimeout && !autoContinueRef.current && autoContinueCountRef.current < MAX_AUTO_CONTINUES) {
+        autoContinueRef.current = true
+        autoContinueCountRef.current++
+        const continueNum = autoContinueCountRef.current
+        toast.info(`Server timeout — auto-continuing (${continueNum}/${MAX_AUTO_CONTINUES})...`, { duration: 3000 })
+        // Queue auto-continue after a brief delay
+        setTimeout(() => {
+          autoContinueRef.current = false
+          sendMessage({
+            text: `[AUTO-CONTINUE ${continueNum}/${MAX_AUTO_CONTINUES}] The previous response was cut short by a server timeout after ${Math.round(elapsedMs / 1000)}s. Continue exactly where you left off. Do NOT repeat work already done — check the file state and pick up from the next incomplete step.`,
+          })
+        }, 1500)
+        return // skip other error handling
+      }
+
       // Auto-compact and retry on 413 (context too long)
       if (!retryAfterCompactRef.current && (err.message?.includes('413') || err.message?.includes('too long') || err.message?.includes('context'))) {
         retryAfterCompactRef.current = true
@@ -660,8 +688,9 @@ export function useForgeChat(props: UseForgeChatProps) {
     const content = (text || input).trim()
     if (!content && attachments.length === 0) return
 
-    // Clear tasks from previous turn
+    // Clear tasks from previous turn + reset auto-continue counter
     clearTasks()
+    autoContinueCountRef.current = 0
 
     // Capture state before clearing
     const currentAttachments = [...attachments]
@@ -938,7 +967,6 @@ export function useForgeChat(props: UseForgeChatProps) {
   }, [messages])
 
   // ─── Elapsed time tracking ────────────────────────────────────
-  const streamStartRef = useRef<number>(0)
   const [elapsed, setElapsed] = useState(0)
   const finalElapsedRef = useRef(0)
 
@@ -971,7 +999,9 @@ export function useForgeChat(props: UseForgeChatProps) {
     : error.message?.includes('413') || error.message?.includes('context') || error.message?.includes('too long')
       ? 'Conversation is too long. Clear chat history or start a new project.'
     : error.message?.includes('408') || error.message?.includes('timeout')
-      ? 'Request timed out. Try a simpler prompt.'
+      ? autoContinueCountRef.current > 0
+        ? `Timeout — auto-continuing (${autoContinueCountRef.current}/${MAX_AUTO_CONTINUES})...`
+        : 'Request timed out. Try a simpler prompt.'
     : error.message?.includes('fetch') || error.message?.includes('network')
       ? 'Connection lost. Check your internet and retry.'
     : error.message || 'Something went wrong. Please try again.'

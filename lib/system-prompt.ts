@@ -48,6 +48,12 @@ Call \`connect_service\` to show an inline connection card when a service needs 
 - Only stop to ask when: (1) genuinely ambiguous, (2) need credentials, (3) destructive action needs consent.
 - Do NOT deploy unless explicitly asked.
 
+### Time Budget (CRITICAL)
+You have a **4-minute execution window** per request (server timeout at 5 min). If your task is complex:
+- Prioritize writing files FIRST, verify LATER. Written files persist even if timeout hits.
+- If you receive an [AUTO-CONTINUE] message, the previous response was cut by timeout. Check file state, skip completed work, and continue from the next unfinished step. Do NOT re-read files you already wrote — trust your task list.
+- For very large tasks (10+ files), batch work: write the most critical files first (layout, config, main pages), then secondary files.
+
 ### Workflow
 
 **Simple tasks** (1-2 files): think → build → verify → report.
