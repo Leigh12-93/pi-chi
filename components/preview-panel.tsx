@@ -792,6 +792,7 @@ export const PreviewPanel = memo(function PreviewPanel({ files, projectId, onFix
     startingRef.current = true
     setSandboxStatus('initializing')
     setSandboxError(null)
+    setIframeError(null)
     setSandboxUrl(null)
     setBuildPhase('analyzing')
 
@@ -1551,7 +1552,7 @@ export const PreviewPanel = memo(function PreviewPanel({ files, projectId, onFix
             </div>
           ) : (
             <iframe
-              srcDoc={previewHtml === '__JSX_BUILDING_PLACEHOLDER__' ? '' : previewHtml}
+              srcDoc={previewHtml === '__JSX_BUILDING_PLACEHOLDER__' || !previewHtml ? '<!DOCTYPE html><html><body></body></html>' : previewHtml}
               className={cn(
                 'w-full h-full border-0 absolute inset-0 transition-opacity duration-300',
                 // Hide static preview when a live preview (sandbox or WC) is active
@@ -1559,7 +1560,7 @@ export const PreviewPanel = memo(function PreviewPanel({ files, projectId, onFix
               )}
               sandbox="allow-scripts allow-same-origin allow-forms"
               title="Static Preview"
-              onError={() => setIframeError('Preview failed to load')}
+              onError={() => { /* srcDoc iframes don't meaningfully error — suppress */ }}
             />
           )}
 
@@ -1915,8 +1916,8 @@ export const PreviewPanel = memo(function PreviewPanel({ files, projectId, onFix
             </div>
           )}
 
-          {/* Iframe error overlay with diagnose button */}
-          {iframeError && (
+          {/* Iframe error overlay with diagnose button — hidden when sandbox error card is already showing */}
+          {iframeError && sandboxStatus !== 'error' && (
             <div className="absolute top-3 left-3 right-3 z-10 animate-fade-in">
               <div className="bg-forge-bg/95 backdrop-blur border border-red-200 dark:border-red-500/30 rounded-lg p-3 shadow-lg max-w-sm mx-auto">
                 <div className="flex items-center gap-2">
@@ -1991,7 +1992,15 @@ export const PreviewPanel = memo(function PreviewPanel({ files, projectId, onFix
                     if (!wcIframeReady) setNavCount(prev => prev + 1)
                   }
                 }}
-                onError={() => setIframeError('Preview failed to load')}
+                onError={() => {
+                  setIframeError('Sandbox preview failed to connect — the dev server may have crashed')
+                  // Fall back: set sandbox to error so the error card with "Fix with AI" shows
+                  if (sandboxStatus === 'running') {
+                    setSandboxStatus('error')
+                    setSandboxError('Dev server failed to start. Check console for build errors.')
+                    setBuildPhase(null)
+                  }
+                }}
               />
             </>
           )}
@@ -2031,7 +2040,7 @@ export const PreviewPanel = memo(function PreviewPanel({ files, projectId, onFix
                     setNavCount(prev => prev + 1)
                   }
                 }}
-                onError={() => setIframeError('Preview failed to load')}
+                onError={() => setIframeError('WebContainer preview failed to connect')}
               />
             </>
           )}
