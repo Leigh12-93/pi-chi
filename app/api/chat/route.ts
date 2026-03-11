@@ -506,41 +506,30 @@ export async function POST(req: Request) {
   // ── Cost optimization: trim conversation history ──────────────
   const MAX_HISTORY = 30
   const FULL_DETAIL_WINDOW = 4
-  const MEDIUM_DETAIL_WINDOW = 8
 
   const rawMessages: UIMessage[] = body.messages || []
   let trimmedMessages = rawMessages.length > MAX_HISTORY
     ? [...rawMessages.slice(0, 2), ...rawMessages.slice(-(MAX_HISTORY - 2))]
     : rawMessages
 
-  // AI SDK v6 uses parts-based UIMessages. Trim old tool parts to save tokens.
+  // AI SDK v6 uses parts-based UIMessages. Strip tool parts from older messages
+  // to save tokens AND prevent duplicate tool_use IDs (which Anthropic API rejects).
+  // Only the last FULL_DETAIL_WINDOW messages keep full tool invocation details.
   trimmedMessages = trimmedMessages.map((m: any, i: number) => {
     const fromEnd = trimmedMessages.length - i
 
-    // Tier 1: Last 4 messages — full detail
+    // Last 4 messages — full detail (tool parts intact)
     if (fromEnd <= FULL_DETAIL_WINDOW) return m
 
-    // Tier 2: Messages 5-8 — keep tool names + paths, strip heavy content
-    if (fromEnd <= MEDIUM_DETAIL_WINDOW && m.role === 'assistant' && Array.isArray(m.parts)) {
-      return {
-        ...m,
-        parts: m.parts.map((p: any) => {
-          if (p.type === 'tool-invocation' || p.type?.startsWith('tool-')) {
-            return { ...p, input: { path: p.input?.path || p.args?.path }, output: p.output != null ? { ok: p.output?.ok } : p.result != null ? { ok: p.result?.ok } : {} }
-          }
-          return p
-        }),
-      }
-    }
-
-    // Tier 3: Older messages — summarize tool parts as text
+    // ALL older messages — strip tool parts entirely, convert to text summaries.
+    // This prevents duplicate tool_use IDs across the conversation history.
     if (m.role === 'assistant' && Array.isArray(m.parts)) {
       const toolParts = m.parts.filter((p: any) => p.type === 'tool-invocation' || p.type?.startsWith('tool-'))
       const textParts = m.parts.filter((p: any) => p.type === 'text')
       if (toolParts.length > 0) {
         const summary = toolParts.map((p: any) => {
           const name = p.toolName || p.type?.replace('tool-', '') || 'unknown'
-          const path = p.input?.path || ''
+          const path = p.input?.path || p.args?.path || ''
           return path ? `${name}(${path})` : name
         }).join(', ')
         return {
@@ -553,7 +542,7 @@ export async function POST(req: Request) {
       }
     }
 
-    // Also handle legacy v4 format during transition
+    // Legacy v4 format
     if (m.role === 'assistant' && m.toolInvocations?.length > 0) {
       const summary = m.toolInvocations.map((inv: any) => {
         const name = inv.toolName
@@ -742,55 +731,6 @@ export async function POST(req: Request) {
         content: text || '',
       }
     })
-  }
-
-  // ── Deduplicate tool_use IDs ──────────────────────────────────
-  // Anthropic API rejects requests where tool_use content blocks have non-unique IDs.
-  // This can happen when conversation history contains retries, edits, or compacted messages.
-  {
-    const seenToolUseIds = new Set<string>()
-    const idRemap = new Map<string, string>() // old → new for tool_result matching
-    let dupsFixed = 0
-
-    for (const msg of messages) {
-      if (!Array.isArray(msg.content)) continue
-      for (const block of msg.content as any[]) {
-        if (block.type === 'tool-call' || block.type === 'tool_use') {
-          const id = block.toolCallId || block.id
-          if (id && seenToolUseIds.has(id)) {
-            // Generate unique replacement ID
-            const newId = `dedup_${crypto.randomUUID().slice(0, 12)}`
-            idRemap.set(id + ':' + dupsFixed, newId)
-            if (block.toolCallId) block.toolCallId = newId
-            if (block.id) block.id = newId
-            dupsFixed++
-          } else if (id) {
-            seenToolUseIds.add(id)
-          }
-        }
-      }
-    }
-
-    // Also patch tool_result references to remapped IDs
-    if (dupsFixed > 0) {
-      // Second approach: just ensure all tool_use IDs are unique by re-scanning
-      // and fixing any remaining duplicates with a simple suffix
-      const allIds = new Set<string>()
-      for (const msg of messages) {
-        if (!Array.isArray(msg.content)) continue
-        for (const block of msg.content as any[]) {
-          const id = block.toolCallId || block.id || block.tool_use_id
-          if (!id) continue
-          if ((block.type === 'tool-call' || block.type === 'tool_use') && allIds.has(id)) {
-            const newId = `${id}_${crypto.randomUUID().slice(0, 8)}`
-            if (block.toolCallId) block.toolCallId = newId
-            if (block.id) block.id = newId
-          }
-          if (id) allIds.add(block.toolCallId || block.id || id)
-        }
-      }
-      console.log(`[forge] rid=${requestId} Fixed ${dupsFixed} duplicate tool_use IDs`)
-    }
   }
 
   // Save user message to database
