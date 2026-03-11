@@ -147,6 +147,7 @@ export function ActivityBlock({
   useEffect(() => {
     if (wasLoadingRef.current && !isLoading) {
       // Persist completion — stays visible until next loading cycle
+      // Capture values at transition moment only
       setCompletionSnapshot({ stepCount, elapsed })
       setShowCompletion(true)
     } else if (!wasLoadingRef.current && isLoading) {
@@ -155,7 +156,7 @@ export function ActivityBlock({
       setCompletionSnapshot(null)
     }
     wasLoadingRef.current = isLoading
-  }, [isLoading, stepCount, elapsed])
+  }, [isLoading]) // eslint-disable-line react-hooks/exhaustive-deps -- capture snapshot only on loading transition
 
   // Reset thinking message index when loading starts
   useEffect(() => {
@@ -179,7 +180,7 @@ export function ActivityBlock({
     if (messageCost) {
       const totalTok = messageCost.inputTokens + messageCost.outputTokens
       parts.push(totalTok > 1000 ? `${(totalTok / 1000).toFixed(1)}k tok` : `${totalTok} tok`)
-      parts.push(`$${messageCost.cost < 0.01 ? messageCost.cost.toFixed(4) : messageCost.cost.toFixed(3)}`)
+      parts.push(`$${messageCost.cost < 0.01 ? messageCost.cost.toFixed(4) : messageCost.cost.toFixed(2)}`)
     }
 
     return (
@@ -215,9 +216,18 @@ export function ActivityBlock({
             <Brain className="w-3 h-3 text-forge-accent thinking-brain" />
           </div>
           <div className="flex-1 min-w-0 flex items-center gap-1.5">
-            <span className="text-[13px] text-forge-text font-medium shimmer-text" key={messageIdx}>
-              {THINKING_MESSAGES[messageIdx]}
-            </span>
+            <AnimatePresence mode="wait">
+              <motion.span
+                key={messageIdx}
+                initial={{ opacity: 0, y: 2 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -2 }}
+                transition={{ duration: 0.2 }}
+                className="text-[13px] text-forge-text font-medium shimmer-text"
+              >
+                {THINKING_MESSAGES[messageIdx]}
+              </motion.span>
+            </AnimatePresence>
             <span className="flex items-center gap-0.5">
               <span className="typing-dot" />
               <span className="typing-dot" />

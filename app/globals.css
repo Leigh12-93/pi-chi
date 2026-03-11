@@ -51,9 +51,13 @@ html.dark ::selection { background: rgba(248, 113, 113, 0.3); }
 ::-webkit-scrollbar-thumb { background: #d1d5db; border-radius: 3px; }
 ::-webkit-scrollbar-thumb:hover { background: #9ca3af; }
 
-/* Wider scrollbars on touch devices */
+/* Touch device improvements */
 @media (pointer: coarse) {
-  ::-webkit-scrollbar { width: 10px; height: 10px; }
+  ::-webkit-scrollbar { width: 14px; height: 14px; }
+  button, [role="button"], a[href], summary { min-height: 44px; min-width: 44px; }
+  button:focus-visible, [role="button"]:focus-visible, a[href]:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-visible {
+    box-shadow: 0 0 0 3px var(--color-forge-ring);
+  }
 }
 
 /* Respect reduced motion */
@@ -87,7 +91,7 @@ button:active:not(:disabled), [role="button"]:active:not(:disabled) {
 }
 
 /* iOS safe area for bottom tab bar */
-.safe-bottom { padding-bottom: env(safe-area-inset-bottom, 0); }
+.safe-bottom { padding-bottom: env(safe-area-inset-bottom, 16px); }
 
 /* Dynamic viewport height — uses dvh where supported, falls back to --app-height (set by JS) or 100vh */
 .h-screen-dynamic { height: 100vh; height: var(--app-height, 100vh); height: 100dvh; }

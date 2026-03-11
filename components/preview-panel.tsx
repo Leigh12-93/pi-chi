@@ -125,7 +125,7 @@ function isProjectReady(files: Record<string, string>): boolean {
   return hasPackageJson && hasAnyComponent
 }
 
-function BuildingPlaceholder({ files }: { files: Record<string, string> }) {
+function BuildingPlaceholder({ files, sandboxUnavailable }: { files: Record<string, string>; sandboxUnavailable?: boolean }) {
   const fileNames = Object.keys(files)
   const hasPackageJson = fileNames.includes('package.json')
   let framework = 'React'
@@ -151,15 +151,32 @@ function BuildingPlaceholder({ files }: { files: Record<string, string> }) {
           </div>
         </div>
         <p className="text-sm font-medium text-forge-text mb-1.5">{framework} project detected</p>
-        <p className="text-xs text-forge-text-dim/60 mb-4">
-          Setting up your preview environment
-        </p>
-        {/* Animated dots */}
-        <div className="flex justify-center gap-1.5">
-          <span className="building-dot" style={{ animationDelay: '0s' }} />
-          <span className="building-dot" style={{ animationDelay: '0.15s' }} />
-          <span className="building-dot" style={{ animationDelay: '0.3s' }} />
-        </div>
+        {sandboxUnavailable ? (
+          <>
+            <p className="text-xs text-amber-400/80 mb-2">
+              Live preview sandbox is not available
+            </p>
+            <p className="text-[11px] text-forge-text-dim/50 mb-4 leading-relaxed">
+              {framework} projects need the sandbox for a full preview.
+              Static HTML preview is shown for non-JSX files.
+            </p>
+            <div className="flex items-center justify-center gap-1.5 text-[10px] text-forge-text-dim/40">
+              <AlertTriangle className="w-3 h-3" />
+              <span>Configure V0_API_KEY in Settings to enable</span>
+            </div>
+          </>
+        ) : (
+          <>
+            <p className="text-xs text-forge-text-dim/60 mb-4">
+              Setting up your preview environment
+            </p>
+            <div className="flex justify-center gap-1.5">
+              <span className="building-dot" style={{ animationDelay: '0s' }} />
+              <span className="building-dot" style={{ animationDelay: '0.15s' }} />
+              <span className="building-dot" style={{ animationDelay: '0.3s' }} />
+            </div>
+          </>
+        )}
       </div>
     </div>
   )
@@ -1328,7 +1345,7 @@ export const PreviewPanel = memo(function PreviewPanel({ files, projectId, onFix
                 )}
                 {sandboxStatus === 'idle' && !showCachedPreview && !previewError && (
                   <motion.div key="idle" initial={{ opacity: 0, scale: 0.8 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.8 }} transition={{ duration: 0.15 }}>
-                    <Globe className="w-3 h-3 shrink-0 text-forge-text-dim" />
+                    <Globe className={cn('w-3 h-3 shrink-0', sandboxUnavailable ? 'text-amber-500' : 'text-forge-text-dim')} />
                   </motion.div>
                 )}
                 {sandboxStatus === 'idle' && !showCachedPreview && previewError && (
@@ -1388,6 +1405,13 @@ export const PreviewPanel = memo(function PreviewPanel({ files, projectId, onFix
               {showCachedPreview && (
                 <span className="shrink-0 px-1.5 py-0.5 text-[9px] font-medium bg-forge-surface text-forge-text-dim rounded">
                   CACHED
+                </span>
+              )}
+
+              {/* Static-only badge when sandbox unavailable */}
+              {sandboxUnavailable && !isSandboxActive && !showCachedPreview && !isSandboxLoading && (
+                <span className="shrink-0 px-1.5 py-0.5 text-[9px] font-medium bg-amber-500/10 text-amber-500 border border-amber-500/20 rounded">
+                  STATIC
                 </span>
               )}
             </div>
@@ -1523,7 +1547,7 @@ export const PreviewPanel = memo(function PreviewPanel({ files, projectId, onFix
           {/* Static preview iframe — always present as base layer, srcDoc updates reactively */}
           {previewHtml === '__JSX_BUILDING_PLACEHOLDER__' && !isSandboxActive && !showCachedPreview ? (
             <div className="absolute inset-0">
-              <BuildingPlaceholder files={files} />
+              <BuildingPlaceholder files={files} sandboxUnavailable={sandboxUnavailable} />
             </div>
           ) : (
             <iframe
