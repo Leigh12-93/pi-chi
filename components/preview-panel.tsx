@@ -376,6 +376,7 @@ export const PreviewPanel = memo(function PreviewPanel({ files, projectId, onFix
   const buildPhaseTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const [captureFlash, setCaptureFlash] = useState(false)
   const [showFullscreenHint, setShowFullscreenHint] = useState(false)
+  const [sandboxLoadFailed, setSandboxLoadFailed] = useState(false) // iframe loaded but content appears broken
 
   // Navigation state
   const [currentPath, setCurrentPath] = useState('/')
@@ -793,6 +794,7 @@ export const PreviewPanel = memo(function PreviewPanel({ files, projectId, onFix
     setSandboxStatus('initializing')
     setSandboxError(null)
     setIframeError(null)
+    setSandboxLoadFailed(false)
     setSandboxUrl(null)
     setBuildPhase('analyzing')
 
@@ -889,6 +891,7 @@ export const PreviewPanel = memo(function PreviewPanel({ files, projectId, onFix
     sandboxAvailableRef.current = null // re-check availability on next attempt
     setSandboxUnavailable(false)
     setIdleOverlayExpired(false)
+    setSandboxLoadFailed(false)
     retryCountRef.current = 0
     addLog('Stopped — will auto-restart on next change', 'system', 'sandbox')
   }, [projectId, addLog])
@@ -1810,7 +1813,7 @@ export const PreviewPanel = memo(function PreviewPanel({ files, projectId, onFix
                   </button>
                 </div>
                 <div className="flex gap-1.5">
-                  {onFixErrors && (
+                  {onFixErrors && !sandboxLoadFailed && (
                     <button
                       onClick={() => {
                         const allErrors = consoleLogs.filter(e => e.level === 'error').map(e => e.message).join('\n')
@@ -1824,6 +1827,17 @@ export const PreviewPanel = memo(function PreviewPanel({ files, projectId, onFix
                       <Zap className="w-3 h-3" />
                       Fix with AI
                     </button>
+                  )}
+                  {sandboxLoadFailed && sandboxUrl && (
+                    <a
+                      href={sandboxUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="flex-1 flex items-center justify-center gap-1.5 px-2.5 py-1.5 bg-forge-accent hover:bg-forge-accent-hover text-white text-[10px] font-medium rounded-lg transition-colors"
+                    >
+                      <ExternalLink className="w-3 h-3" />
+                      Open in new tab
+                    </a>
                   )}
                   <CopyErrorButton text={(() => { const allErrors = consoleLogs.filter(e => e.level === 'error').map(e => e.message).join('\n'); return allErrors || sandboxError || '' })() } />
                   <button
@@ -1966,11 +1980,34 @@ export const PreviewPanel = memo(function PreviewPanel({ files, projectId, onFix
                   'opacity-100',
                 )}
                 title="Live Preview"
-                allow="cross-origin-isolated"
+                referrerPolicy="no-referrer-when-downgrade"
                 onLoad={(e) => {
                   setIframeLoading(false)
                   setIframeError(null)
                   setSandboxError(null)
+                  setSandboxLoadFailed(false)
+
+                  // Detect blocked/error content: if we CAN access contentDocument,
+                  // the iframe loaded a same-origin page (error page, about:blank) instead
+                  // of the cross-origin sandbox URL. Real sandbox is always cross-origin.
+                  try {
+                    const iframe = e.target as HTMLIFrameElement
+                    const doc = iframe.contentDocument
+                    if (doc) {
+                      // Same-origin access succeeded → NOT the sandbox content (blocked/error page)
+                      const body = doc.body?.textContent?.trim() || ''
+                      if (!body || body.length < 10) {
+                        setSandboxLoadFailed(true)
+                        setSandboxStatus('error')
+                        setSandboxError('Preview failed to load — the sandbox URL may be blocked by your browser. Try opening it in a new tab.')
+                        setBuildPhase(null)
+                        return
+                      }
+                    }
+                  } catch {
+                    // SecurityError = cross-origin = expected for real sandbox content (good!)
+                  }
+
                   // Trigger ready phase + crossfade
                   if (buildPhase && buildPhase !== 'ready') {
                     setBuildPhase('ready')
