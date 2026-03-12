@@ -260,7 +260,7 @@ export function BuildingPlaceholder({ files, sandboxUnavailable }: { files: Reco
         <div className="relative inline-flex items-center justify-center mb-6">
           <div className="absolute inset-0 rounded-full bg-forge-accent/10 blur-xl building-placeholder-glow" />
           <div className="sixchi-logo-reveal">
-            <span className="text-4xl font-bold bg-gradient-to-r from-forge-accent to-red-400 bg-clip-text text-transparent select-none">
+            <span className="text-4xl font-bold bg-clip-text text-transparent select-none sixchi-shimmer">
               6-&#x03C7;
             </span>
           </div>

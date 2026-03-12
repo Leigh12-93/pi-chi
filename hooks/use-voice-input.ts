@@ -2,6 +2,28 @@
 
 import { useState, useRef, useCallback, useEffect } from 'react'
 
+/** Web Speech API — not in standard TS lib, vendor-prefixed in some browsers */
+interface SpeechRecognitionInstance extends EventTarget {
+  lang: string
+  continuous: boolean
+  interimResults: boolean
+  maxAlternatives: number
+  start(): void
+  stop(): void
+  abort(): void
+  onstart: (() => void) | null
+  onresult: ((event: { results: SpeechRecognitionResultList }) => void) | null
+  onerror: ((event: { error: string }) => void) | null
+  onend: (() => void) | null
+}
+type SpeechRecognitionCtor = new () => SpeechRecognitionInstance
+declare global {
+  interface Window {
+    SpeechRecognition?: SpeechRecognitionCtor
+    webkitSpeechRecognition?: SpeechRecognitionCtor
+  }
+}
+
 interface UseVoiceInputOptions {
   onTranscript: (text: string) => void
   onError?: (error: string) => void
@@ -12,7 +34,7 @@ export function useVoiceInput({ onTranscript, onError, lang = 'en-AU' }: UseVoic
   const [isListening, setIsListening] = useState(false)
   const [interimText, setInterimText] = useState('')
   const [isSupported, setIsSupported] = useState(false)
-  const recognitionRef = useRef<any>(null)
+  const recognitionRef = useRef<SpeechRecognitionInstance | null>(null)
   const onTranscriptRef = useRef(onTranscript)
   const onErrorRef = useRef(onError)
   onTranscriptRef.current = onTranscript
@@ -52,8 +74,9 @@ export function useVoiceInput({ onTranscript, onError, lang = 'en-AU' }: UseVoic
       try { recognitionRef.current.stop() } catch (e) { console.warn('[forge:voice] Error stopping recognition:', e) }
     }
 
-    const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition
-    const recognition = new SpeechRecognition()
+    const Ctor = window.SpeechRecognition || window.webkitSpeechRecognition
+    if (!Ctor) { onErrorRef.current?.('Speech recognition not available'); return }
+    const recognition = new Ctor()
 
     recognition.lang = lang
     recognition.continuous = true

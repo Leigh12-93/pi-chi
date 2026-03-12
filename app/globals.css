@@ -461,6 +461,28 @@ html.dark [data-sonner-toast] [data-description] {
   100% { opacity: 1; filter: blur(0); transform: scale(1); }
 }
 
+/* Shimmer sweep on the 6-χ logo in preview loader */
+.sixchi-shimmer {
+  background: linear-gradient(
+    90deg,
+    var(--color-forge-accent) 0%,
+    #f87171 35%,
+    #fbbf24 50%,
+    #f87171 65%,
+    var(--color-forge-accent) 100%
+  );
+  background-size: 200% 100%;
+  -webkit-background-clip: text;
+  background-clip: text;
+  animation: sixchiShimmer 2.8s ease-in-out infinite;
+}
+
+@keyframes sixchiShimmer {
+  0% { background-position: 100% 0; }
+  50% { background-position: -100% 0; }
+  100% { background-position: 100% 0; }
+}
+
 /* Orbital rings */
 .sixchi-orbit {
   position: absolute;

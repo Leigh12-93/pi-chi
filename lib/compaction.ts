@@ -32,16 +32,14 @@ function cleanupCache() {
   }
 }
 
-/** Extract text content from a UIMessage (v6 parts or legacy content) */
+/** Extract text content from a UIMessage (v6 parts-based) */
 function getMessageText(msg: UIMessage): string {
-  const m = msg as any
-  if (Array.isArray(m.parts)) {
-    return m.parts
-      .filter((p: any) => p.type === 'text')
-      .map((p: any) => p.text || '')
+  if (Array.isArray(msg.parts)) {
+    return msg.parts
+      .filter((p): p is Extract<typeof p, { type: 'text' }> => p.type === 'text')
+      .map(p => p.text)
       .join('')
   }
-  if (typeof m.content === 'string') return m.content
   return ''
 }
 

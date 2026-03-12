@@ -1133,10 +1133,10 @@ export const PreviewPanel = memo(function PreviewPanel({ files, projectId, onFix
               )}
 
               {/* Sync badge */}
-  {isSyncing && isSandboxActive && (
-  <span className="shrink-0 inline-flex items-center gap-1 px-2 py-0.5 text-[9px] font-medium bg-blue-500/10 border border-blue-200 dark:border-blue-800 text-blue-600 dark:text-blue-400 rounded-full">
-  <span className="w-1 h-1 rounded-full bg-blue-500 animate-pulse-dot" />
-  SYNCING
+              {isSyncing && isSandboxActive && (
+                <span className="shrink-0 inline-flex items-center gap-1 px-2 py-0.5 text-[9px] font-medium bg-blue-500/10 border border-blue-200 dark:border-blue-800 text-blue-600 dark:text-blue-400 rounded-full">
+                  <span className="w-1 h-1 rounded-full bg-blue-500 animate-pulse-dot" />
+                  SYNCING
                 </span>
               )}
 
@@ -1351,7 +1351,12 @@ export const PreviewPanel = memo(function PreviewPanel({ files, projectId, onFix
               <div className="sixchi-logo-container">
                 <div className={cn('sixchi-logo-glow', buildPhase === 'ready' && 'sixchi-glow-success')} />
                 <div className={cn('sixchi-logo-reveal', buildPhase === 'ready' && 'sixchi-logo-ready')}>
-                  <span className="text-5xl sm:text-6xl font-bold bg-gradient-to-r from-forge-accent via-red-400 to-red-500 bg-clip-text text-transparent select-none">
+                  <span className={cn(
+                    'text-5xl sm:text-6xl font-bold bg-clip-text text-transparent select-none',
+                    buildPhase === 'ready'
+                      ? 'bg-gradient-to-r from-emerald-400 to-emerald-600'
+                      : 'sixchi-shimmer',
+                  )}>
                     6-&#x03C7;
                   </span>
                 </div>
@@ -1711,7 +1716,7 @@ export const PreviewPanel = memo(function PreviewPanel({ files, projectId, onFix
                 </div>
               )}
               <iframe
-                id={(!wcPreviewUrl || wcIframeReady) ? undefined : 'forge-preview-iframe'}
+                id="forge-preview-iframe"
                 key={`sandbox-${refreshKey}`}
                 src={sandboxUrl}
                 className={cn(
@@ -1784,6 +1789,7 @@ export const PreviewPanel = memo(function PreviewPanel({ files, projectId, onFix
                 }}
                 onError={() => {
                   setIframeError('Sandbox preview failed to connect — the dev server may have crashed')
+                  setIframeLoading(false)
                   // Fall back: set sandbox to error so the error card with "Fix with AI" shows
                   if (sandboxStatus === 'running') {
                     setSandboxStatus('error')
