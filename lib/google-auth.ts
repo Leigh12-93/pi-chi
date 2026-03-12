@@ -54,10 +54,10 @@ export async function getGoogleCredentials(
         )
         const clientId = row.encrypted_google_client_id
           ? await decryptToken(row.encrypted_google_client_id.startsWith('v1:') ? row.encrypted_google_client_id.slice(3) : row.encrypted_google_client_id)
-          : process.env.GOOGLE_CLIENT_ID || ''
+          : (process.env.GOOGLE_CLIENT_ID || '').trim()
         const clientSecret = row.encrypted_google_client_secret
           ? await decryptToken(row.encrypted_google_client_secret.startsWith('v1:') ? row.encrypted_google_client_secret.slice(3) : row.encrypted_google_client_secret)
-          : process.env.GOOGLE_CLIENT_SECRET || ''
+          : (process.env.GOOGLE_CLIENT_SECRET || '').trim()
 
         const tokenRes = await fetch('https://oauth2.googleapis.com/token', {
           method: 'POST',

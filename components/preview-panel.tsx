@@ -202,6 +202,11 @@ export const PreviewPanel = memo(function PreviewPanel({ files, projectId, onFix
   useEffect(() => {
     missingImportsFedRef.current = false
     setMissingImports([])
+    setConsoleLogs([])
+    setPreviewError(null)
+    setIframeError(null)
+    setErrorPopupDismissed(false)
+    setSandboxLoadFailed(false)
   }, [projectId])
 
   const addLog = useCallback((msg: string, level: ConsoleEntry['level'] = 'system', source: ConsoleEntry['source'] = 'forge') => {
@@ -708,10 +713,12 @@ export const PreviewPanel = memo(function PreviewPanel({ files, projectId, onFix
         const data = await res.json()
         lastSyncedFilesRef.current = filesHash
         // Update sandbox URL if sync returned a new one (e.g. from re-init)
+        // NOTE: Do NOT set iframeLoading here — it would hang forever because
+        // buildPhase is null during sync, and the stall timeout only fires
+        // when buildPhase is active. The iframe onLoad will handle transition.
         if (data.demoUrl && data.demoUrl !== sandboxUrlRef.current) {
           setSandboxUrl(data.demoUrl)
           sandboxUrlRef.current = data.demoUrl
-          setIframeLoading(true)
           addLog('Preview URL updated', 'info', 'sandbox')
         }
         if (data.synced > 0) {
@@ -743,6 +750,7 @@ export const PreviewPanel = memo(function PreviewPanel({ files, projectId, onFix
       if (idleOverlayTimerRef.current) clearTimeout(idleOverlayTimerRef.current)
       if (errorFeedTimerRef.current) clearTimeout(errorFeedTimerRef.current)
       if (wcIframeTimeoutRef.current) clearTimeout(wcIframeTimeoutRef.current)
+      if (iframeLoadingTimeoutRef.current) clearTimeout(iframeLoadingTimeoutRef.current)
       if (projectId && (sandboxStatus === 'running' || startingRef.current)) {
         fetch('/api/sandbox', {
           method: 'DELETE',
@@ -768,6 +776,22 @@ export const PreviewPanel = memo(function PreviewPanel({ files, projectId, onFix
       if (buildPhaseTimeoutRef.current) clearTimeout(buildPhaseTimeoutRef.current)
     }
   }, [buildPhase, addLog])
+
+  // Independent safety: if iframeLoading is stuck for 15s without buildPhase, clear it.
+  // This catches edge cases where iframeLoading is set without a corresponding buildPhase
+  // (e.g., sync flow, re-renders, or timing races).
+  const iframeLoadingTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  useEffect(() => {
+    if (iframeLoadingTimeoutRef.current) clearTimeout(iframeLoadingTimeoutRef.current)
+    if (iframeLoading && !buildPhase) {
+      iframeLoadingTimeoutRef.current = setTimeout(() => {
+        setIframeLoading(false)
+      }, 15_000)
+    }
+    return () => {
+      if (iframeLoadingTimeoutRef.current) clearTimeout(iframeLoadingTimeoutRef.current)
+    }
+  }, [iframeLoading, buildPhase])
 
   // Listen for console/error/navigation messages from preview iframe
   useEffect(() => {
@@ -1736,7 +1760,8 @@ export const PreviewPanel = memo(function PreviewPanel({ files, projectId, onFix
                   'opacity-100',
                 )}
                 title="Live Preview"
-                referrerPolicy="no-referrer-when-downgrade"
+                allow="cross-origin-isolated; clipboard-read; clipboard-write"
+                referrerPolicy="strict-origin-when-cross-origin"
                 onLoad={(e) => {
                   setIframeLoading(false)
                   setIframeError(null)

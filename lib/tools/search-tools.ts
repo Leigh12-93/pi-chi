@@ -13,7 +13,7 @@ export function createSearchTools(_ctx: ToolContext) {
       execute: async ({ query, count }) => {
         const numResults = Math.min(count || 5, 10)
         try {
-          const braveKey = process.env.BRAVE_SEARCH_API_KEY
+          const braveKey = (process.env.BRAVE_SEARCH_API_KEY || '').trim()
           if (braveKey) {
             const url = `https://api.search.brave.com/res/v1/web/search?q=${encodeURIComponent(query)}&count=${numResults}`
             const res = await fetch(url, {
@@ -31,7 +31,7 @@ export function createSearchTools(_ctx: ToolContext) {
             }
           }
 
-          const serperKey = process.env.SERPER_API_KEY
+          const serperKey = (process.env.SERPER_API_KEY || '').trim()
           if (serperKey) {
             const res = await fetch('https://google.serper.dev/search', {
               method: 'POST',

@@ -148,7 +148,7 @@ export function createProjectTools(ctx: ToolContext) {
         size: z.enum(['raw', 'full', 'regular', 'small', 'thumb']).default('regular').describe('Image size variant'),
       }),
       execute: async ({ query, orientation, size }) => {
-        const accessKey = clientEnvVars.UNSPLASH_ACCESS_KEY || process.env.UNSPLASH_ACCESS_KEY
+        const accessKey = (clientEnvVars.UNSPLASH_ACCESS_KEY || process.env.UNSPLASH_ACCESS_KEY || '').trim()
         if (!accessKey) {
           const sizeMap: Record<string, string> = { raw: '1600x900', full: '1200x800', regular: '800x600', small: '400x300', thumb: '150x150' }
           const dims = sizeMap[size] || '800x600'
