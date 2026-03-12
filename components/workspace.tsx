@@ -100,10 +100,21 @@ export function Workspace(props: WorkspaceProps) {
     files,
     enabled: state.hasPackageJson && Object.keys(files).length > 0,
     onTerminalOutput: (data) => {
+      // Strip ANSI escape codes and filter noise
+      const clean = data
+        .replace(/\x1b\[[0-9;]*[a-zA-Z]/g, '')  // ANSI sequences
+        .replace(/\x1b\[\?[0-9]*[a-z]/g, '')     // Private mode sequences
+        .replace(/\r/g, '')                        // Carriage returns
+        .trim()
+      // Skip empty lines, lone spinner chars, cursor movements
+      if (!clean || /^[|/\\-]$/.test(clean)) return
+      const type = /error|ERR!|ENOENT|EACCES|failed/i.test(clean) ? 'error' as const
+        : /warn|WARN/i.test(clean) ? 'warn' as const
+        : 'info' as const
       state.setConsoleEntries(prev => [...prev.slice(-200), {
         id: `wc-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
-        type: 'info' as const,
-        message: data,
+        type,
+        message: clean,
         timestamp: Date.now(),
       }])
     },
@@ -111,10 +122,12 @@ export function Workspace(props: WorkspaceProps) {
 
   // Forward preview console entries (v0 sandbox logs) to workspace ConsolePanel
   const handlePreviewConsoleEntry = useCallback((entry: { type: 'info' | 'error' | 'warn' | 'success'; message: string }) => {
+    const clean = entry.message.replace(/\x1b\[[0-9;]*[a-zA-Z]/g, '').trim()
+    if (!clean || /^[|/\\-]$/.test(clean)) return
     state.setConsoleEntries(prev => [...prev.slice(-200), {
       id: `preview-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
       type: entry.type,
-      message: entry.message,
+      message: clean,
       timestamp: Date.now(),
     }])
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
