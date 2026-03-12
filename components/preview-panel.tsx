@@ -108,6 +108,7 @@ export const PreviewPanel = memo(function PreviewPanel({ files, projectId, onFix
   const [sandboxLoadFailed, setSandboxLoadFailed] = useState(false) // iframe loaded but content appears broken
   const sandboxReadyAfterRef = useRef<number>(0) // earliest time to hide loading overlay
   const sandboxReadyTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null) // deferred ready transition
+  const buildPhaseRef = useRef<BuildPhase>(null) // stable ref for timeout closures
 
   // Navigation state
   const [currentPath, setCurrentPath] = useState('/')
@@ -117,6 +118,9 @@ export const PreviewPanel = memo(function PreviewPanel({ files, projectId, onFix
   const lastAutoFeedRef = useRef(0) // global cooldown for error auto-feed
   const consoleLogsRef = useRef(consoleLogs) // stable ref for message listener
   const onFixErrorsRef = useRef(onFixErrors) // stable ref to avoid stale closure in setTimeout
+
+  // Keep buildPhaseRef in sync for use in timeout closures (avoids stale closures)
+  useEffect(() => { buildPhaseRef.current = buildPhase }, [buildPhase])
 
   // Memoized file hash — avoids O(n) hashing on every render/effect
   const filesHash = useMemo(() => hashFileMapDeep(files), [files])
@@ -571,20 +575,9 @@ export const PreviewPanel = memo(function PreviewPanel({ files, projectId, onFix
       sandboxUrlRef.current = data.demoUrl
       setIframeLoading(true) // will be cleared by iframe onLoad
 
-      // Min build time — sandbox needs ~15s for npm install + dev server start.
-      // The first iframe onLoad fires for v0's loading page, not the actual app.
-      sandboxReadyAfterRef.current = Date.now() + 15_000
-
-      // Max build timeout — if build hasn't produced a working preview after 60s,
-      // drop the loading overlay so user can see what's happening or retry
-      if (buildPhaseTimeoutRef.current) clearTimeout(buildPhaseTimeoutRef.current)
-      buildPhaseTimeoutRef.current = setTimeout(() => {
-        if (buildPhase && buildPhase !== 'ready') {
-          setBuildPhase(null)
-          setIframeLoading(false)
-          addLog('Build taking longer than expected — showing preview as-is', 'warn', 'sandbox')
-        }
-      }, 60_000)
+      // Min build time — brief pause so the first iframe onLoad (v0's loading page)
+      // doesn't prematurely dismiss the overlay before the real app renders.
+      sandboxReadyAfterRef.current = Date.now() + 3_000
 
       // Phase: building -> starting (after brief build period)
       setTimeout(() => setBuildPhase('starting'), 800)
@@ -739,18 +732,16 @@ export const PreviewPanel = memo(function PreviewPanel({ files, projectId, onFix
     }
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Timeout: catch stalled "starting" phase — if iframe never loads within 90s, show warning
-  // Next.js cold builds inside WebContainer can take 45-60s, so 30s was too aggressive.
-  // Don't kill the sandbox on timeout — keep iframe mounted so it can still load late.
+  // Timeout: catch stalled build phases — if iframe never loads within 20s, drop the overlay.
+  // v0 sandbox typically loads in <10s. Keep iframe mounted so it can still load late.
   useEffect(() => {
     if (buildPhaseTimeoutRef.current) clearTimeout(buildPhaseTimeoutRef.current)
-    if (buildPhase === 'starting') {
+    if (buildPhase && buildPhase !== 'ready') {
       buildPhaseTimeoutRef.current = setTimeout(() => {
-        // Still stuck on 'starting' — iframe hasn't loaded yet, but keep sandbox running
         setBuildPhase(null)
         setIframeLoading(false)
-        addLog('Preview still loading after 90s — the project may have build errors or heavy dependencies', 'warn', 'sandbox')
-      }, 90000)
+        addLog('Preview loading slowly — showing as-is', 'warn', 'sandbox')
+      }, 20_000)
     }
     return () => {
       if (buildPhaseTimeoutRef.current) clearTimeout(buildPhaseTimeoutRef.current)
@@ -1751,11 +1742,10 @@ export const PreviewPanel = memo(function PreviewPanel({ files, projectId, onFix
                     // SecurityError = cross-origin = expected for real sandbox content
                   }
 
-                  // Transition to ready — but respect minimum build time.
-                  // The first onLoad fires for v0's loading page while npm install runs.
-                  // The real app loads ~15-30s later. Keep the overlay until min time passes.
+                  // Transition to ready — uses ref to avoid stale closure when deferred.
                   const transitionToReady = () => {
-                    if (buildPhase && buildPhase !== 'ready') {
+                    const phase = buildPhaseRef.current
+                    if (phase && phase !== 'ready') {
                       setBuildPhase('ready')
                       setIsCrossfading(true)
                       crossfadeTimerRef.current = setTimeout(() => {

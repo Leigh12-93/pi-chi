@@ -233,7 +233,7 @@ html.dark [data-sonner-toast] [data-description] {
   100% { background-position: 200% 0; }
 }
 .animate-shimmer {
-  background: linear-gradient(90deg, transparent 25%, rgba(220,38,38,0.08) 50%, transparent 75%);
+  background: linear-gradient(90deg, transparent 25%, rgba(192,192,192,0.12) 50%, transparent 75%);
   background-size: 200% 100%;
   animation: shimmer 2s infinite;
 }
@@ -465,11 +465,11 @@ html.dark [data-sonner-toast] [data-description] {
 .sixchi-shimmer {
   background: linear-gradient(
     90deg,
-    var(--color-forge-accent) 0%,
-    #f87171 35%,
-    #fbbf24 50%,
-    #f87171 65%,
-    var(--color-forge-accent) 100%
+    #9ca3af 0%,
+    #d1d5db 35%,
+    #f3f4f6 50%,
+    #d1d5db 65%,
+    #9ca3af 100%
   );
   background-size: 200% 100%;
   -webkit-background-clip: text;
