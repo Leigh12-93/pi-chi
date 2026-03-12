@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useCallback } from 'react'
-import { Database, Play, Table, Loader2, AlertCircle, ChevronRight, Columns } from 'lucide-react'
+import { Database, Play, Table, Loader2, AlertCircle, Columns } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
 const FORGE_TABLES = [

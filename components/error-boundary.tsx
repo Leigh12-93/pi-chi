@@ -1,6 +1,6 @@
 'use client'
 
-import React from 'react'
+import React, { Component, type ReactNode } from 'react'
 import { AlertTriangle, RefreshCw, Copy } from 'lucide-react'
 
 interface ErrorBoundaryState {
@@ -77,6 +77,51 @@ export class ErrorBoundary extends React.Component<
       )
     }
 
+    return this.props.children
+  }
+}
+
+interface PanelProps {
+  children: ReactNode
+  name?: string
+}
+
+interface PanelState {
+  hasError: boolean
+  error: Error | null
+}
+
+export class PanelErrorBoundary extends Component<PanelProps, PanelState> {
+  state: PanelState = { hasError: false, error: null }
+
+  static getDerivedStateFromError(error: Error): PanelState {
+    return { hasError: true, error }
+  }
+
+  componentDidCatch(error: Error, info: React.ErrorInfo) {
+    console.error(`[ErrorBoundary:${this.props.name || 'unknown'}]`, error, info.componentStack)
+  }
+
+  render() {
+    if (this.state.hasError) {
+      return (
+        <div className="flex flex-col items-center justify-center h-full gap-3 p-8 text-center">
+          <div className="w-10 h-10 rounded-xl bg-forge-surface flex items-center justify-center">
+            <AlertTriangle className="w-5 h-5 text-forge-warning" />
+          </div>
+          <div>
+            <p className="text-sm font-medium text-forge-text">{this.props.name || 'Panel'} failed to render</p>
+            <p className="text-xs text-forge-text-dim mt-1">Try refreshing the page</p>
+          </div>
+          <button
+            onClick={() => this.setState({ hasError: false, error: null })}
+            className="px-3 py-1.5 text-xs font-medium text-forge-accent bg-forge-surface hover:bg-forge-surface-hover rounded-lg transition-colors"
+          >
+            Try again
+          </button>
+        </div>
+      )
+    }
     return this.props.children
   }
 }

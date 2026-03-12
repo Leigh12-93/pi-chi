@@ -99,8 +99,8 @@ export async function GET(req: Request) {
     response.cookies.delete('sb_oauth_state')
     response.cookies.delete('sb_oauth_verifier')
     return response
-  } catch (err: any) {
-    console.error('[supabase-oauth] Error:', err)
+  } catch (err) {
+    console.error('[supabase-oauth] Error:', err instanceof Error ? err.message : err)
     return NextResponse.redirect(`${BASE_URL}?supabase_error=exchange_error`)
   }
 }

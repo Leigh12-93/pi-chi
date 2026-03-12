@@ -2,10 +2,9 @@
 
 import { useState, useRef, useEffect, memo } from 'react'
 import {
-  Loader2, Check, Trash2,
+  Check, Trash2,
   Sparkles, ArrowUp, StopCircle,
   AlertTriangle, ChevronDown, Clock,
-  Globe, FileText, FolderPlus,
   Paperclip, ImageIcon, X, Mic,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
@@ -132,7 +131,7 @@ export const ChatPanel = memo(function ChatPanel({ onLoadingChange, onSessionCos
                 <Sparkles className="w-7 h-7 text-forge-accent/70" />
               </div>
               <h2 className="text-xl font-semibold text-forge-text mb-1.5 text-balance text-center tracking-tight">What shall we build?</h2>
-              <p className="text-[13px] text-forge-text-dim text-center mb-8 text-pretty">Describe your idea and Six-Chi will build it</p>
+              <p className="text-[13px] text-forge-text-dim text-center mb-8 text-pretty">Describe what you want to create, analyze, or improve</p>
               <div className="grid grid-cols-2 gap-2.5 w-full max-w-sm">
                 {QUICK_ACTIONS.map((action, i) => (
                   <motion.button
@@ -199,7 +198,7 @@ export const ChatPanel = memo(function ChatPanel({ onLoadingChange, onSessionCos
               className="px-4 py-4 space-y-4" role="log" aria-label="Chat messages" aria-live="polite"
             >
             {chat.messages.map((message, idx) => (
-              <div key={message.id} className={idx === chat.messages.length - 1 ? 'v0-message-in' : undefined}>
+              <div key={message.id} className={idx === chat.messages.length - 1 ? 'message-enter' : undefined}>
                 <MessageItem
                   message={message}
                   copiedId={chat.copiedId}
@@ -230,6 +229,26 @@ export const ChatPanel = memo(function ChatPanel({ onLoadingChange, onSessionCos
                   onApprove={() => chat.handleApprove(chat.pendingApproval!.key)}
                   onDeny={() => chat.handleDeny(chat.pendingApproval!.key)}
                 />
+              )}
+            </AnimatePresence>
+
+            {/* Streaming skeleton — shows while waiting for first AI token */}
+            <AnimatePresence>
+              {chat.isLoading && chat.status === 'submitted' && chat.messages.length > 0 && chat.messages[chat.messages.length - 1].role === 'user' && (
+                <motion.div
+                  key="streaming-skeleton"
+                  initial={{ opacity: 0, y: 6 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: -4 }}
+                  transition={{ duration: 0.2, ease: [0.16, 1, 0.3, 1] }}
+                  className="flex justify-start"
+                >
+                  <div className="rounded-2xl p-3.5 space-y-2.5 bg-forge-surface w-3/4 max-w-lg">
+                    <div className="h-3 rounded animate-skeleton w-full" />
+                    <div className="h-3 rounded animate-skeleton w-4/5" style={{ animationDelay: '80ms' }} />
+                    <div className="h-3 rounded animate-skeleton w-3/5" style={{ animationDelay: '160ms' }} />
+                  </div>
+                </motion.div>
               )}
             </AnimatePresence>
 
@@ -501,7 +520,7 @@ export const ChatPanel = memo(function ChatPanel({ onLoadingChange, onSessionCos
                           transition={{ duration: 0.15, ease: [0.16, 1, 0.3, 1] }}
                           className="absolute left-0 bottom-full mb-1 z-50 w-44 bg-forge-bg/95 backdrop-blur-lg border border-forge-border rounded-xl shadow-lg overflow-hidden"
                         >
-                          {MODEL_OPTIONS.map((model, modelIdx) => (
+                          {MODEL_OPTIONS.map((model) => (
                             <button
                               key={model.id}
                               onClick={() => { chat.setSelectedModel(model.id); chat.setShowModelPicker(false) }}
@@ -562,7 +581,7 @@ export const ChatPanel = memo(function ChatPanel({ onLoadingChange, onSessionCos
                     animate={{ scale: 1, opacity: 1 }}
                     exit={{ scale: 0.9, opacity: 0 }}
                     transition={{ duration: 0.12 }}
-                    className="p-2 sm:p-1.5 rounded-lg bg-forge-accent hover:bg-forge-accent-hover text-white shadow-sm disabled:opacity-40 disabled:cursor-not-allowed transition-opacity"
+                    className="p-2 sm:p-1.5 rounded-lg bg-forge-accent hover:bg-forge-accent-hover text-white shadow-sm disabled:opacity-40 disabled:cursor-not-allowed focus-visible:ring-2 focus-visible:ring-forge-ring transition-opacity"
                     title="Send message"
                     aria-label="Send message"
                   >

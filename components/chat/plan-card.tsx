@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { ClipboardList, ChevronRight, ChevronDown, Plus, Pencil, Trash2, AlertCircle, HelpCircle, CheckCircle } from 'lucide-react'
+import { ClipboardList, ChevronDown, Plus, Pencil, Trash2, AlertCircle, HelpCircle, CheckCircle } from 'lucide-react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { cn } from '@/lib/utils'
 

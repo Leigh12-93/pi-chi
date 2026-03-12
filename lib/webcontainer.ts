@@ -163,8 +163,8 @@ export async function mountAndStart(
     })
 
     return { serverProcess }
-  } catch (err: any) {
-    onError?.(err.message || 'WebContainer boot failed')
+  } catch (err) {
+    onError?.(err instanceof Error ? err.message : 'WebContainer boot failed')
     onStatusChange?.('error')
     return { serverProcess: null }
   }

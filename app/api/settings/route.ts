@@ -52,7 +52,9 @@ export async function GET() {
     try {
       const sbUrl = await decryptToken(row.encrypted_supabase_url.replace(/^v1:/, ''))
       supabaseProjectRef = sbUrl.match(/https:\/\/([^.]+)\.supabase/)?.[1] || null
-    } catch {}
+    } catch (err) {
+      console.error('[settings] Supabase URL decryption failed:', err instanceof Error ? err.message : err)
+    }
   }
 
   // Extract service account display info if available
@@ -64,10 +66,12 @@ export async function GET() {
       const sa = JSON.parse(saJson)
       googleServiceAccountEmail = sa.client_email || null
       googleServiceAccountProject = sa.project_id || null
-    } catch {}
+    } catch (err) {
+      console.error('[settings] Service account decryption failed:', err instanceof Error ? err.message : err)
+    }
   }
 
-  return NextResponse.json({
+  const response = NextResponse.json({
     hasApiKey: !!row.encrypted_api_key,
     apiKeyValidatedAt: row.api_key_validated_at,
     hasVercelToken: !!row.encrypted_vercel_token,
@@ -91,6 +95,8 @@ export async function GET() {
     hasStripeWebhookSecret: !!row.encrypted_stripe_webhook_secret,
     hasAussieSmsApiKey: !!row.encrypted_aussiesms_api_key,
   })
+  response.headers.set('Cache-Control', 'no-store, private')
+  return response
 }
 
 /** PUT /api/settings — save API key, Vercel token, or preferences */
@@ -134,9 +140,10 @@ export async function PUT(req: Request) {
             error: `API key validation failed: ${(err as any).error?.message || `HTTP ${res.status}`}`,
           }, { status: 400 })
         }
-      } catch (err: any) {
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : String(err)
         return NextResponse.json({
-          error: `API key validation failed: ${err.message || 'Network error'}`,
+          error: `API key validation failed: ${msg || 'Network error'}`,
         }, { status: 400 })
       }
     }
@@ -164,9 +171,10 @@ export async function PUT(req: Request) {
             error: `Vercel token validation failed: ${(err as any).error?.message || `HTTP ${res.status}`}`,
           }, { status: 400 })
         }
-      } catch (err: any) {
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : String(err)
         return NextResponse.json({
-          error: `Vercel token validation failed: ${err.message || 'Network error'}`,
+          error: `Vercel token validation failed: ${msg || 'Network error'}`,
         }, { status: 400 })
       }
     }
@@ -202,9 +210,10 @@ export async function PUT(req: Request) {
             error: `Supabase validation failed: HTTP ${res.status}`,
           }, { status: 400 })
         }
-      } catch (err: any) {
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : String(err)
         return NextResponse.json({
-          error: `Supabase validation failed: ${err.message || 'Connection refused'}`,
+          error: `Supabase validation failed: ${msg || 'Connection refused'}`,
         }, { status: 400 })
       }
     }
@@ -226,9 +235,10 @@ export async function PUT(req: Request) {
           error: `Supabase access token validation failed: HTTP ${res.status}`,
         }, { status: 400 })
       }
-    } catch (err: any) {
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err)
       return NextResponse.json({
-        error: `Supabase access token validation failed: ${err.message || 'Network error'}`,
+        error: `Supabase access token validation failed: ${msg || 'Network error'}`,
       }, { status: 400 })
     }
     updates.encrypted_supabase_access_token = `v1:${await encryptToken(trimmed)}`
@@ -287,7 +297,8 @@ export async function PUT(req: Request) {
       if (!sa.client_email) {
         return NextResponse.json({ error: 'Invalid service account: missing client_email' }, { status: 400 })
       }
-    } catch {
+    } catch (err) {
+      console.error('[settings] Service account JSON parse failed:', err instanceof Error ? err.message : err)
       return NextResponse.json({ error: 'Invalid JSON in service account' }, { status: 400 })
     }
 
@@ -341,9 +352,10 @@ export async function PUT(req: Request) {
           return NextResponse.json({ error: 'Invalid AussieSMS API key' }, { status: 400 })
         }
         // 400 = valid key but missing params (expected), 200 = also fine
-      } catch (err: any) {
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : String(err)
         return NextResponse.json({
-          error: `AussieSMS key validation failed: ${err.message || 'Network error'}`,
+          error: `AussieSMS key validation failed: ${msg || 'Network error'}`,
         }, { status: 400 })
       }
     }

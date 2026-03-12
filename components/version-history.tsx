@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { X, History, Clock, ChevronRight, FileText, Diff, AlertTriangle } from 'lucide-react'
+import { X, History, Clock, FileText, Diff, AlertTriangle } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
 export interface FileVersion {

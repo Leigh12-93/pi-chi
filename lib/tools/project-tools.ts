@@ -1,6 +1,5 @@
 import { tool } from 'ai'
 import { z } from 'zod'
-import { VirtualFS } from '@/lib/virtual-fs'
 import { TEMPLATES, type TemplateName } from '@/lib/templates'
 import type { ToolContext } from './types'
 
@@ -72,7 +71,7 @@ export function createProjectTools(ctx: ToolContext) {
       }),
       execute: async ({ name, type, variants }) => {
         const variantList = variants || ['default']
-        const kebab = name.replace(/([A-Z])/g, (m, c, i) => (i > 0 ? '-' : '') + c.toLowerCase())
+        const kebab = name.replace(/([A-Z])/g, (_m, c, i) => (i > 0 ? '-' : '') + c.toLowerCase())
         const path = `components/ui/${kebab}.tsx`
 
         const variantStyles = variantList.map(v => {

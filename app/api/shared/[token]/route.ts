@@ -1,8 +1,15 @@
 import { NextResponse } from 'next/server'
 import { supabaseFetch } from '@/lib/supabase-fetch'
+import { shareLimiter } from '@/lib/rate-limit'
 
 /** GET /api/shared/[token] — public read-only project view */
-export async function GET(req: Request, { params }: { params: Promise<{ token: string }> }) {
+export async function GET(_req: Request, { params }: { params: Promise<{ token: string }> }) {
+  const ip = _req.headers.get('x-forwarded-for')?.split(',')[0]?.trim() || 'unknown'
+  const limit = shareLimiter(ip)
+  if (!limit.ok) {
+    return NextResponse.json({ error: 'Too many requests' }, { status: 429 })
+  }
+
   const { token } = await params
 
   // Find project by share token

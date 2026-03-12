@@ -4,7 +4,7 @@ import type { ToolContext } from './types'
 
 /** Terminal tools that execute commands via WebContainer (client-side).
  *  These tools return instructions that the client interprets to run on the WebContainer instance. */
-export function createTerminalTools(ctx: ToolContext) {
+export function createTerminalTools(_ctx: ToolContext) {
   return {
     run_command: tool({
       description: 'Execute a shell command in the WebContainer terminal. Returns stdout/stderr. Use for: running scripts, checking versions, listing files, any CLI operation. Commands run in the project root directory.',

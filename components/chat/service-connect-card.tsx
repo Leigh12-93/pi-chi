@@ -2,7 +2,7 @@
 
 import { useState } from 'react'
 import {
-  CreditCard, Database, Key, ExternalLink, Loader2, CheckCircle2,
+  Key, ExternalLink, Loader2, CheckCircle2,
   Eye, EyeOff, AlertCircle,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'

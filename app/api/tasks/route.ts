@@ -10,16 +10,12 @@ const VERCEL_TEAM = LIB_VERCEL_TEAM
 const GITHUB_TOKEN = LIB_GITHUB_TOKEN
 const ANTHROPIC_API_KEY = (process.env.ANTHROPIC_API_KEY || '').trim()
 
-// ─── Progress helper ───────────────────────────────────────────
-
 async function updateProgress(taskId: string, progress: string) {
   await supabaseFetch(`/forge_tasks?id=eq.${taskId}`, {
     method: 'PATCH',
     body: JSON.stringify({ progress }),
   })
 }
-
-// ─── Auto-fix: classify build errors ───────────────────────────
 
 interface ErrorClassification {
   fixable: boolean
@@ -118,8 +114,6 @@ function classifyBuildError(errorText: string, files: Record<string, string>): E
     errorSummary: lines.slice(0, 15).join('\n'),
   }
 }
-
-// ─── Auto-fix: call Haiku for surgical fix ─────────────────────
 
 interface AutoFixResult {
   fixed: boolean
@@ -269,8 +263,6 @@ Respond with ONLY valid JSON (no markdown, no explanation outside JSON):
   }
 }
 
-// ─── Deploy: submit to Vercel and poll ─────────────────────────
-
 interface DeployResult {
   url: string
   id: string
@@ -284,7 +276,7 @@ interface DeployResult {
 }
 
 async function submitAndPollDeploy(
-  taskId: string,
+  _taskId: string,
   files: Record<string, string>,
   projectName: string,
   framework: string | undefined,
@@ -436,8 +428,6 @@ async function submitAndPollDeploy(
     result: { url: deployUrl, id: deployId, readyState: state, framework: fw, fileCount, duration },
   }
 }
-
-// ─── Main deploy executor with auto-fix loop ──────────────────
 
 const MAX_AUTO_FIX_ATTEMPTS = 2
 
@@ -593,8 +583,6 @@ async function executeDeploy(taskId: string, params: { projectName: string; file
   throw new Error('Deployment failed after auto-fix attempts')
 }
 
-// ─── GitHub executors ──────────────────────────────────────────
-
 async function executeGithubCreate(taskId: string, params: {
   repoName: string; isPublic?: boolean; description?: string; files: Record<string, string>; githubToken?: string
 }) {
@@ -743,8 +731,6 @@ async function executeGithubPush(taskId: string, params: {
   }
 }
 
-// ─── POST: Start a new background task ────────────────────────
-
 export async function POST(req: Request) {
   const session = await getSession()
   if (!session?.user) {
@@ -826,8 +812,6 @@ export async function POST(req: Request) {
 
   return NextResponse.json({ taskId, status: 'running' })
 }
-
-// ─── GET: List active/recent tasks for a project ──────────────
 
 export async function GET(req: Request) {
   const session = await getSession()

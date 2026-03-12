@@ -3,11 +3,17 @@
 import { useState, useRef, useEffect, useCallback, useMemo } from 'react'
 import { useChat } from '@ai-sdk/react'
 import { DefaultChatTransport } from 'ai'
-import type { FileUIPart } from 'ai'
 import { toast } from 'sonner'
-import { extractFileUpdates, type ToolInvocation } from '@/lib/chat/tool-utils'
+import { extractFileUpdates, getMessageText, type ToolInvocation } from '@/lib/chat/tool-utils'
 import { clearMarkdownCache } from '@/lib/chat/markdown'
-import { MODEL_OPTIONS, estimateCost, DESTRUCTIVE_TOOLS, DANGEROUS_COMMAND_PATTERNS } from '@/lib/chat/constants'
+import { MODEL_OPTIONS, DESTRUCTIVE_TOOLS, DANGEROUS_COMMAND_PATTERNS } from '@/lib/chat/constants'
+import { useChatMetrics } from './use-chat-metrics'
+import { useAttachments } from './use-attachments'
+import { useAutoScroll } from './use-auto-scroll'
+import { useKeyboardShortcuts } from './use-keyboard-shortcuts'
+import { useChatHistory } from './use-chat-history'
+import { usePreviewEvents } from './use-preview-events'
+import { useContextWarnings } from './use-context-warnings'
 
 export interface UseForgeChatProps {
   projectName: string
@@ -23,39 +29,6 @@ export interface UseForgeChatProps {
   activeFile?: string | null
 }
 
-/** Extract text content from a v6 UIMessage */
-function getMessageText(message: any): string {
-  // v6 parts-based format
-  if (Array.isArray(message.parts)) {
-    return message.parts
-      .filter((p: any) => p.type === 'text')
-      .map((p: any) => p.text || '')
-      .join('')
-  }
-  // Legacy v4 format fallback
-  if (typeof message.content === 'string') return message.content
-  return ''
-}
-
-/** Convert a File to a data URL */
-function fileToDataUrl(file: File): Promise<string> {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader()
-    reader.onload = () => resolve(reader.result as string)
-    reader.onerror = reject
-    reader.readAsDataURL(file)
-  })
-}
-
-const IMAGE_TYPES = new Set(['image/png', 'image/jpeg', 'image/gif', 'image/webp', 'image/svg+xml'])
-const TEXT_EXTS = new Set([
-  'ts','tsx','js','jsx','json','html','css','md','txt','yaml','yml','toml','xml','sql',
-  'py','rb','go','rs','java','kt','swift','c','cpp','h','hpp','sh','bash','env',
-  'gitignore','dockerignore','csv','log','ini','cfg','conf','vue','svelte','astro',
-  'prisma','graphql','proto',
-])
-const MAX_FILE_SIZE = 2 * 1024 * 1024 // 2MB
-const MAX_ATTACHMENTS = 10
 
 export function useForgeChat(props: UseForgeChatProps) {
   const {
@@ -64,12 +37,11 @@ export function useForgeChat(props: UseForgeChatProps) {
     onRegisterSend, pendingMessage, onPendingMessageSent, activeFile,
   } = props
 
-  // ─── Model & env ──────────────────────────────────────────────
   const [selectedModel, setSelectedModel] = useState<string>(MODEL_OPTIONS[0].id)
   const [showModelPicker, setShowModelPicker] = useState(false)
   const [envVars, setEnvVars] = useState<Record<string, string>>({})
 
-  // ─── Stable refs for transport callback ──────────────────────
+  // Stable refs — synchronous reads inside transport callback
   const projectNameRef = useRef(projectName)
   const projectIdRef = useRef(projectId)
   const filesRef = useRef(files)
@@ -83,10 +55,10 @@ export function useForgeChat(props: UseForgeChatProps) {
   useEffect(() => { envVarsRef.current = envVars }, [envVars])
   useEffect(() => { activeFileRef.current = activeFile }, [activeFile])
 
-  // ─── Elapsed time tracking (declared early — needed by onError for timeout detection) ──
+  // Declared early — needed by onError for timeout detection
   const streamStartRef = useRef<number>(0)
 
-  // ─── Pre-flight message compaction (runs before sending to server) ───
+  // Pre-flight message compaction — runs before sending to server
   function compactMessagesForSend(msgs: any[]): any[] {
     if (msgs.length <= 10) return msgs
 
@@ -155,7 +127,6 @@ export function useForgeChat(props: UseForgeChatProps) {
     return msgs
   }
 
-  // ─── Memoized transport (stable across renders) ─────────────
   const transport = useMemo(() => new DefaultChatTransport({
     api: '/api/chat',
     prepareSendMessagesRequest: ({ messages: msgs }) => ({
@@ -174,9 +145,6 @@ export function useForgeChat(props: UseForgeChatProps) {
     }),
   }), []) // eslint-disable-line react-hooks/exhaustive-deps
 
-  // ─── useChat (AI SDK v6) ──────────────────────────────────────
-  // v6 uses transport instead of api, sendMessage instead of append,
-  // status instead of isLoading, and parts-based messages
   const retryAfterCompactRef = useRef(false)
   const pendingRetryTextRef = useRef<string | null>(null)
   const autoContinueRef = useRef(false) // tracks if an auto-continue is pending
@@ -196,9 +164,8 @@ export function useForgeChat(props: UseForgeChatProps) {
     onError: (err) => {
       console.error('Chat error:', err)
 
-      // ── Smart timeout auto-continue ─────────────────────────
       // If the stream died after 4+ minutes, it's the Vercel 300s timeout.
-      // Auto-send a continuation message so the AI picks up where it left off.
+      // Auto-send a continuation so the AI picks up where it left off.
       const elapsedMs = Date.now() - (streamStartRef.current || 0)
       const isTimeout = elapsedMs > 240_000 || err.message?.includes('408') || err.message?.includes('timeout') || err.message?.includes('abort')
 
@@ -237,9 +204,10 @@ export function useForgeChat(props: UseForgeChatProps) {
           }
           setMessages([...first2, summaryMsg as any, ...recent4])
           // Queue retry — effect below will pick it up after state settles
-          if (retryText) {
+          // Guard: don't overwrite an existing queued retry
+          if (retryText && !pendingRetryTextRef.current) {
             pendingRetryTextRef.current = retryText
-          } else {
+          } else if (!retryText) {
             retryAfterCompactRef.current = false
           }
         } else {
@@ -249,10 +217,9 @@ export function useForgeChat(props: UseForgeChatProps) {
     },
   })
 
-  // Derive isLoading from status (v6 pattern)
   const isLoading = status === 'streaming' || status === 'submitted'
 
-  // ─── 413 retry: after emergency compaction, resend the last user message ──
+  // After emergency compaction, resend the last user message
   useEffect(() => {
     if (pendingRetryTextRef.current && !isLoading && retryAfterCompactRef.current) {
       const text = pendingRetryTextRef.current
@@ -267,22 +234,23 @@ export function useForgeChat(props: UseForgeChatProps) {
     }
   }, [messages, isLoading, sendMessage]) // messages change triggers this after setMessages
 
-  // ─── UI state ─────────────────────────────────────────────────
   const [input, setInput] = useState('')
   const [copiedId, setCopiedId] = useState<string | null>(null)
-  const [historyLoaded, setHistoryLoaded] = useState(false)
-  const [loadingHistory, setLoadingHistory] = useState(false)
   const [editingMessageId, setEditingMessageId] = useState<string | null>(null)
   const [editingContent, setEditingContent] = useState('')
   const [clearConfirm, setClearConfirm] = useState(false)
-  const [attachments, setAttachments] = useState<FileUIPart[]>([])
+  const { attachments, setAttachments, handleAttachFiles, handleRemoveAttachment } = useAttachments(onFileChange)
   const [tasks, setTasks] = useState<Array<{ id: string; label: string; status: string; description?: string; blockedBy?: string[]; phase?: string }>>([])
   const taskDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const latestTasksRef = useRef<Array<{ id: string; label: string; status: string; description?: string; blockedBy?: string[]; phase?: string }>>([])
-  const [showNewMessageIndicator, setShowNewMessageIndicator] = useState(false)
-  const stoppedByUserRef = useRef(false)
 
-  // ─── Approval gates ─────────────────────────────────────────
+  // Extracted hooks
+  const { messagesEndRef, showNewMessageIndicator, handleScroll, scrollToBottom } = useAutoScroll(messages, isLoading)
+  const { stoppedByUserRef } = useKeyboardShortcuts(isLoading, stop)
+  const { loadingHistory } = useChatHistory(projectId, setMessages)
+  usePreviewEvents(sendMessage)
+  useContextWarnings(messages)
+
   const [pendingApproval, setPendingApproval] = useState<{
     toolName: string
     args: Record<string, unknown>
@@ -291,148 +259,19 @@ export function useForgeChat(props: UseForgeChatProps) {
   const approvedKeys = useRef(new Set<string>())
   const deniedKeys = useRef(new Set<string>())
 
-  // ─── Refs ─────────────────────────────────────────────────────
   const clearConfirmTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
-  const messagesEndRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLTextAreaElement>(null)
   const processedInvs = useRef(new Set<string>())
-  const historyLoadingRef = useRef(false)
   const localFiles = useRef<Record<string, string>>({})
-  const isNearBottomRef = useRef(true)
-  const diagnosedUrls = useRef(new Set<string>())
 
-  // ─── Sync files ref (synchronous — must not be deferred via useEffect
-  // to avoid stale reads during tool invocation processing) ─────────
+  // Synchronous — must not be deferred via useEffect to avoid stale reads during tool processing
   localFiles.current = { ...files }
 
-  // Clear markdown cache when switching projects
   useEffect(() => {
     clearMarkdownCache()
   }, [projectId])
 
-  // ─── Scroll tracking ─────────────────────────────────────────
-  const handleScroll = useCallback((e: React.UIEvent<HTMLDivElement>) => {
-    const el = e.currentTarget
-    const nearBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 150
-    isNearBottomRef.current = nearBottom
-    setShowNewMessageIndicator(!nearBottom)
-  }, [])
-
-  const scrollToBottom = useCallback(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
-    setShowNewMessageIndicator(false)
-  }, [])
-
-  // Escape to stop generation
-  useEffect(() => {
-    if (!isLoading) return
-    const handler = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') { e.preventDefault(); stoppedByUserRef.current = true; stop() }
-    }
-    window.addEventListener('keydown', handler)
-    return () => window.removeEventListener('keydown', handler)
-  }, [isLoading, stop])
-
-  // Toast when user-initiated stop completes
-  const wasLoadingRef = useRef(false)
-  useEffect(() => {
-    if (wasLoadingRef.current && !isLoading && stoppedByUserRef.current) {
-      toast.info('Generation stopped', { duration: 2000 })
-      stoppedByUserRef.current = false
-    }
-    wasLoadingRef.current = isLoading
-  }, [isLoading])
-
-  // Auto-scroll when near bottom
-  useEffect(() => {
-    if (isNearBottomRef.current) {
-      messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
-    }
-  }, [messages, isLoading])
-
-  // ─── Load chat history ────────────────────────────────────────
-  useEffect(() => {
-    if (!projectId || historyLoaded) return
-    if (historyLoadingRef.current) return
-    historyLoadingRef.current = true
-    setHistoryLoaded(true)
-    setLoadingHistory(true)
-
-    const loadWithRetry = async (attempt = 0) => {
-      try {
-        const res = await fetch(`/api/projects/${projectId}/messages`)
-        if (!res.ok) throw new Error(`HTTP ${res.status}`)
-        const data = await res.json()
-        if (data.messages?.length > 0) {
-          const loaded = data.messages.map((msg: any) => ({
-            id: msg.id,
-            role: msg.role,
-            parts: [{ type: 'text', text: msg.content || '' }],
-            content: msg.content || '',
-          }))
-          setMessages(loaded)
-        }
-      } catch (err) {
-        if (attempt < 2) {
-          await new Promise(r => setTimeout(r, 1000 * (attempt + 1)))
-          return loadWithRetry(attempt + 1)
-        }
-        console.warn('Failed to load chat history after retries:', err)
-        toast.error('Could not load chat history', { description: 'Previous messages may be missing.', duration: 4000 })
-      } finally {
-        setLoadingHistory(false)
-        historyLoadingRef.current = false
-      }
-    }
-    loadWithRetry()
-  }, [projectId, historyLoaded, setMessages])
-
-  // ─── Context warning + compaction detection from stream data parts ──
-  const contextWarningShownRef = useRef<string | null>(null)
-  const compactionShownRef = useRef<string | null>(null)
-  const compactionToastCooldownRef = useRef<number>(0)
-  useEffect(() => {
-    for (const msg of messages) {
-      if (msg.role !== 'assistant') continue
-      const parts = (msg as any).parts as Array<{ type: string; data?: string }> | undefined
-      if (!parts) continue
-      for (const p of parts) {
-        if (p.type === 'data-forge-meta' && typeof p.data === 'string') {
-          try {
-            const parsed = JSON.parse(p.data)
-            if (parsed.type === 'context_warning' && contextWarningShownRef.current !== msg.id) {
-              contextWarningShownRef.current = msg.id
-              if (parsed.level === 'critical') {
-                toast.error('Context limit nearly reached', {
-                  description: `~${parsed.estimatedUsage}% of context used. Start a new chat to avoid failures.`,
-                  duration: 8000,
-                })
-              } else {
-                toast.warning('Context getting long', {
-                  description: `~${parsed.estimatedUsage}% of context used. Consider starting a new chat soon.`,
-                  duration: 6000,
-                })
-              }
-            }
-            if (parsed.type === 'compaction_notice' && compactionShownRef.current !== msg.id) {
-              compactionShownRef.current = msg.id
-              // Cooldown: only show compaction toast once per 2 minutes
-              const now = Date.now()
-              if (now - compactionToastCooldownRef.current > 120_000) {
-                compactionToastCooldownRef.current = now
-                toast.info('Context compacted', {
-                  description: 'Older messages summarized to free up context space.',
-                  duration: 5000,
-                })
-              }
-            }
-          } catch { /* not JSON data part — ignore */ }
-        }
-      }
-    }
-  }, [messages])
-
-  // ─── Live file extraction from tool invocations ───────────────
+  // Live file extraction from tool invocations
   useEffect(() => {
     for (const msg of messages) {
       if (msg.role !== 'assistant') continue
@@ -612,10 +451,10 @@ export function useForgeChat(props: UseForgeChatProps) {
         if (!changes) continue
 
         processedInvs.current.add(key)
-        // Cap Set size to prevent unbounded growth in long sessions
-        if (processedInvs.current.size > 5000) {
+        // Cap Set size — keep last 500 to prevent unbounded growth
+        if (processedInvs.current.size > 1000) {
           const entries = [...processedInvs.current]
-          processedInvs.current = new Set(entries.slice(-2500))
+          processedInvs.current = new Set(entries.slice(-500))
         }
 
         if (changes.updates && Object.keys(changes.updates).length > 0) {
@@ -638,43 +477,6 @@ export function useForgeChat(props: UseForgeChatProps) {
     }
   }, [messages, onBulkFileUpdate, onFileDelete]) // eslint-disable-line react-hooks/exhaustive-deps
 
-  // ─── Listen for capture_preview responses ───────────────────────
-  useEffect(() => {
-    const handler = (e: Event) => {
-      const detail = (e as CustomEvent).detail
-      if (!detail) return
-      const parts: string[] = ['[Preview Capture Result]']
-      if (detail.error) {
-        parts.push(`Error: ${detail.error}`)
-      } else {
-        if (detail.title) parts.push(`Title: ${detail.title}`)
-        if (detail.elementCount) parts.push(`Elements: ${detail.elementCount}`)
-        if (detail.viewport) parts.push(`Viewport: ${detail.viewport.width}x${detail.viewport.height}`)
-        if (detail.bodyText) parts.push(`\nVisible content:\n${detail.bodyText}`)
-      }
-      sendMessage({ text: parts.join('\n') })
-    }
-    window.addEventListener('forge:preview-captured', handler)
-    return () => window.removeEventListener('forge:preview-captured', handler)
-  }, [sendMessage])
-
-  // ─── Listen for preview errors — auto-diagnose ──────────────
-  useEffect(() => {
-    const handler = (e: Event) => {
-      const detail = (e as CustomEvent).detail
-      if (!detail?.url) return
-      const key = `preview-error:${detail.url}`
-      if (diagnosedUrls.current.has(key)) return
-      diagnosedUrls.current.add(key)
-      sendMessage({
-        text: `[PREVIEW ERROR] The preview at ${detail.url} failed to load (${detail.errorType || 'unknown'}). Please use diagnose_preview to check the headers and suggest fixes.`,
-      })
-    }
-    window.addEventListener('forge:preview-error', handler)
-    return () => window.removeEventListener('forge:preview-error', handler)
-  }, [sendMessage])
-
-  // ─── Send / register / pending ────────────────────────────────
   const clearTasks = useCallback(() => {
     setTasks([])
     latestTasksRef.current = []
@@ -732,7 +534,6 @@ export function useForgeChat(props: UseForgeChatProps) {
     }
   }, [pendingMessage, isLoading, sendMessage, onPendingMessageSent])
 
-  // ─── Callbacks ────────────────────────────────────────────────
   const handleEnvVarsSave = useCallback((vars: Record<string, string>) => {
     setEnvVars(prev => ({ ...prev, ...vars }))
     const envContent = Object.entries(vars)
@@ -800,144 +601,11 @@ export function useForgeChat(props: UseForgeChatProps) {
     }
   }, [clearConfirm, setMessages])
 
-  // ─── File attachments ──────────────────────────────────────────
-  const handleAttachFiles = useCallback(async (fileList: FileList) => {
-    const newParts: FileUIPart[] = []
-    let skipped = 0
+  const {
+    stepCount, estimatedTokens, realTokens, autoRoutedModel,
+    currentActivity, lastCompletedToolName, sessionCost, getMessageCost,
+  } = useChatMetrics(messages)
 
-    for (const file of Array.from(fileList)) {
-      if (attachments.length + newParts.length >= MAX_ATTACHMENTS) {
-        toast.error(`Max ${MAX_ATTACHMENTS} attachments`)
-        break
-      }
-      if (file.size > MAX_FILE_SIZE) {
-        toast.error(`${file.name} too large (max 2MB)`)
-        continue
-      }
-
-      const ext = file.name.split('.').pop()?.toLowerCase() || ''
-
-      if (IMAGE_TYPES.has(file.type)) {
-        const dataUrl = await fileToDataUrl(file)
-        newParts.push({ type: 'file', mediaType: file.type, url: dataUrl, filename: file.name })
-      } else if (TEXT_EXTS.has(ext) || file.type.startsWith('text/')) {
-        const text = await file.text()
-        if (text.includes('\0')) { skipped++; continue }
-        // Add to VFS so tools can operate on the file
-        onFileChange(file.name, text)
-        const dataUrl = `data:text/plain;base64,${btoa(unescape(encodeURIComponent(text)))}`
-        newParts.push({ type: 'file', mediaType: 'text/plain', url: dataUrl, filename: file.name })
-      } else if (file.type === 'application/pdf') {
-        const dataUrl = await fileToDataUrl(file)
-        newParts.push({ type: 'file', mediaType: 'application/pdf', url: dataUrl, filename: file.name })
-      } else {
-        skipped++
-      }
-    }
-
-    if (skipped > 0) toast.info(`Skipped ${skipped} unsupported file(s)`)
-    if (newParts.length > 0) setAttachments(prev => [...prev, ...newParts])
-  }, [attachments, onFileChange])
-
-  const handleRemoveAttachment = useCallback((index: number) => {
-    setAttachments(prev => prev.filter((_, i) => i !== index))
-  }, [])
-
-  // ─── Computed values ──────────────────────────────────────────
-  const { stepCount, estimatedTokens, currentActivity, lastCompletedToolName } = useMemo(() => {
-    let steps = 0
-    let tokens = 0
-    let activity: { toolName: string; args: Record<string, unknown> } | null = null
-    const allCompleted: Array<{ toolName: string; args: Record<string, unknown> }> = []
-    // Track completed tools from only the LAST assistant message (current response)
-    let currentResponseCompleted: Array<{ toolName: string; args: Record<string, unknown> }> = []
-
-    for (const msg of messages) {
-      const textLen = getMessageText(msg).length
-      tokens += Math.ceil(textLen / 4)
-      if (msg.role !== 'assistant') continue
-      const msgCompleted: Array<{ toolName: string; args: Record<string, unknown> }> = []
-      const parts = (msg as any).parts as Array<{ type: string; toolName?: string; toolInvocation?: ToolInvocation; state?: string; input?: Record<string, unknown>; args?: Record<string, unknown> }> | undefined
-      if (parts) {
-        for (const p of parts) {
-          const isTool = p.type === 'tool-invocation' || p.type?.startsWith('tool-')
-          if (!isTool) continue
-          steps++
-          const tName = p.toolInvocation?.toolName || p.toolName || p.type?.replace(/^tool-/, '') || ''
-          const tArgs = p.toolInvocation?.args || p.input || p.args || {}
-          const tState = p.toolInvocation?.state || p.state || ''
-          const isRunning = tState !== 'result' && tState !== 'output-available' && tState !== 'output-error'
-          if (isRunning) {
-            activity = { toolName: tName, args: tArgs }
-          } else {
-            allCompleted.push({ toolName: tName, args: tArgs })
-            msgCompleted.push({ toolName: tName, args: tArgs })
-          }
-        }
-      }
-      const invs = (msg as any).toolInvocations as ToolInvocation[] | undefined
-      if (invs) steps += invs.length
-      // Always overwrite — last assistant message wins
-      if (msgCompleted.length > 0 || activity) {
-        currentResponseCompleted = msgCompleted
-      }
-    }
-
-    const lastCompleted = allCompleted.length > 0
-      ? allCompleted[allCompleted.length - 1].toolName
-      : null
-
-    return {
-      stepCount: steps,
-      estimatedTokens: tokens,
-      lastCompletedToolName: lastCompleted,
-      currentActivity: activity
-        ? { ...activity, recentCompleted: currentResponseCompleted }
-        : currentResponseCompleted.length > 0
-          ? { toolName: '', args: {}, recentCompleted: currentResponseCompleted }
-          : null,
-    }
-  }, [messages])
-
-  // v6: Extract real usage from message metadata
-  const realTokens = useMemo(() => {
-    for (let i = messages.length - 1; i >= 0; i--) {
-      const msg = messages[i] as any
-      if (msg.role === 'assistant' && msg.metadata?.usage?.totalTokens) {
-        return msg.metadata.usage.totalTokens as number
-      }
-    }
-    return 0
-  }, [messages])
-
-  // ─── Session cost tracking ──────────────────────────────────
-  const sessionCost = useMemo(() => {
-    let totalCost = 0
-    let totalInput = 0
-    let totalOutput = 0
-    for (const msg of messages) {
-      const meta = (msg as any).metadata
-      if (meta?.usage && meta?.model) {
-        const inTok = meta.usage.inputTokens || 0
-        const outTok = meta.usage.outputTokens || 0
-        totalInput += inTok
-        totalOutput += outTok
-        totalCost += estimateCost(inTok, outTok, meta.model)
-      }
-    }
-    return { cost: totalCost, inputTokens: totalInput, outputTokens: totalOutput }
-  }, [messages])
-
-  // ─── Per-message cost data (for cost chips) ─────────────────
-  const getMessageCost = useCallback((msgId: string) => {
-    const msg = messages.find(m => m.id === msgId) as any
-    if (!msg?.metadata?.usage || !msg?.metadata?.model) return null
-    const { inputTokens = 0, outputTokens = 0 } = msg.metadata.usage
-    const cost = estimateCost(inputTokens, outputTokens, msg.metadata.model)
-    return { inputTokens, outputTokens, cost, model: msg.metadata.model }
-  }, [messages])
-
-  // ─── Approval gate handlers ─────────────────────────────────
   const handleApprove = useCallback((key: string) => {
     approvedKeys.current.add(key)
     setPendingApproval(null)
@@ -955,18 +623,6 @@ export function useForgeChat(props: UseForgeChatProps) {
     }
   }, [sendMessage])
 
-  // v6: Extract auto-routed model info from message metadata
-  const autoRoutedModel = useMemo(() => {
-    for (let i = messages.length - 1; i >= 0; i--) {
-      const msg = messages[i] as any
-      if (msg.role === 'assistant' && msg.metadata?.autoRouted) {
-        return { model: String(msg.metadata.model || ''), reason: 'Auto-routed' }
-      }
-    }
-    return null
-  }, [messages])
-
-  // ─── Elapsed time tracking ────────────────────────────────────
   const [elapsed, setElapsed] = useState(0)
   const finalElapsedRef = useRef(0)
 

@@ -43,6 +43,7 @@ export function useWebcontainer({ files, enabled = true, onTerminalOutput }: Use
   const serverProcessRef = useRef<any>(null)
   const bootedRef = useRef(false)
   const mountedFilesRef = useRef<Record<string, string>>({})
+  const remountIdRef = useRef(0) // Cancellation guard for concurrent remounts
   const outputCallbackRef = useRef(onTerminalOutput)
   outputCallbackRef.current = onTerminalOutput
 
@@ -66,7 +67,7 @@ export function useWebcontainer({ files, enabled = true, onTerminalOutput }: Use
         const result = await mountAndStart(wc, files, {
           onInstallOutput: (data) => outputCallbackRef.current?.(data),
           onServerOutput: (data) => outputCallbackRef.current?.(data),
-          onServerReady: (url, port) => {
+          onServerReady: (url, _port) => {
             if (!cancelled) {
               setPreviewUrl(url)
               setStatus('ready')
@@ -84,9 +85,9 @@ export function useWebcontainer({ files, enabled = true, onTerminalOutput }: Use
           serverProcessRef.current = result.serverProcess
           mountedFilesRef.current = { ...files }
         }
-      } catch (err: any) {
+      } catch (err) {
         if (!cancelled) {
-          setError(err.message || 'Failed to boot WebContainer')
+          setError(err instanceof Error ? err.message : 'Failed to boot WebContainer')
           setStatus('error')
         }
       }
@@ -113,8 +114,8 @@ export function useWebcontainer({ files, enabled = true, onTerminalOutput }: Use
       }
       await wc.fs.writeFile(path, content)
       mountedFilesRef.current[path] = content
-    } catch (err: any) {
-      console.warn(`WebContainer syncFile failed for ${path}:`, err.message)
+    } catch (err) {
+      console.warn(`WebContainer syncFile failed for ${path}:`, err instanceof Error ? err.message : err)
     }
   }, [])
 
@@ -130,10 +131,13 @@ export function useWebcontainer({ files, enabled = true, onTerminalOutput }: Use
     }
   }, [])
 
-  // Full remount (e.g., after create_project)
+  // Full remount (e.g., after create_project) — with cancellation guard
   const remount = useCallback(async (newFiles: Record<string, string>) => {
     const wc = instanceRef.current
     if (!wc) return
+
+    // Increment remount ID — any in-flight remount with a stale ID will bail out
+    const thisRemountId = ++remountIdRef.current
 
     // Kill existing server
     if (serverProcessRef.current) {
@@ -146,6 +150,10 @@ export function useWebcontainer({ files, enabled = true, onTerminalOutput }: Use
 
     const tree = filesToFileSystemTree(newFiles)
     await wc.mount(tree)
+
+    // Bail out if a newer remount was started while we were mounting
+    if (remountIdRef.current !== thisRemountId) return
+
     mountedFilesRef.current = { ...newFiles }
 
     // Re-install and restart
@@ -153,14 +161,23 @@ export function useWebcontainer({ files, enabled = true, onTerminalOutput }: Use
       onInstallOutput: (data) => outputCallbackRef.current?.(data),
       onServerOutput: (data) => outputCallbackRef.current?.(data),
       onServerReady: (url) => {
+        if (remountIdRef.current !== thisRemountId) return
         setPreviewUrl(url)
         setStatus('ready')
       },
-      onError: (err) => setError(err),
-      onStatusChange: setStatus,
+      onError: (err) => {
+        if (remountIdRef.current !== thisRemountId) return
+        setError(err)
+      },
+      onStatusChange: (s) => {
+        if (remountIdRef.current !== thisRemountId) return
+        setStatus(s)
+      },
     })
 
-    serverProcessRef.current = result.serverProcess
+    if (remountIdRef.current === thisRemountId) {
+      serverProcessRef.current = result.serverProcess
+    }
   }, [])
 
   // Spawn a command
@@ -209,7 +226,7 @@ export function useWebcontainer({ files, enabled = true, onTerminalOutput }: Use
       write(data) { outputCallbackRef.current?.(data) },
     }))
 
-    wc.on('server-ready', (port: number, url: string) => {
+    wc.on('server-ready', (_port: number, url: string) => {
       setPreviewUrl(url)
       setStatus('ready')
     })

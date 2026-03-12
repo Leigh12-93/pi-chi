@@ -31,7 +31,7 @@ export async function GET(
 
 /** PUT /api/projects/[id]/snapshots/[sid] — restore a snapshot */
 export async function PUT(
-  req: Request,
+  _req: Request,
   { params }: { params: Promise<{ id: string; sid: string }> },
 ) {
   const session = await getSession()

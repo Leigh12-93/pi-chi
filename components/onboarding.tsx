@@ -2,10 +2,9 @@
 
 import { useState } from 'react'
 import {
-  ArrowRight, Globe, ShoppingCart, BarChart3,
-  FileText, Briefcase, Palette, Layout, Rocket,
+  ArrowRight, Globe, ShoppingCart,
+  FileText, Layout, Rocket,
 } from 'lucide-react'
-import { cn } from '@/lib/utils'
 
 interface OnboardingProps {
   onComplete: (opts: { template: string; description: string }) => void

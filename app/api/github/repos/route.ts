@@ -50,7 +50,8 @@ export async function GET(req: Request) {
       perPage,
       hasMore: slim.length === perPage,
     })
-  } catch (err: any) {
-    return NextResponse.json({ error: err.message }, { status: 500 })
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err)
+    return NextResponse.json({ error: msg }, { status: 500 })
   }
 }

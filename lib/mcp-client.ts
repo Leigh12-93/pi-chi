@@ -8,10 +8,6 @@
  * Reference: https://modelcontextprotocol.io/docs/concepts/transports#streamable-http
  */
 
-import { z } from 'zod'
-
-// ─── Types ──────────────────────────────────────────────────────────
-
 export interface MCPServerConfig {
   id: string
   name: string
@@ -53,8 +49,6 @@ interface JsonRpcResponse {
   result?: any
   error?: { code: number; message: string; data?: any }
 }
-
-// ─── MCP Client ─────────────────────────────────────────────────────
 
 export class MCPClient {
   private servers = new Map<string, MCPServerState>()
@@ -246,9 +240,5 @@ export class MCPClient {
   }
 }
 
-// ─── Singleton ──────────────────────────────────────────────────────
-
-// Note: On Vercel serverless, this resets per invocation.
-// For persistent connections, servers need to be re-connected per request.
-// In practice, MCP HTTP servers are stateless per-request anyway.
+// Resets per Vercel invocation — MCP HTTP servers are stateless per-request anyway
 export const mcpClient = new MCPClient()

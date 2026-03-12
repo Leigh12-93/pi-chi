@@ -93,6 +93,7 @@ export function ProjectPicker({ onSelect, savedProjects, loadingProjects, onDele
   const deletingId = deletingProjectId ?? null
   const [githubRepos, setGithubRepos] = useState<GitHubRepo[]>([])
   const [loadingRepos, setLoadingRepos] = useState(false)
+  const [reposError, setReposError] = useState(false)
   const [reposHasMore, setReposHasMore] = useState(false)
   const [reposPage, setReposPage] = useState(1)
   const [importingRepo, setImportingRepo] = useState<string | null>(null)
@@ -196,7 +197,9 @@ export function ProjectPicker({ onSelect, savedProjects, loadingProjects, onDele
         setReposHasMore(!!data.hasMore)
         setReposPage(page)
       }
-    } catch {}
+    } catch {
+      setReposError(true)
+    }
     setLoadingRepos(false)
   }
 
@@ -487,9 +490,11 @@ export function ProjectPicker({ onSelect, savedProjects, loadingProjects, onDele
                       <button
                         key={project.id}
                         onClick={() => onSelect(project.name, project.id)}
+                        onKeyDown={(e) => { if (e.key === 'Enter') onSelect(project.name, project.id) }}
                         disabled={loadingProjectId === project.id}
+                        tabIndex={0}
                         style={{ animationDelay: `${i * 50}ms` }}
-                        className="group relative bg-forge-panel border border-forge-border border-l-2 border-l-transparent rounded-xl p-4 text-left hover:border-forge-accent/50 hover:border-l-forge-accent hover:bg-forge-accent/5 hover:shadow-md hover:shadow-forge-accent/5 hover:scale-[1.02] hover:-translate-y-0.5 active:scale-[0.99] active:translate-y-0 transition-all duration-200 disabled:opacity-70 disabled:cursor-wait project-card-enter"
+                        className="group relative bg-forge-panel border border-forge-border border-l-2 border-l-transparent rounded-xl p-4 text-left hover:border-forge-accent/50 hover:border-l-forge-accent hover:bg-forge-accent/5 hover:shadow-md hover:shadow-forge-accent/5 hover:scale-[1.02] hover:-translate-y-0.5 active:scale-[0.99] active:translate-y-0 focus-visible:ring-2 focus-visible:ring-forge-ring focus-visible:border-forge-accent/50 transition-all duration-200 disabled:opacity-70 disabled:cursor-wait project-card-enter"
                       >
                         <div className="flex items-start justify-between mb-2">
                           <h3 className="text-sm font-medium text-forge-text group-hover:text-forge-accent transition-colors truncate pr-2">
@@ -561,7 +566,17 @@ export function ProjectPicker({ onSelect, savedProjects, loadingProjects, onDele
             {/* GitHub Repos Tab */}
             {tab === 'github' && (
               <>
-                {githubRepos.length === 0 && !loadingRepos ? (
+                {reposError && !loadingRepos ? (
+                  <div className="text-center py-8 text-forge-text-dim text-sm border border-dashed border-forge-border rounded-xl space-y-3">
+                    <p>Failed to load repositories.</p>
+                    <button
+                      onClick={() => { setReposError(false); loadRepos(1) }}
+                      className="px-4 py-1.5 text-xs font-medium text-forge-accent border border-forge-accent/30 rounded-lg hover:bg-forge-accent/10 transition-all"
+                    >
+                      Retry
+                    </button>
+                  </div>
+                ) : githubRepos.length === 0 && !loadingRepos ? (
                   <div className="text-center py-8 text-forge-text-dim text-sm border border-dashed border-forge-border rounded-xl">
                     No repositories found.
                   </div>
@@ -714,7 +729,7 @@ export function ProjectPicker({ onSelect, savedProjects, loadingProjects, onDele
                             onChange={e => updateEnvVar(i, 'value', e.target.value)}
                             className="flex-[3] min-w-0 bg-transparent text-xs font-mono text-forge-text-dim outline-none"
                           />
-                          <div className="flex items-center gap-0.5 shrink-0 opacity-0 group-hover:opacity-100 transition-opacity">
+                          <div className="flex items-center gap-0.5 shrink-0 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity">
                             {isSensitive && (
                               <button
                                 onClick={() => setShowValues(prev => ({ ...prev, [i]: !prev[i] }))}

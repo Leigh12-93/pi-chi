@@ -6,7 +6,7 @@ import { ChatPanel } from './chat-panel'
 import { CodeEditor } from './code-editor'
 import { EditorTabs } from './editor-tabs'
 import { FileTree } from './file-tree'
-import { ActivityBar, SidebarContent, TABS as SIDEBAR_TABS, type SidebarTab } from './sidebar'
+import { ActivityBar, SidebarContent, TABS as SIDEBAR_TABS } from './sidebar'
 import { PreviewPanel } from './preview-panel'
 import { TerminalPanel } from './terminal-panel'
 import { Header } from './header'
@@ -23,7 +23,7 @@ import { VersionHistory } from './version-history'
 import { DiffViewer } from './diff-viewer'
 import { NotificationCenter } from './notification-center'
 import { FindReplacePanel } from './find-replace-panel'
-import { PanelErrorBoundary } from './panel-error-boundary'
+import { PanelErrorBoundary } from './error-boundary'
 import { SettingsDialog } from './settings-dialog'
 import { AuditPanel } from './audit-panel'
 import { DbExplorer } from './db-explorer'
@@ -82,7 +82,6 @@ export function Workspace(props: WorkspaceProps) {
     vercelUrl, onVercelUrlChange, currentBranch, onBranchChange,
   } = props
 
-  // ─── Hooks ───────────────────────────────────────────────
   const state = useWorkspaceState(files, projectId)
   const saveStatus = (parentSaveStatus && parentSaveStatus !== 'idle') ? parentSaveStatus : state.localSaveStatus
 
@@ -92,13 +91,11 @@ export function Workspace(props: WorkspaceProps) {
     githubRepoUrl: githubRepoUrl || null, onGithubRepoUrlChange, onVercelUrlChange,
   })
 
-  // ─── Session cost (for Anthropic sidebar panel) ─────────
   const [sessionCost, setSessionCost] = useState<{ cost: number; inputTokens: number; outputTokens: number }>({ cost: 0, inputTokens: 0, outputTokens: 0 })
   const handleSessionCostChange = useCallback((cost: { cost: number; inputTokens: number; outputTokens: number }) => {
     setSessionCost(cost)
   }, [])
 
-  // ─── WebContainer ────────────────────────────────────────
   const wc = useWebcontainer({
     files,
     enabled: state.hasPackageJson && Object.keys(files).length > 0,
@@ -113,7 +110,6 @@ export function Workspace(props: WorkspaceProps) {
   })
 
   // Sync file changes to WebContainer
-  const prevFilesRef = state.filesRef
   // This is handled inline since it needs wc reference
   // (moved to an effect below)
 
@@ -123,7 +119,6 @@ export function Workspace(props: WorkspaceProps) {
     wcStatus: wc.status, wcSpawn: wc.spawn,
   })
 
-  // ─── WebContainer file sync (needs wc instance) ──────────
   const prevWcFilesRef = useRef<Record<string, string>>(files)
   useEffect(() => {
     if (wc.status !== 'ready') return
@@ -138,7 +133,6 @@ export function Workspace(props: WorkspaceProps) {
   }, [files, wc.status]) // eslint-disable-line react-hooks/exhaustive-deps
 
 
-  // ─── Keyboard shortcuts ──────────────────────────────────
   useKeyboardShortcuts([
     { key: 'k', ctrlKey: true, action: () => state.setShowCommandPalette(prev => !prev), description: 'Command palette' },
     { key: 'p', ctrlKey: true, shiftKey: true, action: () => state.setRightTab(prev => prev === 'code' ? 'split' : prev === 'split' ? 'preview' : 'code'), description: 'Cycle view mode' },
@@ -150,14 +144,12 @@ export function Workspace(props: WorkspaceProps) {
     { key: ',', ctrlKey: true, action: () => state.setShowEditorSettings(prev => !prev), description: 'Editor settings' },
   ])
 
-  // ─── Swipe gestures ──────────────────────────────────────
   const MOBILE_TAB_ORDER: MobileTab[] = ['chat', 'editor', 'preview']
   const mobileSwipe = useSwipe({
     onSwipeLeft: () => state.setMobileTab(prev => { const idx = MOBILE_TAB_ORDER.indexOf(prev); return MOBILE_TAB_ORDER[Math.min(idx + 1, MOBILE_TAB_ORDER.length - 1)] }),
     onSwipeRight: () => state.setMobileTab(prev => { const idx = MOBILE_TAB_ORDER.indexOf(prev); return MOBILE_TAB_ORDER[Math.max(idx - 1, 0)] }),
   })
 
-  // ─── Command palette ────────────────────────────────────
   const paletteCommands = useMemo(() => [
     { id: 'save', label: 'Save Project', description: 'Save all files to database', shortcut: 'Ctrl+S', icon: Save, category: 'actions' as const, action: actions.handleSave },
     { id: 'deploy', label: 'Deploy to Vercel', description: 'Create production deployment', icon: Rocket, category: 'actions' as const, action: () => state.setShowDeployPanel(true) },
@@ -179,7 +171,6 @@ export function Workspace(props: WorkspaceProps) {
     { id: 'mcp-servers', label: 'MCP Servers', description: 'Manage external MCP server connections', icon: Plug, category: 'actions' as const, action: () => state.setShowMcpManager(true) },
   ], [actions.handleSave, actions.handleDownload, activeFile, onSwitchProject]) // eslint-disable-line react-hooks/exhaustive-deps
 
-  // ─── Sidebar content props (shared between desktop & mobile) ──
   const sidebarContentProps = {
     fileTree: state.fileTree,
     activeFile,
@@ -231,7 +222,6 @@ export function Workspace(props: WorkspaceProps) {
     onBranchChange,
   }
 
-  // ─── Shared panel elements ───────────────────────────────
   const chatPanel = (
     <PanelErrorBoundary name="Chat">
       <ChatPanel
@@ -253,18 +243,20 @@ export function Workspace(props: WorkspaceProps) {
   )
 
   const fileTreePanel = (
-    <FileTree
-      files={state.fileTree}
-      activeFile={activeFile}
-      onFileSelect={actions.handleFileSelect}
-      onFileDelete={onFileDelete}
-      onFileRename={actions.handleFileRename}
-      onFileCreate={actions.handleFileCreate}
-      fileContents={files}
-      modifiedFiles={state.modifiedFiles}
-      aiEditingFiles={state.aiEditingFiles}
-      fileDiffs={state.fileDiffs}
-    />
+    <PanelErrorBoundary name="Files">
+      <FileTree
+        files={state.fileTree}
+        activeFile={activeFile}
+        onFileSelect={actions.handleFileSelect}
+        onFileDelete={onFileDelete}
+        onFileRename={actions.handleFileRename}
+        onFileCreate={actions.handleFileCreate}
+        fileContents={files}
+        modifiedFiles={state.modifiedFiles}
+        aiEditingFiles={state.aiEditingFiles}
+        fileDiffs={state.fileDiffs}
+      />
+    </PanelErrorBoundary>
   )
 
   const MOBILE_TABS = [
@@ -313,7 +305,6 @@ export function Workspace(props: WorkspaceProps) {
         onBranchChange={onBranchChange}
       />
 
-      {/* ═══ Desktop layout ═══ */}
       <div className="flex-1 hidden md:flex overflow-hidden relative">
         {/* Hover trigger zone */}
         {!state.sidebarVisible && (
@@ -455,7 +446,6 @@ export function Workspace(props: WorkspaceProps) {
         </PanelGroup>
       </div>
 
-      {/* ═══ Mobile layout ═══ */}
       <div className="flex-1 flex flex-col md:hidden overflow-hidden">
         <OfflineIndicator />
         <div className="flex-1 overflow-hidden rounded-t-2xl" onTouchStart={mobileSwipe.onTouchStart} onTouchEnd={mobileSwipe.onTouchEnd}>
@@ -590,7 +580,6 @@ export function Workspace(props: WorkspaceProps) {
         <PWAInstallPrompt />
       </div>
 
-      {/* ═══ Dialogs & Overlays ═══ */}
       {state.showDeployPanel && (
         <DeployPanel projectId={projectId} files={files} projectName={projectName} onClose={() => state.setShowDeployPanel(false)} onSuccess={actions.handleDialogSuccess} onFix={actions.handleDialogFix} onFilesFixed={(fixedFiles) => onBulkFileUpdate({ ...files, ...fixedFiles })} />
       )}

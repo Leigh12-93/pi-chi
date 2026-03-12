@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect, useRef } from 'react'
-import { Bell, X, CheckCircle, AlertTriangle, Info, FileText, Rocket } from 'lucide-react'
+import { Bell, X, CheckCircle, AlertTriangle, Info, Rocket } from 'lucide-react'
 import { cn, formatRelative } from '@/lib/utils'
 
 export interface Notification {

@@ -21,7 +21,7 @@ export function createPlanningTools(_ctx: ToolContext) {
         fragileAssumption: z.string().optional()
           .describe('The assumption most likely to be wrong'),
       }),
-      execute: async ({ plan, files, approach, dataModel, stateManagement, apiContracts, errorStrategy, confidence, uncertainties, fragileAssumption }) => {
+      execute: async ({ plan, files, approach: _approach, dataModel, stateManagement, apiContracts, errorStrategy, confidence, uncertainties: _uncertainties, fragileAssumption: _fragileAssumption }) => {
         const warnings: string[] = []
 
         const typesIdx = files.findIndex(f => /\/types\.tsx?$/.test(f) || f.includes('/types/'))

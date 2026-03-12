@@ -1,15 +1,9 @@
 import { generateText, UIMessage } from 'ai'
 import { anthropic } from '@ai-sdk/anthropic'
 
-// ═══════════════════════════════════════════════════════════════════
-// Auto-compaction: Summarize older messages to reclaim context space
-// Inspired by Claude Code's context compaction system
-// ═══════════════════════════════════════════════════════════════════
-
-// Compaction model — fast + cheap for summarization
+// Auto-compaction: summarize older messages to reclaim context space
 const COMPACTION_MODEL = (process.env.COMPACTION_MODEL || 'claude-haiku-4-5-20251001').trim()
 
-// Constants
 const COMPACTION_THRESHOLD = 0.35        // Trigger at 35% of context limit — compact early to avoid 413 errors
 const PRESERVE_FIRST = 2                 // Keep first 2 messages (initial context)
 const PRESERVE_RECENT = 8               // Keep last 8 messages (current work — 4 exchanges)
@@ -61,17 +55,14 @@ export async function compactMessages(
   estimatedInputTokens: number,
   contextLimit: number,
 ): Promise<{ messages: UIMessage[]; compacted: boolean; tokensSaved: number }> {
-  // Only trigger at threshold
   if (estimatedInputTokens <= contextLimit * COMPACTION_THRESHOLD) {
     return { messages, compacted: false, tokensSaved: 0 }
   }
 
-  // Need enough messages to make compaction worthwhile
   if (messages.length <= PRESERVE_FIRST + PRESERVE_RECENT + 2) {
     return { messages, compacted: false, tokensSaved: 0 }
   }
 
-  // Check cache
   cleanupCache()
   const lastMsg = messages[messages.length - 1]
   const cacheKey = `${projectId || '_anon'}:${messages.length}:${lastMsg?.id || ''}`
@@ -111,7 +102,6 @@ export async function compactMessages(
     ? `CRITICAL DECISIONS TO PRESERVE:\n${criticalDecisions.join('\n')}\n\n---\n\n`
     : ''
 
-  // Build text for summarization
   const middleText = decisionsPrefix + middleMessages.map(m => {
     const role = m.role.toUpperCase()
     let text = getMessageText(m)

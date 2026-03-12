@@ -42,7 +42,8 @@ export async function POST(req: Request) {
   let accessToken: string
   try {
     accessToken = await decryptToken(row.encrypted_google_access_token.replace(/^v1:/, ''))
-  } catch {
+  } catch (err) {
+    console.error('[google/test] decrypt access token failed:', err instanceof Error ? err.message : err)
     return NextResponse.json({ ok: false, error: 'Failed to decrypt access token' })
   }
 
@@ -80,8 +81,8 @@ export async function POST(req: Request) {
           }),
         })
       }
-    } catch {
-      // If refresh fails, try with existing token anyway
+    } catch (err) {
+      console.error('[google/test] Token refresh failed, trying existing token:', err instanceof Error ? err.message : err)
     }
   }
 
@@ -103,7 +104,8 @@ export async function POST(req: Request) {
 
     const responseData = await res.json().catch(() => ({}))
     return NextResponse.json({ ok: true, service, data: responseData })
-  } catch (err: any) {
-    return NextResponse.json({ ok: false, error: `${endpoint.label}: ${err.message || 'Network error'}` })
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err)
+    return NextResponse.json({ ok: false, error: `${endpoint.label}: ${msg || 'Network error'}` })
   }
 }

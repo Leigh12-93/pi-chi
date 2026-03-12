@@ -70,7 +70,7 @@ export function EnvPanel({ fileContents, onFileChange, vercelProjectId }: EnvPan
   const [syncing, setSyncing] = useState<'pull' | 'push' | 'forge' | null>(null)
   const [confirmDelete, setConfirmDelete] = useState<string | null>(null)
   const [forgeVars, setForgeVars] = useState<Record<string, string> | null>(null)
-  const [forgeAvailable, setForgeAvailable] = useState(false)
+  const [_forgeAvailable, setForgeAvailable] = useState(false)
   const [showSuggestions, setShowSuggestions] = useState(false)
   const [showMissingDetails, setShowMissingDetails] = useState(false)
   const suggestionsRef = useRef<HTMLDivElement>(null)

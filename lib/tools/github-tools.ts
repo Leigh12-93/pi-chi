@@ -275,8 +275,8 @@ export function createGithubTools(ctx: ToolContext) {
             ...(missing.length > 0 ? { skipped: missing } : {}),
             commitUrl: `https://github.com/${owner}/${repo}/commit/${commit.sha}`,
           }
-        } catch (err: any) {
-          return { error: err.message || 'Push failed' }
+        } catch (err) {
+          return { error: err instanceof Error ? err.message : 'Push failed' }
         }
       },
     }),

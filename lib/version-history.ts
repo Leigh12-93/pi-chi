@@ -2,8 +2,6 @@
  *  Stores snapshots in forge_project_snapshots table.
  *  Max 50 snapshots per project (auto-prune on insert). */
 
-const MAX_SNAPSHOTS = 50
-
 export interface Snapshot {
   id: string
   description: string

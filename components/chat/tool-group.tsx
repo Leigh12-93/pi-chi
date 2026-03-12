@@ -1,11 +1,11 @@
 'use client'
 
 import { useState } from 'react'
-import { CheckCircle, ChevronDown, ChevronRight, Terminal, Loader2, Search, Pencil, GitBranch, Database } from 'lucide-react'
+import { CheckCircle, ChevronDown, ChevronRight, Terminal, Search, Pencil, GitBranch, Database } from 'lucide-react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { cn } from '@/lib/utils'
 import { TOOL_LABELS, colorClasses, TOOL_VARIANTS, variantCardClasses, TOOL_COMPLETE_LABELS } from '@/lib/chat/constants'
-import { getToolSummary, type ToolInvocation } from '@/lib/chat/tool-utils'
+import { type ToolInvocation } from '@/lib/chat/tool-utils'
 import { ToolResultDetail, getInlineSummary } from './tool-result-detail'
 
 export const SPECIAL_TOOLS = new Set([

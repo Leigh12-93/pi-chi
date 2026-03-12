@@ -12,10 +12,6 @@ import { isValidUUID } from '@/lib/validate'
 import { rateLimit } from '@/lib/rate-limit'
 import { encryptToken, decryptToken } from '@/lib/auth'
 
-// ═══════════════════════════════════════════════════════════════════
-// 1. UUID Validation
-// ═══════════════════════════════════════════════════════════════════
-
 describe('isValidUUID', () => {
   it('accepts a valid UUID v4', () => {
     expect(isValidUUID('550e8400-e29b-41d4-a716-446655440000')).toBe(true)
@@ -47,10 +43,6 @@ describe('isValidUUID', () => {
     expect(isValidUUID('550e8400-e29b-41d4-0716-446655440000')).toBe(false)
   })
 })
-
-// ═══════════════════════════════════════════════════════════════════
-// 2. Rate Limiter
-// ═══════════════════════════════════════════════════════════════════
 
 describe('rateLimit', () => {
   it('returns remaining count that decreases with each call', () => {
@@ -103,10 +95,6 @@ describe('rateLimit', () => {
   })
 })
 
-// ═══════════════════════════════════════════════════════════════════
-// 3. Supabase Fetch — URL construction and error handling
-// ═══════════════════════════════════════════════════════════════════
-
 describe('supabaseFetch', () => {
   it('returns {ok: false, status: 500} when env vars are missing', async () => {
     // supabase-fetch reads env at module load. We import it dynamically
@@ -132,10 +120,6 @@ describe('supabaseFetch', () => {
     expect(mod.SUPABASE_KEY).toBe(mod.SUPABASE_KEY.trim())
   })
 })
-
-// ═══════════════════════════════════════════════════════════════════
-// 4. Auth Token Encryption Round-Trip
-// ═══════════════════════════════════════════════════════════════════
 
 describe('encryptToken / decryptToken', () => {
   it('round-trips: encrypt then decrypt returns original string', async () => {

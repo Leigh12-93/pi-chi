@@ -1,13 +1,9 @@
 'use client'
 
 import { useEffect } from 'react'
-import { useSearchParams } from 'next/navigation'
 
 /** Vercel Integration configuration page — redirects to main app settings */
 export default function ConfigurePage() {
-  const searchParams = useSearchParams()
-  const configurationId = searchParams.get('configurationId')
-
   useEffect(() => {
     // Redirect to main app — the integration is already installed
     window.location.href = '/'

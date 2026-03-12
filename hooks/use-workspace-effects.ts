@@ -21,9 +21,8 @@ interface WorkspaceEffectsDeps {
 }
 
 export function useWorkspaceEffects(deps: WorkspaceEffectsDeps) {
-  const { state, actions, files, projectId, activeFile, onFileSelect, autoSaveError, initialPendingMessage, onInitialPendingMessageSent, wcStatus, wcSpawn } = deps
+  const { state, actions: _actions, files, projectId, activeFile, onFileSelect, autoSaveError, initialPendingMessage, onInitialPendingMessageSent, wcStatus, wcSpawn } = deps
 
-  // ─── Terminal action + audit plan event listeners ─────────
   useEffect(() => {
     const handleTerminalAction = (e: Event) => {
       const detail = (e as CustomEvent).detail
@@ -46,7 +45,7 @@ export function useWorkspaceEffects(deps: WorkspaceEffectsDeps) {
     }
   }, [wcStatus]) // eslint-disable-line react-hooks/exhaustive-deps
 
-  // ─── AI file-edit highlight + diff tracking ──────────────
+  // AI file-edit highlight + diff tracking
   useEffect(() => {
     const handleFileEdited = (e: Event) => {
       const detail = (e as CustomEvent).detail
@@ -115,7 +114,6 @@ export function useWorkspaceEffects(deps: WorkspaceEffectsDeps) {
     }
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
-  // ─── Load snapshots ──────────────────────────────────────
   useEffect(() => {
     if (!projectId) return
     state.setSnapshotsLoaded(false)
@@ -136,7 +134,6 @@ export function useWorkspaceEffects(deps: WorkspaceEffectsDeps) {
       .finally(() => state.setSnapshotsLoaded(true))
   }, [projectId]) // eslint-disable-line react-hooks/exhaustive-deps
 
-  // ─── Forward initial pending message ─────────────────────
   useEffect(() => {
     if (initialPendingMessage) {
       state.setPendingChatMessage(initialPendingMessage)
@@ -144,30 +141,30 @@ export function useWorkspaceEffects(deps: WorkspaceEffectsDeps) {
     }
   }, [initialPendingMessage, onInitialPendingMessageSent]) // eslint-disable-line react-hooks/exhaustive-deps
 
-  // ─── Capture initial file state ──────────────────────────
   useEffect(() => {
     if (Object.keys(state.initialFilesRef.current).length === 0 && Object.keys(files).length > 0) {
       state.initialFilesRef.current = { ...files }
     }
   }, [files]) // eslint-disable-line react-hooks/exhaustive-deps
 
-  // ─── Track modified files ────────────────────────────────
+  // Debounced to avoid keystroke-level recalculation
   useEffect(() => {
-    const initial = state.initialFilesRef.current
-    const modified = new Set<string>()
-    for (const [path, content] of Object.entries(files)) {
-      if (!(path in initial)) modified.add(path)
-      else if (initial[path] !== content) modified.add(path)
-    }
-    state.setModifiedFiles(modified)
+    const timer = setTimeout(() => {
+      const initial = state.initialFilesRef.current
+      const modified = new Set<string>()
+      for (const [path, content] of Object.entries(files)) {
+        if (!(path in initial)) modified.add(path)
+        else if (initial[path] !== content) modified.add(path)
+      }
+      state.setModifiedFiles(modified)
+    }, 500)
+    return () => clearTimeout(timer)
   }, [files]) // eslint-disable-line react-hooks/exhaustive-deps
 
-  // ─── Reset prevFileKeysRef on project switch ─────────────
   useEffect(() => {
     state.prevFileKeysRef.current = new Set(Object.keys(files))
   }, [projectId]) // eslint-disable-line react-hooks/exhaustive-deps
 
-  // ─── Track file changes — auto-select, batch toasts ──────
   useEffect(() => {
     const fileKeys = Object.keys(files)
     const currentSet = new Set(fileKeys)
@@ -219,7 +216,6 @@ export function useWorkspaceEffects(deps: WorkspaceEffectsDeps) {
     return () => { if (state.toastTimerRef.current) clearTimeout(state.toastTimerRef.current) }
   }, [files, activeFile, onFileSelect]) // eslint-disable-line react-hooks/exhaustive-deps
 
-  // ─── Auto-save error toast ───────────────────────────────
   useEffect(() => {
     if (autoSaveError) {
       state.setLocalSaveStatus('error')
@@ -227,7 +223,6 @@ export function useWorkspaceEffects(deps: WorkspaceEffectsDeps) {
     }
   }, [autoSaveError]) // eslint-disable-line react-hooks/exhaustive-deps
 
-  // ─── Warn before closing on unsaved ──────────────────────
   useEffect(() => {
     const handler = (e: BeforeUnloadEvent) => {
       if (autoSaveError) { e.preventDefault(); e.returnValue = '' }
@@ -236,14 +231,13 @@ export function useWorkspaceEffects(deps: WorkspaceEffectsDeps) {
     return () => window.removeEventListener('beforeunload', handler)
   }, [autoSaveError])
 
-  // ─── Auto-switch to chat on pending message ──────────────
   useEffect(() => {
     if (state.pendingChatMessage && state.mobileTab !== 'chat') {
       state.setMobileTab('chat')
     }
   }, [state.pendingChatMessage, state.mobileTab]) // eslint-disable-line react-hooks/exhaustive-deps
 
-  // ─── AI loading: auto-switch panels ──────────────────────
+  // Auto-switch panels based on AI loading state
   useEffect(() => {
     const wasLoading = state.prevAiLoadingRef.current
     state.prevAiLoadingRef.current = state.aiLoading
@@ -265,7 +259,6 @@ export function useWorkspaceEffects(deps: WorkspaceEffectsDeps) {
     }
   }, [state.aiLoading, files]) // eslint-disable-line react-hooks/exhaustive-deps
 
-  // ─── Cleanup manual switch timer ─────────────────────────
   useEffect(() => {
     return () => { if (state.userSwitchTimerRef.current) clearTimeout(state.userSwitchTimerRef.current) }
   }, []) // eslint-disable-line react-hooks/exhaustive-deps

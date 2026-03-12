@@ -7,11 +7,13 @@ import {
   UIMessage,
 } from 'ai'
 import { anthropic, createAnthropic } from '@ai-sdk/anthropic'
+import { logger } from '@/lib/logger'
 import { chatLimiter } from '@/lib/rate-limit'
 import { TaskStore } from '@/lib/background-tasks'
 import { getSession, decryptToken } from '@/lib/auth'
 import { supabaseFetch as supabaseFetchDirect } from '@/lib/supabase-fetch'
 import { MEMORY_MARKER, buildSystemPrompt } from '@/lib/system-prompt'
+import { getMessageText } from '@/lib/chat/tool-utils'
 import { VirtualFS } from '@/lib/virtual-fs'
 import { compactMessages } from '@/lib/compaction'
 import { GITHUB_TOKEN, githubFetch } from '@/lib/github'
@@ -32,64 +34,80 @@ import {
 } from '@/lib/tools'
 import type { ToolContext } from '@/lib/tools'
 
-// ═══════════════════════════════════════════════════════════════════
-// Module-level edit fail tracking — persists across requests per project
-// Auto-expires entries after 10 minutes to prevent unbounded growth
-// ═══════════════════════════════════════════════════════════════════
-const activeStreams = new Map<string, { count: number; ts: number }>()
+// Request limits
 const MAX_CONCURRENT_STREAMS = 3
-const STREAM_ENTRY_TTL = 5 * 60 * 1000 // 5 min TTL for stale entries
-
-const usageTracker = new Map<string, { tokens: number; requests: number; ts: number }>()
+const STREAM_ENTRY_TTL = 5 * 60 * 1000
 const MAX_USAGE_ENTRIES = 500
+const MEMORY_TTL = 60_000
+const MAX_HISTORY = 30
+const FULL_DETAIL_WINDOW = 4
 
+const activeStreams = new Map<string, { count: number; ts: number }>()
+const usageTracker = new Map<string, { tokens: number; requests: number; ts: number }>()
 const editFailCache = new Map<string, { counts: Map<string, number>; ts: number }>()
-
-// Project memory cache — avoids DB round-trip on every message
-const memoryCache = new Map<string, { data: Record<string, string>; ts: number }>()
-const MEMORY_TTL = 60_000 // 1 minute
+const memoryCache = new Map<string, { data: Record<string, string>; ts: number }>() // avoids DB round-trip on every message
+let lastCacheCleanup = 0
 
 // six-chi.md content cache — hash-based, avoids full injection on every message
 const sixChiCache = new Map<string, { hash: string; vision: string; taskList: string; full: string }>()
-function getEditFailCounts(projectId: string | null): Map<string, number> {
-  const key = projectId || '_anon'
+/** Periodic cleanup of all in-memory caches — runs at most once per minute */
+function cleanupCaches() {
   const now = Date.now()
-  // Cleanup stale entries
+  if (now - lastCacheCleanup < 60_000) return
+  lastCacheCleanup = now
+
+  // editFailCache: evict entries older than 10 min
   for (const [k, v] of editFailCache) {
     if (now - v.ts > 10 * 60 * 1000) editFailCache.delete(k)
   }
-  // Cap at 500 entries to prevent unbounded growth
+  // Hard cap
   if (editFailCache.size > 500) {
-    const entries = [...editFailCache.entries()].sort((a, b) => a[1].ts - b[1].ts)
-    while (editFailCache.size > 500) {
-      editFailCache.delete(entries.shift()![0])
-    }
+    const sorted = [...editFailCache.entries()].sort((a, b) => a[1].ts - b[1].ts)
+    while (editFailCache.size > 400) editFailCache.delete(sorted.shift()![0])
   }
+
+  // memoryCache: evict entries older than MEMORY_TTL
+  for (const [k, v] of memoryCache) {
+    if (now - v.ts > MEMORY_TTL) memoryCache.delete(k)
+  }
+  if (memoryCache.size > 200) {
+    const sorted = [...memoryCache.entries()].sort((a, b) => a[1].ts - b[1].ts)
+    while (memoryCache.size > 150) memoryCache.delete(sorted.shift()![0])
+  }
+
+  // usageTracker: evict entries older than STREAM_ENTRY_TTL
+  for (const [k, v] of usageTracker) {
+    if (now - v.ts > STREAM_ENTRY_TTL) usageTracker.delete(k)
+  }
+  if (usageTracker.size > MAX_USAGE_ENTRIES) {
+    const sorted = [...usageTracker.entries()].sort((a, b) => a[1].ts - b[1].ts)
+    while (usageTracker.size > 400) usageTracker.delete(sorted.shift()![0])
+  }
+
+  // activeStreams: evict stale
+  for (const [k, v] of activeStreams) {
+    if (now - v.ts > STREAM_ENTRY_TTL) activeStreams.delete(k)
+  }
+}
+
+function getEditFailCounts(projectId: string | null): Map<string, number> {
+  const key = projectId || '_anon'
+  cleanupCaches()
   let entry = editFailCache.get(key)
   if (!entry) {
-    entry = { counts: new Map(), ts: now }
+    entry = { counts: new Map(), ts: Date.now() }
     editFailCache.set(key, entry)
   }
-  entry.ts = now
+  entry.ts = Date.now()
   return entry.counts
 }
 
-// ═══════════════════════════════════════════════════════════════════
-// Lightweight model auto-routing — suggests optimal model when user
-// hasn't explicitly selected one
-// ═══════════════════════════════════════════════════════════════════
-
-// Pre-compiled regexes for model classification (avoid recompiling on every request)
-const OPUS_RE = /architect|refactor|redesign|migrate|optimize performance|system design|rewrite entire|full rewrite|debug.*complex|build.*from scratch|implement.*auth|implement.*database|convert.*to|design.*api|security audit|performance audit/
-const HAIKU_RE = /fix typo|rename|change color|change text|update title|small change|quick fix|add comment|what is|what does|explain|how does|remove.*line|delete.*line|change.*to/
+// Task complexity classification — used for both model routing and thinking budget
+const COMPLEX_RE = /architect|refactor|redesign|migrate|optimize performance|system design|rewrite|full rewrite|debug.*complex|build.*from scratch|implement.*auth|implement.*database|convert.*to|design.*api|security|performance|complex|multiple.*files|entire/i
+const SIMPLE_RE = /fix typo|rename|change.*color|change.*text|update title|small change|quick fix|add.*comment|what is|what does|explain|how does|remove.*line|delete.*line|change.*to/i
 
 // Repo owner — only this GitHub user can use self-modification tools
 const FORGE_OWNER = 'leigh12-93'
-
-// ═══════════════════════════════════════════════════════════════════
-// Conditional tool inclusion — only send tool categories the user needs
-// Saves 8,000-15,000 tokens per request by excluding unused tools
-// ═══════════════════════════════════════════════════════════════════
 
 const TOOL_CATEGORY_PATTERNS: Record<string, RegExp> = {
   project: /scaffold|new project|template|create.*project|start.*project/i,
@@ -143,9 +161,7 @@ function selectTools(
     matches.add('generation')
   }
 
-  // Include utility tools (planning, inspection, generation, model, search, persistence, mcp)
-  // These are relatively small — always include the core utility set
-  tools['...utility'] = undefined // placeholder — we'll spread below
+  // Utility tools: always included (planning, inspection, generation, model, search, persistence, mcp)
   Object.assign(tools, createUtilityTools(ctx))
 
   // Conditional heavy categories
@@ -158,9 +174,6 @@ function selectTools(
   if (matches.has('audit')) Object.assign(tools, createAuditTools(ctx))
   if (matches.has('google')) Object.assign(tools, createGoogleTools(ctx))
 
-  // Clean up placeholder
-  delete tools['...utility']
-
   const toolCount = Object.keys(tools).length
   const estimatedSchemaTokens = Math.round(toolCount * 220) // ~220 tokens per tool schema average
   console.log(`[forge:tools] ${toolCount} tools included (est. ${estimatedSchemaTokens} schema tokens), categories: ${[...matches].join(', ') || 'core-only'}`)
@@ -170,28 +183,18 @@ function selectTools(
 
 function classifyModelComplexity(messages: any[], fileCount: number): { model: string; reason: string } {
   const lastMsg = messages.findLast((m: any) => m.role === 'user')
-  let text = ''
-  if (lastMsg) {
-    if (typeof lastMsg.content === 'string') {
-      text = lastMsg.content
-    } else if (Array.isArray(lastMsg.parts)) {
-      text = lastMsg.parts
-        .filter((p: any) => p.type === 'text')
-        .map((p: any) => p.text || '')
-        .join(' ')
-    }
-  }
+  const text = lastMsg ? getMessageText(lastMsg) : ''
   const lower = text.toLowerCase()
   const wordCount = text.split(/\s+/).length
 
   // Opus indicators: complex architecture, multi-file refactors, system design, debugging
-  if (OPUS_RE.test(lower) || (wordCount > 200 && fileCount > 10)) {
+  if (COMPLEX_RE.test(lower) || (wordCount > 200 && fileCount > 10)) {
     return { model: 'claude-opus-4-20250514', reason: 'Complex task detected — using Opus for best reasoning' }
   }
 
   // Haiku indicators: simple edits, quick fixes, small questions
   const hasAttachments = lastMsg?.parts?.some((p: any) => p.type === 'file')
-  if (!hasAttachments && HAIKU_RE.test(lower) && wordCount < 30 && fileCount <= 5) {
+  if (!hasAttachments && SIMPLE_RE.test(lower) && wordCount < 30 && fileCount <= 5) {
     return { model: 'claude-haiku-4-5-20251001', reason: 'Simple task — using Haiku for speed' }
   }
 
@@ -199,19 +202,12 @@ function classifyModelComplexity(messages: any[], fileCount: number): { model: s
   return { model: 'claude-sonnet-4-20250514', reason: 'Standard task — using Sonnet' }
 }
 
-// ═══════════════════════════════════════════════════════════════════
-// Dynamic extended thinking budget — more thinking for complex tasks,
-// less for simple ones. Better first-attempt code = fewer retries.
-// ═══════════════════════════════════════════════════════════════════
-
-const COMPLEX_TASK_RE = /architect|refactor|redesign|migrate|system design|rewrite|full rewrite|build.*from scratch|implement.*auth|implement.*database|design.*api|security|performance|convert.*to|complex|multiple.*files|entire/i
-const SIMPLE_TASK_RE = /fix|typo|rename|change.*color|change.*text|update|small|quick|add.*comment|remove.*line|delete.*line|explain|what is|what does|how does/i
 
 function getThinkingBudget(model: string, userText: string, fileCount: number): number {
   if (model === 'claude-sonnet-4-20250514') {
     // Sonnet: modest budget. Thinking at $15/M is cheap but improves code quality.
     // Complex tasks get more; simple get baseline.
-    if (COMPLEX_TASK_RE.test(userText) || fileCount > 10) return 6000
+    if (COMPLEX_RE.test(userText) || fileCount > 10) return 6000
     return 4000
   }
 
@@ -219,18 +215,14 @@ function getThinkingBudget(model: string, userText: string, fileCount: number): 
   const wordCount = userText.split(/\s+/).length
 
   // Complex architecture / multi-file refactors — give it room to think deeply
-  if (COMPLEX_TASK_RE.test(userText) || (wordCount > 150 && fileCount > 8)) return 16000
+  if (COMPLEX_RE.test(userText) || (wordCount > 150 && fileCount > 8)) return 16000
 
   // Simple edits / questions — minimal thinking needed
-  if (SIMPLE_TASK_RE.test(userText) && wordCount < 40) return 3000
+  if (SIMPLE_RE.test(userText) && wordCount < 40) return 3000
 
   // Default: standard budget
   return 8000
 }
-
-// ═══════════════════════════════════════════════════════════════════
-// POST handler — AI SDK v6 with Vercel AI Gateway
-// ═══════════════════════════════════════════════════════════════════
 
 // Allow long-running streams — Vercel Pro plan supports up to 300s
 export const maxDuration = 300
@@ -270,7 +262,8 @@ export async function POST(req: Request) {
   let session
   try {
     session = await getSession()
-  } catch {
+  } catch (err) {
+    console.error('[chat] Session check failed:', err instanceof Error ? err.message : err)
     session = null
   }
   if (!session?.user) {
@@ -303,7 +296,8 @@ export async function POST(req: Request) {
   let body: ChatRequestBody
   try {
     body = await req.json() as ChatRequestBody
-  } catch {
+  } catch (err) {
+    console.error('[chat] JSON parse failed:', err instanceof Error ? err.message : err)
     return new Response(JSON.stringify({ error: 'Invalid JSON in request body.' }), {
       status: 400,
       headers: { 'Content-Type': 'application/json' },
@@ -320,7 +314,6 @@ export async function POST(req: Request) {
     }
   }
 
-  // ─── BYOK: Load user's API key + Vercel token ──────────────
   let userApiKey: string | null = null
   let userVercelToken: string | null = null
   try {
@@ -338,8 +331,9 @@ export async function POST(req: Request) {
         userVercelToken = await decryptToken(raw)
       }
     }
-  } catch (err: any) {
-    console.warn('[chat] Failed to load user credentials, falling back to server keys:', err.message)
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err)
+    console.warn('[chat] Failed to load user credentials, falling back to server keys:', msg)
   }
 
   // Create the AI provider — user's key takes priority, falls back to server key
@@ -364,6 +358,23 @@ export async function POST(req: Request) {
       status: 400,
       headers: { 'Content-Type': 'application/json' },
     })
+  }
+
+  // Validate message array bounds and structure
+  if (body.messages.length > 200) {
+    return new Response(JSON.stringify({ error: 'Too many messages. Maximum 200 per request.' }), {
+      status: 400,
+      headers: { 'Content-Type': 'application/json' },
+    })
+  }
+  for (const msg of body.messages) {
+    if (!msg || typeof msg !== 'object') continue
+    if (msg.role && !['user', 'assistant', 'system'].includes(msg.role)) {
+      return new Response(JSON.stringify({ error: `Invalid message role: ${String(msg.role).slice(0, 20)}` }), {
+        status: 400,
+        headers: { 'Content-Type': 'application/json' },
+      })
+    }
   }
 
   // Post-parse size check
@@ -422,8 +433,9 @@ export async function POST(req: Request) {
             memoryCache.set(projectId, { data: projectMemory, ts: Date.now() })
           }
         }
-      } catch {
-        // Non-critical — continue without memory
+      } catch (e) {
+        const msg = e instanceof Error ? e.message : String(e)
+        console.warn(`[forge] Memory load failed for project ${projectId}:`, msg)
       }
     }
   }
@@ -460,19 +472,8 @@ export async function POST(req: Request) {
     manifestStr = lines.join('\n')
   }
 
-  // ── Extract last user message text for system prompt tiering + tool selection ──
-  const lastUserMessage = (body.messages || []).findLast((m: any) => m.role === 'user') as any
-  let lastUserText = ''
-  if (lastUserMessage) {
-    if (typeof lastUserMessage.content === 'string') {
-      lastUserText = lastUserMessage.content
-    } else if (Array.isArray(lastUserMessage.parts)) {
-      lastUserText = lastUserMessage.parts
-        .filter((p: any) => p.type === 'text')
-        .map((p: any) => p.text || '')
-        .join(' ')
-    }
-  }
+  const lastUserMessage = (body.messages || []).findLast((m: any) => m.role === 'user')
+  const lastUserText = lastUserMessage ? getMessageText(lastUserMessage) : ''
 
   // In-request task store
   const taskStore = new TaskStore()
@@ -503,10 +504,7 @@ export async function POST(req: Request) {
   const isFirstMessage = rawMessages0.length <= 1
   const allTools = selectTools(lastUserText, ctx, isForgeOwner, isFirstMessage, Object.keys(safeFiles).length)
 
-  // ── Cost optimization: trim conversation history ──────────────
-  const MAX_HISTORY = 30
-  const FULL_DETAIL_WINDOW = 4
-
+  // Trim conversation history to save tokens
   const rawMessages: UIMessage[] = body.messages || []
   let trimmedMessages = rawMessages.length > MAX_HISTORY
     ? [...rawMessages.slice(0, 2), ...rawMessages.slice(-(MAX_HISTORY - 2))]
@@ -528,8 +526,8 @@ export async function POST(req: Request) {
       const textParts = m.parts.filter((p: any) => p.type === 'text')
       if (toolParts.length > 0) {
         const summary = toolParts.map((p: any) => {
-          const name = p.toolName || p.type?.replace('tool-', '') || 'unknown'
-          const path = p.input?.path || p.args?.path || ''
+          const name = (p.toolName || p.type?.replace('tool-', '') || 'unknown').slice(0, 50)
+          const path = (p.input?.path || p.args?.path || '').slice(0, 100)
           return path ? `${name}(${path})` : name
         }).join(', ')
         return {
@@ -557,11 +555,15 @@ export async function POST(req: Request) {
     return m
   })
 
-  // ── Estimate FULL context size (system + tools + messages) ───
+  // Estimate full context size (system + tools + messages)
   // Build the tiered system prompt — only includes tool/DB/self-mod docs when relevant
   // Inject project memory into the MEMORY_MARKER placeholder
-  const memorySection = Object.keys(projectMemory).length > 0
-    ? `\n\n## Project Memory (persisted across sessions)\n\`\`\`json\n${JSON.stringify(projectMemory, null, 2)}\n\`\`\``
+  // Validate memory values are strings (filter objects/arrays that could contain injection payloads)
+  const safeMemory = Object.fromEntries(
+    Object.entries(projectMemory).filter(([, v]) => typeof v === 'string')
+  )
+  const memorySection = Object.keys(safeMemory).length > 0
+    ? `\n\n## Project Memory (persisted across sessions)\n\`\`\`json\n${JSON.stringify(safeMemory)}\n\`\`\``
     : '\n\n(No project memory saved yet — use save_memory to persist insights.)'
   // Inject six-chi.md blueprint — token-optimized with hash-based caching
   const sixChiContent = vfs.read('six-chi.md')
@@ -581,27 +583,32 @@ export async function POST(req: Request) {
       sixChiCache.set(projectId || '_anon', { hash, vision: visionMatch, taskList: taskMatch, full: sixChiContent })
     } else {
       // Condensed injection — vision + tasks only (~200 tokens vs ~1000)
-      sixChiSection = `\n\n## Project Blueprint (six-chi.md — condensed)\nVision: ${cached.vision}\n\nTask List:\n${cached.taskList}\n\n(Full blueprint in six-chi.md — use read_file for architecture/design details)`
+      // Escape triple backticks in cached vision/tasks to prevent markdown fence breakout
+      const safeVision = cached.vision.replace(/```/g, '\\`\\`\\`')
+      const safeTaskList = cached.taskList.replace(/```/g, '\\`\\`\\`')
+      sixChiSection = `\n\n## Project Blueprint (six-chi.md — condensed)\nVision: ${safeVision}\n\nTask List:\n${safeTaskList}\n\n(Full blueprint in six-chi.md — use read_file for architecture/design details)`
     }
   }
 
   // Cap active file injection at 150 lines — larger files use read_file on demand
+  // Sanitize activeFile path to prevent prompt injection via backticks/newlines
   let activeFileSection = ''
   if (activeFile && activeFileContent) {
+    const safeActiveFile = activeFile.replace(/[`\n\r]/g, '_')
     const activeLines = activeFileContent.split('\n')
     if (activeLines.length <= 150) {
-      activeFileSection = `\n\nUser is currently viewing: ${activeFile}\n\`\`\`\n${activeFileContent}\n\`\`\``
+      activeFileSection = `\n\nUser is currently viewing: ${safeActiveFile}\n\`\`\`\n${activeFileContent}\n\`\`\``
     } else {
       const head = activeLines.slice(0, 50).join('\n')
       const tail = activeLines.slice(-50).join('\n')
-      activeFileSection = `\n\nUser is currently viewing: ${activeFile} (${activeLines.length} lines — showing first/last 50, use read_file for full content)\n\`\`\`\n${head}\n\n... [${activeLines.length - 100} lines omitted] ...\n\n${tail}\n\`\`\``
+      activeFileSection = `\n\nUser is currently viewing: ${safeActiveFile} (${activeLines.length} lines — showing first/last 50, use read_file for full content)\n\`\`\`\n${head}\n\n... [${activeLines.length - 100} lines omitted] ...\n\n${tail}\n\`\`\``
     }
   }
 
   const systemPromptStr = buildSystemPrompt(lastUserText).replace(MEMORY_MARKER, memorySection)
     + activeFileSection
     + sixChiSection
-    + `\n\n---\nProject: "${projectName}"${projectId ? ` (id: ${projectId})` : ''}\nFile manifest:\n${manifestStr}`
+    + `\n\n---\nProject: "${projectName.replace(/["\\`]/g, '_')}"${projectId ? ` (id: ${projectId})` : ''}\nFile manifest:\n${manifestStr}`
 
   // Token estimation: /3 divisor (not /4) because tool schemas, framing, and code
   // tokenization add ~40% overhead vs prose.
@@ -636,7 +643,7 @@ export async function POST(req: Request) {
     'claude-haiku-4-5-20251001': 60,
   }
 
-  // ── Layer 2: Auto-compaction via Haiku summarization ──────────
+  // Layer 2: auto-compaction via Haiku summarization
   // Triggers on: token threshold (70%) OR message count (>30 messages = always compact)
   let compactionOccurred = false
   let compactedTokensSaved = 0
@@ -717,7 +724,8 @@ export async function POST(req: Request) {
   let messages
   try {
     messages = await convertToModelMessages(trimmedMessages)
-  } catch {
+  } catch (err) {
+    console.error('[chat] convertToModelMessages failed, using fallback:', err instanceof Error ? err.message : err)
     // Fallback for legacy format or malformed messages
     messages = trimmedMessages.map((m: { role: string; content?: string; parts?: any[] }) => {
       let text = ''
@@ -919,9 +927,16 @@ export async function POST(req: Request) {
 
     const err = error instanceof Error ? error : new Error(String(error))
     const msg = err.message || ''
-    console.error(`[forge] rid=${requestId} Stream error:`, err)
+    // Log full error server-side — never expose raw message to client
+    logger.error('Stream failed', {
+      requestId,
+      error: msg,
+      stack: err.stack,
+      model: selectedModel,
+      ip,
+    })
 
-    // Classify the error for the client
+    // Classify the error for the client — safe, generic messages only
     let status = 500
     let clientMessage = 'Stream failed unexpectedly. Please try again.'
 

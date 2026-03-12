@@ -19,7 +19,8 @@ export async function GET() {
   let accessToken: string
   try {
     accessToken = await decryptToken(data[0].encrypted_supabase_access_token.replace(/^v1:/, ''))
-  } catch {
+  } catch (err) {
+    console.error('[supabase/projects] decrypt access token failed:', err instanceof Error ? err.message : err)
     return NextResponse.json({ error: 'Failed to decrypt access token' }, { status: 500 })
   }
 
@@ -48,8 +49,9 @@ export async function GET() {
     }))
 
     return NextResponse.json(simplified)
-  } catch (err: any) {
-    return NextResponse.json({ error: err.message || 'Failed to fetch projects' }, { status: 502 })
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err)
+    return NextResponse.json({ error: msg || 'Failed to fetch projects' }, { status: 502 })
   }
 }
 
@@ -77,7 +79,8 @@ export async function POST(req: Request) {
   let accessToken: string
   try {
     accessToken = await decryptToken(data[0].encrypted_supabase_access_token.replace(/^v1:/, ''))
-  } catch {
+  } catch (err) {
+    console.error('[supabase/projects] decrypt access token failed:', err instanceof Error ? err.message : err)
     return NextResponse.json({ error: 'Failed to decrypt access token' }, { status: 500 })
   }
 
@@ -103,7 +106,8 @@ export async function POST(req: Request) {
     }
 
     return NextResponse.json({ url, key, keyType: serviceRole ? 'service_role' : 'anon' })
-  } catch (err: any) {
-    return NextResponse.json({ error: err.message || 'Failed to fetch API keys' }, { status: 502 })
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err)
+    return NextResponse.json({ error: msg || 'Failed to fetch API keys' }, { status: 502 })
   }
 }

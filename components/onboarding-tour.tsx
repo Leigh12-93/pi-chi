@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect, useRef } from 'react'
-import { X, ChevronRight, Sparkles, MessageSquare, Code2, Eye, FolderTree, Rocket } from 'lucide-react'
+import { X, ChevronRight, Sparkles, MessageSquare, Eye, FolderTree, Rocket } from 'lucide-react'
 
 const STEPS = [
   {

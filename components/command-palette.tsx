@@ -2,9 +2,7 @@
 
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react'
 import {
-  Search, Save, Rocket, Upload, GitBranch, Download,
-  Eye, SidebarOpen, X as XIcon, Terminal, FileText,
-  FolderTree, MessageSquare, Keyboard, Maximize2,
+  Search, Keyboard,
   type LucideIcon,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'

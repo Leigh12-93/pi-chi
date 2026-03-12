@@ -15,7 +15,9 @@ export async function GET() {
     if (ok && Array.isArray(data) && data.length > 0) {
       hasApiKey = !!(data[0] as any).encrypted_api_key
     }
-  } catch {}
+  } catch (err) {
+    console.error('[auth/session] Failed to check API key:', err instanceof Error ? err.message : err)
+  }
 
   const response = NextResponse.json({
     user: session.user,

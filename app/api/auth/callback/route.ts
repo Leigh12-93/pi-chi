@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { cookies } from 'next/headers'
 import { createSession, COOKIE_NAME } from '@/lib/auth'
+import { authLimiter } from '@/lib/rate-limit'
 
 export async function GET(req: Request) {
   const url = new URL(req.url)
@@ -8,6 +9,13 @@ export async function GET(req: Request) {
   const state = url.searchParams.get('state')
   const error = url.searchParams.get('error')
   const baseUrl = (process.env.NEXT_PUBLIC_APP_URL || (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : 'http://localhost:3333')).trim()
+
+  // Rate limit auth callbacks
+  const ip = req.headers.get('x-forwarded-for')?.split(',')[0]?.trim() || 'unknown'
+  const limit = authLimiter(ip)
+  if (!limit.ok) {
+    return NextResponse.redirect(baseUrl + '/?error=rate_limited')
+  }
 
   if (error || !code) {
     return NextResponse.redirect(baseUrl + '/?error=' + (error || 'no_code'))
@@ -94,15 +102,15 @@ export async function GET(req: Request) {
       httpOnly: true,
       secure: process.env.NODE_ENV === 'production',
       sameSite: 'lax',
-      maxAge: 60 * 60 * 24 * 30, // 30 days
+      maxAge: 60 * 60 * 24 * 7, // 7 days
       path: '/',
     })
     response.cookies.delete('oauth_state')
     response.cookies.delete('pkce_verifier')
 
     return response
-  } catch (err: any) {
-    console.error('[Auth] Callback error:', err.message)
+  } catch (err) {
+    console.error('[Auth] Callback error:', err instanceof Error ? err.message : err)
     return NextResponse.redirect(baseUrl + '/?error=callback_failed')
   }
 }

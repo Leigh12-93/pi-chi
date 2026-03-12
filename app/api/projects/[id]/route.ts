@@ -13,24 +13,22 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
 
   const { data: project, error: projErr } = await supabase
     .from('forge_projects')
-    .select('*')
+    .select('*, forge_project_files(path, content)')
     .eq('id', id)
     .eq('github_username', username)
     .single()
 
   if (projErr || !project) return NextResponse.json({ error: 'Project not found' }, { status: 404 })
 
-  const { data: files } = await supabase
-    .from('forge_project_files')
-    .select('path, content')
-    .eq('project_id', id)
-
   const fileMap: Record<string, string> = {}
-  for (const f of files || []) {
+  const fileRows = (project as Record<string, unknown>).forge_project_files as Array<{ path: string; content: string }> | undefined
+  for (const f of fileRows || []) {
     fileMap[f.path] = f.content
   }
 
-  return NextResponse.json({ ...project, files: fileMap })
+  // Remove nested relation from response, flatten to files map
+  const { forge_project_files: _, ...projectData } = project as Record<string, unknown>
+  return NextResponse.json({ ...projectData, files: fileMap })
 }
 
 // PUT /api/projects/[id] — save project files (upsert all)
@@ -70,6 +68,30 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
   if (body.files && typeof body.files === 'object') {
     const files = body.files as Record<string, string>
     const filePaths = Object.keys(files)
+
+    // Validate file count
+    if (filePaths.length > 500) {
+      return NextResponse.json({ error: 'Too many files (max 500)' }, { status: 400 })
+    }
+
+    // Validate file paths — no directory traversal
+    for (const path of filePaths) {
+      if (path.includes('..') || path.startsWith('/') || path.includes('\\') || path.includes('\0')) {
+        return NextResponse.json({ error: `Invalid file path: ${path}` }, { status: 400 })
+      }
+    }
+
+    // Validate total content size (10MB max)
+    let totalSize = 0
+    for (const content of Object.values(files)) {
+      if (typeof content !== 'string') {
+        return NextResponse.json({ error: 'All file values must be strings' }, { status: 400 })
+      }
+      totalSize += content.length
+      if (totalSize > 10 * 1024 * 1024) {
+        return NextResponse.json({ error: 'Total file content too large (max 10MB)' }, { status: 400 })
+      }
+    }
 
     // Delete files that no longer exist — use safe parameterized filtering
     if (filePaths.length > 0) {
@@ -124,6 +146,9 @@ export async function DELETE(_req: Request, { params }: { params: Promise<{ id: 
     .eq('id', id)
     .eq('github_username', username)
 
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+  if (error) {
+    console.error('[projects/delete]', error.message)
+    return NextResponse.json({ error: 'Failed to delete project' }, { status: 500 })
+  }
   return NextResponse.json({ ok: true })
 }

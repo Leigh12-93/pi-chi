@@ -44,7 +44,7 @@ const COMPONENTS = [
   { name: 'Accordion', category: 'display', desc: 'Expandable sections', tags: ['collapse', 'expand', 'faq'] },
 ]
 
-export function ComponentLibrary({ onInsert }: ComponentLibraryProps) {
+export function ComponentLibrary({ onInsert: _onInsert }: ComponentLibraryProps) {
   const [search, setSearch] = useState('')
   const [category, setCategory] = useState('all')
   const [copiedId, setCopiedId] = useState<string | null>(null)

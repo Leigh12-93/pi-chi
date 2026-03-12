@@ -2,6 +2,29 @@ import { tool } from 'ai'
 import { z } from 'zod'
 import type { ToolContext } from './types'
 
+/** Valid PostgREST filter operators */
+const POSTGREST_OPS = new Set([
+  'eq', 'neq', 'gt', 'gte', 'lt', 'lte', 'like', 'ilike',
+  'is', 'in', 'cs', 'cd', 'ov', 'sl', 'sr', 'adj',
+  'not', 'fts', 'plfts', 'phfts', 'wfts',
+])
+
+/** Validate that a filter string contains only valid PostgREST key=op.value pairs */
+function validatePostgrestFilter(filters: string): boolean {
+  for (const part of filters.split('&')) {
+    const eqIdx = part.indexOf('=')
+    if (eqIdx <= 0) return false
+    const key = part.slice(0, eqIdx)
+    const value = part.slice(eqIdx + 1)
+    if (!/^[a-zA-Z_][a-zA-Z0-9_]*$/.test(key)) return false
+    const dotIdx = value.indexOf('.')
+    if (dotIdx <= 0) return false
+    const op = value.slice(0, dotIdx)
+    if (!POSTGREST_OPS.has(op) && !op.startsWith('not.')) return false
+  }
+  return true
+}
+
 export function createDbTools(ctx: ToolContext) {
   const { vfs, projectId, supabaseFetch } = ctx
 
@@ -27,15 +50,10 @@ export function createDbTools(ctx: ToolContext) {
         if (order) params.set('order', order)
         params.set('limit', String(limit || 50))
 
-        // Sanitize filters: only allow valid PostgREST operators, reject anything suspicious
         if (filters && filters.trim()) {
-          // PostgREST filters are key=operator.value pairs joined by &
-          // Reject if it contains characters that could break out of URL query params
-          const UNSAFE_FILTER = /[;'"\\{}()[\]<>]|--|\bOR\b|\bAND\b|\bUNION\b|\bSELECT\b|\bDROP\b|\bDELETE\b|\bINSERT\b|\bUPDATE\b/i
-          if (UNSAFE_FILTER.test(filters)) {
-            return { error: 'Invalid filter: contains disallowed characters or keywords' }
+          if (!validatePostgrestFilter(filters)) {
+            return { error: 'Invalid filter: must be valid PostgREST key=operator.value pairs' }
           }
-          // Parse as URL params so values are properly encoded
           for (const part of filters.split('&')) {
             const eqIdx = part.indexOf('=')
             if (eqIdx > 0) {
@@ -72,12 +90,10 @@ export function createDbTools(ctx: ToolContext) {
 
         const path = `/${table}`
 
-        // Sanitize filters: same rules as db_query
         let filterStr = ''
         if (filters && filters.trim()) {
-          const UNSAFE_FILTER = /[;'"\\{}()[\]<>]|--|\bOR\b|\bAND\b|\bUNION\b|\bSELECT\b|\bDROP\b|\bDELETE\b|\bINSERT\b|\bUPDATE\b/i
-          if (UNSAFE_FILTER.test(filters)) {
-            return { error: 'Invalid filter: contains disallowed characters or keywords' }
+          if (!validatePostgrestFilter(filters)) {
+            return { error: 'Invalid filter: must be valid PostgREST key=operator.value pairs' }
           }
           const params = new URLSearchParams()
           for (const part of filters.split('&')) {

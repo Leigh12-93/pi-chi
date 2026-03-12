@@ -1,8 +1,8 @@
 'use client'
 
 import { useState } from 'react'
-import { ChevronDown, Copy, Check, FileText, Search, Database, GitBranch, Terminal, Eye } from 'lucide-react'
-import { motion, AnimatePresence } from 'framer-motion'
+import { Copy, Check } from 'lucide-react'
+import { motion } from 'framer-motion'
 import { cn } from '@/lib/utils'
 
 type ToolArgs = Record<string, unknown>
@@ -56,7 +56,7 @@ export function getInlineSummary(toolName: string, args: ToolArgs, result: ToolR
       return null
     }
     case 'get_all_files': {
-      const total = (result as any).totalFiles as number | undefined
+      const total = (result as Record<string, unknown>).totalFiles as number | undefined
       if (total) return `${total} files`
       return null
     }
@@ -71,7 +71,7 @@ export function getInlineSummary(toolName: string, args: ToolArgs, result: ToolR
       return null
     }
     case 'github_pull_latest': {
-      const fc = (result as any).fileCount as number | undefined
+      const fc = (result as Record<string, unknown>).fileCount as number | undefined
       if (fc) return `${fc} files`
       return null
     }
@@ -154,7 +154,7 @@ function getToolDetail(
 
   // Error detail — show full error message
   if (hasError) {
-    const errMsg = String((result as any).error || 'Unknown error')
+    const errMsg = String((result as Record<string, unknown>).error || 'Unknown error')
     return (
       <div className="text-[11.5px] text-red-500/80 dark:text-red-400/70 font-mono leading-relaxed whitespace-pre-wrap break-all max-h-[120px] overflow-y-auto">
         {errMsg}
@@ -244,7 +244,7 @@ function DetailRow({ label, value, mono }: { label: string; value: string; mono?
   )
 }
 
-// ── Tool-specific detail components ──────────────────────────────
+// Tool-specific detail components
 
 function WriteFileDetail({ args, onCopy, copiedSnippet }: { args: ToolArgs; onCopy: (t: string) => void; copiedSnippet: boolean }) {
   const content = args.content as string | undefined
@@ -323,7 +323,7 @@ function SearchDetail({ args, result }: { args: ToolArgs; result: ToolResult }) 
 }
 
 function FileListDetail({ result }: { result: ToolResult }) {
-  const files = (result as any)?.files as string[] | undefined
+  const files = (result as Record<string, unknown>)?.files as string[] | undefined
   if (!files || files.length === 0) return null
   const display = files.slice(0, 12)
   return (
@@ -382,7 +382,7 @@ function DbQueryDetail({ args, result }: { args: ToolArgs; result: ToolResult })
   )
 }
 
-function DbMutateDetail({ args, result }: { args: ToolArgs; result: ToolResult }) {
+function DbMutateDetail({ args, result: _result }: { args: ToolArgs; result: ToolResult }) {
   const op = args.operation as string | undefined
   const table = args.table as string | undefined
   return (
@@ -409,8 +409,8 @@ function DbIntrospectDetail({ result }: { result: ToolResult }) {
 
 function GitPushDetail({ result }: { result: ToolResult }) {
   const filesCount = result?.filesCount as number | undefined
-  const mode = (result as any)?.mode as string | undefined
-  const sha = (result as any)?.sha as string | undefined
+  const mode = (result as Record<string, unknown>)?.mode as string | undefined
+  const sha = (result as Record<string, unknown>)?.sha as string | undefined
   return (
     <div className="space-y-0.5">
       {filesCount && <DetailRow label="files" value={String(filesCount)} />}
@@ -421,8 +421,8 @@ function GitPushDetail({ result }: { result: ToolResult }) {
 }
 
 function GitPullDetail({ result }: { result: ToolResult }) {
-  const fileCount = (result as any)?.fileCount as number | undefined
-  const skipped = (result as any)?.skippedCount as number | undefined
+  const fileCount = (result as Record<string, unknown>)?.fileCount as number | undefined
+  const skipped = (result as Record<string, unknown>)?.skippedCount as number | undefined
   return (
     <div className="space-y-0.5">
       {fileCount && <DetailRow label="pulled" value={`${fileCount} files`} />}
@@ -462,8 +462,8 @@ function DependencyDetail({ args, result }: { args: ToolArgs; result: ToolResult
 }
 
 function BuildDetail({ result }: { result: ToolResult }) {
-  const errors = (result as any)?.errors as string[] | undefined
-  const output = (result as any)?.output as string | undefined
+  const errors = (result as Record<string, unknown>)?.errors as string[] | undefined
+  const output = (result as Record<string, unknown>)?.output as string | undefined
   if (errors && errors.length > 0) {
     return (
       <div className="space-y-0.5">
@@ -477,7 +477,7 @@ function BuildDetail({ result }: { result: ToolResult }) {
   return null
 }
 
-function GenericDetail({ args, result }: { args: ToolArgs; result: ToolResult }) {
+function GenericDetail({ args: _args, result }: { args: ToolArgs; result: ToolResult }) {
   // For unknown tools, show a compact JSON preview of the result
   if (!result || Object.keys(result).length === 0) return null
 

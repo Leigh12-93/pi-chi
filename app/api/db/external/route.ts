@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { getSession, decryptToken } from '@/lib/auth'
 import { supabaseFetch } from '@/lib/supabase-fetch'
+import { logger } from '@/lib/logger'
 
 /** GET /api/db/external — return saved Supabase credentials (decrypted, for auto-connect) */
 export async function GET() {
@@ -18,11 +19,10 @@ export async function GET() {
   try {
     const row = data[0] as any
     const url = await decryptToken(row.encrypted_supabase_url.replace(/^v1:/, ''))
-    const key = await decryptToken(row.encrypted_supabase_key.replace(/^v1:/, ''))
     const projectRef = url.match(/https:\/\/([^.]+)\.supabase/)?.[1] || ''
-    return NextResponse.json({ connected: true, url, projectRef })
-    // Note: key is NOT returned to the client — queries go through POST
-  } catch {
+    return NextResponse.json({ connected: true, projectRef })
+  } catch (err) {
+    logger.error('Credential decryption failed', { route: 'db/external', error: err instanceof Error ? err.message : String(err) })
     return NextResponse.json({ connected: false })
   }
 }
@@ -33,44 +33,48 @@ export async function POST(req: Request) {
   if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
   const body = await req.json()
-  const { query, useSaved } = body
-  let { supabaseUrl, supabaseKey } = body
+  const { query } = body
 
   if (!query) {
     return NextResponse.json({ error: 'Missing query' }, { status: 400 })
   }
 
-  // Load saved credentials if requested
-  if (useSaved) {
-    const { data, ok } = await supabaseFetch(
-      `/forge_user_settings?github_username=eq.${encodeURIComponent(session.githubUsername)}&select=encrypted_supabase_url,encrypted_supabase_key`,
-    )
-    if (!ok || !Array.isArray(data) || data.length === 0 || !data[0].encrypted_supabase_url) {
-      return NextResponse.json({ error: 'No saved Supabase credentials' }, { status: 400 })
-    }
-    try {
-      const row = data[0] as any
-      supabaseUrl = await decryptToken(row.encrypted_supabase_url.replace(/^v1:/, ''))
-      supabaseKey = await decryptToken(row.encrypted_supabase_key.replace(/^v1:/, ''))
-    } catch {
-      return NextResponse.json({ error: 'Failed to decrypt saved credentials' }, { status: 500 })
-    }
+  // Only allow saved credentials — never accept raw keys in request body
+  const { data, ok } = await supabaseFetch(
+    `/forge_user_settings?github_username=eq.${encodeURIComponent(session.githubUsername)}&select=encrypted_supabase_url,encrypted_supabase_key`,
+  )
+  if (!ok || !Array.isArray(data) || data.length === 0 || !data[0].encrypted_supabase_url) {
+    return NextResponse.json({ error: 'No saved Supabase credentials. Connect your database first.' }, { status: 400 })
   }
 
-  if (!supabaseUrl || !supabaseKey) {
-    return NextResponse.json({ error: 'Missing supabaseUrl, supabaseKey, or useSaved' }, { status: 400 })
+  let supabaseUrl: string
+  let supabaseKey: string
+  try {
+    const row = data[0] as any
+    supabaseUrl = await decryptToken(row.encrypted_supabase_url.replace(/^v1:/, ''))
+    supabaseKey = await decryptToken(row.encrypted_supabase_key.replace(/^v1:/, ''))
+  } catch (err) {
+    logger.error('Failed to decrypt saved credentials', { route: 'db/external', error: err instanceof Error ? err.message : String(err) })
+    return NextResponse.json({ error: 'Failed to decrypt saved credentials' }, { status: 500 })
   }
 
-  // Validate URL format
+  // Validate URL format — must be a real Supabase URL
   const url = supabaseUrl.trim().replace(/\/$/, '')
-  if (!url.startsWith('https://') || !url.includes('supabase')) {
-    return NextResponse.json({ error: 'Invalid Supabase URL' }, { status: 400 })
+  if (!url.match(/^https:\/\/[a-z0-9]+\.supabase\.co$/)) {
+    return NextResponse.json({ error: 'Invalid Supabase URL format' }, { status: 400 })
   }
 
-  // Only allow safe read queries
+  // Only allow safe read queries — block dangerous patterns
   const trimmedQuery = query.trim().toLowerCase()
   if (!trimmedQuery.startsWith('select')) {
     return NextResponse.json({ error: 'Only SELECT queries are allowed' }, { status: 400 })
+  }
+  const DANGEROUS_PATTERNS = /\b(union|insert|update|delete|drop|alter|create|truncate|exec|execute|grant|revoke)\b|;|--|\/\*/i
+  if (DANGEROUS_PATTERNS.test(trimmedQuery)) {
+    return NextResponse.json({ error: 'Query contains disallowed SQL keywords' }, { status: 400 })
+  }
+  if (/\(.*select/i.test(trimmedQuery)) {
+    return NextResponse.json({ error: 'Subqueries are not allowed' }, { status: 400 })
   }
 
   try {
@@ -106,12 +110,14 @@ export async function POST(req: Request) {
         return NextResponse.json({ tables })
       }
 
-      return NextResponse.json({ error: `Supabase query failed: ${res.status}` }, { status: 502 })
+      logger.error('Supabase query failed', { route: 'db/external', status: res.status })
+      return NextResponse.json({ error: 'Database query failed' }, { status: 502 })
     }
 
     const data = await res.json()
     return NextResponse.json(data)
-  } catch (err: any) {
-    return NextResponse.json({ error: err.message || 'Connection failed' }, { status: 502 })
+  } catch (err) {
+    logger.error('External DB connection failed', { route: 'db/external', error: err instanceof Error ? err.message : String(err) })
+    return NextResponse.json({ error: 'Connection failed' }, { status: 502 })
   }
 }

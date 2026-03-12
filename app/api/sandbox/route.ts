@@ -11,12 +11,11 @@ import { sandboxLimiter, sandboxSyncLimiter } from '@/lib/rate-limit'
 import { getSession } from '@/lib/auth'
 import { supabaseFetch } from '@/lib/supabase-fetch'
 
-const MAX_FILES = 500    // reject absurdly large projects
 const MAX_BODY = 8 << 20 // 8MB request body guard
 
 /** Validate all file values are strings (not objects, nulls, etc.) */
 function validateFileValues(files: Record<string, unknown>): files is Record<string, string> {
-  for (const [key, val] of Object.entries(files)) {
+  for (const [_key, val] of Object.entries(files)) {
     if (typeof val !== 'string') {
       return false
     }
@@ -111,6 +110,12 @@ export async function POST(req: NextRequest) {
 // GET /api/sandbox?check=true — Check if v0 Sandbox is configured
 // GET /api/sandbox?stats=true — Get aggregate session stats
 export async function GET(req: NextRequest) {
+  // Auth required for all sandbox queries
+  const session = await getSession()
+  if (!session?.user) {
+    return NextResponse.json({ error: 'Authentication required' }, { status: 401 })
+  }
+
   const check = req.nextUrl.searchParams.get('check')
   if (check) {
     return NextResponse.json({ available: isV0SandboxConfigured() })
@@ -124,6 +129,11 @@ export async function GET(req: NextRequest) {
   const projectId = req.nextUrl.searchParams.get('projectId')
   if (!projectId) {
     return NextResponse.json({ error: 'projectId is required' }, { status: 400 })
+  }
+
+  // Verify ownership before revealing sandbox status
+  if (!await verifyOwnership(projectId, session.githubUsername)) {
+    return NextResponse.json({ error: 'Project not found or access denied' }, { status: 403 })
   }
 
   const status = getV0SandboxStatus(projectId)
@@ -191,7 +201,8 @@ export async function DELETE(req: NextRequest) {
     try {
       const body = await req.json()
       projectId = body?.projectId
-    } catch {
+    } catch (err) {
+      console.error('[sandbox] DELETE parse body failed:', err instanceof Error ? err.message : err)
       return NextResponse.json({ error: 'projectId is required (JSON body)' }, { status: 400 })
     }
 

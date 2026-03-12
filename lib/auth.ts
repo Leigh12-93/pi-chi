@@ -2,19 +2,20 @@ import { SignJWT, jwtVerify } from 'jose'
 import { cookies } from 'next/headers'
 
 const authSecret = (process.env.AUTH_SECRET || '').trim()
-if (!authSecret && process.env.NODE_ENV === 'production') {
-  console.error('[forge] FATAL: AUTH_SECRET is not set in production. Authentication is disabled.')
-}
-if (authSecret.length > 0 && authSecret.length < 32) {
+if (process.env.NODE_ENV === 'production') {
+  if (!authSecret) {
+    throw new Error('[forge] FATAL: AUTH_SECRET is not set. Authentication cannot function without it.')
+  }
+  if (authSecret.length < 32) {
+    throw new Error('[forge] FATAL: AUTH_SECRET must be at least 32 characters in production.')
+  }
+} else if (authSecret.length > 0 && authSecret.length < 32) {
   console.warn('[forge] AUTH_SECRET is shorter than 32 characters. This is insecure.')
 }
 const SECRET = new TextEncoder().encode(authSecret)
 const COOKIE_NAME = 'forge-session'
 
-// ─── AES-GCM token encryption ────────────────────────────────
-// Derives a 256-bit AES-GCM key from AUTH_SECRET via SHA-256.
-// Encrypted format: hex(iv):hex(ciphertext) where iv is 12 bytes.
-
+// AES-GCM token encryption (256-bit key derived from AUTH_SECRET via SHA-256)
 async function getEncryptionKey(): Promise<CryptoKey> {
   const keyMaterial = await crypto.subtle.digest('SHA-256', SECRET)
   return crypto.subtle.importKey('raw', keyMaterial, 'AES-GCM', false, ['encrypt', 'decrypt'])
@@ -50,8 +51,6 @@ export async function decryptToken(encrypted: string): Promise<string> {
   return new TextDecoder().decode(decrypted)
 }
 
-// ─── Session types and functions ─────────────────────────────
-
 export interface ForgeSession {
   user: {
     name: string
@@ -81,7 +80,7 @@ export async function createSession(data: ForgeSession): Promise<string> {
   }
   return new SignJWT({ ...payload })
     .setProtectedHeader({ alg: 'HS256' })
-    .setExpirationTime('30d')
+    .setExpirationTime('7d')
     .setIssuedAt()
     .sign(SECRET)
 }

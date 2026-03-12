@@ -23,7 +23,8 @@ export async function POST(req: Request) {
   let apiKey: string
   try {
     apiKey = await decryptToken(data[0].encrypted_aussiesms_api_key.replace(/^v1:/, ''))
-  } catch {
+  } catch (err) {
+    console.error('[aussiesms/test] decrypt AussieSMS key failed:', err instanceof Error ? err.message : err)
     return NextResponse.json({ error: 'Failed to decrypt AussieSMS key' }, { status: 500 })
   }
 
@@ -47,9 +48,10 @@ export async function POST(req: Request) {
     }
 
     return NextResponse.json({ ok: true, ...result })
-  } catch (err: any) {
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err)
     return NextResponse.json({
-      error: `Failed to send SMS: ${err.message || 'Network error'}`,
+      error: `Failed to send SMS: ${msg || 'Network error'}`,
     }, { status: 500 })
   }
 }

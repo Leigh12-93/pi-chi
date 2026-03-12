@@ -152,7 +152,7 @@ export function createFileTools(ctx: ToolContext) {
         const content = vfs.read(safePath)
         if (content === undefined) return { error: `File not found: ${path}` }
 
-        // ── Pass 1: Exact match (fast path) ──────────────────────
+        // Pass 1: exact match (fast path)
         if (content.includes(old_string)) {
           const occurrences = content.split(old_string).length - 1
           if (occurrences > 1) {
@@ -163,14 +163,14 @@ export function createFileTools(ctx: ToolContext) {
           return { ok: true, path: safePath, lines: updated.split('\n').length }
         }
 
-        // ── Helper: strip each line's indent and collapse runs ───
+        // Strip each line's indent and collapse runs
         const normLines = (s: string) => s.split('\n').map(l => l.trim()).filter(l => l.length > 0)
 
         const oldTrimmedLines = normLines(old_string)
         const fileTrimmedLines = content.split('\n').map(l => l.trim())
         const fileRawLines = content.split('\n')
 
-        // ── Pass 2: Line-by-line indent-insensitive match ────────
+        // Pass 2: line-by-line indent-insensitive match
         let bestMatch: { start: number; end: number } | null = null
 
         for (let i = 0; i < fileRawLines.length; i++) {
@@ -217,7 +217,7 @@ export function createFileTools(ctx: ToolContext) {
           return { ok: true, path: safePath, lines: updated.split('\n').length, note: 'Matched with indent-insensitive fuzzy matching' }
         }
 
-        // ── No match — return helpful context ────────────────────
+        // No match — return helpful context
         const firstOldLine = old_string.split('\n')[0].trim()
         const oldLines = old_string.split('\n')
         const nearLines: string[] = []

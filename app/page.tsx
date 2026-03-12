@@ -57,7 +57,6 @@ export default function ForgePage() {
   })
   // pendingAuditMessage removed — auto-scan disabled, user triggers manually
 
-  // Concurrent-tab detection: warn if another tab is editing the same project
   useEffect(() => {
     if (typeof BroadcastChannel === 'undefined') return
     const bc = new BroadcastChannel('forge_project_edit')
@@ -97,7 +96,6 @@ export default function ForgePage() {
     window.history.replaceState({}, '', window.location.pathname)
   }, [])
 
-  // Restore project from sessionStorage on mount (survives refresh)
   useEffect(() => {
     if (restoredRef.current) return
     restoredRef.current = true
@@ -139,7 +137,7 @@ export default function ForgePage() {
     } catch { /* ignore corrupt storage */ }
   }, [])
 
-  // Auto-clear error messages — longer timeout for persistent warnings (local-only mode)
+  // Longer timeout for persistent warnings (local-only mode)
   useEffect(() => {
     if (errorMessage) {
       const isLocalOnlyWarning = errorMessage.includes('local-only')
@@ -468,8 +466,6 @@ export default function ForgePage() {
         const globalData = await globalRes.json()
         const savedVars: Array<{ key: string; value: string }> = globalData.variables || []
         if (savedVars.length > 0) {
-          const envContent = importedFiles['.env.local'] || importedFiles['.env'] || ''
-          const lines = envContent.split('\n')
           const injected: string[] = []
           for (const sv of savedVars) {
             // Check if this key exists in ANY env file

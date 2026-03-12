@@ -7,6 +7,8 @@ interface RateLimitEntry {
 }
 
 const stores = new Map<string, Map<string, RateLimitEntry>>()
+let _lastCleanup = Date.now()
+const CLEANUP_INTERVAL = 30_000
 
 export function rateLimit(
   name: string,
@@ -19,10 +21,13 @@ export function rateLimit(
   return (ip: string) => {
     const now = Date.now()
 
-    // Lazy cleanup: evict expired entries on each call (O(n) but n is small — IPs with active sessions)
-    if (store.size > 100) {
-      for (const [key, entry] of store) {
-        if (now > entry.resetAt) store.delete(key)
+    // Time-based cleanup every 30s instead of size-based O(n) on every call
+    if (now - _lastCleanup > CLEANUP_INTERVAL) {
+      _lastCleanup = now
+      for (const [, s] of stores) {
+        for (const [key, entry] of s) {
+          if (now > entry.resetAt) s.delete(key)
+        }
       }
     }
 
@@ -33,15 +38,13 @@ export function rateLimit(
       return { ok: true, remaining: maxRequests - 1, resetIn: windowMs }
     }
 
-    entry.count++
-    const remaining = Math.max(0, maxRequests - entry.count)
-    const resetIn = entry.resetAt - now
-
-    if (entry.count > maxRequests) {
-      return { ok: false, remaining: 0, resetIn }
+    // Check BEFORE incrementing to fix off-by-one
+    if (entry.count >= maxRequests) {
+      return { ok: false, remaining: 0, resetIn: entry.resetAt - now }
     }
 
-    return { ok: true, remaining, resetIn }
+    entry.count++
+    return { ok: true, remaining: maxRequests - entry.count, resetIn: entry.resetAt - now }
   }
 }
 
@@ -49,3 +52,5 @@ export function rateLimit(
 export const chatLimiter = rateLimit('chat', 20, 60_000)           // 20 req/min
 export const sandboxLimiter = rateLimit('sandbox', 5, 60_000)      // 5 req/min (create)
 export const sandboxSyncLimiter = rateLimit('sandbox-sync', 20, 60_000) // 20 req/min (sync)
+export const authLimiter = rateLimit('auth', 10, 60_000)           // 10 req/min (OAuth callbacks)
+export const shareLimiter = rateLimit('share', 30, 60_000)         // 30 req/min (share link access)

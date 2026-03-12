@@ -14,7 +14,7 @@ interface SettingsDialogProps {
 type Tab = 'general' | 'editor' | 'api-key' | 'vercel' | 'supabase'
 
 export function SettingsDialog({ open, onClose, defaultTab }: SettingsDialogProps) {
-  const { session, refresh } = useSession()
+  const { session: _session, refresh } = useSession()
   const [tab, setTab] = useState<Tab>(defaultTab || 'general')
   const [settings, setSettings] = useState({
     editorFontSize: 13,

@@ -19,7 +19,8 @@ export async function GET() {
   let secretKey: string
   try {
     secretKey = await decryptToken(data[0].encrypted_stripe_secret_key.replace(/^v1:/, ''))
-  } catch {
+  } catch (err) {
+    console.error('[stripe/account] decrypt Stripe key failed:', err instanceof Error ? err.message : err)
     return NextResponse.json({ error: 'Failed to decrypt Stripe key' }, { status: 500 })
   }
 
@@ -65,10 +66,11 @@ export async function GET() {
         pending: balance.pending?.map((b: any) => ({ amount: b.amount, currency: b.currency })) || [],
       } : null,
     })
-  } catch (err: any) {
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err)
     return NextResponse.json({
       connected: false,
-      error: `Failed to connect to Stripe: ${err.message || 'Network error'}`,
+      error: `Failed to connect to Stripe: ${msg || 'Network error'}`,
     })
   }
 }

@@ -6,8 +6,6 @@ import type { ToolContext } from './types'
 
 export function createSelfModTools(ctx: ToolContext) {
   return {
-    // ─── Self-Modification (SUPERPOWER) ─────────────────────────
-
     forge_read_own_source: tool({
       description: 'Read a file from Forge\'s own source code on GitHub (repo: Leigh12-93/forge). Use this to understand your own implementation before modifying it.',
       inputSchema: z.object({

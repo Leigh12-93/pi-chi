@@ -1,8 +1,3 @@
-// ═══════════════════════════════════════════════════════════════════
-// Project scaffold templates
-// Extracted from route.ts to keep the API handler lean.
-// ═══════════════════════════════════════════════════════════════════
-
 /** Escape single quotes for safe interpolation into JS template strings */
 function esc(s: string): string { return s.replace(/'/g, "\\'") }
 
@@ -80,8 +75,7 @@ export function scaffoldStatic(name: string): Record<string, string> {
   }
 }
 
-// ─── Extended Templates ──────────────────────────────────────────
-// Each extends the Next.js base with real, production-ready content
+// Extended templates (each extends the Next.js base)
 
 export function scaffoldSaaS(name: string): Record<string, string> {
   const base = scaffoldNextJS(name, 'SaaS landing page')

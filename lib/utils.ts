@@ -29,18 +29,23 @@ export function getFileIcon(filename: string): string {
   switch (ext) {
     case 'tsx': case 'jsx': return 'Rx'
     case 'ts': return 'TS'
-    case 'js': return 'JS'
+    case 'js': case 'mjs': case 'cjs': return 'JS'
     case 'css': return 'CS'
     case 'html': return 'HT'
     case 'json': return '{}'
     case 'md': return 'MD'
     case 'png': case 'jpg': case 'svg': return 'IM'
     case 'gitignore': return 'GI'
+    case 'sql': return 'DB'
+    case 'xml': case 'yaml': case 'yml': return 'CF'
+    case 'env': return 'EN'
+    case 'sh': case 'bash': return 'SH'
+    case 'dockerfile': return 'DK'
     default: return 'FI'
   }
 }
 
-/** Fast djb2 hash of file paths + content lengths. Shallow — same-length edits won't change hash. Use hashFileMapDeep for content-sensitive hashing. */
+/** Shallow djb2 hash (paths + content lengths only). Same-length edits won't change hash. */
 export function hashFileMap(files: Record<string, string>): string {
   const keys = Object.keys(files).sort()
   let h = 5381
@@ -51,7 +56,7 @@ export function hashFileMap(files: Record<string, string>): string {
   return h.toString(36)
 }
 
-/** Deep djb2 hash of file paths + full content. For auto-save dedup. */
+/** Content-sensitive djb2 hash for auto-save dedup. Files > 2KB: samples first + last 1KB. */
 export function hashFileMapDeep(files: Record<string, string>): string {
   const keys = Object.keys(files).sort()
   let h = 5381
@@ -59,7 +64,13 @@ export function hashFileMapDeep(files: Record<string, string>): string {
     for (let i = 0; i < k.length; i++) h = ((h << 5) + h + k.charCodeAt(i)) | 0
     const c = files[k]
     h = ((h << 5) + h + c.length) | 0
-    for (let i = 0; i < c.length; i++) h = ((h << 5) + h + c.charCodeAt(i)) | 0
+    if (c.length <= 2048) {
+      for (let i = 0; i < c.length; i++) h = ((h << 5) + h + c.charCodeAt(i)) | 0
+    } else {
+      // Large files: sample first + last 1KB
+      for (let i = 0; i < 1024; i++) h = ((h << 5) + h + c.charCodeAt(i)) | 0
+      for (let i = c.length - 1024; i < c.length; i++) h = ((h << 5) + h + c.charCodeAt(i)) | 0
+    }
   }
   return h.toString(36)
 }
@@ -67,14 +78,15 @@ export function hashFileMapDeep(files: Record<string, string>): string {
 export function getLanguageFromPath(path: string): string {
   const ext = path.split('.').pop()?.toLowerCase()
   switch (ext) {
-    case 'tsx': return 'typescript'
-    case 'ts': return 'typescript'
-    case 'jsx': return 'javascript'
-    case 'js': return 'javascript'
+    case 'tsx': case 'ts': return 'typescript'
+    case 'jsx': case 'js': case 'mjs': case 'cjs': return 'javascript'
     case 'css': return 'css'
     case 'html': return 'html'
     case 'json': return 'json'
     case 'md': return 'markdown'
+    case 'sql': return 'sql'
+    case 'yaml': case 'yml': return 'yaml'
+    case 'sh': case 'bash': return 'shell'
     default: return 'plaintext'
   }
 }

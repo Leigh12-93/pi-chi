@@ -4,7 +4,7 @@ import { useState, useRef, useEffect, useMemo } from 'react'
 import { Brain, Sparkles, Loader2, CheckCircle } from 'lucide-react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { cn } from '@/lib/utils'
-import { TOOL_LABELS, colorClasses } from '@/lib/chat/constants'
+import { TOOL_LABELS } from '@/lib/chat/constants'
 import { getGroupMeta, getToolFileInfo } from '@/components/chat/tool-group'
 import type { TaskItem } from '@/components/chat/task-list-panel'
 
@@ -126,7 +126,7 @@ export function ActivityBlock({
   formatElapsed,
   stepCount,
   status,
-  tasks,
+  tasks: _tasks,
   messageCost,
 }: ActivityBlockProps) {
   // Rotating thinking messages
@@ -169,10 +169,8 @@ export function ActivityBlock({
 
   const groupedCompleted = useMemo(() => groupByCategory(recentCompleted), [recentCompleted])
 
-  // ─── State D: Nothing to show ───
   if (!isLoading && !showCompletion) return null
 
-  // ─── State C: Completion line ───
   if (!isLoading && showCompletion && completionSnapshot) {
     const parts: string[] = []
     if (completionSnapshot.elapsed > 0) parts.push(formatElapsed(completionSnapshot.elapsed))
@@ -201,7 +199,6 @@ export function ActivityBlock({
     )
   }
 
-  // ─── State A: Thinking (no tools yet) ───
   if (isThinking) {
     return (
       <motion.div
@@ -242,7 +239,6 @@ export function ActivityBlock({
     )
   }
 
-  // ─── State B: Working (tools running) ───
   if (isWorking) {
     return (
       <motion.div

@@ -41,7 +41,6 @@ export function ActionDialog({
   const [resultData, setResultData] = useState<Record<string, unknown> | null>(null)
   const overlayRef = useRef<HTMLDivElement>(null)
 
-  // Reset state when dialog opens
   useEffect(() => {
     if (open) {
       setState('confirm')
@@ -56,7 +55,6 @@ export function ActionDialog({
     }
   }, [open, fields])
 
-  // Close on Escape
   useEffect(() => {
     const handleEsc = (e: KeyboardEvent) => {
       if (e.key === 'Escape' && state !== 'running') onClose()
@@ -66,7 +64,6 @@ export function ActionDialog({
   }, [open, state, onClose])
 
   const handleConfirm = useCallback(async () => {
-    // Validate required fields
     if (fields) {
       for (const field of fields) {
         if (field.required && !fieldValues[field.name]?.trim()) {
@@ -220,8 +217,6 @@ export function ActionDialog({
     </div>
   )
 }
-
-// ─── Specialized dialogs ──────────────────────────────────────
 
 interface TaskPollingDialogProps {
   open: boolean

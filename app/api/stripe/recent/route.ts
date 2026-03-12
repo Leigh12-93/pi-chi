@@ -18,7 +18,8 @@ export async function GET() {
   let secretKey: string
   try {
     secretKey = await decryptToken(data[0].encrypted_stripe_secret_key.replace(/^v1:/, ''))
-  } catch {
+  } catch (err) {
+    console.error('[stripe/recent] decrypt Stripe key failed:', err instanceof Error ? err.message : err)
     return NextResponse.json({ error: 'Failed to decrypt Stripe key' }, { status: 500 })
   }
 
@@ -57,7 +58,8 @@ export async function GET() {
       })) || [],
       activeSubscriptions: subs.total_count ?? subs.data?.length ?? 0,
     })
-  } catch (err: any) {
-    return NextResponse.json({ error: `Stripe API error: ${err.message}` }, { status: 500 })
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err)
+    return NextResponse.json({ error: `Stripe API error: ${msg}` }, { status: 500 })
   }
 }

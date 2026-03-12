@@ -22,7 +22,8 @@ export async function GET() {
       try {
         token = await decryptToken(row.encrypted_vercel_token.replace(/^v1:/, ''))
         useTeam = false // user's personal token — no team param
-      } catch {
+      } catch (err) {
+        console.error('[vercel/projects] decrypt Vercel token failed:', err instanceof Error ? err.message : err)
         // Decryption failed, fall through to server token
       }
     }
@@ -56,7 +57,8 @@ export async function GET() {
     }))
 
     return NextResponse.json(projects)
-  } catch (err: any) {
-    return NextResponse.json({ error: err.message || 'Network error' }, { status: 500 })
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err)
+    return NextResponse.json({ error: msg || 'Network error' }, { status: 500 })
   }
 }

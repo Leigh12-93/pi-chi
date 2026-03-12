@@ -18,7 +18,8 @@ export async function GET() {
   let apiKey: string
   try {
     apiKey = await decryptToken(data[0].encrypted_aussiesms_api_key.replace(/^v1:/, ''))
-  } catch {
+  } catch (err) {
+    console.error('[aussiesms/stats] decrypt AussieSMS key failed:', err instanceof Error ? err.message : err)
     return NextResponse.json({ error: 'Failed to decrypt AussieSMS key' }, { status: 500 })
   }
 
@@ -42,10 +43,11 @@ export async function GET() {
     const mode = apiKey.startsWith('sk_test_') ? 'test' : 'live'
 
     return NextResponse.json({ connected: true, mode })
-  } catch (err: any) {
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err)
     return NextResponse.json({
       connected: false,
-      error: `Failed to reach AussieSMS: ${err.message || 'Network error'}`,
+      error: `Failed to reach AussieSMS: ${msg || 'Network error'}`,
     })
   }
 }

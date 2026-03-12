@@ -5,6 +5,19 @@ export type ToolInvocation = {
   result?: Record<string, unknown>
 }
 
+/** Extract plain text from a v6 UIMessage (parts-based or legacy string content) */
+export function getMessageText(message: { parts?: Array<{ type: string; text?: string }>; content?: string }): string {
+  if (Array.isArray(message.parts)) {
+    return message.parts
+      .filter(p => p.type === 'text')
+      .map(p => p.text || '')
+      .join('')
+  }
+  if (typeof message.content === 'string') return message.content
+  return ''
+}
+
+/** e.g. "45 lines", "3 matches" -- compact inline summary for a completed tool */
 export function getToolSummary(toolName: string, args: Record<string, unknown>, result: unknown): string {
   const data = (result && typeof result === 'object') ? result as Record<string, unknown> : null
   if (data?.error) return `Error: ${String(data.error).slice(0, 80)}`
@@ -18,7 +31,7 @@ export function getToolSummary(toolName: string, args: Record<string, unknown>, 
     case 'delete_file': return args.path ? `${args.path}` : 'Deleting...'
     case 'create_project': return args.template ? `${args.template} template` : 'Scaffolding...'
     case 'github_create_repo': return args.repoName ? `${args.repoName}` : 'Creating...'
-    case 'github_push_update': return data?.ok ? `${data.filesCount} files pushed (${(data as any).mode || 'full'})` : 'Pushing...'
+    case 'github_push_update': return data?.ok ? `${data.filesCount} files pushed (${(data as Record<string, unknown>).mode || 'full'})` : 'Pushing...'
     case 'github_push_files': return data?.ok ? `${data.filesCount} file(s) pushed` : `Pushing ${(args.paths as string[])?.length || ''} file(s)...`
     case 'deploy_to_vercel': return data?.url ? `Live at ${data.url}` : 'Deploying...'
     case 'set_custom_domain': return data?.ok ? `${args.domain} configured` : (data?.error ? `Failed: ${String(data.error).slice(0, 60)}` : `Setting ${args.domain}...`)
@@ -27,22 +40,22 @@ export function getToolSummary(toolName: string, args: Record<string, unknown>, 
     case 'grep_files': return data ? `${data.count || 0} matches for /${args.pattern}/` : `Grepping /${args.pattern}/...`
     case 'add_dependency': return data?.ok ? (data.skipped ? `${args.name} already installed` : `Added ${args.name}@${data.version}`) : `Adding ${args.name}...`
     case 'rename_file': return args.newPath ? `→ ${args.newPath}` : 'Renaming...'
-    case 'get_all_files': return data ? `${(data as any).totalFiles || 0} files` : 'Reading manifest...'
+    case 'get_all_files': return data ? `${(data as Record<string, unknown>).totalFiles || 0} files` : 'Reading manifest...'
     case 'db_query': return args.table ? `${args.table}${args.filters ? ` (${String(args.filters).slice(0, 40)})` : ''}` : 'Querying...'
     case 'db_mutate': return args.table ? `${args.operation} on ${args.table}` : 'Mutating...'
-    case 'save_project': return data?.ok ? `${(data as any).savedFiles || 0} files saved` : 'Saving...'
+    case 'save_project': return data?.ok ? `${(data as Record<string, unknown>).savedFiles || 0} files saved` : 'Saving...'
     case 'forge_read_own_source': return args.path ? `forge/${args.path}` : 'Reading...'
     case 'forge_modify_own_source': return args.path ? `forge/${args.path}` : 'Modifying...'
-    case 'forge_redeploy': return data?.ok ? `Deploying: ${(data as any).reason || ''}`.slice(0, 60) : 'Redeploying...'
+    case 'forge_redeploy': return data?.ok ? `Deploying: ${(data as Record<string, unknown>).reason || ''}`.slice(0, 60) : 'Redeploying...'
     case 'github_read_file': return args.path ? `${args.owner}/${args.repo}/${args.path}` : 'Reading...'
     case 'github_list_repo_files': return args.repo ? `${args.owner}/${args.repo}/${args.path || ''}` : 'Listing...'
     case 'github_modify_external_file': return args.path ? `${args.owner}/${args.repo}/${args.path}` : 'Modifying...'
     case 'github_search_code': return args.query ? String(args.query).slice(0, 50) : 'Searching...'
-    case 'load_chat_history': return data ? `${(data as any).count || 0} messages` : 'Loading...'
+    case 'load_chat_history': return data ? `${(data as Record<string, unknown>).count || 0} messages` : 'Loading...'
     case 'github_pull_latest': {
       if (!data?.ok) return 'Pulling...'
-      const pulled = (data as any).fileCount || 0
-      const skipped = (data as any).skippedCount || 0
+      const pulled = (data as Record<string, unknown>).fileCount || 0 // SDK types incomplete
+      const skipped = ((data as Record<string, unknown>).skippedCount || 0) as number
       return skipped > 0 ? `${pulled} pulled, ${skipped} local edits preserved` : `${pulled} files pulled`
     }
     case 'check_task_status': {
@@ -52,7 +65,7 @@ export function getToolSummary(toolName: string, args: Record<string, unknown>, 
       return 'Checking...'
     }
     case 'cancel_task': return data?.ok ? 'Task cancelled' : 'Cancelling...'
-    case 'mcp_list_servers': return data ? `${(data as any).count || 0} servers` : 'Listing...'
+    case 'mcp_list_servers': return data ? `${(data as Record<string, unknown>).count || 0} servers` : 'Listing...'
     case 'mcp_connect_server': return args.serverName ? `${args.serverName}` : 'Connecting...'
     case 'mcp_call_tool': return args.toolName ? `${args.serverName}/${args.toolName}` : 'Calling...'
     case 'forge_check_npm_package': return args.packageName ? `${args.packageName}` : 'Checking...'
@@ -62,7 +75,7 @@ export function getToolSummary(toolName: string, args: Record<string, unknown>, 
     case 'forge_merge_pr': return data?.ok ? 'PR merged' : 'Merging...'
     case 'forge_deployment_status': return data?.state ? `${data.state}` : 'Checking...'
     case 'forge_check_build': return data?.ok ? 'Build passed' : (data?.error ? 'Build failed' : 'Building...')
-    case 'forge_list_branches': return data ? `${(data as any).count || 0} branches` : 'Listing...'
+    case 'forge_list_branches': return data ? `${(data as Record<string, unknown>).count || 0} branches` : 'Listing...'
     case 'forge_delete_branch': return data?.ok ? 'Branch deleted' : 'Deleting...'
     case 'forge_read_deploy_log': return data ? 'Log retrieved' : 'Reading...'
     case 'db_introspect': return args.table ? `${args.table}` : 'Inspecting...'
@@ -81,18 +94,18 @@ export function getToolSummary(toolName: string, args: Record<string, unknown>, 
     case 'run_build': return data?.ok ? 'Build passed' : (data?.error ? 'Build failed' : 'Building...')
     case 'run_tests': {
       if (!data) return 'Running tests...'
-      const passed = (data as any).passed || 0
-      const failed = (data as any).failed || 0
+      const passed = (data as Record<string, unknown>).passed || 0
+      const failed = ((data as Record<string, unknown>).failed || 0) as number // SDK types incomplete
       return failed > 0 ? `${passed} passed, ${failed} failed` : `${passed} passed`
     }
     case 'check_types': return data?.ok ? 'Types OK' : (data?.errorCount ? `${data.errorCount} type errors` : 'Type checking...')
     case 'verify_build': return data?.ok ? 'All checks passed' : 'Verifying...'
-    case 'audit_codebase': return data ? `${(data as any).filesAnalyzed || 0} files analyzed` : 'Auditing...'
+    case 'audit_codebase': return data ? `${(data as Record<string, unknown>).filesAnalyzed || 0} files analyzed` : 'Auditing...'
     case 'create_audit_plan': {
       if (!data) return 'Creating audit plan...'
-      const findings = (data as any).findings?.length || 0
-      const critical = (data as any).stats?.criticalCount || 0
-      return critical > 0 ? `${findings} findings (${critical} critical)` : `${findings} findings`
+      const findings = ((data as Record<string, unknown>).findings as unknown[] | undefined)?.length || 0
+      const critical = ((data as Record<string, unknown>).stats as Record<string, unknown> | undefined)?.criticalCount || 0
+      return (critical as number) > 0 ? `${findings} findings (${critical} critical)` : `${findings} findings`
     }
     case 'execute_audit_task': return data?.ok ? `${args.findingId || 'Issue'} fixed` : `Fixing ${args.findingId || 'issue'}...`
     case 'manage_tasks': {
@@ -105,10 +118,7 @@ export function getToolSummary(toolName: string, args: Record<string, unknown>, 
   }
 }
 
-/**
- * Returns a human-readable "phase label" based on what the last completed tool was.
- * Used in the streaming indicator to show contextual status instead of "Step N".
- */
+/** Contextual status label for the streaming indicator, e.g. "Writing file" */
 export function getPhaseLabel(lastToolName: string | null): string {
   if (!lastToolName) return 'Thinking'
 
@@ -278,10 +288,7 @@ export function getPhaseLabel(lastToolName: string | null): string {
   }
 }
 
-/**
- * Maps raw tool error strings to user-friendly messages.
- * Falls back to a truncated version of the raw error.
- */
+/** Maps raw tool errors to user-friendly messages, truncating if > 80 chars */
 export function getFriendlyError(rawError: string, toolName?: string): string {
   const lower = rawError.toLowerCase()
 
@@ -346,17 +353,19 @@ export function extractFileUpdates(
         const newStr = args.new_string as string
         const current = currentFiles[path]
         if (current && typeof oldStr === 'string' && typeof newStr === 'string') {
-          if (current.includes(oldStr)) {
+          // Normalize CRLF to LF for consistent matching
+          const normalized = current.replace(/\r\n/g, '\n')
+          if (normalized.includes(oldStr)) {
             // Warn if oldStr appears multiple times — only first occurrence is replaced
-            const occurrences = current.split(oldStr).length - 1
-            const updated = current.replace(oldStr, newStr)
+            const occurrences = normalized.split(oldStr).length - 1
+            const updated = normalized.replace(oldStr, newStr)
             if (occurrences > 1) {
               return { updates: { [path]: updated }, warning: `old_string appeared ${occurrences} times — only the first occurrence was replaced` }
             }
             return { updates: { [path]: updated } }
           }
           const normLine = (l: string) => l.trim()
-          const currentLines = current.split('\n')
+          const currentLines = normalized.split('\n')
           const oldLines = oldStr.split('\n').map(normLine).filter(l => l.length > 0)
           if (oldLines.length > 0) {
             for (let i = 0; i < currentLines.length; i++) {

@@ -28,7 +28,8 @@ export async function POST() {
     clientId = await decryptToken(row.encrypted_google_client_id.replace(/^v1:/, ''))
     clientSecret = await decryptToken(row.encrypted_google_client_secret.replace(/^v1:/, ''))
     refreshToken = await decryptToken(row.encrypted_google_refresh_token.replace(/^v1:/, ''))
-  } catch {
+  } catch (err) {
+    console.error('[auth/google/refresh] Credential decryption failed:', err instanceof Error ? err.message : err)
     return NextResponse.json({ error: 'Failed to decrypt credentials' }, { status: 500 })
   }
 
@@ -73,7 +74,8 @@ export async function POST() {
     })
 
     return NextResponse.json({ ok: true })
-  } catch (err: any) {
-    return NextResponse.json({ error: `Refresh failed: ${err.message || 'Network error'}` }, { status: 500 })
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err)
+    return NextResponse.json({ error: `Refresh failed: ${msg || 'Network error'}` }, { status: 500 })
   }
 }

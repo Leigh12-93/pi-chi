@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { getSession } from '@/lib/auth'
 import { VirtualFS } from '@/lib/virtual-fs'
+import { logger } from '@/lib/logger'
 
 const GITHUB_HEADERS = (token: string) => ({
   Authorization: `Bearer ${token}`,
@@ -91,7 +92,7 @@ async function fetchBlobWithRetry(
         return { path: item.path, content: Buffer.from(data.content, 'base64').toString('utf-8') }
       }
       return null
-    } catch {
+    } catch { /* retry: transient GitHub API failures */
       if (attempt < maxRetries) {
         await new Promise(r => setTimeout(r, 500 * (attempt + 1)))
         continue
@@ -107,7 +108,7 @@ async function fetchInBatches(
   items: { path: string; sha: string }[],
   owner: string,
   repo: string,
-  branch: string,
+  _branch: string,
   token: string,
   batchSize: number = 10,
 ): Promise<Record<string, string>> {
@@ -192,7 +193,6 @@ async function fetchTree(owner: string, repo: string, branch: string, token: str
   })
 
   // Fetch up to 300 files in batches of 10
-  const cappedAt = blobs.length > 300 ? 300 : undefined
   if (blobs.length > 300) skipped.push(`...and ${blobs.length - 300} more files (cap: 300)`)
   const filesToFetch = blobs.slice(0, 300).map((b: any) => ({ path: b.path, sha: b.sha }))
   const files = await fetchInBatches(filesToFetch, owner, repo, branch, token, 10)
@@ -217,7 +217,8 @@ export async function POST(req: Request) {
   let body: any
   try {
     body = await req.json()
-  } catch {
+  } catch (err) {
+    logger.warn('GitHub import JSON parse failed', { route: 'github/import', error: err instanceof Error ? err.message : String(err) })
     return NextResponse.json({ error: 'Invalid JSON in request body' }, { status: 400 })
   }
   const { owner, repo, branch } = body
@@ -261,8 +262,18 @@ export async function POST(req: Request) {
       response.warning = 'Repository file tree was truncated by GitHub. Some files may be missing.'
     }
     return NextResponse.json(response)
-  } catch (err: any) {
-    const status = err.message?.includes('timed out') ? 504 : err.message?.includes('too large') ? 413 : 500
-    return NextResponse.json({ error: err.message }, { status })
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err)
+    logger.error('GitHub import failed', { route: 'github/import', error: msg, owner: body?.owner, repo: body?.repo })
+    if (msg?.includes('timed out')) {
+      return NextResponse.json({ error: 'Import timed out. For large repositories, try importing a specific branch or use a smaller repo.' }, { status: 504 })
+    }
+    if (msg?.includes('too large')) {
+      return NextResponse.json({ error: 'Repository too large (>50MB). Try importing a specific branch or subdirectory.' }, { status: 413 })
+    }
+    if (msg?.includes('not found') || msg?.includes('authentication failed')) {
+      return NextResponse.json({ error: msg }, { status: 404 })
+    }
+    return NextResponse.json({ error: 'Import failed' }, { status: 500 })
   }
 }

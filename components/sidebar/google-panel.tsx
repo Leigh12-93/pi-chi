@@ -4,8 +4,8 @@ import { useState, useEffect, useCallback, useRef, useMemo } from 'react'
 import {
   ChevronDown, Check, Loader2, Trash2, ExternalLink, RefreshCw, Copy, Upload,
   AlertTriangle, X, Table2, Calendar, Mail, FolderOpen, Map, Youtube, Languages,
-  Zap, Shield, Eye, EyeOff, Wand2, ArrowRight, Globe, Search, Navigation,
-  MapPin, FileText, Plus, Settings2, CheckCircle2, XCircle, Clock, Link2,
+  Zap, Shield, Eye, EyeOff, Wand2, Globe, Search,
+  FileText, Plus, Settings2, CheckCircle2, XCircle, Clock, Link2,
 } from 'lucide-react'
 import { toast } from 'sonner'
 
@@ -555,7 +555,7 @@ export function GooglePanel({ fileContents, onFileChange }: GooglePanelProps) {
         </div>
       )}
 
-      {/* ══════ Status Summary Bar ══════ */}
+      {/* Status Summary Bar */}
       <div className="rounded-md border border-forge-border bg-forge-surface/30 p-2.5">
         <div className="flex items-center justify-between mb-1.5">
           <span className="text-[11px] font-medium text-forge-text">Connection Status</span>
@@ -614,7 +614,7 @@ export function GooglePanel({ fileContents, onFileChange }: GooglePanelProps) {
         )}
       </div>
 
-      {/* ══════ Auto-Detected Env Vars ══════ */}
+      {/* Auto-Detected Env Vars */}
       {detectedEnvVars.length > 0 && !hasAnyAuth && (
         <div className="rounded-md border border-blue-500/30 bg-blue-500/5 p-2.5">
           <div className="flex items-center gap-1.5 mb-1.5">
@@ -642,7 +642,7 @@ export function GooglePanel({ fileContents, onFileChange }: GooglePanelProps) {
         </div>
       )}
 
-      {/* ══════ Project Integrations Detected ══════ */}
+      {/* Project Integrations Detected */}
       {(usesGoogleMaps || googleFonts.detected) && (
         <div className="rounded-md border border-forge-border bg-forge-surface/30 p-2.5">
           <div className="flex items-center gap-1.5 mb-1">
@@ -674,7 +674,7 @@ export function GooglePanel({ fileContents, onFileChange }: GooglePanelProps) {
         </div>
       )}
 
-      {/* ══════ Authentication Setup ══════ */}
+      {/* Authentication Setup */}
       <div className="rounded-md border border-forge-border">
         <button
           onClick={() => toggleSection('auth')}
@@ -1002,7 +1002,7 @@ export function GooglePanel({ fileContents, onFileChange }: GooglePanelProps) {
         )}
       </div>
 
-      {/* ══════ Google Services ══════ */}
+      {/* Google Services */}
       <div className="rounded-md border border-forge-border">
         <button
           onClick={() => toggleSection('services')}
@@ -1120,7 +1120,7 @@ export function GooglePanel({ fileContents, onFileChange }: GooglePanelProps) {
         )}
       </div>
 
-      {/* ══════ Project Integration ══════ */}
+      {/* Project Integration */}
       <div className="rounded-md border border-forge-border">
         <button
           onClick={() => toggleSection('integration')}

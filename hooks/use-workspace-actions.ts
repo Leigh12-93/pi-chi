@@ -4,6 +4,8 @@ import { useCallback } from 'react'
 import { toast } from 'sonner'
 import type { WorkspaceStateReturn, DialogType } from './use-workspace-state'
 
+const BINARY_EXTS = new Set(['png','jpg','jpeg','gif','ico','webp','avif','bmp','svg','woff','woff2','ttf','eot','otf','mp3','mp4','wav','ogg','webm','zip','tar','gz','rar','7z','pdf','exe','dll','so','dylib','bin','dat','db','sqlite'])
+
 interface WorkspaceActionsDeps {
   state: WorkspaceStateReturn
   files: Record<string, string>
@@ -22,7 +24,7 @@ interface WorkspaceActionsDeps {
 }
 
 export function useWorkspaceActions(deps: WorkspaceActionsDeps) {
-  const { state, files, projectId, projectName, activeFile, onFileSelect, onFileChange, onFileDelete, onBulkFileUpdate, onManualSave, githubToken, githubRepoUrl, onGithubRepoUrlChange, onVercelUrlChange } = deps
+  const { state, files, projectId, projectName, activeFile, onFileSelect, onFileChange, onFileDelete: _onFileDelete, onBulkFileUpdate, onManualSave, githubToken: _githubToken, githubRepoUrl, onGithubRepoUrlChange, onVercelUrlChange } = deps
 
   const handleFileSelect = useCallback((path: string) => {
     onFileSelect(path)
@@ -68,8 +70,6 @@ export function useWorkspaceActions(deps: WorkspaceActionsDeps) {
     }
   }, [activeFile, files, onFileSelect, onBulkFileUpdate, state.setOpenFiles])
 
-  // ─── Drag & drop ──────────────────────────────────────────
-
   const handleDragEnter = useCallback((e: React.DragEvent) => {
     e.preventDefault()
     state.dragCounterRef.current++
@@ -94,7 +94,7 @@ export function useWorkspaceActions(deps: WorkspaceActionsDeps) {
     const items = e.dataTransfer.files
     if (!items.length) return
 
-    const binaryExts = new Set(['png','jpg','jpeg','gif','ico','webp','avif','bmp','svg','woff','woff2','ttf','eot','otf','mp3','mp4','wav','ogg','webm','zip','tar','gz','rar','7z','pdf','exe','dll','so','dylib','bin','dat','db','sqlite'])
+    const binaryExts = BINARY_EXTS
     let skipped = 0
     const newFiles: Record<string, string> = {}
     for (let i = 0; i < items.length; i++) {
@@ -126,8 +126,6 @@ export function useWorkspaceActions(deps: WorkspaceActionsDeps) {
       if (count === 1) state.handleFileSelectRef.current(Object.keys(newFiles)[0])
     }
   }, [onBulkFileUpdate, state.filesRef, state.handleFileSelectRef, state.setIsDragging, state.dragCounterRef])
-
-  // ─── Save & download ──────────────────────────────────────
 
   const handleDownload = useCallback(async () => {
     const fileEntries = Object.entries(files)
@@ -189,8 +187,6 @@ export function useWorkspaceActions(deps: WorkspaceActionsDeps) {
       setTimeout(() => state.setLocalSaveStatus('idle'), 2000)
     }
   }, [projectId, files, onManualSave, state.snapshots.length, state.setLocalSaveStatus, state.setSnapshots])
-
-  // ─── Actions ──────────────────────────────────────────────
 
   const handleAction = useCallback((action: string) => {
     switch (action) {

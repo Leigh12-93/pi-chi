@@ -17,7 +17,7 @@ export interface GoogleCredentials {
  */
 export async function getGoogleCredentials(
   githubUsername: string,
-  options?: { requireOAuth?: boolean; requireApiKey?: boolean }
+  _options?: { requireOAuth?: boolean; requireApiKey?: boolean }
 ): Promise<{ credentials?: GoogleCredentials; error?: string }> {
   try {
     const { data, ok } = await supabaseFetch(

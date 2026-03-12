@@ -2,7 +2,6 @@
 
 import { Key, History } from 'lucide-react'
 import { cn } from '@/lib/utils'
-import { FileTree } from './file-tree'
 import { GitPanel } from './sidebar/git-panel'
 import { DeployPanel } from './sidebar/deploy-panel'
 import { EnvPanel } from './sidebar/env-panel'
@@ -16,8 +15,6 @@ import type { FileNode } from '@/lib/types'
 import type { Snapshot } from './version-history'
 
 export type SidebarTab = 'anthropic' | 'git' | 'deploy' | 'env' | 'db' | 'google' | 'stripe' | 'sms' | 'snapshots'
-
-// ─── Brand SVG icons for sidebar ────────────────────────────────
 
 function GitHubIcon({ className }: { className?: string }) {
   return (
@@ -102,8 +99,6 @@ export const TABS: { id: SidebarTab; icon: TabIcon; label: string; activeColor?:
   { id: 'snapshots', icon: History, label: 'Snapshots', activeColor: 'text-purple-400', activeBg: 'bg-purple-500/10' },
 ]
 
-// ─── Activity Bar (44px icon strip) ─────────────────────────────
-
 interface ActivityBarProps {
   activeTab: SidebarTab | null
   onTabChange: (tab: SidebarTab | null) => void
@@ -142,8 +137,6 @@ export function ActivityBar({ activeTab, onTabChange }: ActivityBarProps) {
   )
 }
 
-// ─── Sidebar Content Panel ──────────────────────────────────────
-
 interface SidebarContentProps {
   activeTab: SidebarTab
   fileTree: FileNode[]
@@ -178,8 +171,8 @@ interface SidebarContentProps {
 }
 
 export function SidebarContent({
-  activeTab, fileTree, activeFile, onFileSelect, onFileDelete, onFileRename,
-  onFileCreate, fileContents, modifiedFiles, aiEditingFiles, fileDiffs,
+  activeTab, fileTree: _fileTree, activeFile: _activeFile, onFileSelect: _onFileSelect, onFileDelete: _onFileDelete, onFileRename: _onFileRename,
+  onFileCreate: _onFileCreate, fileContents, modifiedFiles, aiEditingFiles: _aiEditingFiles, fileDiffs: _fileDiffs,
   githubRepoUrl, projectId, vercelProjectId, onAction, onFileChange,
   onOpenDbExplorer, onOpenSettings, onRepoConnected, onRepoDisconnected, onBulkFileUpdate, onVercelConnected, snapshots,
   onOpenVersionHistory, onRestoreSnapshot, onCreateSnapshot, onOpenMcpManager, sessionCost,

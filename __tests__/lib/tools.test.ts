@@ -3,7 +3,7 @@ import { safeRegex, applySmartDefaults } from '@/lib/tools/file-tools'
 import { PULLABLE_TEXT_EXTS, SKIP_DIRS, ALWAYS_INCLUDE } from '@/lib/tools/github-tools'
 import { VirtualFS } from '@/lib/virtual-fs'
 
-// ── safeRegex ──────────────────────────────────────────────────────
+// safeRegex
 
 describe('safeRegex', () => {
   it('returns a RegExp for a valid pattern', () => {
@@ -38,7 +38,7 @@ describe('safeRegex', () => {
   })
 })
 
-// ── applySmartDefaults ─────────────────────────────────────────────
+// applySmartDefaults
 
 describe('applySmartDefaults', () => {
   it('auto-adds use client when hooks detected in tsx', () => {
@@ -105,7 +105,7 @@ describe('applySmartDefaults', () => {
   })
 })
 
-// ── GitHub tools constants ─────────────────────────────────────────
+// GitHub tools constants
 
 describe('PULLABLE_TEXT_EXTS', () => {
   it('is a Set', () => {
@@ -175,7 +175,7 @@ describe('ALWAYS_INCLUDE', () => {
   })
 })
 
-// ── VirtualFS edge cases (not covered in virtual-fs.test.ts) ───────
+// VirtualFS edge cases (not covered in virtual-fs.test.ts)
 
 describe('VirtualFS edge cases', () => {
   it('handles empty file content', () => {

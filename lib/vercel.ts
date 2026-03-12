@@ -1,7 +1,3 @@
-// ═══════════════════════════════════════════════════════════════════
-// Vercel Deploy API helpers
-// ═══════════════════════════════════════════════════════════════════
-
 export const VERCEL_TOKEN = (process.env.FORGE_DEPLOY_TOKEN || process.env.VERCEL_TOKEN || '').trim()
 export const VERCEL_TEAM = (process.env.VERCEL_TEAM_ID || '').trim()
 

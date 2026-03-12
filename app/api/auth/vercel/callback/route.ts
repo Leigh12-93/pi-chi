@@ -88,8 +88,8 @@ export async function GET(req: Request) {
     const response = NextResponse.redirect(`${BASE_URL}?vercel_connected=true`)
     response.cookies.delete('vercel_oauth_state')
     return response
-  } catch (err: any) {
-    console.error('[vercel-oauth] Error:', err)
+  } catch (err) {
+    console.error('[vercel-oauth] Error:', err instanceof Error ? err.message : err)
     return NextResponse.redirect(`${BASE_URL}?vercel_error=exchange_error`)
   }
 }

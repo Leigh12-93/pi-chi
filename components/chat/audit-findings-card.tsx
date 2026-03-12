@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useMemo } from 'react'
-import { Shield, ChevronDown, ChevronRight, AlertCircle, AlertTriangle, Info, Lightbulb, CheckCircle, Lock } from 'lucide-react'
+import { Shield, ChevronRight, AlertCircle, AlertTriangle, Info, Lightbulb, CheckCircle } from 'lucide-react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { cn } from '@/lib/utils'
 

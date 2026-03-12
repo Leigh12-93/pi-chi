@@ -55,7 +55,7 @@ export function createGoogleTools(ctx: ToolContext) {
   }
 
   return {
-    // ── Google Sheets ──────────────────────────────
+    // Google Sheets
     google_sheets_read: tool({
       description: 'Read data from a Google Sheets spreadsheet. Returns cell values as 2D array.',
       inputSchema: z.object({
@@ -105,7 +105,7 @@ export function createGoogleTools(ctx: ToolContext) {
       },
     }),
 
-    // ── Google Calendar ──────────────────────────────
+    // Google Calendar
     google_calendar_list_events: tool({
       description: 'List upcoming events from Google Calendar.',
       inputSchema: z.object({
@@ -167,7 +167,7 @@ export function createGoogleTools(ctx: ToolContext) {
       },
     }),
 
-    // ── Gmail ──────────────────────────────
+    // Gmail
     google_gmail_send: tool({
       description: 'Send an email via Gmail. Requires gmail.send scope. This is a DESTRUCTIVE action — sends a real email.',
       inputSchema: z.object({
@@ -262,7 +262,7 @@ export function createGoogleTools(ctx: ToolContext) {
       },
     }),
 
-    // ── Google Drive ──────────────────────────────
+    // Google Drive
     google_drive_list: tool({
       description: 'List files in Google Drive.',
       inputSchema: z.object({
@@ -311,7 +311,7 @@ export function createGoogleTools(ctx: ToolContext) {
       },
     }),
 
-    // ── Google Maps (API Key) ──────────────────────────────
+    // Google Maps (API Key)
     google_maps_geocode: tool({
       description: 'Convert an address to latitude/longitude coordinates, or reverse geocode coordinates to an address. Uses Google Maps Geocoding API (requires API key).',
       inputSchema: z.object({
@@ -412,7 +412,7 @@ export function createGoogleTools(ctx: ToolContext) {
       },
     }),
 
-    // ── YouTube Data API (API Key) ──────────────────────────────
+    // YouTube Data API (API Key)
     google_youtube_search: tool({
       description: 'Search YouTube videos. Returns video titles, channels, view counts. Uses YouTube Data API v3 (requires API key).',
       inputSchema: z.object({
@@ -477,7 +477,7 @@ export function createGoogleTools(ctx: ToolContext) {
       },
     }),
 
-    // ── Google Translate (API Key) ──────────────────────────────
+    // Google Translate (API Key)
     google_translate_text: tool({
       description: 'Translate text between languages using Google Cloud Translation API (requires API key). Supports 100+ languages.',
       inputSchema: z.object({

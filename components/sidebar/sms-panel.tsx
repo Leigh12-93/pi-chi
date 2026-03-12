@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react'
 import {
-  Loader2, CheckCircle2, XCircle, ExternalLink, RefreshCw, Eye, EyeOff,
+  Loader2, CheckCircle2, ExternalLink, RefreshCw, Eye, EyeOff,
   Trash2, ChevronDown, AlertCircle, Zap, Wand2, Send, MessageSquare,
 } from 'lucide-react'
 import { toast } from 'sonner'
@@ -59,7 +59,7 @@ function detectSmsFromEnv(fileContents: Record<string, string>): {
   return result
 }
 
-export function SmsPanel({ fileContents, onFileChange }: SmsPanelProps) {
+export function SmsPanel({ fileContents, onFileChange: _onFileChange }: SmsPanelProps) {
   const [settings, setSettings] = useState<SmsSettings>({ hasAussieSmsApiKey: false })
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState<string | null>(null)
@@ -207,9 +207,6 @@ export function SmsPanel({ fileContents, onFileChange }: SmsPanelProps) {
     )
   }
 
-  // ═══════════════════════════════════════════════
-  // NOT CONNECTED — Setup
-  // ═══════════════════════════════════════════════
   if (!settings.hasAussieSmsApiKey) {
     return (
       <div className="p-3 space-y-3">
@@ -295,14 +292,10 @@ export function SmsPanel({ fileContents, onFileChange }: SmsPanelProps) {
     )
   }
 
-  // ═══════════════════════════════════════════════
-  // CONNECTED — Full panel
-  // ═══════════════════════════════════════════════
   return (
     <div className="p-3 space-y-2.5">
       <p className="text-[10px] uppercase tracking-wider text-forge-text-dim font-medium">AussieSMS</p>
 
-      {/* ══════ Connection Status ══════ */}
       <div className={`rounded-md border p-2.5 ${
         connected ? 'border-green-500/20 bg-green-500/5' : connectionError ? 'border-red-500/20 bg-red-500/5' : 'border-forge-border bg-forge-surface/30'
       }`}>
@@ -360,7 +353,6 @@ export function SmsPanel({ fileContents, onFileChange }: SmsPanelProps) {
         )}
       </div>
 
-      {/* ══════ Test SMS ══════ */}
       <div className="rounded-lg border border-forge-border">
         <button
           onClick={() => toggleSection('test')}
@@ -401,7 +393,6 @@ export function SmsPanel({ fileContents, onFileChange }: SmsPanelProps) {
         )}
       </div>
 
-      {/* ══════ AI Tools ══════ */}
       <div className="rounded-lg border border-forge-border">
         <button
           onClick={() => toggleSection('tools')}
@@ -430,7 +421,6 @@ export function SmsPanel({ fileContents, onFileChange }: SmsPanelProps) {
         )}
       </div>
 
-      {/* ══════ Quick Links ══════ */}
       <div className="rounded-lg border border-forge-border">
         <button
           onClick={() => toggleSection('links')}
@@ -459,7 +449,6 @@ export function SmsPanel({ fileContents, onFileChange }: SmsPanelProps) {
         )}
       </div>
 
-      {/* ══════ Credentials ══════ */}
       <div className="rounded-lg border border-forge-border bg-forge-surface/30 p-3">
         <div className="flex items-center justify-between mb-2">
           <span className="text-[10px] text-forge-text-dim font-medium">Saved Credentials</span>

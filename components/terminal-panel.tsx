@@ -1,7 +1,7 @@
 'use client'
 
-import { useEffect, useRef, useState, useCallback, memo } from 'react'
-import { Terminal as TerminalIcon, X, Maximize2, Minimize2 } from 'lucide-react'
+import { useEffect, useRef, useState, memo } from 'react'
+import { Terminal as TerminalIcon, Maximize2, Minimize2 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import '@xterm/xterm/css/xterm.css'
 
@@ -122,13 +122,6 @@ export const TerminalPanel = memo(function TerminalPanel({ getShellProcess, wcRe
 
     return () => observer.disconnect()
   }, [ready])
-
-  // Write a command programmatically (for AI tools)
-  const writeCommand = useCallback((cmd: string) => {
-    if (writerRef.current) {
-      writerRef.current.write(cmd + '\n')
-    }
-  }, [])
 
   return (
     <div className={cn(

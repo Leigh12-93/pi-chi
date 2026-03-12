@@ -34,8 +34,8 @@ export async function GET() {
     if (!encrypted) continue
     try {
       vars[envName] = await decryptToken(encrypted.replace(/^v1:/, ''))
-    } catch {
-      // Skip credentials that fail to decrypt
+    } catch (err) {
+      console.error(`[env-export] Failed to decrypt ${dbCol}:`, err instanceof Error ? err.message : err)
     }
   }
 
@@ -44,8 +44,8 @@ export async function GET() {
   if (encSA) {
     try {
       vars['GOOGLE_SERVICE_ACCOUNT_JSON'] = await decryptToken(encSA.replace(/^v1:/, ''))
-    } catch {
-      // Skip if decrypt fails
+    } catch (err) {
+      console.error('[env-export] Failed to decrypt service account:', err instanceof Error ? err.message : err)
     }
   }
 
@@ -56,17 +56,20 @@ export async function GET() {
     try {
       const decrypted = await decryptToken(rawEnvVars.replace(/^v1:/, ''))
       variables = JSON.parse(decrypted)
-    } catch {
+    } catch (err) {
+      console.error('[env-export] Failed to decrypt env vars:', err instanceof Error ? err.message : err)
       // If it's already plain JSON (not encrypted), try parsing directly
-      try { variables = JSON.parse(rawEnvVars) } catch { /* skip */ }
+      try { variables = JSON.parse(rawEnvVars) } catch { /* non-critical: raw value is not valid JSON either */ }
     }
   }
 
-  return NextResponse.json({
+  const response = NextResponse.json({
     vars,
     available: Object.keys(vars).length > 0,
     variables,
   })
+  response.headers.set('Cache-Control', 'no-store, private')
+  return response
 }
 
 /** PUT /api/settings/env-export — save custom global env vars */

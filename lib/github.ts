@@ -1,7 +1,4 @@
-// ═══════════════════════════════════════════════════════════════════
-// GitHub API helpers — with retry + secondary rate limit handling
-// ═══════════════════════════════════════════════════════════════════
-
+// GitHub API helpers with retry + secondary rate limit handling
 export const GITHUB_TOKEN = (process.env.GITHUB_TOKEN || '').trim()
 export const GITHUB_API = 'https://api.github.com'
 
@@ -20,7 +17,7 @@ function isSecondaryRateLimit(status: number, body: any): boolean {
 }
 
 export async function githubFetch(path: string, token: string, options: RequestInit = {}) {
-  let lastError: any = null
+  let lastError: unknown = null
 
   for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
     const ctrl = new AbortController()
@@ -51,7 +48,6 @@ export async function githubFetch(path: string, token: string, options: RequestI
 
       // Detect rate limiting (primary + secondary)
       if (isSecondaryRateLimit(res.status, data)) {
-        const remaining = res.headers.get('x-ratelimit-remaining')
         const resetAt = res.headers.get('x-ratelimit-reset')
         const retryAfter = res.headers.get('retry-after')
 
@@ -83,13 +79,14 @@ export async function githubFetch(path: string, token: string, options: RequestI
 
       if (!res.ok) return { error: data.message || `GitHub API ${res.status}`, status: res.status }
       return data
-    } catch (err: any) {
+    } catch (err) {
       clearTimeout(timeout)
       lastError = err
 
       // Retry on network/timeout errors
-      if (attempt < MAX_RETRIES && (err.name === 'AbortError' || err.code === 'ECONNRESET' || err.code === 'ETIMEDOUT')) {
-        console.log(`[github] Network error on ${path}, retry ${attempt + 1}/${MAX_RETRIES}: ${err.message}`)
+      const errObj = err as { name?: string; code?: string; message?: string }
+      if (attempt < MAX_RETRIES && (errObj.name === 'AbortError' || errObj.code === 'ECONNRESET' || errObj.code === 'ETIMEDOUT')) {
+        console.log(`[github] Network error on ${path}, retry ${attempt + 1}/${MAX_RETRIES}: ${errObj.message}`)
         await new Promise(r => setTimeout(r, INITIAL_BACKOFF_MS * Math.pow(2, attempt)))
         continue
       }
@@ -98,8 +95,6 @@ export async function githubFetch(path: string, token: string, options: RequestI
   }
   throw lastError || new Error('GitHub API request failed after retries')
 }
-
-// ─── Default branch detection with cache ─────────────────────
 
 const branchCache = new Map<string, { branch: string; expires: number }>()
 

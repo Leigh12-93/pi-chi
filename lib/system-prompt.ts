@@ -9,11 +9,7 @@
  *   TIER_E — Self-modification docs. Sent when self-mod keywords detected + owner.
  */
 
-// ═══════════════════════════════════════════════════════════════
-// TIER A — Identity, Rules, Creative Philosophy, Output Format
-// Sent with EVERY message
-// ═══════════════════════════════════════════════════════════════
-
+// TIER A — Identity, Rules, Creative Philosophy, Output Format (sent always)
 export const SYSTEM_PROMPT_TIER_A = `You are Forge, an expert AI website builder with SUPERPOWER capabilities.
 
 ## Your Identity
@@ -165,11 +161,7 @@ Keep summaries SHORT (3-4 lines): what was created/changed, what to see in previ
 
 Your response MUST contain tool calls. If you're writing paragraphs without tool calls, STOP and call tools.`
 
-// ═══════════════════════════════════════════════════════════════
-// TIER B — Tool Behavioral Rules (build-fix, verification, workflows)
-// Sent when user message contains action words
-// ═══════════════════════════════════════════════════════════════
-
+// TIER B — Tool Behavioral Rules (sent when action words detected)
 export const SYSTEM_PROMPT_TIER_B = `
 
 ## Build-Fix Loop (CRITICAL — always active)
@@ -257,11 +249,7 @@ When user has connected Google: Sheets (read/write/create), Calendar (list/creat
 4. If project uses Stripe/Supabase/Google/AussieSMS but not connected: call \`connect_service\`
 5. Then \`deploy_to_vercel\` with all env vars`
 
-// ═══════════════════════════════════════════════════════════════
-// TIER C — Database Schema
-// Sent when user mentions database, schema, tables
-// ═══════════════════════════════════════════════════════════════
-
+// TIER C — Database Schema (sent when DB words detected)
 export const SYSTEM_PROMPT_TIER_C = `
 
 ## Database (Supabase PostgreSQL via PostgREST)
@@ -288,11 +276,7 @@ Insert: \`db_mutate({ operation: "insert", table: "forge_deployments", data: { p
 Update: \`db_mutate({ operation: "update", table: "forge_projects", data: { description: "New" }, filters: "id=eq.UUID" })\`
 Upsert files: \`db_mutate({ operation: "upsert", table: "forge_project_files", data: [...], onConflict: "project_id,path" })\``
 
-// ═══════════════════════════════════════════════════════════════
-// TIER D — six-chi.md Blueprint Specification
-// Sent when building new projects or six-chi.md keywords detected
-// ═══════════════════════════════════════════════════════════════
-
+// TIER D — six-chi.md Blueprint Specification (sent for new projects)
 export const SYSTEM_PROMPT_TIER_D = `
 
 ## six-chi.md — Full Blueprint Specification
@@ -358,11 +342,7 @@ After EVERY write_file or edit_file: call run_build immediately. Do NOT batch wr
 ### Verify and Update six-chi.md (MANDATORY FINAL STEP)
 After completing work: read six-chi.md + package.json, verify all sections complete, audit deps/architecture/tasks/design/components, fix any drift with edit_file.`
 
-// ═══════════════════════════════════════════════════════════════
-// TIER E — Self-Modification Docs
-// Sent when self-mod keywords detected + forge owner
-// ═══════════════════════════════════════════════════════════════
-
+// TIER E — Self-Modification Docs (sent when self-mod detected + owner)
 export const SYSTEM_PROMPT_TIER_E = `
 
 ## Self-Modification (SUPERPOWER)
@@ -424,30 +404,19 @@ Key files: app/api/chat/route.ts, lib/tools/, lib/system-prompt.ts, lib/template
 ### External Repos
 Use github_read_file / github_list_repo_files / github_modify_external_file / github_search_code for any accessible repo.`
 
-// ═══════════════════════════════════════════════════════════════
-// Tier routing logic
-// ═══════════════════════════════════════════════════════════════
-
-/** Regex for action words — triggers TIER_B (behavioral rules) */
+/** Triggers TIER_B (behavioral rules) */
 const TIER_B_PATTERN = /\b(create|build|deploy|add|fix|change|update|delete|connect|push|commit|install|run|write|edit|move|rename|make|set|configure|enable|disable|stripe|auth|api.?key|secret|credential|env.?var|resend|clerk|neon|upstash)\b/i
 
-/** Regex for database words — triggers TIER_C (schema docs) */
+/** Triggers TIER_C (schema docs) */
 const TIER_C_PATTERN = /\b(database|table|schema|supabase|query|insert|select|row|column)\b/i
 
-/** Regex for six-chi/blueprint words — triggers TIER_D (blueprint spec) */
+/** Triggers TIER_D (blueprint spec) */
 const TIER_D_PATTERN = /\b(six-chi|blueprint|new project|scaffold|from scratch|create.*project|start.*project|build.*app|build.*site|build.*website)\b/i
 
-/** Regex for self-modification words — triggers TIER_E */
+/** Triggers TIER_E (self-modification) */
 const TIER_E_PATTERN = /\b(yourself|self|improve|upgrade|modify yourself|forge_read|forge_modify|your own|your source|your code)\b/i
 
-/**
- * Build a system prompt sized to the user's message intent.
- * - Always includes TIER_A (identity, rules, creative philosophy)
- * - Includes TIER_B when action verbs detected
- * - Includes TIER_C when DB words detected
- * - Includes TIER_D when building new projects
- * - Includes TIER_E when self-modification detected
- */
+/** Build system prompt from tiers matched against user message intent */
 export function buildSystemPrompt(userMessage: string): string {
   let prompt = SYSTEM_PROMPT_TIER_A
 
@@ -456,16 +425,12 @@ export function buildSystemPrompt(userMessage: string): string {
   if (TIER_D_PATTERN.test(userMessage)) prompt += SYSTEM_PROMPT_TIER_D
   if (TIER_E_PATTERN.test(userMessage)) prompt += SYSTEM_PROMPT_TIER_E
 
-  // Always append the memory placeholder at the end
   prompt += '\n\nMEMORY_PLACEHOLDER'
 
   return prompt
 }
 
-// ═══════════════════════════════════════════════════════════════
-// Backwards-compatible full prompt (all tiers combined)
-// ═══════════════════════════════════════════════════════════════
-
+// Full prompt (all tiers combined)
 export const SYSTEM_PROMPT = SYSTEM_PROMPT_TIER_A + SYSTEM_PROMPT_TIER_B + SYSTEM_PROMPT_TIER_C + SYSTEM_PROMPT_TIER_D + SYSTEM_PROMPT_TIER_E + '\n\nMEMORY_PLACEHOLDER'
 
 /** Marker that route.ts replaces with actual project memory content */

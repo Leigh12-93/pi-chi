@@ -25,7 +25,8 @@ export async function GET(req: Request) {
   let clientId: string
   try {
     clientId = await decryptToken((data[0].encrypted_google_client_id as string).replace(/^v1:/, ''))
-  } catch {
+  } catch (err) {
+    console.error('[auth/google] Client ID decryption failed:', err instanceof Error ? err.message : err)
     return NextResponse.json({ error: 'Failed to decrypt Client ID' }, { status: 500 })
   }
 

@@ -5,7 +5,7 @@ import { supabaseFetch } from '@/lib/supabase-fetch'
 const MAX_SNAPSHOTS = 50
 
 /** GET /api/projects/[id]/snapshots — list version snapshots */
-export async function GET(req: Request, { params }: { params: Promise<{ id: string }> }) {
+export async function GET(_req: Request, { params }: { params: Promise<{ id: string }> }) {
   const session = await getSession()
   if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 

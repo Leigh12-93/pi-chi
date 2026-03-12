@@ -18,8 +18,9 @@ export async function GET(req: Request) {
   try {
     const data = await githubFetch(`/repos/${owner}/${repo}/branches?per_page=50`, session.accessToken)
     return NextResponse.json(data)
-  } catch (err: any) {
-    return NextResponse.json({ error: err.message || 'Failed to list branches' }, { status: 500 })
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err)
+    return NextResponse.json({ error: msg || 'Failed to list branches' }, { status: 500 })
   }
 }
 
@@ -55,7 +56,8 @@ export async function POST(req: Request) {
     })
 
     return NextResponse.json(result, { status: 201 })
-  } catch (err: any) {
-    return NextResponse.json({ error: err.message || 'Failed to create branch' }, { status: 500 })
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err)
+    return NextResponse.json({ error: msg || 'Failed to create branch' }, { status: 500 })
   }
 }

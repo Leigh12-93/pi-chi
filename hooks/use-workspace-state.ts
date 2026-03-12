@@ -11,14 +11,14 @@ import { buildTreeFromMap } from '@/lib/virtual-fs'
 export type MobileTab = 'chat' | 'editor' | 'preview' | 'menu'
 export type DialogType = 'push' | 'create-repo' | 'import' | null
 
-export function useWorkspaceState(files: Record<string, string>, projectId: string | null) {
-  // ─── Panel & view state ──────────────────────────────────
+export function useWorkspaceState(files: Record<string, string>, _projectId: string | null) {
+  // Panel & view state
   const [rightTab, setRightTab] = useState<'code' | 'preview' | 'split' | 'terminal'>('code')
   const [mobileTab, setMobileTab] = useState<MobileTab>('chat')
   const [mobileEditorShowTree, setMobileEditorShowTree] = useState(false)
   const [openFiles, setOpenFiles] = useState<string[]>([])
 
-  // ─── Dialog & overlay state ──────────────────────────────
+  // Dialog & overlay state
   const [activeDialog, setActiveDialog] = useState<DialogType>(null)
   const [showDeployPanel, setShowDeployPanel] = useState(false)
   const [showCommandPalette, setShowCommandPalette] = useState(false)
@@ -33,41 +33,41 @@ export function useWorkspaceState(files: Record<string, string>, projectId: stri
   const [showMcpManager, setShowMcpManager] = useState(false)
   const [settingsDefaultTab, setSettingsDefaultTab] = useState<'general' | 'editor' | 'api-key' | 'vercel' | 'supabase' | undefined>(undefined)
 
-  // ─── Save & project state ────────────────────────────────
+  // Save & project state
   const [localSaveStatus, setLocalSaveStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle')
   const [pendingChatMessage, setPendingChatMessage] = useState<string | null>(null)
   const [vercelProjectId, setVercelProjectId] = useState<string | null>(null)
 
-  // ─── Drag & drop state ───────────────────────────────────
+  // Drag & drop state
   const [isDragging, setIsDragging] = useState(false)
   const dragCounterRef = useRef(0)
 
-  // ─── Console & notifications ─────────────────────────────
+  // Console & notifications
   const [consoleOpen, setConsoleOpen] = useState(false)
   const [consoleEntries, setConsoleEntries] = useState<ConsoleEntry[]>([])
   const [notifications, setNotifications] = useState<Notification[]>([])
 
-  // ─── Snapshots ───────────────────────────────────────────
+  // Snapshots
   const [snapshots, setSnapshots] = useState<Snapshot[]>([])
   const [snapshotsLoaded, setSnapshotsLoaded] = useState(false)
 
-  // ─── Diff & file tracking state ──────────────────────────
+  // Diff & file tracking state
   const [diffState, setDiffState] = useState<{ open: boolean; path: string; oldContent: string; newContent: string } | null>(null)
   const [modifiedFiles, setModifiedFiles] = useState<Set<string>>(new Set())
   const [auditPlan, setAuditPlan] = useState<AuditPlan | null>(null)
 
-  // ─── Sidebar state ───────────────────────────────────────
+  // Sidebar state
   const [sidebarTab, setSidebarTab] = useState<SidebarTab | null>(null)
   const [sidebarPinned, setSidebarPinned] = useState(false)
   const [sidebarHovered, setSidebarHovered] = useState(false)
   const sidebarLeaveTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
 
-  // ─── AI state ────────────────────────────────────────────
+  // AI state
   const [aiEditingFiles, setAiEditingFiles] = useState<Set<string>>(new Set())
   const [fileDiffs, setFileDiffs] = useState<Map<string, { added: number; removed: number }>>(new Map())
   const [aiLoading, setAiLoading] = useState(false)
 
-  // ─── Refs ────────────────────────────────────────────────
+  // Refs
   const chatSendRef = useRef<((message: string) => void) | null>(null)
   const initialFilesRef = useRef<Record<string, string>>({})
   const filesRef = useRef(files)
@@ -85,7 +85,7 @@ export function useWorkspaceState(files: Record<string, string>, projectId: stri
   const handleFileSelectRef = useRef<(path: string) => void>(() => {})
   const userInteractingRef = useRef(false)
 
-  // ─── Derived values ──────────────────────────────────────
+  // Derived values
   const sidebarVisible = sidebarPinned || sidebarHovered
   const hasPackageJson = 'package.json' in files
 

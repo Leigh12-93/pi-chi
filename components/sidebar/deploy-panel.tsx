@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect, useMemo, useRef } from 'react'
-import { Rocket, Download, Link, ExternalLink, Loader2, Check, LogIn, AlertCircle, Settings } from 'lucide-react'
+import { Rocket, Download, Link, ExternalLink, Loader2, Check, AlertCircle, Settings } from 'lucide-react'
 
 interface VercelProject {
   id: string

@@ -2,7 +2,7 @@
 
 import { useState, useRef, useEffect, useMemo, useCallback, memo } from 'react'
 import {
-  ChevronRight, ChevronDown, FolderOpen, Folder,
+  ChevronRight, FolderOpen, Folder,
   MoreHorizontal, Trash2, Edit3, Copy, FileText,
   Search, X, FilePlus, Check,
 } from 'lucide-react'
@@ -10,7 +10,6 @@ import { cn } from '@/lib/utils'
 import type { FileNode } from '@/lib/types'
 import { toast } from 'sonner'
 
-// ─── File type color indicators (VS Code / GitHub style) ───────
 const FILE_TYPE_COLORS: Record<string, string> = {
   tsx: 'bg-blue-500',
   jsx: 'bg-cyan-500',
@@ -53,7 +52,6 @@ function FileTypeDot({ name }: { name: string }) {
   return <span className={cn('w-2 h-2 rounded-full shrink-0', color)} />
 }
 
-// ─── Interfaces ────────────────────────────────────────────────
 interface FileTreeProps {
   files: FileNode[]
   activeFile: string | null
@@ -84,7 +82,6 @@ function filterNodes(nodes: FileNode[], query: string): FileNode[] {
   return result
 }
 
-// ─── FileTree ──────────────────────────────────────────────────
 export const FileTree = memo(function FileTree({
   files, activeFile, onFileSelect, onFileDelete, onFileRename, onFileCreate, fileContents, modifiedFiles,
   aiEditingFiles, fileDiffs,
@@ -288,7 +285,6 @@ export const FileTree = memo(function FileTree({
   )
 })
 
-// ─── Tree node list ────────────────────────────────────────────
 function TreeNodes({
   nodes, activeFile, onFileSelect, onFileDelete, onFileRename, fileContents, modifiedFiles,
   aiEditingFiles, fileDiffs, depth, forceExpand,
@@ -327,7 +323,6 @@ function TreeNodes({
   )
 }
 
-// ─── Single tree item ──────────────────────────────────────────
 function TreeItem({
   node, activeFile, onFileSelect, onFileDelete, onFileRename, fileContents, modifiedFiles,
   aiEditingFiles, fileDiffs, depth, forceExpand,

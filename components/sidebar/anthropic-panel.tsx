@@ -3,10 +3,10 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react'
 import {
   CheckCircle2, ChevronDown, Trash2, Loader2, Plug, Key,
-  ExternalLink, RefreshCw, AlertCircle, Sparkles,
-  Brain, FileText, Eye, Pencil, Search, Terminal, Globe, Rocket,
-  Database, GitBranch, Wrench, Save, Package, Shield,
-  Calendar, Mail, FolderPlus, BookOpen,
+  ExternalLink, AlertCircle, Sparkles,
+  Brain, FileText, Search, Terminal, Globe, Rocket,
+  Database, GitBranch, Wrench, Save, Shield,
+  FolderPlus,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { MODEL_OPTIONS, MODEL_PRICING, TOOL_LABELS } from '@/lib/chat/constants'
@@ -37,8 +37,6 @@ function detectAnthropicKeyFromEnv(fileContents: Record<string, string>): string
   }
   return null
 }
-
-// ─── Tool Categories ───────────────────────────────────────────
 
 interface ToolCategory {
   label: string
@@ -140,8 +138,6 @@ const TOOL_CATEGORIES: ToolCategory[] = [
   },
 ]
 
-// ─── Collapsible Section ────────────────────────────────────────
-
 function Section({ title, defaultOpen = true, children, badge }: {
   title: string
   defaultOpen?: boolean
@@ -164,9 +160,7 @@ function Section({ title, defaultOpen = true, children, badge }: {
   )
 }
 
-// ─── Main Panel ─────────────────────────────────────────────────
-
-export function AnthropicPanel({ onOpenSettings, onOpenMcpManager, sessionCost, fileContents }: AnthropicPanelProps) {
+export function AnthropicPanel({ onOpenSettings: _onOpenSettings, onOpenMcpManager, sessionCost, fileContents }: AnthropicPanelProps) {
   // Connection state
   const [hasApiKey, setHasApiKey] = useState(false)
   const [validatedAt, setValidatedAt] = useState<string | null>(null)
@@ -321,7 +315,6 @@ export function AnthropicPanel({ onOpenSettings, onOpenMcpManager, sessionCost, 
 
   return (
     <div className="space-y-0">
-      {/* ─── Section 1: Connection Status ─── */}
       <Section title="Connection" defaultOpen={true}>
         {hasApiKey ? (
           <div className="space-y-2">
@@ -417,7 +410,6 @@ export function AnthropicPanel({ onOpenSettings, onOpenMcpManager, sessionCost, 
         )}
       </Section>
 
-      {/* ─── Section 2: Model Preferences ─── */}
       <Section title="Model" defaultOpen={true} badge={
         <span className="text-[9px] text-forge-text-dim/60 normal-case tracking-normal font-normal">
           {MODEL_OPTIONS.find(m => m.id === preferredModel)?.label || 'Sonnet 4'}
@@ -461,7 +453,6 @@ export function AnthropicPanel({ onOpenSettings, onOpenMcpManager, sessionCost, 
         </div>
       </Section>
 
-      {/* ─── Section 3: Session Usage ─── */}
       <Section title="Session Usage" defaultOpen={true} badge={
         sessionCost && sessionCost.cost > 0 ? (
           <span className="text-[9px] text-forge-accent normal-case tracking-normal font-normal">
@@ -503,7 +494,6 @@ export function AnthropicPanel({ onOpenSettings, onOpenMcpManager, sessionCost, 
         )}
       </Section>
 
-      {/* ─── Section 4: Tools Overview ─── */}
       <Section title="Tools" defaultOpen={false} badge={
         <span className="text-[9px] px-1.5 py-0.5 bg-forge-surface rounded-full text-forge-text-dim normal-case tracking-normal font-normal">
           {totalTools}
@@ -542,7 +532,6 @@ export function AnthropicPanel({ onOpenSettings, onOpenMcpManager, sessionCost, 
         </div>
       </Section>
 
-      {/* ─── Section 5: MCP Connections ─── */}
       <Section title="MCP Servers" defaultOpen={true} badge={
         mcpServers.length > 0 ? (
           <span className="text-[9px] px-1.5 py-0.5 bg-forge-surface rounded-full text-forge-text-dim normal-case tracking-normal font-normal">

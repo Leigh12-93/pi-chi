@@ -23,8 +23,6 @@ interface DiffLine {
 function computeDiff(oldText: string, newText: string): DiffLine[] {
   const oldLines = oldText.split('\n')
   const newLines = newText.split('\n')
-  const result: DiffLine[] = []
-
   // Simple LCS-based diff
   const m = oldLines.length
   const n = newLines.length
@@ -60,7 +58,7 @@ function computeDiff(oldText: string, newText: string): DiffLine[] {
   return stack
 }
 
-export function DiffViewer({ open, onClose, path, oldContent, newContent, oldLabel = 'Previous', newLabel = 'Current' }: DiffViewerProps) {
+export function DiffViewer({ open, onClose, path, oldContent, newContent, oldLabel: _oldLabel = 'Previous', newLabel: _newLabel = 'Current' }: DiffViewerProps) {
   useEffect(() => {
     if (!open) return
     const handler = (e: KeyboardEvent) => {

@@ -20,6 +20,12 @@
   --color-forge-danger: #dc2626;
   --color-forge-ring: rgba(220, 38, 38, 0.15);
   --color-forge-overlay: rgba(0, 0, 0, 0.5);
+
+  /* Code & terminal */
+  --color-forge-terminal: #1a1a2e;
+  --color-forge-terminal-dark: #0d0d1a;
+  --color-forge-diff-added: #10b981;
+  --color-forge-diff-removed: #ef4444;
 }
 
 /* Dark mode overrides (class-based) */
@@ -39,6 +45,12 @@ html.dark {
   --color-forge-danger: #f87171;
   --color-forge-ring: rgba(248, 113, 113, 0.2);
   --color-forge-overlay: rgba(0, 0, 0, 0.65);
+
+  /* Code & terminal */
+  --color-forge-terminal: #1a1a2e;
+  --color-forge-terminal-dark: #0d0d1a;
+  --color-forge-diff-added: #34d399;
+  --color-forge-diff-removed: #f87171;
 }
 
 html.dark ::-webkit-scrollbar-thumb { background: #3a3d4a; }
@@ -142,8 +154,8 @@ html.dark [data-sonner-toast] [data-description] {
   color: #9ca3af !important;
 }
 
-/* ─── v0-Style Streaming Cursor ────────────────────────────── */
-@keyframes v0Blink {
+/* Streaming cursor */
+@keyframes cursorBlink {
   0%, 100% { opacity: 1; }
   50% { opacity: 0.3; }
 }
@@ -154,24 +166,24 @@ html.dark [data-sonner-toast] [data-description] {
   height: 1.15em;
   background: var(--color-forge-accent);
   vertical-align: text-bottom;
-  animation: v0Blink 1.1s ease-in-out infinite;
+  animation: cursorBlink 1.1s ease-in-out infinite;
   margin-left: 2px;
   border-radius: 1px;
 }
 
-/* ─── v0-Style Thinking Collapse ──────────────────────────── */
+/* Thinking collapse */
 @keyframes thinkExpand {
   from { max-height: 0; opacity: 0; }
   to { max-height: 600px; opacity: 1; }
 }
 .think-expand { animation: thinkExpand 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards; overflow: hidden; }
 
-/* ─── v0-Style Message Slide In ──────────────────────────── */
-@keyframes v0SlideIn {
+/* Message slide in */
+@keyframes messageSlideIn {
   from { opacity: 0; transform: translateY(4px); }
   to { opacity: 1; transform: translateY(0); }
 }
-.v0-message-in { animation: v0SlideIn 0.2s cubic-bezier(0.16, 1, 0.3, 1) forwards; }
+.message-enter { animation: messageSlideIn 0.2s cubic-bezier(0.16, 1, 0.3, 1) forwards; }
 
 /* Animations */
 @keyframes fadeIn {

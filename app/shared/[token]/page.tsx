@@ -5,7 +5,7 @@ import { useParams } from 'next/navigation'
 import { CodeEditor } from '@/components/code-editor'
 import { FileTree } from '@/components/file-tree'
 import { buildTreeFromMap } from '@/lib/virtual-fs'
-import { Hammer, Eye, Code2, FolderTree, Loader2, AlertCircle } from 'lucide-react'
+import { Hammer, Loader2, AlertCircle } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { Panel, PanelGroup, PanelResizeHandle } from 'react-resizable-panels'
 

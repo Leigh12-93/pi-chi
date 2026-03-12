@@ -48,11 +48,12 @@ function sanitizeHtml(html: string): string {
 }
 
 let _codeBlockId = 0
+let _codeBlockPrefix = Math.random().toString(36).slice(2, 8)
 
 function renderMarkdown(text: string): string {
   const codeBlocks: string[] = []
   let processed = text.replace(/```(\w*)\n([\s\S]*?)```/g, (_match, lang: string, code: string) => {
-    const id = `code-block-${++_codeBlockId}`
+    const id = `cb-${_codeBlockPrefix}-${++_codeBlockId}`
     const safeId = id.replace(/[^a-zA-Z0-9_-]/g, '')
     const label = LANG_LABELS[lang] || lang || 'Code'
     const highlighted = lang ? highlightCode(code.trimEnd(), lang) : code.trimEnd().replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
@@ -79,7 +80,7 @@ function renderMarkdown(text: string): string {
     })
 
   // Blockquotes
-  processed = processed.replace(/^(?:&gt;|>) (.+)$/gm, '<blockquote class="border-l-2 border-forge-border-bright pl-3 my-1.5 text-forge-text-dim italic text-[13px]">$1</blockquote>')
+  processed = processed.replace(/^(?:&gt;|>)\s*(.+)$/gm, '<blockquote class="border-l-2 border-forge-border-bright pl-3 my-1.5 text-forge-text-dim italic text-[13px]">$1</blockquote>')
   processed = processed.replace(/<\/blockquote>\n<blockquote[^>]*>/g, '<br/>')
 
   // Horizontal rules
@@ -87,7 +88,10 @@ function renderMarkdown(text: string): string {
 
   // Inline formatting
   processed = processed
-    .replace(/`([^`]+)`/g, '<code class="bg-forge-surface px-1.5 py-0.5 rounded text-[12.5px] font-mono text-forge-text border border-forge-border">$1</code>')
+    .replace(/`([^`]+)`/g, (_m, c: string) => {
+      const escaped = c.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+      return `<code class="bg-forge-surface px-1.5 py-0.5 rounded text-[12.5px] font-mono text-forge-text border border-forge-border">${escaped}</code>`
+    })
     .replace(/^### (.+)$/gm, '<h3 class="text-[13.5px] font-semibold mt-4 mb-1.5 text-forge-text">$1</h3>')
     .replace(/^## (.+)$/gm, '<h2 class="text-sm font-bold mt-4 mb-2 text-forge-text">$1</h2>')
     .replace(/\*\*(.+?)\*\*/g, '<strong class="font-semibold text-forge-text">$1</strong>')
@@ -107,7 +111,12 @@ const _mdCache = new Map<string, string>()
 
 export function cachedRenderMarkdown(text: string): string {
   let html = _mdCache.get(text)
-  if (html) return html
+  if (html) {
+    // LRU: move to end by re-inserting
+    _mdCache.delete(text)
+    _mdCache.set(text, html)
+    return html
+  }
   html = sanitizeHtml(renderMarkdown(text))
   _mdCache.set(text, html)
   if (_mdCache.size > 300) {

@@ -3,7 +3,7 @@ import { getSession } from '@/lib/auth'
 import { supabaseFetch } from '@/lib/supabase-fetch'
 
 /** POST /api/projects/[id]/share — generate a share token */
-export async function POST(req: Request, { params }: { params: Promise<{ id: string }> }) {
+export async function POST(_req: Request, { params }: { params: Promise<{ id: string }> }) {
   const session = await getSession()
   if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
@@ -22,8 +22,10 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
     return NextResponse.json({ token: existing })
   }
 
-  // Generate a unique token
-  const token = crypto.randomUUID().replace(/-/g, '').slice(0, 16)
+  // Generate a unique token (128 bits / 32 hex chars)
+  const bytes = new Uint8Array(16)
+  crypto.getRandomValues(bytes)
+  const token = Array.from(bytes, b => b.toString(16).padStart(2, '0')).join('')
 
   const { ok } = await supabaseFetch(
     `/forge_projects?id=eq.${projectId}`,

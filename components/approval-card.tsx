@@ -3,7 +3,6 @@
 import { useState, useEffect, useRef } from 'react'
 import { ShieldAlert, Check, X, Terminal, Database, Trash2, Loader2 } from 'lucide-react'
 import { motion } from 'framer-motion'
-import { cn } from '@/lib/utils'
 import { toast } from 'sonner'
 
 interface ApprovalCardProps {

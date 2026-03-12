@@ -3,7 +3,7 @@ import { z } from 'zod'
 import type { ToolContext } from './types'
 
 /** Testing/build verification tools — executed client-side via WebContainer */
-export function createTestingTools(ctx: ToolContext) {
+export function createTestingTools(_ctx: ToolContext) {
   return {
     run_build: tool({
       description: 'Run the project build (npm run build). Returns build output including any errors or warnings. Use after making changes to verify the project compiles correctly.',

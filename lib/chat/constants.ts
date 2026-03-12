@@ -4,7 +4,7 @@ import {
   CheckCircle, Sparkles, ArrowUp, Database, Wrench,
   RefreshCw, BookOpen, Save, Plug, ImageIcon, Package,
   GitBranch, Key, ListChecks, StopCircle,
-  ClipboardList, HelpCircle, Flag, Shield, Lock,
+  ClipboardList, HelpCircle, Flag, Shield,
   Calendar, CalendarPlus, Mail, Inbox, MailOpen, Table2, FilePlus,
   type LucideIcon,
 } from 'lucide-react'
@@ -110,7 +110,6 @@ export const TOOL_LABELS: Record<string, { label: string; Icon: LucideIcon; colo
 export const MODEL_OPTIONS = [
   { id: 'claude-sonnet-4-20250514', label: 'Sonnet 4', description: 'Fast & capable' },
   { id: 'claude-haiku-4-5-20251001', label: 'Haiku 4.5', description: 'Fastest' },
-  { id: 'claude-opus-4-20250514', label: 'Opus 4', description: 'Most capable' },
   { id: 'claude-opus-4-6', label: 'Opus 4.6', description: 'Latest flagship' },
 ] as const
 
@@ -124,7 +123,7 @@ export const MODEL_PRICING: Record<string, { input: number; output: number }> = 
 
 /** Calculate cost in USD from token counts and model ID */
 export function estimateCost(inputTokens: number, outputTokens: number, model: string): number {
-  const pricing = MODEL_PRICING[model] || MODEL_PRICING['claude-sonnet-4-20250514']
+  const pricing = MODEL_PRICING[model] || (console.warn(`[forge] Unknown model for pricing: ${model}`), MODEL_PRICING['claude-sonnet-4-20250514'])
   return (inputTokens / 1_000_000) * pricing.input + (outputTokens / 1_000_000) * pricing.output
 }
 

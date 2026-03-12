@@ -333,11 +333,6 @@ export function StripePanel({ fileContents, onFileChange }: StripePanelProps) {
     )
   }
 
-  const isConnected = settings.hasStripeSecretKey && account
-
-  // ═══════════════════════════════════════════════
-  // NOT CONNECTED — Setup
-  // ═══════════════════════════════════════════════
   if (!settings.hasStripeSecretKey) {
     return (
       <div className="p-3 space-y-3">
@@ -463,14 +458,10 @@ export function StripePanel({ fileContents, onFileChange }: StripePanelProps) {
     )
   }
 
-  // ═══════════════════════════════════════════════
-  // CONNECTED — Full panel
-  // ═══════════════════════════════════════════════
   return (
     <div className="p-3 space-y-2.5">
       <p className="text-[10px] uppercase tracking-wider text-forge-text-dim font-medium">Stripe</p>
 
-      {/* ══════ Connection Status ══════ */}
       <div className={`rounded-md border p-2.5 ${
         account ? 'border-green-500/20 bg-green-500/5' : accountError ? 'border-red-500/20 bg-red-500/5' : 'border-forge-border bg-forge-surface/30'
       }`}>
@@ -533,7 +524,6 @@ export function StripePanel({ fileContents, onFileChange }: StripePanelProps) {
         )}
       </div>
 
-      {/* ══════ Balance ══════ */}
       {balance && (
         <div className="rounded-md border border-forge-border bg-forge-surface/30 p-2.5">
           <div className="flex items-center gap-1.5 mb-2">
@@ -563,7 +553,6 @@ export function StripePanel({ fileContents, onFileChange }: StripePanelProps) {
         </div>
       )}
 
-      {/* ══════ Recent Activity ══════ */}
       <div className="rounded-md border border-forge-border">
         <button
           onClick={() => toggleSection('recent')}
@@ -639,7 +628,6 @@ export function StripePanel({ fileContents, onFileChange }: StripePanelProps) {
         )}
       </div>
 
-      {/* ══════ Webhook Config ══════ */}
       <div className="rounded-md border border-forge-border">
         <button
           onClick={() => toggleSection('webhooks')}
@@ -729,7 +717,6 @@ export function StripePanel({ fileContents, onFileChange }: StripePanelProps) {
         )}
       </div>
 
-      {/* ══════ Environment ══════ */}
       <div className="rounded-md border border-forge-border">
         <button
           onClick={() => toggleSection('env')}
@@ -788,7 +775,6 @@ export function StripePanel({ fileContents, onFileChange }: StripePanelProps) {
         )}
       </div>
 
-      {/* ══════ AI Tools ══════ */}
       <div className="rounded-md border border-forge-border">
         <button
           onClick={() => toggleSection('tools')}
@@ -817,7 +803,6 @@ export function StripePanel({ fileContents, onFileChange }: StripePanelProps) {
         )}
       </div>
 
-      {/* ══════ Quick Links ══════ */}
       <div className="rounded-md border border-forge-border">
         <button
           onClick={() => toggleSection('links')}
@@ -846,7 +831,6 @@ export function StripePanel({ fileContents, onFileChange }: StripePanelProps) {
         )}
       </div>
 
-      {/* ══════ Credentials ══════ */}
       <div className="rounded-md border border-forge-border bg-forge-surface/30 p-2.5">
         <div className="flex items-center justify-between mb-1.5">
           <span className="text-[10px] text-forge-text-dim font-medium">Saved Credentials</span>

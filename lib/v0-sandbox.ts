@@ -1,15 +1,6 @@
 import { createClient } from 'v0-sdk'
 
-// ═══════════════════════════════════════════════════════════════════
-// v0 Platform API Sandbox Manager — Production
-//
-// Uses v0's chats.init() (free, no tokens) to create instant preview
-// sandboxes. Handles the 20-file-per-call limit by batching with
-// chats.updateVersion(). Includes file filtering, delta sync,
-// concurrency guards, session TTL, retry logic, and cleanup.
-// ═══════════════════════════════════════════════════════════════════
-
-// ─── Constants ──────────────────────────────────────────────────
+// v0 Platform API Sandbox Manager
 
 const V0_FILE_LIMIT = 20
 const MAX_FILE_SIZE = 128 * 1024     // 128KB per file
@@ -21,8 +12,6 @@ const POLL_MAX_ATTEMPTS = 12
 const POLL_BASE_MS = 1500
 const CREATE_TIMEOUT_MS = 60_000     // 60s total timeout on create
 const CLEANUP_INTERVAL_MS = 5 * 60 * 1000 // 5 min periodic cleanup
-
-// ─── File skip rules ────────────────────────────────────────────
 
 const SKIP_EXACT = new Set([
   'package-lock.json', 'yarn.lock', 'pnpm-lock.yaml', 'bun.lockb',
@@ -73,8 +62,6 @@ const SKIP_SUFFIXES = [
   '.stories.ts', '.stories.tsx', '.stories.js', '.stories.jsx',
 ]
 
-// ─── Types ──────────────────────────────────────────────────────
-
 export interface V0SandboxSession {
   chatId: string
   versionId: string
@@ -83,7 +70,7 @@ export interface V0SandboxSession {
   error?: string
   createdAt: number
   lastSyncedHash: string
-  lastSyncedFiles: Record<string, number> // path → content length (for delta)
+  lastSyncedFiles: Record<string, number> // path → content hash (for delta)
   fileCount: number
 }
 
@@ -108,8 +95,6 @@ export interface SyncResult {
   retryable?: boolean
 }
 
-// ─── State ──────────────────────────────────────────────────────
-
 const activeSessions = new Map<string, V0SandboxSession>()
 const inflightOps = new Set<string>()
 
@@ -127,8 +112,6 @@ function maybeCleanupSandboxSessions() {
   }
 }
 
-// ─── Client ─────────────────────────────────────────────────────
-
 function getClient() {
   const apiKey = (process.env.V0_API_KEY || '').trim()
   if (!apiKey) throw new Error('V0_API_KEY not configured')
@@ -144,8 +127,6 @@ function invalidateClient() {
   _client = null
   _clientKey = ''
 }
-
-// ─── File filtering & prioritization ────────────────────────────
 
 function shouldSkipFile(name: string, content: string): boolean {
   if (SKIP_EXACT.has(name)) return true
@@ -276,8 +257,6 @@ function filePriority(name: string): number {
   return 40
 }
 
-// ─── Helpers ────────────────────────────────────────────────────
-
 function chunk<T>(arr: T[], size: number): T[][] {
   const out: T[][] = []
   for (let i = 0; i < arr.length; i += size) out.push(arr.slice(i, i + size))
@@ -303,10 +282,17 @@ function hashFiles(files: Record<string, string>): string {
   return h.toString(36)
 }
 
-/** Build a path→length map for delta detection */
+/** Simple DJB2 hash for a single string — fast, good collision resistance */
+function hashString(s: string): number {
+  let h = 5381
+  for (let i = 0; i < s.length; i++) h = ((h << 5) + h + s.charCodeAt(i)) | 0
+  return h
+}
+
+/** Build a path→content hash map for delta detection */
 function buildFileIndex(files: Record<string, string>): Record<string, number> {
   const idx: Record<string, number> = {}
-  for (const [k, v] of Object.entries(files)) idx[k.replace(/\\/g, '/')] = v.length
+  for (const [k, v] of Object.entries(files)) idx[k.replace(/\\/g, '/')] = hashString(v)
   return idx
 }
 
@@ -318,7 +304,7 @@ function computeDelta(
   const delta: Record<string, string> = {}
   for (const [rawName, content] of Object.entries(current)) {
     const name = rawName.replace(/\\/g, '/')
-    if (!(name in lastIndex) || lastIndex[name] !== content.length) {
+    if (!(name in lastIndex) || lastIndex[name] !== hashString(content)) {
       delta[rawName] = content
     }
   }
@@ -408,8 +394,6 @@ function evictStaleSessions() {
     }
   }
 }
-
-// ─── Public API ─────────────────────────────────────────────────
 
 export function isV0SandboxConfigured(): boolean {
   return !!(process.env.V0_API_KEY || '').trim()

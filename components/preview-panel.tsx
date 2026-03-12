@@ -9,13 +9,12 @@ import {
 } from 'lucide-react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { cn, hashFileMapDeep } from '@/lib/utils'
-
-interface ConsoleEntry {
-  timestamp: string
-  level: 'log' | 'warn' | 'error' | 'info' | 'system'
-  message: string
-  source?: 'preview' | 'sandbox' | 'forge'
-}
+import {
+  type ConsoleEntry, type ViewMode, type SandboxStatus, type BuildPhase,
+  STATUS_LABELS, PHASE_LABELS, PREVIEW_ERROR_SCRIPT,
+  isProjectReady, detectMissingImports, isSandboxNoise,
+  BuildPhaseIndicator, CopyErrorButton, BuildingPlaceholder,
+} from './preview/preview-utils'
 
 interface PreviewPanelProps {
   files: Record<string, string>
@@ -26,313 +25,6 @@ interface PreviewPanelProps {
   onPreviewReady?: () => void
   /** WebContainer dev server URL — if provided, use this instead of v0 sandbox */
   wcPreviewUrl?: string | null
-}
-
-type ViewMode = 'desktop' | 'tablet' | 'mobile'
-
-type SandboxStatus = 'idle' | 'initializing' | 'running' | 'error'
-
-type BuildPhase = 'analyzing' | 'uploading' | 'building' | 'starting' | 'ready' | null
-
-const STATUS_LABELS: Record<SandboxStatus, string> = {
-  idle: '',
-  initializing: 'Creating preview...',
-  running: 'Live',
-  error: 'Error',
-}
-
-const PHASE_LABELS: Record<Exclude<BuildPhase, null>, string> = {
-  analyzing: 'Reading your project',
-  uploading: 'Sending files to preview',
-  building: 'Building your app',
-  starting: 'Almost there...',
-  ready: 'Your preview is ready!',
-}
-
-const PHASE_ORDER: Exclude<BuildPhase, null>[] = ['analyzing', 'uploading', 'building', 'starting', 'ready']
-
-/** Script injected into static preview iframes to capture console output and runtime errors */
-const PREVIEW_ERROR_SCRIPT = `<script>
-(function(){
-  window.onerror=function(msg,url,line,col,err){
-    window.parent.postMessage({type:'forge-preview',level:'error',
-      message:String(msg),line:line,col:col,stack:err&&err.stack||''},'*');
-    return false;
-  };
-  window.addEventListener('unhandledrejection',function(e){
-    window.parent.postMessage({type:'forge-preview',level:'error',
-      message:'Unhandled Promise: '+(e.reason&&e.reason.message||String(e.reason))},'*');
-  });
-  ['log','warn','error','info'].forEach(function(m){
-    var o=console[m];
-    console[m]=function(){
-      var a=[].slice.call(arguments).map(function(v){
-        try{return typeof v==='object'?JSON.stringify(v):String(v)}catch(e){return String(v)}
-      });
-      window.parent.postMessage({type:'forge-preview',level:m,message:a.join(' ')},'*');
-      o.apply(console,arguments);
-    };
-  });
-  // Track navigation — intercept link clicks and keep them inside the preview
-  document.addEventListener('click',function(e){
-    var a=e.target;while(a&&a.tagName!=='A')a=a.parentElement;
-    if(a&&a.href&&!a.href.startsWith('javascript:')){
-      e.preventDefault();
-      var h=a.getAttribute('href')||'';
-      // Handle hash links within the page
-      if(h.startsWith('#')){var el=document.querySelector(h);if(el)el.scrollIntoView({behavior:'smooth'});return;}
-      // Handle relative paths — navigate within the iframe
-      if(h.startsWith('/')&&window.location.protocol==='about:'){
-        window.parent.postMessage({type:'forge-navigate',href:h,pathname:h},'*');
-        return;
-      }
-      // For other relative links, try to navigate within iframe
-      if(!h.startsWith('http')){
-        try{window.location.href=h;}catch(ex){}
-        window.parent.postMessage({type:'forge-navigate',href:h,pathname:h},'*');
-        return;
-      }
-      // External links — just notify parent, don't navigate
-      window.parent.postMessage({type:'forge-navigate',href:h,pathname:h},'*');
-    }
-  });
-  var _ps=history.pushState;history.pushState=function(){
-    _ps.apply(this,arguments);
-    window.parent.postMessage({type:'forge-navigate',pathname:location.pathname+location.search+location.hash},'*');
-  };
-  var _rs=history.replaceState;history.replaceState=function(){
-    _rs.apply(this,arguments);
-    window.parent.postMessage({type:'forge-navigate',pathname:location.pathname+location.search+location.hash},'*');
-  };
-  window.addEventListener('popstate',function(){
-    window.parent.postMessage({type:'forge-navigate',pathname:location.pathname+location.search+location.hash},'*');
-  });
-  window.addEventListener('hashchange',function(){
-    window.parent.postMessage({type:'forge-navigate',pathname:location.pathname+location.search+location.hash},'*');
-  });
-})();
-</script>`
-
-// Minimum files needed before auto-starting sandbox — start early so preview is
-// ready by the time user switches to it. Only needs package.json + any component.
-function isProjectReady(files: Record<string, string>): boolean {
-  const paths = Object.keys(files)
-  if (paths.length < 2) return false
-  const hasPackageJson = paths.includes('package.json')
-  const hasAnyComponent = paths.some(p =>
-    p.endsWith('.tsx') || p.endsWith('.jsx') || p === 'index.html'
-  )
-  return hasPackageJson && hasAnyComponent
-}
-
-function BuildingPlaceholder({ files, sandboxUnavailable }: { files: Record<string, string>; sandboxUnavailable?: boolean }) {
-  const fileNames = Object.keys(files)
-  const hasPackageJson = fileNames.includes('package.json')
-  let framework = 'React'
-  if (hasPackageJson) {
-    try {
-      const pkg = JSON.parse(files['package.json'] || '{}')
-      const deps = { ...pkg.dependencies, ...pkg.devDependencies }
-      if (deps['next']) framework = 'Next.js'
-      else if (deps['vite']) framework = 'Vite'
-    } catch { /* ignore */ }
-  }
-
-  return (
-    <div className="flex items-center justify-center h-full bg-forge-bg text-forge-text-dim">
-      <div className="text-center max-w-xs px-6">
-        {/* Breathing logo with subtle glow */}
-        <div className="relative inline-flex items-center justify-center mb-6">
-          <div className="absolute inset-0 rounded-full bg-forge-accent/10 blur-xl building-placeholder-glow" />
-          <div className="sixchi-logo-reveal">
-            <span className="text-4xl font-bold bg-gradient-to-r from-forge-accent to-red-400 bg-clip-text text-transparent select-none">
-              6-&#x03C7;
-            </span>
-          </div>
-        </div>
-        <p className="text-sm font-medium text-forge-text mb-1.5">{framework} project detected</p>
-        {sandboxUnavailable ? (
-          <>
-            <p className="text-xs text-amber-400/80 mb-2">
-              Live preview sandbox is not available
-            </p>
-            <p className="text-[11px] text-forge-text-dim/50 mb-4 leading-relaxed">
-              {framework} projects need the sandbox for a full preview.
-              Static HTML preview is shown for non-JSX files.
-            </p>
-            <div className="flex items-center justify-center gap-1.5 text-[10px] text-forge-text-dim/40">
-              <AlertTriangle className="w-3 h-3" />
-              <span>Configure V0_API_KEY in Settings to enable</span>
-            </div>
-          </>
-        ) : (
-          <>
-            <p className="text-xs text-forge-text-dim/60 mb-4">
-              Setting up your preview environment
-            </p>
-            <div className="flex justify-center gap-1.5">
-              <span className="building-dot" style={{ animationDelay: '0s' }} />
-              <span className="building-dot" style={{ animationDelay: '0.15s' }} />
-              <span className="building-dot" style={{ animationDelay: '0.3s' }} />
-            </div>
-          </>
-        )}
-      </div>
-    </div>
-  )
-}
-
-/** Phase step indicator - shows a check for done, spinner for active, dot for pending */
-function PhaseStepIcon({ state }: { state: 'done' | 'active' | 'pending' }) {
-  if (state === 'done') {
-    return (
-      <svg className="w-3 h-3 text-emerald-500 forge-ready-check" viewBox="0 0 16 16" fill="none">
-        <circle cx="8" cy="8" r="7" stroke="currentColor" strokeWidth="1.5" fill="currentColor" fillOpacity="0.1" />
-        <path d="M5 8l2 2 4-4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-      </svg>
-    )
-  }
-  if (state === 'active') {
-    return <Loader2 className="w-3 h-3 text-forge-accent animate-spin" />
-  }
-  return <div className="w-2 h-2 rounded-full bg-forge-border" />
-}
-
-/** Phased build lifecycle stepper rendered below the building browser */
-function BuildPhaseIndicator({ phase }: { phase: BuildPhase }) {
-  if (!phase) return null
-  const currentIdx = PHASE_ORDER.indexOf(phase as Exclude<BuildPhase, null>)
-
-  return (
-    <div className="forge-build-phase">
-      {PHASE_ORDER.filter(p => p !== 'ready').map((p, i) => {
-        const state = i < currentIdx ? 'done' : i === currentIdx ? 'active' : 'pending'
-        return (
-          <div key={p} className="flex items-center gap-1.5">
-            {i > 0 && <div className={cn('forge-phase-connector transition-colors duration-300', state === 'done' && 'done')} />}
-            <div className={cn('forge-phase-step', state === 'active' && 'active', state === 'done' && 'done')}>
-              <PhaseStepIcon state={state} />
-              <span className="hidden sm:inline">{PHASE_LABELS[p]}</span>
-            </div>
-          </div>
-        )
-      })}
-    </div>
-  )
-}
-
-/** Small copy button for error popups */
-function CopyErrorButton({ text }: { text: string }) {
-  const [copied, setCopied] = useState(false)
-  return (
-    <button
-      onClick={() => {
-        navigator.clipboard.writeText(text).then(() => {
-          setCopied(true)
-          setTimeout(() => setCopied(false), 2000)
-        })
-      }}
-      className="flex items-center justify-center gap-1 px-2.5 py-1.5 text-[10px] font-medium text-forge-text-dim hover:text-forge-text bg-forge-surface hover:bg-forge-surface-hover rounded-lg transition-colors"
-      title="Copy error to clipboard"
-    >
-      {copied ? <Check className="w-3 h-3 text-emerald-500" /> : <Copy className="w-3 h-3" />}
-      {copied ? 'Copied' : 'Copy'}
-    </button>
-  )
-}
-
-/** Detect missing imports in project files — catches errors BEFORE they crash the sandbox */
-function detectMissingImports(files: Record<string, string>): string[] {
-  const filePaths = new Set(Object.keys(files))
-  const errors: string[] = []
-
-  // Build a set of resolvable paths (with common extensions)
-  const resolvable = new Set<string>()
-  for (const p of filePaths) {
-    resolvable.add(p)
-    // Strip extensions for bare import matching
-    resolvable.add(p.replace(/\.(tsx?|jsx?|mjs|cjs)$/, ''))
-    // Also add /index variants
-    const dir = p.replace(/\/index\.(tsx?|jsx?|mjs|cjs)$/, '')
-    if (dir !== p) resolvable.add(dir)
-  }
-
-  for (const [filePath, content] of Object.entries(files)) {
-    if (!filePath.match(/\.(tsx?|jsx?|mjs)$/)) continue
-
-    // Match: import ... from '@/...' or from './' or from '../'
-    const importRegex = /import\s+(?:[\w{},\s*]+)\s+from\s+['"](@\/[^'"]+|\.\.?\/[^'"]+)['"]/g
-    let match: RegExpExecArray | null
-    while ((match = importRegex.exec(content)) !== null) {
-      let importPath = match[1]
-
-      // Resolve @/ to root
-      if (importPath.startsWith('@/')) {
-        importPath = importPath.slice(2)
-      } else {
-        // Resolve relative imports
-        const dir = filePath.split('/').slice(0, -1).join('/')
-        const parts = importPath.split('/')
-        const resolved: string[] = dir ? dir.split('/') : []
-        for (const part of parts) {
-          if (part === '..') resolved.pop()
-          else if (part !== '.') resolved.push(part)
-        }
-        importPath = resolved.join('/')
-      }
-
-      // Check if it resolves to an existing file
-      if (!resolvable.has(importPath) &&
-          !resolvable.has(importPath + '/index') &&
-          !filePaths.has(importPath + '.ts') &&
-          !filePaths.has(importPath + '.tsx') &&
-          !filePaths.has(importPath + '.js') &&
-          !filePaths.has(importPath + '.jsx')) {
-        // Extract the component/module name from the import statement
-        const nameMatch = match[0].match(/import\s+(?:{?\s*(\w+)[\s,}]|(\w+))/)
-        const name = nameMatch?.[1] || nameMatch?.[2] || importPath.split('/').pop()
-        errors.push(`Missing module: "${match[1]}" imported in ${filePath} (${name} not found)`)
-      }
-    }
-  }
-
-  return [...new Set(errors)] // dedup
-}
-
-/** Known sandbox/browser noise patterns that are NOT fixable by editing user code */
-const SANDBOX_NOISE_PATTERNS = [
-  /tracking prevention/i,                        // Edge Tracking Prevention
-  /access to storage.*has been blocked/i,         // Edge/Safari storage blocking
-  /blocked.*cross-site/i,                         // Cross-site cookie blocking
-  /third-party cookie/i,                          // Third-party cookie warnings
-  /Failed to read.*localStorage/i,                // iframe storage restrictions
-  /Failed to read.*sessionStorage/i,
-  /SecurityError.*blocked a frame/i,              // iframe cross-origin blocks
-  /ResizeObserver loop/i,                         // Benign ResizeObserver warning
-  /Loading chunk \d+ failed/i,                    // Transient chunk loading (sandbox rebuilding)
-  /ChunkLoadError/i,
-  /Loading CSS chunk/i,
-  // Note: vusercontent.net removed — it was filtering legitimate preview error signals
-  /Minified React error/i,                        // React minified errors (from sandbox build, not user code)
-  /The above error occurred in/i,                 // React error boundary info message
-  /Consider adding an error boundary/i,
-  /NEXT_REDIRECT/i,                               // Next.js internal redirect (not a real error)
-  /Hydration failed because/i,                    // Sandbox hydration (transient during rebuild)
-  /Text content does not match/i,                 // Sandbox hydration mismatch
-]
-
-/** Check if an error message is known sandbox/browser noise */
-function isSandboxNoise(msg: string): boolean {
-  return SANDBOX_NOISE_PATTERNS.some(pattern => pattern.test(msg))
-}
-/** Normalize error messages for dedup — strip line numbers, stack frames, collapse whitespace */
-function normalizeError(msg: string): string {
-  return msg
-    .replace(/:\d+:\d+/g, '')     // strip line:col
-    .replace(/at .+\n?/g, '')     // strip stack frames
-    .replace(/\s+/g, ' ')         // collapse whitespace
-    .trim()
-    .slice(0, 200)                // cap length
 }
 
 export const PreviewPanel = memo(function PreviewPanel({ files, projectId, onFixErrors, onCapturePreview, onPreviewReady, wcPreviewUrl }: PreviewPanelProps) {
@@ -392,7 +84,6 @@ export const PreviewPanel = memo(function PreviewPanel({ files, projectId, onFix
   // Memoized file hash — avoids O(n) hashing on every render/effect
   const filesHash = useMemo(() => hashFileMapDeep(files), [files])
 
-  // ─── Navigation handlers ─────────────────────────────────────
   // Reset path when preview URL changes (new sandbox/WebContainer)
   useEffect(() => {
     setCurrentPath('/')
@@ -781,8 +472,6 @@ export const PreviewPanel = memo(function PreviewPanel({ files, projectId, onFix
     }
   }, [computedPreviewHtml, onPreviewReady])
 
-  // ─── Sandbox lifecycle ─────────────────────────────────────────
-
   const startSandbox = useCallback(async () => {
     if (!projectId || startingRef.current || sandboxStatus === 'initializing') return
     if (Object.keys(files).length === 0) return
@@ -914,9 +603,7 @@ export const PreviewPanel = memo(function PreviewPanel({ files, projectId, onFix
     addLog('Stopped — will auto-restart on next change', 'system', 'sandbox')
   }, [projectId, addLog])
 
-  // ─── AUTO-START: launch sandbox when project looks ready ──────
-  // v0-style: automatically start sandbox as soon as files meet minimum requirements.
-  // No manual "Start" button — the preview just appears.
+  // Auto-start sandbox when project meets minimum requirements (package.json + component)
   useEffect(() => {
     if (sandboxStatus !== 'idle') return
     if (!projectId) return
@@ -952,7 +639,7 @@ export const PreviewPanel = memo(function PreviewPanel({ files, projectId, onFix
     }
   }, [files, sandboxStatus, projectId, startSandbox])
 
-  // ─── Debounced file sync to running sandbox ───────────────────
+  // Debounced file sync to running sandbox
   useEffect(() => {
     if (sandboxStatus !== 'running' || !projectId) return
 
@@ -1032,6 +719,12 @@ export const PreviewPanel = memo(function PreviewPanel({ files, projectId, onFix
   // Listen for console/error/navigation messages from preview iframe
   useEffect(() => {
     const handler = (event: MessageEvent) => {
+      // Only accept messages from our own origin, sandbox origins, or srcdoc (null origin)
+      const origin = event.origin || ''
+      if (origin && origin !== window.location.origin && !origin.includes('v0.dev') && !origin.includes('vusercontent.net') && !origin.includes('webcontainer.io') && !origin.includes('vercel.app')) {
+        return
+      }
+
       const d = event.data
       if (!d || typeof d !== 'object') return
 
@@ -1106,7 +799,6 @@ export const PreviewPanel = memo(function PreviewPanel({ files, projectId, onFix
     return () => window.removeEventListener('message', handler)
   }, [addLog]) // onFixErrors + consoleLogs accessed via refs to avoid stale closures + listener churn
 
-  // ─── Capture preview content (for AI tool + UI button) ────────
   const capturePreviewContent = useCallback(() => {
     try {
       // Try static preview iframe first (same-origin srcdoc)
@@ -1256,7 +948,6 @@ export const PreviewPanel = memo(function PreviewPanel({ files, projectId, onFix
       'h-full flex flex-col bg-forge-surface',
       isFullscreen && 'fixed inset-0 z-50',
     )}>
-      {/* ─── Browser Chrome Header ─────────────────────────────── */}
       <div className="shrink-0 border-b border-forge-border bg-forge-panel">
         {/* Top bar with traffic lights + URL bar */}
         <div className="flex items-center gap-2 px-3 py-2">
@@ -1560,7 +1251,6 @@ export const PreviewPanel = memo(function PreviewPanel({ files, projectId, onFix
         </div>
       )}
 
-      {/* ─── Preview Body ──────────────────────────────────────── */}
           <div className={cn('flex-1 overflow-hidden bg-forge-bg relative', captureFlash && 'capture-flash')}>
         <div
           className={cn(
@@ -2120,7 +1810,6 @@ export const PreviewPanel = memo(function PreviewPanel({ files, projectId, onFix
         </div>
       </div>
 
-      {/* ─── Console Panel ─────────────────────────────────────── */}
       {showConsole && (
         <div className="shrink-0 border-t border-forge-border bg-forge-panel max-h-[40vh] sm:max-h-[200px] flex flex-col">
           {/* Console header */}

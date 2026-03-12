@@ -52,7 +52,8 @@ export async function GET(req: Request) {
   try {
     clientId = await decryptToken(row.encrypted_google_client_id.replace(/^v1:/, ''))
     clientSecret = await decryptToken(row.encrypted_google_client_secret.replace(/^v1:/, ''))
-  } catch {
+  } catch (err) {
+    console.error('[google-oauth] Credential decryption failed:', err instanceof Error ? err.message : err)
     return NextResponse.redirect(`${BASE_URL}?google_error=decrypt_failed`)
   }
 
@@ -95,9 +96,7 @@ export async function GET(req: Request) {
         const userInfo = await userRes.json()
         email = userInfo.email || ''
       }
-    } catch {
-      // Non-fatal — email is for display only
-    }
+    } catch { /* non-critical: email is for display only */ }
 
     // Encrypt and store tokens
     const updates: Record<string, unknown> = {
@@ -124,8 +123,8 @@ export async function GET(req: Request) {
     const response = NextResponse.redirect(`${BASE_URL}?google_connected=true`)
     response.cookies.delete('google_oauth_state')
     return response
-  } catch (err: any) {
-    console.error('[google-oauth] Error:', err)
+  } catch (err) {
+    console.error('[google-oauth] Error:', err instanceof Error ? err.message : err)
     return NextResponse.redirect(`${BASE_URL}?google_error=exchange_error`)
   }
 }
