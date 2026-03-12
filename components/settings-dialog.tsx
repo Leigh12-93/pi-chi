@@ -123,7 +123,7 @@ export function SettingsDialog({ open, onClose, defaultTab }: SettingsDialogProp
       await fetch('/api/settings?target=apiKey', { method: 'DELETE' })
       setHasKey(false)
       refresh()
-    } catch {}
+    } catch (e) { console.warn('[forge:settings] Failed to delete API key:', e) }
     setDeleting(false)
   }, [refresh])
 
@@ -156,7 +156,7 @@ export function SettingsDialog({ open, onClose, defaultTab }: SettingsDialogProp
     try {
       await fetch('/api/settings?target=vercelToken', { method: 'DELETE' })
       setHasVercel(false)
-    } catch {}
+    } catch (e) { console.warn('[forge:settings] Failed to delete Vercel token:', e) }
     setDeletingVercel(false)
   }, [])
 
@@ -193,7 +193,7 @@ export function SettingsDialog({ open, onClose, defaultTab }: SettingsDialogProp
       await fetch('/api/settings?target=supabase', { method: 'DELETE' })
       setHasSupabase(false)
       setSbProjectRef(null)
-    } catch {}
+    } catch (e) { console.warn('[forge:settings] Failed to delete Supabase creds:', e) }
     setDeletingSupabase(false)
   }, [])
 
@@ -232,7 +232,7 @@ export function SettingsDialog({ open, onClose, defaultTab }: SettingsDialogProp
       if (Array.isArray(data)) {
         setSbProjects(data)
       }
-    } catch {}
+    } catch (e) { console.warn('[forge:settings] Failed to load Supabase projects:', e) }
     setLoadingSbProjects(false)
   }, [])
 

@@ -9,7 +9,7 @@ export interface ConsoleEntry {
   source?: 'preview' | 'sandbox' | 'forge'
 }
 
-export type ViewMode = 'desktop' | 'tablet' | 'mobile'
+export type ViewMode = 'desktop' | 'tablet' | 'mobile' | 'full'
 
 export type SandboxStatus = 'idle' | 'initializing' | 'running' | 'error'
 

@@ -27,31 +27,32 @@ function getToolIcon(toolName: string) {
   }
 }
 
-function getDescription(toolName: string, args: Record<string, unknown>): { title: string; detail: string } {
+function getDescription(toolName: string, args: Record<string, unknown>): { title: string; detail: string; consequence: string } {
   switch (toolName) {
     case 'delete_file':
-      return { title: 'Delete file', detail: String(args.path || 'unknown file') }
+      return { title: 'Delete file', detail: String(args.path || 'unknown file'), consequence: 'This file will be permanently removed from the project' }
     case 'db_mutate': {
       const op = String(args.operation || 'modify').toUpperCase()
       const table = String(args.table || 'unknown')
-      return { title: `${op} database`, detail: `${op} on ${table}` }
+      const filters = args.filters ? ` where ${String(args.filters).slice(0, 60)}` : ''
+      return { title: `${op} database`, detail: `${op} on ${table}${filters}`, consequence: op === 'DELETE' ? 'Rows matching this filter will be permanently deleted' : `Database table "${table}" will be modified` }
     }
     case 'run_command':
-      return { title: 'Run destructive command', detail: String(args.command || '').slice(0, 120) }
+      return { title: 'Run destructive command', detail: String(args.command || '').slice(0, 120), consequence: 'This command may modify or delete files in the project' }
     case 'forge_modify_own_source':
-      return { title: 'Modify Forge source code', detail: `File: ${String(args.path || args.file || 'unknown')}` }
+      return { title: 'Modify Forge source code', detail: `File: ${String(args.path || args.file || 'unknown')}`, consequence: 'This will push a commit to the Forge repository itself' }
     case 'forge_redeploy':
-      return { title: 'Redeploy Forge', detail: 'Trigger production redeployment' }
+      return { title: 'Redeploy Forge', detail: 'Trigger production redeployment', consequence: 'The live Forge app will be redeployed with current code' }
     case 'forge_revert_commit':
-      return { title: 'Revert commit', detail: `SHA: ${String(args.sha || args.commit || 'unknown').slice(0, 12)}` }
+      return { title: 'Revert commit', detail: `SHA: ${String(args.sha || args.commit || 'unknown').slice(0, 12)}`, consequence: 'This commit will be reverted in the Forge repository' }
     case 'forge_merge_pr':
-      return { title: 'Merge pull request', detail: `PR #${String(args.pr_number || args.number || 'unknown')}` }
+      return { title: 'Merge pull request', detail: `PR #${String(args.pr_number || args.number || 'unknown')}`, consequence: 'This PR will be merged into the main branch' }
     case 'github_modify_external_file':
-      return { title: 'Modify external repo file', detail: `${String(args.owner || '')}/${String(args.repo || '')}: ${String(args.path || '')}` }
+      return { title: 'Modify external repo file', detail: `${String(args.owner || '')}/${String(args.repo || '')}: ${String(args.path || '')}`, consequence: 'A commit will be pushed to this external repository' }
     case 'google_gmail_send':
-      return { title: 'Send email via Gmail', detail: `To: ${String(args.to || 'unknown')} — ${String(args.subject || '').slice(0, 60)}` }
+      return { title: 'Send email via Gmail', detail: `To: ${String(args.to || 'unknown')} — ${String(args.subject || '').slice(0, 60)}`, consequence: 'An email will be sent from your connected Gmail account' }
     default:
-      return { title: 'Destructive operation', detail: toolName.replace(/_/g, ' ') }
+      return { title: 'Destructive operation', detail: toolName.replace(/_/g, ' '), consequence: 'This action may have irreversible side effects' }
   }
 }
 
@@ -60,7 +61,7 @@ export function ApprovalCard({ toolName, args, onApprove, onDeny }: ApprovalCard
   const [approving, setApproving] = useState(false)
   const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const Icon = getToolIcon(toolName)
-  const { title, detail } = getDescription(toolName, args)
+  const { title, detail, consequence } = getDescription(toolName, args)
 
   // Auto-deny after 60s
   useEffect(() => {
@@ -108,6 +109,7 @@ export function ApprovalCard({ toolName, args, onApprove, onDeny }: ApprovalCard
           <pre id="approval-detail" className="text-[11.5px] text-amber-600/80 dark:text-amber-300/70 font-mono whitespace-pre-wrap break-all bg-amber-100/50 dark:bg-amber-950/30 rounded-md px-2 py-1.5 border border-amber-200/50 dark:border-amber-800/30">
             {detail}
           </pre>
+          <p className="text-[10.5px] text-amber-600/60 dark:text-amber-400/50 mt-1 italic">{consequence}</p>
           <div className="flex items-center justify-between mt-2.5">
             <div className="flex items-center gap-3">
               <label className="flex items-center gap-1.5 text-[11px] text-amber-600/70 dark:text-amber-400/60 cursor-pointer select-none">
@@ -172,7 +174,7 @@ export function getToolPermission(toolName: string): ToolPermission {
   try {
     const config = JSON.parse(localStorage.getItem('forge:tool-permissions') || '{}')
     if (config[toolName]) return config[toolName]
-  } catch {}
+  } catch (e) { console.warn('[forge:localStorage] Failed to read tool permissions:', e) }
   if (isToolPreApproved(toolName)) return 'allow'
   return 'ask'
 }
@@ -182,5 +184,5 @@ export function setToolPermission(toolName: string, permission: ToolPermission) 
     const config = JSON.parse(localStorage.getItem('forge:tool-permissions') || '{}')
     config[toolName] = permission
     localStorage.setItem('forge:tool-permissions', JSON.stringify(config))
-  } catch {}
+  } catch (e) { console.warn('[forge:localStorage] Failed to save tool permissions:', e) }
 }

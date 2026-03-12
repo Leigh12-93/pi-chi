@@ -179,6 +179,7 @@ export const FileTree = memo(function FileTree({
                 if (e.key === 'Escape') { setShowNewFile(false); setNewFilePath('') }
               }}
               placeholder="path/to/file.tsx"
+              aria-label="New file path"
               className="w-full pl-7 pr-7 py-2 sm:py-1 text-xs sm:text-[11px] bg-forge-surface border border-forge-accent/50 rounded-md text-forge-text outline-none focus:border-forge-accent focus:ring-2 focus:ring-forge-accent/20 placeholder:text-forge-text-dim/50"
             />
             {newFilePath && (
@@ -186,6 +187,7 @@ export const FileTree = memo(function FileTree({
                 onClick={handleCreateFile}
                 className="absolute right-1.5 top-1/2 -translate-y-1/2 p-0.5 text-forge-accent hover:text-forge-accent-hover"
                 title="Create file (Enter)"
+                aria-label="Create file"
               >
                 <Check className="w-3 h-3" />
               </button>
@@ -205,6 +207,7 @@ export const FileTree = memo(function FileTree({
               onChange={e => setSearchQuery(e.target.value)}
               onKeyDown={e => { if (e.key === 'Escape') { setShowSearch(false); setSearchQuery('') } }}
               placeholder="Filter files..."
+              aria-label="Filter files"
               className="w-full pl-7 pr-7 py-2 sm:py-1 text-xs sm:text-[11px] bg-forge-surface border border-forge-border rounded-md text-forge-text outline-none focus:border-forge-accent/50 placeholder:text-forge-text-dim/50"
             />
             {searchQuery && (
@@ -237,6 +240,43 @@ export const FileTree = memo(function FileTree({
               )}>{segment}</span>
             </span>
           ))}
+        </div>
+      )}
+
+      {/* Recently Modified section */}
+      {modifiedFiles && modifiedFiles.size > 0 && !searchQuery && (
+        <div className="border-b border-forge-border shrink-0">
+          <div className="px-3 py-1.5 flex items-center justify-between">
+            <span className="text-[9px] uppercase tracking-wider text-forge-accent/70 font-semibold">
+              Modified ({modifiedFiles.size})
+            </span>
+          </div>
+          <div className="px-1 pb-1.5 space-y-px max-h-[120px] overflow-y-auto">
+            {[...modifiedFiles].map(path => {
+              const name = path.split('/').pop() || path
+              const diff = fileDiffs?.get(path)
+              return (
+                <button
+                  key={path}
+                  onClick={() => onFileSelect(path)}
+                  className={cn(
+                    'w-full flex items-center gap-1.5 px-2 py-1 text-left text-[11px] rounded-md transition-colors group',
+                    activeFile === path ? 'bg-forge-accent/10 text-forge-accent' : 'text-forge-text-dim hover:bg-forge-surface hover:text-forge-text',
+                  )}
+                >
+                  <FileTypeDot name={name} />
+                  <span className="truncate flex-1 font-mono">{name}</span>
+                  {diff && (
+                    <span className="text-[9px] tabular-nums shrink-0">
+                      {diff.added > 0 && <span className="text-emerald-500">+{diff.added}</span>}
+                      {diff.added > 0 && diff.removed > 0 && ' '}
+                      {diff.removed > 0 && <span className="text-red-400">-{diff.removed}</span>}
+                    </span>
+                  )}
+                </button>
+              )
+            })}
+          </div>
         </div>
       )}
 
@@ -419,8 +459,9 @@ function TreeItem({
             if (isDir) setExpanded(!expanded)
             else onFileSelect(node.path)
           }}
-          role={isDir ? 'treeitem' : undefined}
+          role="treeitem"
           aria-expanded={isDir ? isExpanded : undefined}
+          aria-label={isDir ? `${node.name} folder` : node.name}
           className={cn(
             'flex items-center gap-1.5 sm:gap-1 flex-1 text-left px-2 py-2.5 sm:py-[5px] text-xs sm:text-[12px] hover:bg-forge-surface-hover/50 transition-all duration-150 min-h-[44px] sm:min-h-0 border-l-2',
             isActive && !isDir && 'bg-forge-accent/10 text-forge-accent border-l-forge-accent',
@@ -555,6 +596,7 @@ function TreeItem({
       )}
 
       {isDir && isExpanded && node.children && (
+        <div role="group">
         <TreeNodes
           nodes={node.children}
           activeFile={activeFile}
@@ -568,6 +610,7 @@ function TreeItem({
           depth={depth + 1}
           forceExpand={forceExpand}
         />
+        </div>
       )}
     </div>
   )

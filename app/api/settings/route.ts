@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { getSession, encryptToken, decryptToken } from '@/lib/auth'
 import { supabaseFetch } from '@/lib/supabase-fetch'
+import { updateSettingsSchema, parseBody } from '@/lib/api-schemas'
 
 /** GET /api/settings — return user's settings (hasApiKey, hasVercelToken, hasSupabase, Google flags, preferredModel, preferences) */
 export async function GET() {
@@ -104,7 +105,9 @@ export async function PUT(req: Request) {
   const session = await getSession()
   if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
-  const body = await req.json()
+  const parsed = parseBody(updateSettingsSchema, await req.json())
+  if ('error' in parsed) return NextResponse.json({ error: parsed.error }, { status: 400 })
+  const body = parsed.data
   const { apiKey, vercelToken, preferredModel, preferences } = body
 
   const updates: Record<string, unknown> = {}
@@ -112,9 +115,6 @@ export async function PUT(req: Request) {
   // Validate and store Anthropic API key
   if (apiKey) {
     const trimmed = apiKey.trim()
-    if (!trimmed.startsWith('sk-ant-')) {
-      return NextResponse.json({ error: 'Invalid API key format. Must start with sk-ant-' }, { status: 400 })
-    }
 
     // Skip validation when auto-saving from env detection (already verified by the panel)
     if (!body.skipValidation) {

@@ -1,8 +1,9 @@
 'use client'
 
-import { useState, useRef, useEffect, useCallback, useMemo } from 'react'
+import { useState, useRef, useEffect, useCallback, useMemo, type RefObject } from 'react'
 import { useChat } from '@ai-sdk/react'
 import { DefaultChatTransport } from 'ai'
+import type { UIMessage } from 'ai'
 import { toast } from 'sonner'
 import { extractFileUpdates, getMessageText, type ToolInvocation } from '@/lib/chat/tool-utils'
 import { clearMarkdownCache } from '@/lib/chat/markdown'
@@ -14,6 +15,26 @@ import { useKeyboardShortcuts } from './use-keyboard-shortcuts'
 import { useChatHistory } from './use-chat-history'
 import { usePreviewEvents } from './use-preview-events'
 import { useContextWarnings } from './use-context-warnings'
+
+/** Message part shape for compaction and tool extraction */
+interface MessagePart {
+  type: string
+  text?: string
+  toolName?: string
+  toolCallId?: string
+  state?: string
+  input?: unknown
+  args?: Record<string, unknown>
+  output?: unknown
+  result?: unknown
+  toolInvocation?: ToolInvocation
+}
+
+/** Extended UIMessage with optional legacy toolInvocations */
+interface ForgeUIMessage extends UIMessage {
+  toolInvocations?: ToolInvocation[]
+}
+
 
 export interface UseForgeChatProps {
   projectName: string
@@ -59,7 +80,8 @@ export function useForgeChat(props: UseForgeChatProps) {
   const streamStartRef = useRef<number>(0)
 
   // Pre-flight message compaction — runs before sending to server
-  function compactMessagesForSend(msgs: any[]): any[] {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  function compactMessagesForSend(msgs: UIMessage[]): any[] {
     if (msgs.length <= 10) return msgs
 
     // Estimate body size: messages + files
@@ -67,13 +89,14 @@ export function useForgeChat(props: UseForgeChatProps) {
     const filesSize = Object.values(filesPayload).reduce((sum, v) => sum + v.length, 0)
     let msgsSize = 0
     for (const m of msgs) {
-      if (Array.isArray(m.parts)) {
-        for (const p of m.parts) {
+      const parts = m.parts as MessagePart[] | undefined
+      if (Array.isArray(parts)) {
+        for (const p of parts) {
           if (p.type === 'text') {
             msgsSize += (p.text?.length || 0)
           } else {
             // Tool parts include full file content in input/args — measure real size
-            const input = p.input || p.args
+            const input = (p.input || p.args) as Record<string, unknown> | undefined
             if (input && typeof input === 'object') {
               const content = input.content || input.old_string || input.new_string || ''
               msgsSize += 300 + (typeof content === 'string' ? content.length : 0)
@@ -82,8 +105,6 @@ export function useForgeChat(props: UseForgeChatProps) {
             }
           }
         }
-      } else if (typeof m.content === 'string') {
-        msgsSize += m.content.length
       }
     }
     const estimatedBodyBytes = filesSize + msgsSize + 5000
@@ -106,15 +127,18 @@ export function useForgeChat(props: UseForgeChatProps) {
 
     // Strip tool invocation details from older messages to reduce token count
     if (msgs.length > 12) {
-      return msgs.map((m: any, i: number) => {
+      return msgs.map((m: UIMessage, i: number) => {
         if (i >= msgs.length - 8) return m // keep recent 8 intact
-        if (m.role !== 'assistant' || !Array.isArray(m.parts)) return m
-        const textParts = m.parts.filter((p: any) => p.type === 'text')
-        const toolParts = m.parts.filter((p: any) => p.type !== 'text')
+        if (m.role !== 'assistant') return m
+        const parts = m.parts as MessagePart[]
+        if (!Array.isArray(parts)) return m
+        const textParts = parts.filter((p: MessagePart) => p.type === 'text')
+        const toolParts = parts.filter((p: MessagePart) => p.type !== 'text')
         if (toolParts.length === 0) return m
-        const toolSummary = toolParts.map((p: any) => {
+        const toolSummary = toolParts.map((p: MessagePart) => {
           const name = p.toolName || p.type?.replace(/^tool-/, '') || 'tool'
-          const path = p.input?.path || p.args?.path || ''
+          const input = p.input as Record<string, unknown> | undefined
+          const path = input?.path || p.args?.path || ''
           return path ? `${name}(${path})` : name
         }).join(', ')
         return {
@@ -146,7 +170,7 @@ export function useForgeChat(props: UseForgeChatProps) {
   }), []) // eslint-disable-line react-hooks/exhaustive-deps
 
   const retryAfterCompactRef = useRef(false)
-  const pendingRetryTextRef = useRef<string | null>(null)
+  const [pendingRetryText, setPendingRetryText] = useState<string | null>(null)
   const autoContinueRef = useRef(false) // tracks if an auto-continue is pending
   const autoContinueCountRef = useRef(0) // prevent infinite loops
   const MAX_AUTO_CONTINUES = 5
@@ -202,12 +226,11 @@ export function useForgeChat(props: UseForgeChatProps) {
             content: '',
             parts: [{ type: 'text' as const, text: `[Conversation compacted — ${dropped} older messages removed to free context space]` }],
           }
-          setMessages([...first2, summaryMsg as any, ...recent4])
+          setMessages([...first2, summaryMsg as UIMessage, ...recent4])
           // Queue retry — effect below will pick it up after state settles
-          // Guard: don't overwrite an existing queued retry
-          if (retryText && !pendingRetryTextRef.current) {
-            pendingRetryTextRef.current = retryText
-          } else if (!retryText) {
+          if (retryText) {
+            setPendingRetryText(retryText)
+          } else {
             retryAfterCompactRef.current = false
           }
         } else {
@@ -221,9 +244,9 @@ export function useForgeChat(props: UseForgeChatProps) {
 
   // After emergency compaction, resend the last user message
   useEffect(() => {
-    if (pendingRetryTextRef.current && !isLoading && retryAfterCompactRef.current) {
-      const text = pendingRetryTextRef.current
-      pendingRetryTextRef.current = null
+    if (pendingRetryText && !isLoading && retryAfterCompactRef.current) {
+      const text = pendingRetryText
+      setPendingRetryText(null)
       retryAfterCompactRef.current = false
       // Small delay to let React settle after setMessages
       const timer = setTimeout(() => {
@@ -232,7 +255,7 @@ export function useForgeChat(props: UseForgeChatProps) {
       }, 300)
       return () => clearTimeout(timer)
     }
-  }, [messages, isLoading, sendMessage]) // messages change triggers this after setMessages
+  }, [pendingRetryText, isLoading, sendMessage]) // pendingRetryText state change triggers reliably
 
   const [input, setInput] = useState('')
   const [copiedId, setCopiedId] = useState<string | null>(null)
@@ -243,6 +266,12 @@ export function useForgeChat(props: UseForgeChatProps) {
   const [tasks, setTasks] = useState<Array<{ id: string; label: string; status: string; description?: string; blockedBy?: string[]; phase?: string }>>([])
   const taskDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const latestTasksRef = useRef<Array<{ id: string; label: string; status: string; description?: string; blockedBy?: string[]; phase?: string }>>([])
+
+  // File change tracking — captures created/modified/deleted files during the current AI response
+  const [lastChanges, setLastChanges] = useState<{ created: string[]; modified: string[]; deleted: string[] } | null>(null)
+  const pendingChangesRef = useRef<{ created: Set<string>; modified: Set<string>; deleted: Set<string> }>({
+    created: new Set(), modified: new Set(), deleted: new Set(),
+  })
 
   // Extracted hooks
   const { messagesEndRef, showNewMessageIndicator, handleScroll, scrollToBottom } = useAutoScroll(messages, isLoading)
@@ -277,7 +306,7 @@ export function useForgeChat(props: UseForgeChatProps) {
       if (msg.role !== 'assistant') continue
 
       // v6: tool invocations are in message.parts as tool-call/tool-result/tool-<name> parts
-      const parts = (msg as any).parts as Array<{ type: string; text?: string; toolInvocation?: ToolInvocation; toolName?: string; toolCallId?: string; state?: string; input?: any; args?: any; output?: any; result?: any }> | undefined
+      const parts = msg.parts as MessagePart[] | undefined
 
       // Extract tool invocations from parts (v6 generic, v6 named, and legacy formats)
       const invocations: ToolInvocation[] = []
@@ -295,8 +324,8 @@ export function useForgeChat(props: UseForgeChatProps) {
               state: p.state === 'output-available' ? 'result'
                 : p.state === 'input-available' ? 'call'
                 : p.state || 'result',
-              args: p.input || p.args || {},
-              result: p.output ?? p.result,
+              args: (p.input as Record<string, unknown>) || p.args || {},
+              result: (p.output ?? p.result) as Record<string, unknown> | undefined,
             })
           }
           // v6 generic format: type='tool-call' (args available) or type='tool-result' (output available)
@@ -306,8 +335,8 @@ export function useForgeChat(props: UseForgeChatProps) {
             invocations.push({
               toolName: p.toolName,
               state: p.type === 'tool-call' ? 'call' : 'result',
-              args: p.input || p.args || {},
-              result: p.output ?? p.result,
+              args: (p.input as Record<string, unknown>) || p.args || {},
+              result: (p.output ?? p.result) as Record<string, unknown> | undefined,
             })
           }
           // Legacy format from v4
@@ -317,7 +346,7 @@ export function useForgeChat(props: UseForgeChatProps) {
         }
       }
       // Also check legacy toolInvocations array
-      const legacyInvs = (msg as any).toolInvocations as ToolInvocation[] | undefined
+      const legacyInvs = (msg as ForgeUIMessage).toolInvocations
       if (legacyInvs) {
         for (const inv of legacyInvs) {
           invocations.push(inv)
@@ -411,7 +440,7 @@ export function useForgeChat(props: UseForgeChatProps) {
                 if (autoApprove) {
                   sendMessage({ text: '[PLAN APPROVED]' })
                 }
-              } catch {}
+              } catch (e) { console.warn('[forge:plan] Failed to check auto-approve setting:', e) }
             }
             continue
           }
@@ -459,6 +488,17 @@ export function useForgeChat(props: UseForgeChatProps) {
 
         if (changes.updates && Object.keys(changes.updates).length > 0) {
           for (const [path, content] of Object.entries(changes.updates)) {
+            // Track whether this is a create or modify for the change summary
+            const existed = path in localFiles.current
+            if (existed) {
+              pendingChangesRef.current.modified.add(path)
+            } else {
+              pendingChangesRef.current.created.add(path)
+            }
+            // If a file was "created" and then "modified" in the same turn, keep it as created
+            if (pendingChangesRef.current.created.has(path)) {
+              pendingChangesRef.current.modified.delete(path)
+            }
             localFiles.current[path] = content
           }
           onBulkFileUpdate(changes.updates)
@@ -469,6 +509,13 @@ export function useForgeChat(props: UseForgeChatProps) {
         }
         if (changes.deletes) {
           for (const path of changes.deletes) {
+            pendingChangesRef.current.deleted.add(path)
+            // If it was also created this turn, remove from both (net no change visible)
+            if (pendingChangesRef.current.created.has(path)) {
+              pendingChangesRef.current.created.delete(path)
+              pendingChangesRef.current.deleted.delete(path)
+            }
+            pendingChangesRef.current.modified.delete(path)
             delete localFiles.current[path]
             onFileDelete(path)
           }
@@ -493,6 +540,10 @@ export function useForgeChat(props: UseForgeChatProps) {
     // Clear tasks from previous turn + reset auto-continue counter
     clearTasks()
     autoContinueCountRef.current = 0
+
+    // Reset file change tracking for new turn
+    setLastChanges(null)
+    pendingChangesRef.current = { created: new Set(), modified: new Set(), deleted: new Set() }
 
     // Capture state before clearing
     const currentAttachments = [...attachments]
@@ -640,12 +691,79 @@ export function useForgeChat(props: UseForgeChatProps) {
     // Keep elapsed at final value briefly so completion signal can read it
   }, [isLoading])
 
+  // Snapshot file changes when AI finishes responding
+  const wasLoadingForChangesRef = useRef(false)
+  useEffect(() => {
+    if (wasLoadingForChangesRef.current && !isLoading) {
+      const pending = pendingChangesRef.current
+      const hasChanges = pending.created.size > 0 || pending.modified.size > 0 || pending.deleted.size > 0
+      if (hasChanges) {
+        setLastChanges({
+          created: [...pending.created],
+          modified: [...pending.modified],
+          deleted: [...pending.deleted],
+        })
+      }
+    }
+    wasLoadingForChangesRef.current = isLoading
+  }, [isLoading])
+
   const formatElapsed = useCallback((s: number) => {
     if (s < 60) return `${s}s`
     return `${Math.floor(s / 60)}m ${s % 60}s`
   }, [])
 
   const isEmpty = messages.length === 0
+
+  // ── Chat history search ──
+  const [searchQuery, setSearchQuery] = useState('')
+  const [searchOpen, setSearchOpen] = useState(false)
+  const [highlightedResultIdx, setHighlightedResultIdx] = useState(0)
+  const searchInputRef = useRef<HTMLInputElement>(null)
+
+  const searchResults = useMemo(() => {
+    const q = searchQuery.trim().toLowerCase()
+    if (!q) return [] as string[]
+    const matchingIds: string[] = []
+    for (const msg of messages) {
+      const text = getMessageText(msg).toLowerCase()
+      if (text.includes(q)) {
+        matchingIds.push(msg.id)
+      }
+    }
+    return matchingIds
+  }, [searchQuery, messages])
+
+  // Reset highlighted index when results change
+  useEffect(() => {
+    if (searchResults.length > 0) {
+      setHighlightedResultIdx(0)
+    }
+  }, [searchResults])
+
+  const nextSearchResult = useCallback(() => {
+    if (searchResults.length === 0) return
+    setHighlightedResultIdx(prev => (prev + 1) % searchResults.length)
+  }, [searchResults.length])
+
+  const prevSearchResult = useCallback(() => {
+    if (searchResults.length === 0) return
+    setHighlightedResultIdx(prev => (prev - 1 + searchResults.length) % searchResults.length)
+  }, [searchResults.length])
+
+  const closeSearch = useCallback(() => {
+    setSearchOpen(false)
+    setSearchQuery('')
+    setHighlightedResultIdx(0)
+  }, [])
+
+  const openSearch = useCallback(() => {
+    setSearchOpen(true)
+    // Focus the search input after React renders it
+    requestAnimationFrame(() => {
+      searchInputRef.current?.focus()
+    })
+  }, [])
 
   const errorMessage = error
     ? error.message?.includes('429') || error.message?.includes('rate limit') || error.message?.includes('overloaded')
@@ -670,7 +788,7 @@ export function useForgeChat(props: UseForgeChatProps) {
     selectedModel, setSelectedModel, showModelPicker, setShowModelPicker,
     copiedId, loadingHistory, editingMessageId, editingContent,
     clearConfirm, envVars, elapsed, isEmpty, attachments,
-    tasks, showNewMessageIndicator, scrollToBottom,
+    tasks, showNewMessageIndicator, scrollToBottom, lastChanges,
     stepCount, estimatedTokens, realTokens, autoRoutedModel, currentActivity, lastCompletedToolName,
     // Cost tracking
     sessionCost, getMessageCost,
@@ -684,5 +802,9 @@ export function useForgeChat(props: UseForgeChatProps) {
     handleClearChat, handleAttachFiles, handleRemoveAttachment,
     setEditingMessageId, setEditingContent, setClearConfirm,
     stop, regenerate, setMessages, formatElapsed, stoppedByUserRef, clearTasks,
+    // Chat history search
+    searchQuery, setSearchQuery, searchResults, highlightedResultIdx,
+    nextSearchResult, prevSearchResult, searchOpen, openSearch, closeSearch,
+    searchInputRef: searchInputRef as RefObject<HTMLInputElement>,
   }
 }

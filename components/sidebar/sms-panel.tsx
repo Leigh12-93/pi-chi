@@ -97,7 +97,7 @@ export function SmsPanel({ fileContents, onFileChange: _onFileChange }: SmsPanel
       setSettings({
         hasAussieSmsApiKey: data.hasAussieSmsApiKey ?? false,
       })
-    } catch {} finally {
+    } catch (e) { console.warn('[forge:sms] Failed to load SMS settings:', e) } finally {
       setLoading(false)
     }
   }, [])

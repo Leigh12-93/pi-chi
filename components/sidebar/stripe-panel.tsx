@@ -203,7 +203,7 @@ export function StripePanel({ fileContents, onFileChange }: StripePanelProps) {
         hasStripePublishableKey: data.hasStripePublishableKey ?? false,
         hasStripeWebhookSecret: data.hasStripeWebhookSecret ?? false,
       })
-    } catch {} finally {
+    } catch (e) { console.warn('[forge:stripe] Failed to load Stripe settings:', e) } finally {
       setLoading(false)
     }
   }, [])
@@ -238,7 +238,7 @@ export function StripePanel({ fileContents, onFileChange }: StripePanelProps) {
         setPayouts(data.payouts || [])
         setActiveSubscriptions(data.activeSubscriptions || 0)
       }
-    } catch {} finally {
+    } catch (e) { console.warn('[forge:stripe] Failed to load recent Stripe data:', e) } finally {
       setLoadingRecent(false)
     }
   }, [])

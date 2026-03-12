@@ -10,31 +10,38 @@ interface KeyboardShortcutsOverlayProps {
 
 const SHORTCUTS = [
   {
-    category: 'General',
+    category: 'Essentials',
     items: [
-      { keys: 'Ctrl+K', description: 'Command palette' },
-      { keys: 'Ctrl+S', description: 'Save current file' },
-      { keys: 'Ctrl+/', description: 'Keyboard shortcuts' },
+      { keys: 'Ctrl+K', description: 'Command palette', essential: true },
+      { keys: 'Ctrl+S', description: 'Save project', essential: true },
+      { keys: 'Ctrl+Enter', description: 'Send chat message', essential: true },
+      { keys: 'Ctrl+/', description: 'Keyboard shortcuts', essential: true },
+      { keys: 'Escape', description: 'Stop AI generation', essential: true },
+    ],
+  },
+  {
+    category: 'Navigation',
+    items: [
+      { keys: 'Ctrl+B', description: 'Toggle file sidebar' },
+      { keys: 'Ctrl+Shift+P', description: 'Cycle code / split / preview' },
+      { keys: 'Ctrl+F', description: 'Search files' },
+      { keys: 'Ctrl+W', description: 'Close current file' },
     ],
   },
   {
     category: 'Editor',
     items: [
-      { keys: 'Ctrl+W', description: 'Close current file' },
-      { keys: 'Ctrl+F', description: 'Search across all files' },
+      { keys: 'Ctrl+Z', description: 'Undo' },
+      { keys: 'Ctrl+Shift+Z', description: 'Redo' },
+      { keys: 'Ctrl+D', description: 'Select next occurrence' },
+      { keys: 'Ctrl+Shift+K', description: 'Delete line' },
     ],
   },
   {
-    category: 'View',
+    category: 'Chat',
     items: [
-      { keys: 'Ctrl+Shift+P', description: 'Cycle code / split / preview' },
-      { keys: 'Ctrl+B', description: 'Toggle file sidebar' },
-    ],
-  },
-  {
-    category: 'Actions',
-    items: [
-      { keys: 'Ctrl+Enter', description: 'Send chat message' },
+      { keys: 'Shift+Enter', description: 'New line in message' },
+      { keys: 'Up', description: 'Edit last message (when input empty)' },
     ],
   },
 ]
@@ -106,13 +113,16 @@ export function KeyboardShortcutsOverlay({ open, onClose }: KeyboardShortcutsOve
                 {group.category}
               </h3>
               <div className="space-y-0.5">
-                {group.items.map(item => (
+                {group.items.map((item: { keys: string; description: string; essential?: boolean }) => (
                   <div
                     key={item.keys}
                     className="flex items-center justify-between py-1.5 px-2 rounded-lg hover:bg-forge-surface/50"
                   >
-                    <span className="text-xs text-forge-text">{item.description}</span>
-                    <kbd className="px-2 py-0.5 text-[10px] font-mono text-forge-text-dim bg-forge-surface border border-forge-border rounded-md">
+                    <span className="text-xs text-forge-text flex items-center gap-1.5">
+                      {item.essential && <span className="w-1 h-1 rounded-full bg-forge-accent shrink-0" />}
+                      {item.description}
+                    </span>
+                    <kbd className="px-2 py-0.5 text-[10px] font-mono text-forge-text-dim bg-forge-surface border border-forge-border rounded-md shrink-0 ml-3">
                       {item.keys}
                     </kbd>
                   </div>

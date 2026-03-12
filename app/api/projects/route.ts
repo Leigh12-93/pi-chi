@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { supabase } from '@/lib/supabase'
 import { getSession } from '@/lib/auth'
+import { createProjectSchema, parseBody } from '@/lib/api-schemas'
 
 // GET /api/projects — list user's projects (with pagination)
 export async function GET(req: Request) {
@@ -34,11 +35,9 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: 'Not authenticated' }, { status: 401 })
   }
 
-  const body = await req.json()
-  const name = body.name?.trim()
-  if (!name) return NextResponse.json({ error: 'Project name required' }, { status: 400 })
-  if (name.length > 100) return NextResponse.json({ error: 'Project name too long (max 100 chars)' }, { status: 400 })
-  if (!/^[\w\s\-\.()]+$/.test(name)) return NextResponse.json({ error: 'Project name contains invalid characters' }, { status: 400 })
+  const parsed = parseBody(createProjectSchema, await req.json())
+  if ('error' in parsed) return NextResponse.json({ error: parsed.error }, { status: 400 })
+  const { name, description, framework, github_repo_url } = parsed.data
 
   // Check for duplicate project name — return existing project instead of error
   const { data: existing } = await supabase
@@ -55,10 +54,10 @@ export async function POST(req: Request) {
   const insertData: Record<string, unknown> = {
     name,
     github_username: username,
-    description: body.description || '',
-    framework: body.framework || 'nextjs',
+    description,
+    framework,
   }
-  if (body.github_repo_url) insertData.github_repo_url = body.github_repo_url
+  if (github_repo_url) insertData.github_repo_url = github_repo_url
 
   const { data, error } = await supabase
     .from('forge_projects')

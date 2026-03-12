@@ -1,8 +1,9 @@
 'use client'
 
 import { useState } from 'react'
-import { History, RotateCcw, Plus, Loader2, AlertTriangle } from 'lucide-react'
+import { History, RotateCcw, Plus, Loader2 } from 'lucide-react'
 import type { Snapshot } from '../version-history'
+import { SnapshotDiffDialog } from '../snapshot-diff-dialog'
 
 function timeAgo(ts: number): string {
   const diff = Date.now() - ts
@@ -25,11 +26,12 @@ interface SnapshotsPanelProps {
   onOpenVersionHistory: () => void
   onCreateSnapshot: () => void
   loading?: boolean
+  currentFiles?: Record<string, string>
 }
 
-export function SnapshotsPanel({ snapshots, onRestoreSnapshot, onOpenVersionHistory, onCreateSnapshot, loading }: SnapshotsPanelProps) {
+export function SnapshotsPanel({ snapshots, onRestoreSnapshot, onOpenVersionHistory, onCreateSnapshot, loading, currentFiles }: SnapshotsPanelProps) {
   const [creating, setCreating] = useState(false)
-  const [confirmRestore, setConfirmRestore] = useState<Snapshot | null>(null)
+  const [previewSnapshot, setPreviewSnapshot] = useState<Snapshot | null>(null)
   const [restoring, setRestoring] = useState(false)
 
   const handleCreate = async () => {
@@ -47,7 +49,7 @@ export function SnapshotsPanel({ snapshots, onRestoreSnapshot, onOpenVersionHist
       await onRestoreSnapshot(snap)
     } finally {
       setRestoring(false)
-      setConfirmRestore(null)
+      setPreviewSnapshot(null)
     }
   }
 
@@ -61,38 +63,6 @@ export function SnapshotsPanel({ snapshots, onRestoreSnapshot, onOpenVersionHist
         {creating ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Plus className="w-3.5 h-3.5" />}
         {creating ? 'Creating...' : 'Create Snapshot'}
       </button>
-
-      {/* Restore confirmation */}
-      {confirmRestore && (
-        <div className="p-3 bg-amber-500/10 border border-amber-500/20 rounded-lg space-y-2 animate-fade-in animate-scale-in">
-          <div className="flex items-start gap-2">
-            <AlertTriangle className="w-3.5 h-3.5 text-amber-400 shrink-0 mt-0.5" />
-            <div>
-              <p className="text-xs text-forge-text font-medium">Restore &quot;{confirmRestore.label}&quot;?</p>
-              <p className="text-[10px] text-forge-text-dim mt-0.5">
-                This will replace all current files with the snapshot from {formatTime(confirmRestore.timestamp)} ({Object.keys(confirmRestore.files).length} files).
-              </p>
-            </div>
-          </div>
-          <div className="flex gap-2">
-            <button
-              onClick={() => handleRestore(confirmRestore)}
-              disabled={restoring}
-              className="flex-1 flex items-center justify-center gap-1 px-2 py-1.5 text-[10px] rounded-md bg-amber-500 text-white hover:bg-amber-600 active:scale-95 disabled:opacity-50 transition-all duration-150"
-            >
-              {restoring ? <Loader2 className="w-3 h-3 animate-spin" /> : <RotateCcw className="w-3 h-3" />}
-              {restoring ? 'Restoring...' : 'Confirm Restore'}
-            </button>
-            <button
-              onClick={() => setConfirmRestore(null)}
-              disabled={restoring}
-              className="px-3 py-1.5 text-[10px] rounded-md border border-forge-border hover:bg-forge-surface active:scale-95 transition-all duration-150"
-            >
-              Cancel
-            </button>
-          </div>
-        </div>
-      )}
 
       {loading ? (
         <div className="flex items-center gap-2 py-4 justify-center">
@@ -113,9 +83,9 @@ export function SnapshotsPanel({ snapshots, onRestoreSnapshot, onOpenVersionHist
                 </p>
               </div>
               <button
-                onClick={() => setConfirmRestore(snap)}
+                onClick={() => setPreviewSnapshot(snap)}
                 className="p-1 text-forge-text-dim hover:text-forge-accent hover:rotate-[-30deg] active:scale-90 opacity-0 group-hover:opacity-100 transition-all duration-200"
-                title="Restore this snapshot"
+                title="Preview changes before restoring"
               >
                 <RotateCcw className="w-3 h-3" />
               </button>
@@ -130,6 +100,19 @@ export function SnapshotsPanel({ snapshots, onRestoreSnapshot, onOpenVersionHist
       >
         View Full History
       </button>
+
+      {/* Diff preview dialog */}
+      {previewSnapshot && (
+        <SnapshotDiffDialog
+          open={!!previewSnapshot}
+          snapshotLabel={previewSnapshot.label}
+          currentFiles={currentFiles || {}}
+          snapshotFiles={previewSnapshot.files}
+          onConfirm={() => handleRestore(previewSnapshot)}
+          onCancel={() => setPreviewSnapshot(null)}
+          restoring={restoring}
+        />
+      )}
     </div>
   )
 }

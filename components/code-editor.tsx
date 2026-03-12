@@ -18,6 +18,21 @@ const Editor = dynamic(() => import('@monaco-editor/react').then(m => m.default)
   ),
 })
 import { getLanguageFromPath, cn } from '@/lib/utils'
+
+/** Lightweight lint patterns — no Node.js ESLint dependency needed */
+const LINT_RULES: Array<{
+  pattern: RegExp
+  message: string
+  severity: 'warning' | 'info'
+}> = [
+  { pattern: /\bconsole\.(log|warn|error|debug|info)\s*\(/, message: 'Unexpected console statement', severity: 'warning' },
+  { pattern: /\bdebugger\b/, message: 'Unexpected debugger statement', severity: 'warning' },
+  { pattern: /\/\/\s*TODO\b/i, message: 'TODO comment', severity: 'info' },
+  { pattern: /\/\/\s*FIXME\b/i, message: 'FIXME comment', severity: 'info' },
+  { pattern: /\/\/\s*HACK\b/i, message: 'HACK comment', severity: 'info' },
+]
+
+const LINTABLE_EXTENSIONS = new Set(['ts', 'tsx', 'js', 'jsx', 'mjs', 'cjs'])
 import { setupMonacoTypes } from '@/lib/monaco-types'
 import { useTheme } from '@/components/theme-provider'
 import { FileText, Save, ChevronRight } from 'lucide-react'
@@ -214,6 +229,49 @@ export const CodeEditor = memo(function CodeEditor({ path, content, previousCont
     }
   }, [isAiWorking])
 
+  // Lightweight linting — highlight console.log, debugger, TODO/FIXME via Monaco markers
+  useEffect(() => {
+    const editor = editorRef.current
+    const monaco = (window as any).monaco
+    if (!editor || !monaco || !path) return
+
+    const ext = path.split('.').pop()?.toLowerCase() || ''
+    if (!LINTABLE_EXTENSIONS.has(ext)) {
+      // Clear markers for non-lintable files
+      const model = editor.getModel()
+      if (model) monaco.editor.setModelMarkers(model, 'forge-lint', [])
+      return
+    }
+
+    const model = editor.getModel()
+    if (!model) return
+
+    const lines = content.split('\n')
+    const markers: any[] = []
+
+    for (let i = 0; i < lines.length; i++) {
+      const line = lines[i]
+      for (const rule of LINT_RULES) {
+        const match = rule.pattern.exec(line)
+        if (match) {
+          markers.push({
+            severity: rule.severity === 'warning'
+              ? monaco.MarkerSeverity.Warning
+              : monaco.MarkerSeverity.Info,
+            message: rule.message,
+            startLineNumber: i + 1,
+            startColumn: match.index + 1,
+            endLineNumber: i + 1,
+            endColumn: match.index + match[0].length + 1,
+            source: 'forge-lint',
+          })
+        }
+      }
+    }
+
+    monaco.editor.setModelMarkers(model, 'forge-lint', markers)
+  }, [content, path])
+
   if (!path) {
     return (
       <div className="h-full flex items-center justify-center text-forge-text-dim">
@@ -231,13 +289,13 @@ export const CodeEditor = memo(function CodeEditor({ path, content, previousCont
   const language = getLanguageFromPath(path)
 
   return (
-    <div className="h-full flex flex-col">
+    <div className="h-full flex flex-col" role="region" aria-label={`Code editor: ${path}`}>
       {/* Breadcrumb path bar */}
       <div className={cn(
         'flex items-center justify-between px-3 py-2.5 sm:py-2 bg-forge-panel border-b border-forge-border text-xs sm:text-[11px] transition-all',
         modified && 'border-t-2 border-t-forge-accent',
       )}>
-        <div className="flex items-center gap-0.5 text-forge-text-dim font-mono truncate min-w-0">
+        <nav aria-label="File path" className="flex items-center gap-0.5 text-forge-text-dim font-mono truncate min-w-0">
           {path.split('/').map((segment, i, arr) => (
             <span key={i} className="flex items-center gap-0.5">
               {i > 0 && <ChevronRight className="w-3 h-3 shrink-0 opacity-40" />}
@@ -248,7 +306,7 @@ export const CodeEditor = memo(function CodeEditor({ path, content, previousCont
             </span>
           ))}
           {modified && <span className="text-forge-accent ml-1 animate-pulse-dot">●</span>}
-        </div>
+        </nav>
         {modified && (
           <button
             onClick={() => {

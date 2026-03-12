@@ -913,7 +913,13 @@ export async function POST(req: Request) {
       },
     })
 
-    return createUIMessageStreamResponse({ stream })
+    return createUIMessageStreamResponse({
+      stream,
+      headers: {
+        'X-RateLimit-Remaining': String(limit.remaining),
+        'X-RateLimit-Reset': String(Math.ceil(limit.resetIn / 1000)),
+      },
+    })
   } catch (error) {
     clearTimeout(streamTimeout)
 

@@ -111,7 +111,7 @@ export function DbPanel({ fileContents, onOpenDbExplorer, onOpenSettings }: DbPa
           skipValidation: true, // already connected, no need to re-validate
         }),
       })
-    } catch {} // silent — if it fails, user still has env-based connection
+    } catch (e) { console.warn('[forge:db] Failed to persist Supabase creds (non-fatal, env-based connection still works):', e) }
   }, [])
 
   // Auto-connect on mount: saved creds → env detection (+ auto-save)
@@ -128,7 +128,7 @@ export function DbPanel({ fileContents, onOpenDbExplorer, onOpenSettings }: DbPa
         if (settingsData.oauthProviders && !cancelled) {
           setOauthProviders(settingsData.oauthProviders)
         }
-      } catch {}
+      } catch (e) { console.warn('[forge:db] Failed to load OAuth providers:', e) }
 
       // 1. Try saved credentials
       try {
@@ -142,7 +142,7 @@ export function DbPanel({ fileContents, onOpenDbExplorer, onOpenSettings }: DbPa
           fetchTables('saved')
           return
         }
-      } catch {}
+      } catch (e) { console.warn('[forge:db] Failed to load saved DB credentials:', e) }
 
       // 2. Try env file detection → auto-save for persistence
       if (envDetected && !cancelled) {

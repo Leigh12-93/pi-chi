@@ -49,6 +49,7 @@ export default function ForgePage() {
   const [isOffline, setIsOffline] = useState(false)
   const [pendingMessage, setPendingMessage] = useState<string | null>(null)
   const [deletingProjectId, setDeletingProjectId] = useState<string | null>(null)
+  const [duplicatingProjectId, setDuplicatingProjectId] = useState<string | null>(null)
   const [githubRepoUrl, setGithubRepoUrl] = useState<string | null>(null)
   const [vercelUrl, setVercelUrl] = useState<string | null>(null)
   const [currentBranch, setCurrentBranch] = useState<string>('main')
@@ -272,7 +273,7 @@ export default function ForgePage() {
         setAutoSaveError(true)
         setSaveStatus('error')
         // Backup to localStorage as safety net
-        try { localStorage.setItem(`forge-unsaved-${projectId}`, JSON.stringify(files)) } catch {}
+        try { localStorage.setItem(`forge-unsaved-${projectId}`, JSON.stringify(files)) } catch (e) { console.warn('[forge:localStorage] Failed to backup unsaved files:', e) }
       } finally {
         savingRef.current = false
       }
@@ -365,25 +366,25 @@ export default function ForgePage() {
       }
     }
     if (sbUrl && sbKey) {
-      try { await fetch('/api/settings', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ supabaseUrl: sbUrl, supabaseKey: sbKey, skipValidation: true }) }) } catch {}
+      try { await fetch('/api/settings', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ supabaseUrl: sbUrl, supabaseKey: sbKey, skipValidation: true }) }) } catch (e) { console.warn('[forge:env-detect] Failed to auto-save Supabase creds:', e) }
     }
 
     // 2. Auto-detect Anthropic API key
     const anthropicKey = envVars['ANTHROPIC_API_KEY']
     if (anthropicKey?.startsWith('sk-ant-')) {
-      try { await fetch('/api/settings', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ apiKey: anthropicKey, skipValidation: true }) }) } catch {}
+      try { await fetch('/api/settings', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ apiKey: anthropicKey, skipValidation: true }) }) } catch (e) { console.warn('[forge:env-detect] Failed to auto-save Anthropic key:', e) }
     }
 
     // 3. Auto-detect Vercel/deploy token
     const vercelToken = envVars['FORGE_DEPLOY_TOKEN'] || envVars['VERCEL_TOKEN']
     if (vercelToken) {
-      try { await fetch('/api/settings', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ vercelToken, skipValidation: true }) }) } catch {}
+      try { await fetch('/api/settings', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ vercelToken, skipValidation: true }) }) } catch (e) { console.warn('[forge:env-detect] Failed to auto-save Vercel token:', e) }
     }
 
     // 4. Auto-detect Google API key
     const googleKey = envVars['GOOGLE_API_KEY'] || envVars['NEXT_PUBLIC_GOOGLE_API_KEY']
     if (googleKey?.startsWith('AIza')) {
-      try { await fetch('/api/settings', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ googleApiKey: googleKey }) }) } catch {}
+      try { await fetch('/api/settings', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ googleApiKey: googleKey }) }) } catch (e) { console.warn('[forge:env-detect] Failed to auto-save Google key:', e) }
     }
 
     // 5b. Auto-detect Stripe credentials
@@ -394,7 +395,7 @@ export default function ForgePage() {
       const stripeBody: Record<string, string> = { stripeSecretKey, skipValidation: 'true' } as any
       if (stripePublishableKey?.startsWith('pk_')) stripeBody.stripePublishableKey = stripePublishableKey
       if (stripeWebhookSecret?.startsWith('whsec_')) stripeBody.stripeWebhookSecret = stripeWebhookSecret
-      try { await fetch('/api/settings', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(stripeBody) }) } catch {}
+      try { await fetch('/api/settings', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(stripeBody) }) } catch (e) { console.warn('[forge:env-detect] Failed to auto-save Stripe creds:', e) }
     }
 
     // 6. Auto-save all env vars to global env var store (merge, don't overwrite)
@@ -415,7 +416,7 @@ export default function ForgePage() {
             body: JSON.stringify({ variables: merged }),
           })
         }
-      } catch {}
+      } catch (e) { console.warn('[forge:env-detect] Failed to save global env vars:', e) }
     }
 
     // 5. Auto-detect Vercel project linked to this GitHub repo + import its env vars
@@ -454,10 +455,10 @@ export default function ForgePage() {
                 }
               }
             }
-          } catch {}
+          } catch (e) { console.warn('[forge:env-detect] Failed to import Vercel env vars:', e) }
         }
       }
-    } catch {}
+    } catch (e) { console.warn('[forge:env-detect] Failed to detect Vercel project:', e) }
 
     // 7. Auto-inject saved global env vars into .env.local for vars the project needs but are empty/missing
     try {
@@ -497,7 +498,7 @@ export default function ForgePage() {
           }
         }
       }
-    } catch {}
+    } catch (e) { console.warn('[forge:env-detect] Failed to inject global env vars:', e) }
   }, [])
 
   const handleSelectProject = useCallback(async (name: string, id?: string, initialFiles?: Record<string, string>, query?: string, meta?: { githubRepoUrl?: string }) => {
@@ -607,6 +608,26 @@ export default function ForgePage() {
     }
   }, [])
 
+  const handleDuplicateProject = useCallback(async (id: string) => {
+    setDuplicatingProjectId(id)
+    try {
+      const res = await fetch(`/api/projects/${id}/duplicate`, { method: 'POST' })
+      if (res.ok) {
+        const newProject = await res.json()
+        setSavedProjects(prev => [newProject, ...prev])
+        toast.success(`Duplicated as "${newProject.name}"`)
+      } else {
+        const data = await res.json().catch(() => ({}))
+        toast.error(data.error || `Failed to duplicate project (HTTP ${res.status})`)
+      }
+    } catch (err) {
+      console.error('Failed to duplicate project:', err)
+      toast.error('Failed to duplicate project. Please try again.')
+    } finally {
+      setDuplicatingProjectId(null)
+    }
+  }, [])
+
   // GitHub token is now handled server-side from JWT session — not exposed to client
 
   // Auth gate: show sign-in page if not authenticated
@@ -648,7 +669,7 @@ export default function ForgePage() {
           <Onboarding
             onComplete={({ template, description }) => {
               setOnboardingDismissed(true)
-              try { sessionStorage.setItem('forge_onboarding_done', '1') } catch {}
+              try { sessionStorage.setItem('forge_onboarding_done', '1') } catch (e) { console.warn('[forge:sessionStorage] Failed to persist onboarding state:', e) }
               const projectName = template || 'my-project'
               const query = description
                 ? `Create a ${template} project: ${description}`
@@ -677,7 +698,9 @@ export default function ForgePage() {
           savedProjects={savedProjects}
           loadingProjects={loadingProjects}
           onDeleteProject={handleDeleteProject}
+          onDuplicateProject={handleDuplicateProject}
           deletingProjectId={deletingProjectId}
+          duplicatingProjectId={duplicatingProjectId}
           loadingProjectId={loadingProjectId}
           isLoggedIn={!!session?.user}
           loadError={projectsLoadError}

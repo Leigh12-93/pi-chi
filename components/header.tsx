@@ -101,7 +101,7 @@ export function Header({ projectName, onSwitchProject, fileCount, onAction, save
       </div>
 
       {/* Center: Action Buttons — desktop only */}
-      <div className="hidden md:flex items-center gap-0.5 sm:gap-0 bg-forge-surface/50 rounded-lg px-0.5 py-0.5 border border-forge-border/50">
+      <nav aria-label="Project actions" className="hidden md:flex items-center gap-0.5 sm:gap-0 bg-forge-surface/50 rounded-lg px-0.5 py-0.5 border border-forge-border/50">
         {actions.map((action, idx) => {
           if (action === 'separator') {
             return <div key={`sep-${idx}`} className="w-px h-4 bg-forge-border/60 mx-0.5" />
@@ -127,7 +127,7 @@ export function Header({ projectName, onSwitchProject, fileCount, onAction, save
             </button>
           )
         })}
-      </div>
+      </nav>
 
       {/* Right: Desktop controls + Mobile hamburger */}
       <div className="flex items-center gap-2 sm:gap-3 shrink-0">
@@ -135,6 +135,7 @@ export function Header({ projectName, onSwitchProject, fileCount, onAction, save
         {onOpenCommandPalette && (
           <button
             onClick={onOpenCommandPalette}
+            aria-label="Open command palette"
             className="hidden md:flex items-center gap-2 px-2.5 py-1 text-[11px] text-forge-text-dim bg-forge-surface border border-forge-border rounded-lg hover:border-forge-accent/50 hover:text-forge-text active:bg-forge-surface-hover active:scale-[0.98] transition-all"
           >
             <Search className="w-3 h-3" />

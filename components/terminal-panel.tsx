@@ -99,7 +99,7 @@ export const TerminalPanel = memo(function TerminalPanel({ getShellProcess, wcRe
     return () => {
       cancelled = true
       if (writerRef.current) {
-        try { writerRef.current.close() } catch {}
+        try { writerRef.current.close() } catch (e) { console.warn('[forge:terminal] Error closing writer:', e) }
       }
       if (xtermRef.current) {
         xtermRef.current.dispose()
@@ -113,7 +113,7 @@ export const TerminalPanel = memo(function TerminalPanel({ getShellProcess, wcRe
     if (!fitAddonRef.current) return
 
     const observer = new ResizeObserver(() => {
-      try { fitAddonRef.current?.fit() } catch {}
+      try { fitAddonRef.current?.fit() } catch (e) { console.warn('[forge:terminal] Error fitting terminal:', e) }
     })
 
     if (terminalRef.current) {

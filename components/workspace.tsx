@@ -238,6 +238,7 @@ export function Workspace(props: WorkspaceProps) {
         activeFile={activeFile}
         onLoadingChange={actions.handleAiLoadingChange}
         onSessionCostChange={handleSessionCostChange}
+        onFileSelect={onFileSelect}
       />
     </PanelErrorBoundary>
   )
@@ -347,6 +348,7 @@ export function Workspace(props: WorkspaceProps) {
                   <button
                     onClick={() => { if (state.sidebarPinned) { state.setSidebarPinned(false); state.setSidebarHovered(false) } else { state.setSidebarPinned(true) } }}
                     title={state.sidebarPinned ? 'Unpin sidebar' : 'Pin sidebar'}
+                    aria-label={state.sidebarPinned ? 'Unpin sidebar' : 'Pin sidebar'}
                     className="p-1 rounded text-forge-text-dim hover:text-forge-text hover:bg-forge-surface transition-all"
                   >
                     {state.sidebarPinned ? <PinOff className="w-3.5 h-3.5" /> : <Pin className="w-3.5 h-3.5 rotate-45" />}
@@ -380,10 +382,13 @@ export function Workspace(props: WorkspaceProps) {
               <div className="flex-1 overflow-hidden">
                 {/* Editor panel with tabs */}
                 <div className="h-full flex flex-col bg-forge-surface">
-                  <div className="flex items-center border-b border-forge-border bg-forge-panel">
+                  <div className="flex items-center border-b border-forge-border bg-forge-panel" role="tablist" aria-label="Editor view mode">
                     {(['code', 'split', 'preview', 'terminal'] as const).map(tab => (
                       <button
                         key={tab}
+                        role="tab"
+                        aria-selected={state.rightTab === tab}
+                        aria-controls={tab === state.rightTab ? 'main-content' : undefined}
                         onClick={() => {
                           state.setRightTab(tab)
                           state.userManualSwitchRef.current = true
@@ -406,7 +411,7 @@ export function Workspace(props: WorkspaceProps) {
                       </div>
                     )}
                   </div>
-                  <div id="main-content" role="main" className="flex-1 overflow-hidden relative">
+                  <div id="main-content" role="tabpanel" aria-label={state.rightTab.charAt(0).toUpperCase() + state.rightTab.slice(1) + ' panel'} className="flex-1 overflow-hidden relative">
                     {(state.rightTab === 'code' || state.rightTab === 'split') && (
                       <div className={cn('h-full', state.rightTab === 'split' && 'absolute inset-0 right-1/2 border-r border-forge-border z-10')}>
                         <PanelErrorBoundary name="Code Editor">
@@ -433,7 +438,7 @@ export function Workspace(props: WorkspaceProps) {
                       (state.rightTab === 'code' || state.rightTab === 'terminal') && '-z-10 invisible pointer-events-none',
                     )}>
                       <PanelErrorBoundary name="Preview">
-                        <PreviewPanel files={files} projectId={projectId} onFixErrors={(msg) => state.setPendingChatMessage(msg)} onCapturePreview={(msg) => state.setPendingChatMessage(msg)} onPreviewReady={actions.handlePreviewReady} wcPreviewUrl={wc.previewUrl} />
+                        <PreviewPanel files={files} projectId={projectId} onFixErrors={(msg) => state.setPendingChatMessage(msg)} onCapturePreview={(msg) => state.setPendingChatMessage(msg)} onPreviewReady={actions.handlePreviewReady} wcPreviewUrl={wc.previewUrl} onFileSelect={onFileSelect} />
                       </PanelErrorBoundary>
                     </div>
                   </div>
@@ -456,6 +461,8 @@ export function Workspace(props: WorkspaceProps) {
                 <div className="flex items-center border-b border-forge-border bg-forge-panel shrink-0">
                   <button
                     onClick={() => state.setMobileEditorShowTree(prev => !prev)}
+                    aria-label={state.mobileEditorShowTree ? 'Hide file tree' : 'Show file tree'}
+                    aria-expanded={state.mobileEditorShowTree}
                     className={cn('p-2.5 transition-colors shrink-0 border-r border-forge-border', state.mobileEditorShowTree ? 'text-forge-accent bg-forge-accent/10' : 'text-forge-text-dim')}
                   >
                     <FolderTree className="w-4 h-4" />
@@ -503,14 +510,14 @@ export function Workspace(props: WorkspaceProps) {
               </div>
             </div>
           )}
-          {state.mobileTab === 'preview' && <PreviewPanel files={files} projectId={projectId} onFixErrors={(msg) => state.setPendingChatMessage(msg)} onCapturePreview={(msg) => state.setPendingChatMessage(msg)} onPreviewReady={actions.handlePreviewReady} wcPreviewUrl={wc.previewUrl} />}
+          {state.mobileTab === 'preview' && <PreviewPanel files={files} projectId={projectId} onFixErrors={(msg) => state.setPendingChatMessage(msg)} onCapturePreview={(msg) => state.setPendingChatMessage(msg)} onPreviewReady={actions.handlePreviewReady} wcPreviewUrl={wc.previewUrl} onFileSelect={onFileSelect} />}
           {state.mobileTab === 'menu' && (
             <div className="h-full flex flex-col bg-forge-panel">
               {/* If a sidebar panel is open, show it with a back button */}
               {state.sidebarTab ? (
                 <>
                   <div className="flex items-center gap-2 px-3 py-2.5 border-b border-forge-border shrink-0">
-                    <button onClick={() => state.setSidebarTab(null)} className="flex items-center gap-1.5 px-2 py-1.5 text-xs text-forge-text-dim hover:text-forge-text active:bg-forge-surface rounded-lg transition-colors min-h-[36px]">
+                    <button onClick={() => state.setSidebarTab(null)} aria-label="Back to menu" className="flex items-center gap-1.5 px-2 py-1.5 text-xs text-forge-text-dim hover:text-forge-text active:bg-forge-surface rounded-lg transition-colors min-h-[36px]">
                       <ChevronDown className="w-4 h-4 rotate-90" />
                       <span>Back</span>
                     </button>
@@ -560,10 +567,12 @@ export function Workspace(props: WorkspaceProps) {
         </div>
 
         {/* Mobile tab bar */}
-        <div className="flex items-center justify-around border-t border-forge-border/60 bg-forge-panel/80 backdrop-blur-md py-2 pb-3 shrink-0 safe-bottom">
+        <div className="flex items-center justify-around border-t border-forge-border/60 bg-forge-panel/80 backdrop-blur-md py-2 pb-3 shrink-0 safe-bottom" role="tablist" aria-label="Mobile navigation">
           {MOBILE_TABS.map(tab => (
             <button
               key={tab.id}
+              role="tab"
+              aria-selected={state.mobileTab === tab.id}
               onClick={() => { navigator.vibrate?.(5); actions.handleMobileTabSwitch(tab.id) }}
               aria-label={tab.label}
               className={cn('relative flex flex-col items-center gap-0.5 px-5 py-2 rounded-xl transition-all min-w-[68px] min-h-[50px] focus:outline-none focus-visible:ring-2 focus-visible:ring-forge-accent/50 active:scale-95', state.mobileTab === tab.id ? 'text-forge-accent' : 'text-forge-text-dim active:bg-forge-surface')}

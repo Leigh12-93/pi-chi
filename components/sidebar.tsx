@@ -210,6 +210,7 @@ export function SidebarContent({
           onRestoreSnapshot={onRestoreSnapshot}
           onOpenVersionHistory={onOpenVersionHistory}
           onCreateSnapshot={onCreateSnapshot}
+          currentFiles={fileContents}
         />
       )}
     </div>

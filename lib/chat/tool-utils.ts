@@ -2,7 +2,8 @@ export type ToolInvocation = {
   toolName: string
   state: string
   args: Record<string, unknown>
-  result?: Record<string, unknown>
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  result?: any
 }
 
 /** Extract plain text from a v6 UIMessage (parts-based or legacy string content) */

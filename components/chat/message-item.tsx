@@ -14,10 +14,10 @@ import { getFriendlyError, type ToolInvocation } from '@/lib/chat/tool-utils'
 import { cachedRenderMarkdown } from '@/lib/chat/markdown'
 import { ThinkPanel, type ThinkPanelProps } from './think-panel'
 import { EnvVarInputCard } from './env-var-input-card'
-import { PlanCard } from './plan-card'
-import { AskCard } from './ask-card'
+import { PlanCard, type PlanFile, type PlanAlternative, type PlanQuestion } from './plan-card'
+import { AskCard, type AskOption } from './ask-card'
 import { CheckpointCard } from './checkpoint-card'
-import { AuditFindingsCard } from './audit-findings-card'
+import { AuditFindingsCard, type AuditFindingsCardProps } from './audit-findings-card'
 import { ServiceConnectCard } from './service-connect-card'
 import { CollapsibleToolGroup, groupToolInvocations, type RenderItem } from './tool-group'
 import { getInlineSummary } from './tool-result-detail'
@@ -86,12 +86,13 @@ export interface MessageItemProps {
   onEnvVarsSave: (vars: Record<string, string>) => void
   onCancelTask: (taskId: string) => void
   onSendMessage?: (text: string) => void
+  onFileClick?: (path: string) => void
 }
 
 export const MessageItem = memo(function MessageItem({
   message, copiedId, isEditing, editingContent, isLoading, isLast, envVars, messageCost,
   onCopy, onEditMessage, onSaveEdit, onCancelEdit, onSetEditingContent, onRegenerate, onEnvVarsSave, onCancelTask,
-  onSendMessage,
+  onSendMessage, onFileClick,
 }: MessageItemProps) {
   const isUser = message.role === 'user'
   const textContent = getTextContent(message)
@@ -251,8 +252,8 @@ export const MessageItem = memo(function MessageItem({
             }
 
             // Reasoning/thinking blocks from extended thinking (Opus 4.6)
-            if (part.type === 'reasoning' && (part as any).text) {
-              return <ReasoningBlock key={partIdx} text={(part as any).text} />
+            if (part.type === 'reasoning' && part.text) {
+              return <ReasoningBlock key={partIdx} text={part.text as string} />
             }
 
             if (isToolPart(part)) {
@@ -309,9 +310,9 @@ export const MessageItem = memo(function MessageItem({
                       plan={{
                         summary: String(planData.summary || ''),
                         approach: String(planData.approach || ''),
-                        files: Array.isArray(planData.files) ? planData.files as any : [],
-                        alternatives: Array.isArray(planData.alternatives) ? planData.alternatives as any : undefined,
-                        questions: Array.isArray(planData.questions) ? planData.questions as any : undefined,
+                        files: Array.isArray(planData.files) ? planData.files as PlanFile[] : [],
+                        alternatives: Array.isArray(planData.alternatives) ? planData.alternatives as PlanAlternative[] : undefined,
+                        questions: Array.isArray(planData.questions) ? planData.questions as PlanQuestion[] : undefined,
                         confidence: Number(planData.confidence || 80),
                         uncertainties: Array.isArray(planData.uncertainties) ? planData.uncertainties as string[] : undefined,
                       }}
@@ -331,7 +332,7 @@ export const MessageItem = memo(function MessageItem({
                       key={partIdx}
                       question={String(askData.question || '')}
                       context={askData.context ? String(askData.context) : undefined}
-                      options={Array.isArray(askData.options) ? askData.options as any : undefined}
+                      options={Array.isArray(askData.options) ? askData.options as AskOption[] : undefined}
                       recommended={askData.recommended ? String(askData.recommended) : undefined}
                       allowFreeText={askData.allowFreeText !== false}
                       onAnswer={(answer) => onSendMessage?.(answer)}
@@ -365,9 +366,9 @@ export const MessageItem = memo(function MessageItem({
                       key={partIdx}
                       findings={{
                         summary: String(auditData.summary || ''),
-                        overallHealth: (auditData.overallHealth as any) || 'minor_issues',
-                        findings: Array.isArray(auditData.findings) ? auditData.findings as any : [],
-                        stats: (auditData.stats as any) || { totalFiles: 0, filesScanned: 0, criticalCount: 0, warningCount: 0, infoCount: 0 },
+                        overallHealth: (auditData.overallHealth as AuditFindingsCardProps['findings']['overallHealth']) || 'minor_issues',
+                        findings: Array.isArray(auditData.findings) ? auditData.findings as AuditFindingsCardProps['findings']['findings'] : [],
+                        stats: (auditData.stats as AuditFindingsCardProps['findings']['stats']) || { totalFiles: 0, filesScanned: 0, criticalCount: 0, warningCount: 0, infoCount: 0 },
                       }}
                       onFixSelected={(ids) => {
                         onSendMessage?.(`[AUDIT FIX REQUEST] Fix these findings: ${ids.join(', ')}. Design the architecture like a human senior engineer would — read every affected file, understand the full dependency chain, draft a complete plan with task list. Do NOT make any changes until I approve the plan.`)
@@ -389,7 +390,7 @@ export const MessageItem = memo(function MessageItem({
                       key={partIdx}
                       service={String(connectData.service || '')}
                       message={connectData.message ? String(connectData.message) : undefined}
-                      fields={Array.isArray(connectData.fields) ? connectData.fields as any : undefined}
+                      fields={Array.isArray(connectData.fields) ? connectData.fields as Array<{ name: string; key: string; placeholder?: string; required?: boolean; sensitive?: boolean }> : undefined}
                       onSendMessage={onSendMessage}
                     />
                   )
@@ -517,12 +518,16 @@ export const MessageItem = memo(function MessageItem({
                           </span>
                           {fileName && (
                             <span className="flex items-baseline gap-1.5 min-w-0 truncate">
-                              <span className={cn(
-                                'font-mono text-[11.5px] shrink-0',
-                                isRunning ? 'text-forge-accent/80 shimmer-text-subtle' : 'text-forge-text-dim/50'
-                              )}>
+                              <button
+                                onClick={(e) => { e.stopPropagation(); onFileClick?.(filePath) }}
+                                title={filePath}
+                                className={cn(
+                                  'font-mono text-[11.5px] shrink-0 hover:underline cursor-pointer',
+                                  isRunning ? 'text-forge-accent/80 shimmer-text-subtle' : 'text-forge-text-dim/50 hover:text-forge-accent/70'
+                                )}
+                              >
                                 {fileName}
-                              </span>
+                              </button>
                               {displayPath && (
                                 <span className={cn('tool-timeline-path hidden sm:inline', isRunning && 'shimmer-text-subtle')}>{displayPath}</span>
                               )}

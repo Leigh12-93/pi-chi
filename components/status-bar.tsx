@@ -22,10 +22,10 @@ const LANG_DISPLAY: Record<string, string> = {
 }
 
 const SAVE_TEXT: Record<string, { label: string; color: string }> = {
-  pending: { label: 'Unsaved', color: 'text-forge-text-dim' },
+  pending: { label: 'Unsaved changes', color: 'text-amber-400' },
   saving: { label: 'Saving...', color: 'text-amber-500' },
-  saved:  { label: 'Saved',     color: 'text-green-500' },
-  error:  { label: 'Save failed', color: 'text-red-500' },
+  saved:  { label: 'All changes saved', color: 'text-green-500' },
+  error:  { label: 'Save failed — Ctrl+S to retry', color: 'text-red-500' },
 }
 
 const FRAMEWORK_COLORS: Record<string, string> = {
@@ -51,7 +51,14 @@ export function StatusBar({ activeFile, fileCount, framework, saveStatus = 'idle
   const [displayed, setDisplayed] = useState(saveStatus)
   const [visible, setVisible] = useState(saveStatus !== 'idle')
   const displayedRef = useRef(displayed)
+  const [lastSavedAt, setLastSavedAt] = useState<string | null>(null)
   displayedRef.current = displayed
+
+  useEffect(() => {
+    if (saveStatus === 'saved') {
+      setLastSavedAt(new Date().toLocaleTimeString('en-AU', { hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit' }))
+    }
+  }, [saveStatus])
 
   useEffect(() => {
     if (saveStatus === 'idle') {
@@ -92,6 +99,7 @@ export function StatusBar({ activeFile, fileCount, framework, saveStatus = 'idle
         {info && (
           <span
             className={`flex items-center gap-1 transition-all duration-200 ease-out ${info.color} ${visible ? 'opacity-100' : 'opacity-0'}`}
+            title={lastSavedAt ? `Last saved at ${lastSavedAt}` : undefined}
           >
             <SaveStatusIcon status={displayed} />
             {info.label}

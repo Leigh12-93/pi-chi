@@ -88,7 +88,7 @@ export function DbExplorer({ className }: DbExplorerProps) {
           return data as ColumnInfo[]
         }
       }
-    } catch {}
+    } catch (e) { console.warn('[forge:db] Failed to fetch table schema:', e) }
     return []
   }
 

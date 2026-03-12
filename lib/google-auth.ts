@@ -89,7 +89,7 @@ export async function getGoogleCredentials(
           ? row.encrypted_google_api_key.slice(3)
           : row.encrypted_google_api_key
         apiKey = await decryptToken(rawKey)
-      } catch {}
+      } catch (e) { console.warn('[forge:google-auth] Failed to decrypt Google API key:', e) }
     }
 
     return {

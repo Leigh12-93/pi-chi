@@ -1,8 +1,9 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { X, History, Clock, FileText, Diff, AlertTriangle } from 'lucide-react'
+import { X, History, Clock, FileText, Diff } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { SnapshotDiffDialog } from './snapshot-diff-dialog'
 
 export interface FileVersion {
   path: string
@@ -29,16 +30,22 @@ interface VersionHistoryProps {
 
 export function VersionHistory({ open, onClose, snapshots, currentFiles, onRestore, onViewDiff }: VersionHistoryProps) {
   const [selectedSnapshot, setSelectedSnapshot] = useState<string | null>(null)
-  const [confirmRestore, setConfirmRestore] = useState(false)
+  const [showDiffPreview, setShowDiffPreview] = useState(false)
 
   useEffect(() => {
     if (!open) return
     const handler = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') onClose()
+      if (e.key === 'Escape') {
+        if (showDiffPreview) {
+          setShowDiffPreview(false)
+        } else {
+          onClose()
+        }
+      }
     }
     window.addEventListener('keydown', handler)
     return () => window.removeEventListener('keydown', handler)
-  }, [open, onClose])
+  }, [open, onClose, showDiffPreview])
 
   if (!open) return null
 
@@ -105,7 +112,7 @@ export function VersionHistory({ open, onClose, snapshots, currentFiles, onResto
                 <div className="flex items-center justify-between mb-3">
                   <h3 className="text-xs font-medium text-forge-text">{selected.label}</h3>
                   <button
-                    onClick={() => setConfirmRestore(true)}
+                    onClick={() => setShowDiffPreview(true)}
                     className="px-2.5 py-1 text-[10px] font-medium text-white bg-forge-accent rounded-lg hover:bg-forge-accent-hover transition-colors"
                   >
                     Restore
@@ -148,36 +155,23 @@ export function VersionHistory({ open, onClose, snapshots, currentFiles, onResto
             )}
           </div>
         </div>
-
-        {/* Themed restore confirmation dialog */}
-        {confirmRestore && selected && (
-          <div className="absolute inset-0 z-10 flex items-center justify-center bg-black/40 backdrop-blur-sm rounded-2xl" onClick={() => setConfirmRestore(false)}>
-            <div className="bg-forge-bg border border-forge-border rounded-xl shadow-2xl p-5 mx-4 max-w-xs" onClick={e => e.stopPropagation()}>
-              <div className="flex items-center gap-2 mb-3">
-                <AlertTriangle className="w-4 h-4 text-amber-500" />
-                <h3 className="text-sm font-semibold text-forge-text">Restore snapshot?</h3>
-              </div>
-              <p className="text-xs text-forge-text-dim mb-4">
-                This will replace all current files with &ldquo;{selected.label}&rdquo;. Unsaved changes will be lost.
-              </p>
-              <div className="flex items-center justify-end gap-2">
-                <button
-                  onClick={() => setConfirmRestore(false)}
-                  className="px-3 py-1.5 text-xs text-forge-text-dim hover:text-forge-text rounded-lg hover:bg-forge-surface transition-colors"
-                >
-                  Cancel
-                </button>
-                <button
-                  onClick={() => { onRestore(selected); setConfirmRestore(false); onClose() }}
-                  className="px-3 py-1.5 text-xs font-medium text-white bg-forge-accent rounded-lg hover:bg-forge-accent-hover transition-colors"
-                >
-                  Restore
-                </button>
-              </div>
-            </div>
-          </div>
-        )}
       </div>
+
+      {/* Diff preview dialog */}
+      {showDiffPreview && selected && (
+        <SnapshotDiffDialog
+          open={showDiffPreview}
+          snapshotLabel={selected.label}
+          currentFiles={currentFiles}
+          snapshotFiles={selected.files}
+          onConfirm={() => {
+            onRestore(selected)
+            setShowDiffPreview(false)
+            onClose()
+          }}
+          onCancel={() => setShowDiffPreview(false)}
+        />
+      )}
     </div>
   )
 }

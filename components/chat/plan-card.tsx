@@ -93,7 +93,7 @@ export function PlanCard({ plan, onApprove, onReject }: PlanCardProps) {
   }
 
   const handleAutoApproveToggle = (checked: boolean) => {
-    try { localStorage.setItem('forge:auto-approve-plans', String(checked)) } catch {}
+    try { localStorage.setItem('forge:auto-approve-plans', String(checked)) } catch (e) { console.warn('[forge:localStorage] Failed to save auto-approve preference:', e) }
     if (checked) handleApprove()
   }
 

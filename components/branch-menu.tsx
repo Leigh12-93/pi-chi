@@ -60,7 +60,7 @@ export function BranchMenu({ owner, repo, currentBranch = 'main', onSwitch }: Br
       setBranches(prev => [newBranchName.trim(), ...prev])
       setNewBranchName('')
       onSwitch?.(newBranchName.trim())
-    } catch {}
+    } catch (e) { console.warn('[forge:branch] Failed to create branch:', e) }
     setCreating(false)
   }
 

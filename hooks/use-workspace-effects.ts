@@ -37,13 +37,21 @@ export function useWorkspaceEffects(deps: WorkspaceEffectsDeps) {
       const detail = (e as CustomEvent).detail
       if (detail) state.setAuditPlan(detail as AuditPlan)
     }
+    const handleOpenFile = (e: Event) => {
+      const detail = (e as CustomEvent).detail
+      if (detail?.path && typeof detail.path === 'string') {
+        onFileSelect(detail.path)
+      }
+    }
     window.addEventListener('forge:terminal-action', handleTerminalAction)
     window.addEventListener('forge:audit-plan', handleAuditPlan)
+    window.addEventListener('forge:open-file', handleOpenFile)
     return () => {
       window.removeEventListener('forge:terminal-action', handleTerminalAction)
       window.removeEventListener('forge:audit-plan', handleAuditPlan)
+      window.removeEventListener('forge:open-file', handleOpenFile)
     }
-  }, [wcStatus]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [wcStatus, onFileSelect]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // AI file-edit highlight + diff tracking
   useEffect(() => {

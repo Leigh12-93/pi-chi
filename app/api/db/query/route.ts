@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { getSession } from '@/lib/auth'
 import { supabaseFetch } from '@/lib/supabase-fetch'
 import { logger } from '@/lib/logger'
+import { dbQuerySchema, parseBody } from '@/lib/api-schemas'
 
 const ALLOWED_TABLE_PREFIX = 'forge_'
 
@@ -10,10 +11,9 @@ export async function POST(req: Request) {
   const session = await getSession()
   if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
-  const { query } = await req.json()
-  if (!query || typeof query !== 'string') {
-    return NextResponse.json({ error: 'query is required' }, { status: 400 })
-  }
+  const parsed = parseBody(dbQuerySchema, await req.json())
+  if ('error' in parsed) return NextResponse.json({ error: parsed.error }, { status: 400 })
+  const { query } = parsed.data
 
   // Security: only allow SELECT on forge_* tables
   const normalized = query.trim().toLowerCase()

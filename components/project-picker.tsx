@@ -8,6 +8,7 @@ import {
   Lock, Star, GitBranch, Download, GitFork, Archive, Search, X,
   AlertTriangle, BarChart3, User, ShoppingBag, ArrowUpDown, Key,
   Plus, Trash2 as Trash2Icon, Eye, EyeOff, CheckCircle2, Copy,
+  CopyPlus,
 } from 'lucide-react'
 import { toast } from 'sonner'
 import { formatRelative } from '@/lib/utils'
@@ -47,7 +48,9 @@ interface ProjectPickerProps {
   savedProjects: SavedProject[]
   loadingProjects: boolean
   onDeleteProject: (id: string) => void
+  onDuplicateProject: (id: string) => void
   deletingProjectId?: string | null
+  duplicatingProjectId?: string | null
   loadingProjectId?: string | null
   isLoggedIn: boolean
   loadError?: boolean
@@ -87,10 +90,11 @@ const QUICK_STARTS = [
   { label: 'E-commerce', icon: ShoppingBag, query: 'Build an e-commerce product page. Start by designing a complete custom design token system in globals.css with a premium retail color palette, clean sans-serif font pairing from Google Fonts, and polished shadow/radius tokens. Then build: sticky header with logo, search, cart icon with badge; product page with image gallery (thumbnail strip + main image), product title/price/description, size and color selectors with visual swatches, quantity stepper, add-to-cart button with loading state; tabbed details (description, specs, shipping); star ratings with review count; customer reviews with avatars from Unsplash; related products carousel; footer. Dark mode support.' },
 ]
 
-export function ProjectPicker({ onSelect, savedProjects, loadingProjects, onDeleteProject, deletingProjectId, loadingProjectId, isLoggedIn, loadError, onRetryLoad, hasMoreProjects, onLoadMoreProjects }: ProjectPickerProps) {
+export function ProjectPicker({ onSelect, savedProjects, loadingProjects, onDeleteProject, onDuplicateProject, deletingProjectId, duplicatingProjectId, loadingProjectId, isLoggedIn, loadError, onRetryLoad, hasMoreProjects, onLoadMoreProjects }: ProjectPickerProps) {
   const [name, setName] = useState('')
   const [creating, setCreating] = useState(false)
   const deletingId = deletingProjectId ?? null
+  const duplicatingId = duplicatingProjectId ?? null
   const [githubRepos, setGithubRepos] = useState<GitHubRepo[]>([])
   const [loadingRepos, setLoadingRepos] = useState(false)
   const [reposError, setReposError] = useState(false)
@@ -123,7 +127,7 @@ export function ProjectPicker({ onSelect, savedProjects, loadingProjects, onDele
           setGlobalEnvVars(data.variables)
         }
       }
-    } catch {} finally { setLoadingEnvVars(false) }
+    } catch (e) { console.warn('[forge:project-picker] Failed to load global env vars:', e) } finally { setLoadingEnvVars(false) }
   }
 
   const saveGlobalEnvVars = async () => {
@@ -347,9 +351,11 @@ export function ProjectPicker({ onSelect, savedProjects, loadingProjects, onDele
         {/* Tabs: Saved Projects / GitHub Repos */}
         {isLoggedIn && (
           <div>
-            <div className="flex items-center gap-1 mb-4 border-b border-forge-border relative">
+            <div className="flex items-center gap-1 mb-4 border-b border-forge-border relative" role="tablist" aria-label="Project source">
               <button
                 onClick={() => setTab('projects')}
+                role="tab"
+                aria-selected={tab === 'projects'}
                 className={`relative flex items-center gap-1.5 px-3 py-2 text-xs font-medium transition-colors ${
                   tab === 'projects'
                     ? 'text-forge-accent'
@@ -367,6 +373,8 @@ export function ProjectPicker({ onSelect, savedProjects, loadingProjects, onDele
               </button>
               <button
                 onClick={() => setTab('github')}
+                role="tab"
+                aria-selected={tab === 'github'}
                 className={`relative flex items-center gap-1.5 px-3 py-2 text-xs font-medium transition-colors ${
                   tab === 'github'
                     ? 'text-forge-accent'
@@ -384,6 +392,8 @@ export function ProjectPicker({ onSelect, savedProjects, loadingProjects, onDele
               </button>
               <button
                 onClick={() => setTab('env')}
+                role="tab"
+                aria-selected={tab === 'env'}
                 className={`relative flex items-center gap-1.5 px-3 py-2 text-xs font-medium transition-colors ${
                   tab === 'env'
                     ? 'text-forge-accent'
@@ -432,7 +442,7 @@ export function ProjectPicker({ onSelect, savedProjects, loadingProjects, onDele
                       onChange={e => {
                         const val = e.target.value as SortPref
                         setSortPref(val)
-                        try { localStorage.setItem('forge-sort-pref', val) } catch {}
+                        try { localStorage.setItem('forge-sort-pref', val) } catch (e) { console.warn('[forge:localStorage] Failed to save sort preference:', e) }
                       }}
                       className="appearance-none bg-forge-surface border border-forge-border rounded-lg pl-7 pr-6 py-2 text-[11px] text-forge-text-dim outline-none focus:border-forge-accent/50 focus:ring-2 focus:ring-forge-accent/10 transition-all cursor-pointer"
                       aria-label="Sort projects"
@@ -493,6 +503,7 @@ export function ProjectPicker({ onSelect, savedProjects, loadingProjects, onDele
                         onKeyDown={(e) => { if (e.key === 'Enter') onSelect(project.name, project.id) }}
                         disabled={loadingProjectId === project.id}
                         tabIndex={0}
+                        aria-label={`Open project: ${project.name}`}
                         style={{ animationDelay: `${i * 50}ms` }}
                         className="group relative bg-forge-panel border border-forge-border border-l-2 border-l-transparent rounded-xl p-4 text-left hover:border-forge-accent/50 hover:border-l-forge-accent hover:bg-forge-accent/5 hover:shadow-md hover:shadow-forge-accent/5 hover:scale-[1.02] hover:-translate-y-0.5 active:scale-[0.99] active:translate-y-0 focus-visible:ring-2 focus-visible:ring-forge-ring focus-visible:border-forge-accent/50 transition-all duration-200 disabled:opacity-70 disabled:cursor-wait project-card-enter"
                       >
@@ -528,23 +539,34 @@ export function ProjectPicker({ onSelect, savedProjects, loadingProjects, onDele
                           )}
                         </div>
 
-                        {loadingProjectId === project.id ? (
+                        {loadingProjectId === project.id || duplicatingId === project.id ? (
                           <div className="absolute inset-0 flex items-center justify-center bg-forge-panel/90 rounded-xl">
                             <div className="flex items-center gap-2 text-xs text-forge-accent">
                               <Loader2 className="w-4 h-4 animate-spin" />
-                              Opening...
+                              {duplicatingId === project.id ? 'Duplicating...' : 'Opening...'}
                             </div>
                           </div>
                         ) : (
-                          <button
-                            onClick={e => handleDelete(e, project)}
-                            disabled={deletingId === project.id}
-                            className="absolute top-3 right-3 p-1.5 rounded-lg opacity-0 group-hover:opacity-100 text-forge-text-dim hover:text-forge-danger hover:bg-forge-danger/10 transition-all"
-                            title="Delete project"
-                            aria-label="Delete project"
-                          >
-                            {deletingId === project.id ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Trash2 className="w-3.5 h-3.5" />}
-                          </button>
+                          <div className="absolute top-3 right-3 flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-all">
+                            <button
+                              onClick={e => { e.stopPropagation(); onDuplicateProject(project.id) }}
+                              disabled={duplicatingId === project.id}
+                              className="p-1.5 rounded-lg text-forge-text-dim hover:text-forge-accent hover:bg-forge-accent/10 transition-all"
+                              title="Duplicate project"
+                              aria-label="Duplicate project"
+                            >
+                              <CopyPlus className="w-3.5 h-3.5" />
+                            </button>
+                            <button
+                              onClick={e => handleDelete(e, project)}
+                              disabled={deletingId === project.id}
+                              className="p-1.5 rounded-lg text-forge-text-dim hover:text-forge-danger hover:bg-forge-danger/10 transition-all"
+                              title="Delete project"
+                              aria-label="Delete project"
+                            >
+                              {deletingId === project.id ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Trash2 className="w-3.5 h-3.5" />}
+                            </button>
+                          </div>
                         )}
                       </button>
                     ))}
@@ -587,6 +609,7 @@ export function ProjectPicker({ onSelect, savedProjects, loadingProjects, onDele
                         key={repo.id}
                         onClick={() => handleImportRepo(repo)}
                         disabled={importingRepo === repo.full_name}
+                        aria-label={`Import repository: ${repo.full_name}`}
                         style={{ animationDelay: `${i * 50}ms` }}
                         className="group relative bg-forge-panel border border-forge-border rounded-xl p-4 text-left hover:border-forge-accent/50 hover:bg-forge-accent/5 hover:shadow-md hover:shadow-forge-accent/5 hover:scale-[1.02] hover:-translate-y-0.5 active:scale-[0.99] active:translate-y-0 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed project-card-enter"
                       >
@@ -735,6 +758,7 @@ export function ProjectPicker({ onSelect, savedProjects, loadingProjects, onDele
                                 onClick={() => setShowValues(prev => ({ ...prev, [i]: !prev[i] }))}
                                 className="p-1 rounded text-forge-text-dim/50 hover:text-forge-text transition-colors"
                                 title={visible ? 'Hide value' : 'Show value'}
+                                aria-label={visible ? `Hide ${env.key} value` : `Show ${env.key} value`}
                               >
                                 {visible ? <EyeOff className="w-3 h-3" /> : <Eye className="w-3 h-3" />}
                               </button>
@@ -746,6 +770,7 @@ export function ProjectPicker({ onSelect, savedProjects, loadingProjects, onDele
                               }}
                               className="p-1 rounded text-forge-text-dim/50 hover:text-forge-text transition-colors"
                               title="Copy"
+                              aria-label={`Copy ${env.key}`}
                             >
                               <Copy className="w-3 h-3" />
                             </button>
@@ -753,6 +778,7 @@ export function ProjectPicker({ onSelect, savedProjects, loadingProjects, onDele
                               onClick={() => removeEnvVar(i)}
                               className="p-1 rounded text-forge-text-dim/50 hover:text-forge-danger transition-colors"
                               title="Remove"
+                              aria-label={`Remove ${env.key}`}
                             >
                               <Trash2Icon className="w-3 h-3" />
                             </button>

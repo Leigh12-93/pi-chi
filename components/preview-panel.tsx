@@ -2,15 +2,16 @@
 
 import { useMemo, useState, useCallback, useRef, useEffect, memo } from 'react'
 import {
-  RefreshCw, Monitor, Smartphone, Tablet, AlertTriangle,
+  RefreshCw, AlertTriangle,
   Square, Loader2, Zap, ExternalLink, Maximize2, Minimize2,
   Globe, Terminal, X, ArrowUpFromLine, Camera, Copy, Check,
   ChevronLeft, ChevronRight, Home, Search,
 } from 'lucide-react'
+import { PreviewToolbar, type DevicePreset } from './preview-toolbar'
 import { motion, AnimatePresence } from 'framer-motion'
 import { cn, hashFileMapDeep } from '@/lib/utils'
 import {
-  type ConsoleEntry, type ViewMode, type SandboxStatus, type BuildPhase,
+  type ConsoleEntry, type SandboxStatus, type BuildPhase,
   STATUS_LABELS, PHASE_LABELS, PREVIEW_ERROR_SCRIPT,
   isProjectReady, detectMissingImports, isSandboxNoise,
   BuildPhaseIndicator, CopyErrorButton, BuildingPlaceholder,
@@ -25,10 +26,46 @@ interface PreviewPanelProps {
   onPreviewReady?: () => void
   /** WebContainer dev server URL — if provided, use this instead of v0 sandbox */
   wcPreviewUrl?: string | null
+  /** Navigate to a file in the editor */
+  onFileSelect?: (path: string) => void
 }
 
-export const PreviewPanel = memo(function PreviewPanel({ files, projectId, onFixErrors, onCapturePreview, onPreviewReady, wcPreviewUrl }: PreviewPanelProps) {
-  const [viewMode, setViewMode] = useState<ViewMode>('desktop')
+/** Extract clickable file paths from error messages that match project files */
+function ErrorMessageWithFileLinks({ message, files, onFileClick }: { message: string; files: Record<string, string>; onFileClick?: (path: string) => void }) {
+  if (!onFileClick) return <>{message.slice(0, 120)}</>
+  const fileNames = Object.keys(files)
+  // Match patterns like ./src/App.tsx, src/App.tsx:15:3, App.tsx, etc.
+  const parts: Array<{ text: string; filePath?: string }> = []
+  let remaining = message.slice(0, 200)
+  const filePattern = /(?:\.\/)?(?:src\/)?[\w\-./]+\.(?:tsx?|jsx?|css|html|json)/g
+  let lastIdx = 0
+  let match: RegExpExecArray | null
+  while ((match = filePattern.exec(remaining)) !== null) {
+    // Strip trailing :line:col
+    const raw = match[0].replace(/:\d+:\d+$/, '').replace(/:\d+$/, '')
+    const normalized = raw.replace(/^\.\//, '')
+    const found = fileNames.find(f => f === normalized || f.endsWith('/' + normalized) || f === raw)
+    if (found) {
+      if (match.index > lastIdx) parts.push({ text: remaining.slice(lastIdx, match.index) })
+      parts.push({ text: match[0], filePath: found })
+      lastIdx = match.index + match[0].length
+    }
+  }
+  if (lastIdx < remaining.length) parts.push({ text: remaining.slice(lastIdx) })
+  if (parts.length === 0) return <>{message.slice(0, 120)}</>
+  return (
+    <>
+      {parts.map((p, i) => p.filePath ? (
+        <button key={i} onClick={() => onFileClick(p.filePath!)} className="underline decoration-dotted hover:text-red-300 transition-colors" title={`Open ${p.filePath}`}>{p.text}</button>
+      ) : (
+        <span key={i}>{p.text}</span>
+      ))}
+    </>
+  )
+}
+
+export const PreviewPanel = memo(function PreviewPanel({ files, projectId, onFixErrors, onCapturePreview, onPreviewReady, wcPreviewUrl, onFileSelect }: PreviewPanelProps) {
+  const [viewMode, setViewMode] = useState<DevicePreset>('full')
   const [refreshKey, setRefreshKey] = useState(0)
   const [previewError, setPreviewError] = useState<string | null>(null)
   const [isFullscreen, setIsFullscreen] = useState(false)
@@ -200,7 +237,7 @@ export const PreviewPanel = memo(function PreviewPanel({ files, projectId, onFix
     if (sandboxUrl && sandboxStatus === 'running') {
       setCachedSandboxUrl(sandboxUrl)
       if (projectId) {
-        try { sessionStorage.setItem(`forge-sandbox-${projectId}`, sandboxUrl) } catch {}
+        try { sessionStorage.setItem(`forge-sandbox-${projectId}`, sandboxUrl) } catch (e) { console.warn('[forge:sessionStorage] Failed to cache sandbox URL:', e) }
       }
     }
   }, [sandboxUrl, sandboxStatus, projectId])
@@ -211,7 +248,7 @@ export const PreviewPanel = memo(function PreviewPanel({ files, projectId, onFix
       try {
         const cached = sessionStorage.getItem(`forge-sandbox-${projectId}`)
         if (cached) setCachedSandboxUrl(cached)
-      } catch {}
+      } catch (e) { console.warn('[forge:sessionStorage] Failed to restore sandbox URL:', e) }
     }
   }, [projectId]) // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -584,7 +621,7 @@ export const PreviewPanel = memo(function PreviewPanel({ files, projectId, onFix
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ projectId }),
       })
-    } catch { /* ignore cleanup errors */ }
+    } catch (e) { console.warn('[forge:sandbox] Cleanup error (non-fatal):', e) }
 
     setSandboxStatus('idle')
     setSandboxUrl(null)
@@ -688,6 +725,10 @@ export const PreviewPanel = memo(function PreviewPanel({ files, projectId, onFix
       if (retryTimerRef.current) clearTimeout(retryTimerRef.current)
       if (previewDebounceRef.current) clearTimeout(previewDebounceRef.current)
       if (crossfadeTimerRef.current) clearTimeout(crossfadeTimerRef.current)
+      if (buildPhaseTimeoutRef.current) clearTimeout(buildPhaseTimeoutRef.current)
+      if (sandboxReadyTimerRef.current) clearTimeout(sandboxReadyTimerRef.current)
+      if (idleOverlayTimerRef.current) clearTimeout(idleOverlayTimerRef.current)
+      if (errorFeedTimerRef.current) clearTimeout(errorFeedTimerRef.current)
       if (projectId && (sandboxStatus === 'running' || startingRef.current)) {
         fetch('/api/sandbox', {
           method: 'DELETE',
@@ -922,10 +963,18 @@ export const PreviewPanel = memo(function PreviewPanel({ files, projectId, onFix
     return () => window.removeEventListener('keydown', handler)
   }, [isFullscreen])
 
-  const deviceMaxWidth: Record<ViewMode, string> = {
-    desktop: '100%',
+  const deviceMaxWidth: Record<DevicePreset, string> = {
+    full: '100%',
+    desktop: '1280px',
     tablet: '768px',
     mobile: '375px',
+  }
+
+  const deviceMaxHeight: Record<DevicePreset, string | undefined> = {
+    full: undefined,
+    desktop: '800px',
+    tablet: '1024px',
+    mobile: '667px',
   }
 
   const isSandboxActive = sandboxStatus === 'running' && sandboxUrl
@@ -952,34 +1001,7 @@ export const PreviewPanel = memo(function PreviewPanel({ files, projectId, onFix
         {/* Top bar with traffic lights + URL bar */}
         <div className="flex items-center gap-2 px-3 py-2">
           {/* Left: device mode buttons */}
-          <div className="flex items-center gap-0.5 shrink-0">
-            {([
-              { mode: 'desktop' as ViewMode, Icon: Monitor, label: 'Desktop' },
-              { mode: 'tablet' as ViewMode, Icon: Tablet, label: 'Tablet' },
-              { mode: 'mobile' as ViewMode, Icon: Smartphone, label: 'Mobile' },
-            ] as const).map(({ mode, Icon, label }) => (
-              <button
-                key={mode}
-                onClick={() => setViewMode(mode)}
-                title={label}
-                className={cn(
-                  'relative p-2.5 sm:p-1.5 rounded-md transition-colors',
-                  viewMode === mode
-                    ? 'bg-forge-accent/15 text-forge-accent'
-                    : 'text-forge-text-dim hover:text-forge-text hover:bg-forge-surface',
-                )}
-              >
-                <Icon className="w-4 h-4 sm:w-3.5 sm:h-3.5" />
-                {viewMode === mode && (
-                  <motion.div
-                    layoutId="device-indicator"
-                    className="absolute bottom-0 left-1 right-1 h-0.5 bg-forge-accent rounded-full"
-                    transition={{ type: 'spring', stiffness: 400, damping: 30 }}
-                  />
-                )}
-              </button>
-            ))}
-          </div>
+          <PreviewToolbar preset={viewMode} onPresetChange={setViewMode} />
 
           {/* Navigation buttons — back/forward/home */}
           {isLivePreview && (
@@ -1251,14 +1273,17 @@ export const PreviewPanel = memo(function PreviewPanel({ files, projectId, onFix
         </div>
       )}
 
-          <div className={cn('flex-1 overflow-hidden bg-forge-bg relative', captureFlash && 'capture-flash')}>
+          <div className={cn('flex-1 overflow-hidden bg-forge-bg relative flex items-start justify-center', captureFlash && 'capture-flash')}>
         <div
           className={cn(
-            'h-full preview-device-frame',
-            viewMode !== 'desktop' && `device-${viewMode}`,
-            viewMode !== 'desktop' && 'mx-auto',
+            'preview-device-frame',
+            viewMode === 'full' ? 'h-full w-full' : 'mx-auto',
+            viewMode !== 'full' && `device-${viewMode}`,
           )}
-          style={{ maxWidth: deviceMaxWidth[viewMode] }}
+          style={{
+            maxWidth: deviceMaxWidth[viewMode],
+            height: deviceMaxHeight[viewMode] ?? '100%',
+          }}
         >
           {/* Static preview iframe — always present as base layer, srcDoc updates reactively */}
           {previewHtml === '__JSX_BUILDING_PLACEHOLDER__' && !isSandboxActive && !showCachedPreview ? (
@@ -1592,7 +1617,9 @@ export const PreviewPanel = memo(function PreviewPanel({ files, projectId, onFix
                 </div>
                 <div className="max-h-16 overflow-y-auto">
                   {consoleLogs.filter(e => e.level === 'error').slice(0, 3).map((e, i) => (
-                    <p key={i} className="text-[10px] font-mono text-red-400 truncate leading-relaxed">{e.message.slice(0, 120)}</p>
+                    <p key={i} className="text-[10px] font-mono text-red-400 truncate leading-relaxed">
+                      <ErrorMessageWithFileLinks message={e.message} files={files} onFileClick={onFileSelect} />
+                    </p>
                   ))}
                 </div>
                 <div className="flex gap-1.5">

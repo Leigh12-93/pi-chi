@@ -193,7 +193,7 @@ export function AnthropicPanel({ onOpenSettings: _onOpenSettings, onOpenMcpManag
       setHasApiKey(!!data.hasApiKey)
       setValidatedAt(data.apiKeyValidatedAt || null)
       setPreferredModel(data.preferredModel || 'claude-sonnet-4-20250514')
-    } catch {} finally {
+    } catch (e) { console.warn('[forge:anthropic] Failed to load Anthropic settings:', e) } finally {
       setLoading(false)
     }
   }, [])
@@ -206,7 +206,7 @@ export function AnthropicPanel({ onOpenSettings: _onOpenSettings, onOpenMcpManag
       if (!res.ok) return
       const data = await res.json()
       setMcpServers(data.servers || [])
-    } catch {} finally {
+    } catch (e) { console.warn('[forge:mcp] Failed to load MCP servers:', e) } finally {
       setMcpLoading(false)
     }
   }, [])

@@ -6,6 +6,7 @@ import {
   Sparkles, ArrowUp, StopCircle,
   AlertTriangle, ChevronDown, Clock,
   Paperclip, ImageIcon, X, Mic,
+  Search, ChevronUp,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { ErrorBoundary } from '@/components/error-boundary'
@@ -15,6 +16,7 @@ import { MessageItem } from '@/components/chat/message-item'
 import { ApprovalCard } from '@/components/approval-card'
 import { ActivityBlock } from '@/components/chat/activity-block'
 import { TaskListPanel } from '@/components/chat/task-list-panel'
+import { ChangeSummary } from '@/components/chat/change-summary'
 import { useForgeChat, type UseForgeChatProps } from '@/hooks/use-forge-chat'
 import { useVoiceInput } from '@/hooks/use-voice-input'
 import { toast } from 'sonner'
@@ -22,9 +24,10 @@ import { toast } from 'sonner'
 export type ChatPanelProps = UseForgeChatProps & {
   onLoadingChange?: (isLoading: boolean) => void
   onSessionCostChange?: (cost: { cost: number; inputTokens: number; outputTokens: number }) => void
+  onFileSelect?: (path: string) => void
 }
 
-export const ChatPanel = memo(function ChatPanel({ onLoadingChange, onSessionCostChange, ...props }: ChatPanelProps) {
+export const ChatPanel = memo(function ChatPanel({ onLoadingChange, onSessionCostChange, onFileSelect, ...props }: ChatPanelProps) {
   const chat = useForgeChat(props)
   const [isDraggingChat, setIsDraggingChat] = useState(false)
   const [dismissedError, setDismissedError] = useState<string | null>(null)
@@ -80,6 +83,34 @@ export const ChatPanel = memo(function ChatPanel({ onLoadingChange, onSessionCos
     }
   }, [])
 
+  // Ctrl+F to open chat search
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      if ((e.ctrlKey || e.metaKey) && e.key === 'f') {
+        e.preventDefault()
+        if (chat.searchOpen) {
+          chat.closeSearch()
+        } else {
+          chat.openSearch()
+        }
+      }
+    }
+    window.addEventListener('keydown', handler)
+    return () => window.removeEventListener('keydown', handler)
+  }, [chat.searchOpen, chat.openSearch, chat.closeSearch])
+
+  // Auto-scroll to highlighted search result
+  const messagesContainerRef = useRef<HTMLDivElement>(null)
+  useEffect(() => {
+    if (!chat.searchOpen || chat.searchResults.length === 0) return
+    const targetId = chat.searchResults[chat.highlightedResultIdx]
+    if (!targetId || !messagesContainerRef.current) return
+    const el = messagesContainerRef.current.querySelector(`[data-message-id="${targetId}"]`)
+    if (el) {
+      el.scrollIntoView({ behavior: 'smooth', block: 'center' })
+    }
+  }, [chat.searchOpen, chat.searchResults, chat.highlightedResultIdx])
+
   // Bubble loading state to parent (workspace auto-switching)
   useEffect(() => {
     onLoadingChange?.(chat.isLoading)
@@ -93,8 +124,79 @@ export const ChatPanel = memo(function ChatPanel({ onLoadingChange, onSessionCos
   return (
     <ErrorBoundary>
     <div className="h-full flex flex-col bg-forge-bg">
+      {/* Search bar */}
+      <AnimatePresence>
+        {chat.searchOpen && (
+          <motion.div
+            initial={{ opacity: 0, height: 0 }}
+            animate={{ opacity: 1, height: 'auto' }}
+            exit={{ opacity: 0, height: 0 }}
+            transition={{ duration: 0.15, ease: [0.16, 1, 0.3, 1] }}
+            className="shrink-0 bg-forge-surface border-b border-forge-border"
+          >
+            <div className="flex items-center gap-1.5 px-3 py-1.5">
+              <Search className="w-3.5 h-3.5 text-forge-text-dim shrink-0" />
+              <input
+                ref={chat.searchInputRef}
+                type="text"
+                value={chat.searchQuery}
+                onChange={(e) => chat.setSearchQuery(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Escape') {
+                    e.preventDefault()
+                    chat.closeSearch()
+                  } else if (e.key === 'Enter' && e.shiftKey) {
+                    e.preventDefault()
+                    chat.prevSearchResult()
+                  } else if (e.key === 'Enter') {
+                    e.preventDefault()
+                    chat.nextSearchResult()
+                  }
+                }}
+                placeholder="Search messages..."
+                className="flex-1 h-8 bg-transparent text-[13px] text-forge-text placeholder:text-forge-text-dim/40 outline-none border-none"
+                aria-label="Search chat messages"
+              />
+              {chat.searchQuery && (
+                <span className="text-[10px] text-forge-text-dim tabular-nums shrink-0">
+                  {chat.searchResults.length > 0
+                    ? `${chat.highlightedResultIdx + 1} of ${chat.searchResults.length}`
+                    : 'No results'}
+                </span>
+              )}
+              <button
+                onClick={chat.prevSearchResult}
+                disabled={chat.searchResults.length === 0}
+                className="p-1 text-forge-text-dim hover:text-forge-text rounded disabled:opacity-30 transition-colors"
+                aria-label="Previous result"
+                title="Previous result (Shift+Enter)"
+              >
+                <ChevronUp className="w-3.5 h-3.5" />
+              </button>
+              <button
+                onClick={chat.nextSearchResult}
+                disabled={chat.searchResults.length === 0}
+                className="p-1 text-forge-text-dim hover:text-forge-text rounded disabled:opacity-30 transition-colors"
+                aria-label="Next result"
+                title="Next result (Enter)"
+              >
+                <ChevronDown className="w-3.5 h-3.5" />
+              </button>
+              <button
+                onClick={chat.closeSearch}
+                className="p-1 text-forge-text-dim hover:text-forge-text rounded transition-colors"
+                aria-label="Close search"
+                title="Close search (Esc)"
+              >
+                <X className="w-3.5 h-3.5" />
+              </button>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
       {/* Messages area */}
-      <div className="flex-1 overflow-y-auto" onScroll={chat.handleScroll} role="log" aria-live="polite" aria-label="Chat messages">
+      <div ref={messagesContainerRef} className="flex-1 overflow-y-auto" onScroll={chat.handleScroll} role="log" aria-live="polite" aria-label="Chat messages">
         <AnimatePresence mode="wait">
           {chat.loadingHistory ? (
             <motion.div
@@ -152,6 +254,32 @@ export const ChatPanel = memo(function ChatPanel({ onLoadingChange, onSessionCos
                 ))}
               </div>
 
+              {/* Example prompts — fill input on click */}
+              <motion.div
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                transition={{ duration: 0.3, delay: 0.25 }}
+                className="flex flex-col items-center gap-1.5 mt-5 w-full max-w-sm"
+              >
+                <span className="text-[10px] text-forge-text-dim/40 uppercase tracking-widest mb-1">or try</span>
+                {[
+                  'Build a todo app with drag-and-drop and local storage',
+                  'Create a weather dashboard that fetches real API data',
+                  'Make a blog with markdown support and dark mode',
+                ].map((prompt, i) => (
+                  <motion.button
+                    key={prompt}
+                    initial={{ opacity: 0, x: -8 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    transition={{ duration: 0.25, delay: 0.3 + i * 0.05 }}
+                    onClick={() => chat.setInput(prompt)}
+                    className="text-[11.5px] text-forge-text-dim/60 hover:text-forge-accent hover:bg-forge-surface/50 px-3 py-1.5 rounded-lg transition-all text-left w-full truncate"
+                  >
+                    &ldquo;{prompt}&rdquo;
+                  </motion.button>
+                ))}
+              </motion.div>
+
               {/* Keyboard hint chips */}
               {!hintsDismissed && (
                 <motion.div
@@ -179,7 +307,7 @@ export const ChatPanel = memo(function ChatPanel({ onLoadingChange, onSessionCos
                   <button
                     onClick={() => {
                       setHintsDismissed(true)
-                      try { localStorage.setItem('forge-hints-dismissed', '1') } catch {}
+                      try { localStorage.setItem('forge-hints-dismissed', '1') } catch (e) { console.warn('[forge:localStorage] Failed to save hints preference:', e) }
                     }}
                     className="ml-1 p-0.5 text-forge-text-dim/30 hover:text-forge-text-dim transition-colors rounded"
                     aria-label="Dismiss keyboard hints"
@@ -197,8 +325,19 @@ export const ChatPanel = memo(function ChatPanel({ onLoadingChange, onSessionCos
               transition={{ duration: 0.15 }}
               className="px-4 py-4 space-y-4" role="log" aria-label="Chat messages" aria-live="polite"
             >
-            {chat.messages.map((message, idx) => (
-              <div key={message.id} className={idx === chat.messages.length - 1 ? 'message-enter' : undefined}>
+            {chat.messages.map((message, idx) => {
+              const isSearchMatch = chat.searchOpen && chat.searchResults.includes(message.id)
+              const isActiveResult = isSearchMatch && chat.searchResults[chat.highlightedResultIdx] === message.id
+              return (
+              <div
+                key={message.id}
+                data-message-id={message.id}
+                className={cn(
+                  idx === chat.messages.length - 1 ? 'message-enter' : undefined,
+                  isSearchMatch && !isActiveResult && 'ring-1 ring-forge-accent/30 rounded-xl',
+                  isActiveResult && 'ring-2 ring-forge-accent/50 rounded-xl',
+                )}
+              >
                 <MessageItem
                   message={message}
                   copiedId={chat.copiedId}
@@ -216,9 +355,11 @@ export const ChatPanel = memo(function ChatPanel({ onLoadingChange, onSessionCos
                   onRegenerate={chat.handleRegenerate}
                   onEnvVarsSave={chat.handleEnvVarsSave}
                   onCancelTask={chat.handleCancelTask}
+                  onFileClick={onFileSelect}
                 />
               </div>
-            ))}
+              )
+            })}
 
             {/* Approval gate card */}
             <AnimatePresence>
@@ -269,6 +410,19 @@ export const ChatPanel = memo(function ChatPanel({ onLoadingChange, onSessionCos
                   return lastAssistant ? chat.getMessageCost(lastAssistant.id) : null
                 })()}
               />
+            </AnimatePresence>
+
+            {/* File change summary — appears after AI finishes making file changes */}
+            <AnimatePresence>
+              {!chat.isLoading && chat.lastChanges && (
+                <ChangeSummary
+                  changes={chat.lastChanges}
+                  onFileClick={(path) => {
+                    // Dispatch event for workspace to open the file
+                    window.dispatchEvent(new CustomEvent('forge:open-file', { detail: { path } }))
+                  }}
+                />
+              )}
             </AnimatePresence>
 
             {/* Error banner */}
@@ -453,6 +607,7 @@ export const ChatPanel = memo(function ChatPanel({ onLoadingChange, onSessionCos
               enterKeyHint="send"
               inputMode="text"
               placeholder={chat.isEmpty ? 'Describe what you want to build...' : 'Ask for changes, new features, fixes...'}
+              aria-label="Message input"
               rows={1}
               autoCorrect="off"
               autoCapitalize="off"
@@ -504,6 +659,9 @@ export const ChatPanel = memo(function ChatPanel({ onLoadingChange, onSessionCos
                 <div className="relative ml-1">
                   <button
                     onClick={() => chat.setShowModelPicker(prev => !prev)}
+                    aria-label="Select AI model"
+                    aria-haspopup="listbox"
+                    aria-expanded={chat.showModelPicker}
                     className="flex items-center gap-1 px-2 py-1 text-[11px] text-forge-text-dim hover:text-forge-text rounded-lg hover:bg-forge-bg/60 transition-all"
                   >
                     {MODEL_OPTIONS.find(m => m.id === chat.selectedModel)?.label || 'Sonnet 4'}
@@ -519,11 +677,15 @@ export const ChatPanel = memo(function ChatPanel({ onLoadingChange, onSessionCos
                           exit={{ opacity: 0, y: 4, scale: 0.95 }}
                           transition={{ duration: 0.15, ease: [0.16, 1, 0.3, 1] }}
                           className="absolute left-0 bottom-full mb-1 z-50 w-44 bg-forge-bg/95 backdrop-blur-lg border border-forge-border rounded-xl shadow-lg overflow-hidden"
+                          role="listbox"
+                          aria-label="AI model options"
                         >
                           {MODEL_OPTIONS.map((model) => (
                             <button
                               key={model.id}
                               onClick={() => { chat.setSelectedModel(model.id); chat.setShowModelPicker(false) }}
+                              role="option"
+                              aria-selected={chat.selectedModel === model.id}
                               onKeyDown={(e) => {
                                 if (e.key === 'ArrowDown') {
                                   e.preventDefault()

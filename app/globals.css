@@ -1045,14 +1045,17 @@ html.dark [data-sonner-toast] [data-description] {
 
 /* ─── Forge Polish: Device Frame Transition ──────────────── */
 .preview-device-frame {
-  transition: max-width 0.3s var(--ease-spring), box-shadow 0.3s ease, border-radius 0.3s ease;
+  transition: max-width 0.3s var(--ease-spring), height 0.3s var(--ease-spring), box-shadow 0.3s ease, border-radius 0.3s ease;
+  position: relative;
 }
+.preview-device-frame.device-desktop,
 .preview-device-frame.device-tablet,
 .preview-device-frame.device-mobile {
   box-shadow: 0 0 0 1px var(--color-forge-border), 0 4px 20px rgba(0,0,0,0.08);
   border-radius: 12px;
   overflow: hidden;
 }
+:is(.dark) .preview-device-frame.device-desktop,
 :is(.dark) .preview-device-frame.device-tablet,
 :is(.dark) .preview-device-frame.device-mobile {
   box-shadow: 0 0 0 1px var(--color-forge-border), 0 4px 20px rgba(0,0,0,0.3);

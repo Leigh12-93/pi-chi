@@ -3,6 +3,7 @@ import { getSession } from '@/lib/auth'
 import { supabase } from '@/lib/supabase'
 import { isValidUUID } from '@/lib/validate'
 import { VERCEL_TOKEN, VERCEL_TEAM } from '@/lib/vercel'
+import { connectProjectSchema, parseBody } from '@/lib/api-schemas'
 
 /** POST /api/projects/[id]/connect — connect GitHub repo and/or Vercel project */
 export async function POST(req: Request, { params }: { params: Promise<{ id: string }> }) {
@@ -22,25 +23,22 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
 
   if (!project) return NextResponse.json({ error: 'Not found' }, { status: 404 })
 
-  const body = await req.json()
+  const parsed = parseBody(connectProjectSchema, await req.json())
+  if ('error' in parsed) return NextResponse.json({ error: parsed.error }, { status: 400 })
+
   const updates: Record<string, unknown> = {}
 
-  // Validate and connect GitHub repo
-  if (body.github_repo_url) {
-    const url = String(body.github_repo_url).trim()
-    if (!url.startsWith('https://github.com/')) {
-      return NextResponse.json({ error: 'Invalid GitHub URL' }, { status: 400 })
-    }
-    updates.github_repo_url = url
+  // Connect GitHub repo
+  if (parsed.data.github_repo_url) {
+    updates.github_repo_url = parsed.data.github_repo_url
   }
 
   // Validate and connect Vercel project
-  if (body.vercel_project_id) {
-    const vpId = String(body.vercel_project_id).trim()
+  if (parsed.data.vercel_project_id) {
+    const vpId = parsed.data.vercel_project_id
     if (!VERCEL_TOKEN) {
       return NextResponse.json({ error: 'VERCEL_TOKEN not configured' }, { status: 500 })
     }
-    // Validate project exists on Vercel
     const teamParam = VERCEL_TEAM ? `?teamId=${VERCEL_TEAM}` : ''
     const res = await fetch(`https://api.vercel.com/v9/projects/${encodeURIComponent(vpId)}${teamParam}`, {
       headers: { Authorization: `Bearer ${VERCEL_TOKEN}` },
@@ -49,10 +47,6 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
       return NextResponse.json({ error: 'Vercel project not found' }, { status: 404 })
     }
     updates.vercel_project_id = vpId
-  }
-
-  if (Object.keys(updates).length === 0) {
-    return NextResponse.json({ error: 'No connection parameters provided' }, { status: 400 })
   }
 
   const { error } = await supabase
