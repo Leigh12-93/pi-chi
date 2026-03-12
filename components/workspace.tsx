@@ -109,6 +109,16 @@ export function Workspace(props: WorkspaceProps) {
     },
   })
 
+  // Forward preview console entries (v0 sandbox logs) to workspace ConsolePanel
+  const handlePreviewConsoleEntry = useCallback((entry: { type: 'info' | 'error' | 'warn' | 'success'; message: string }) => {
+    state.setConsoleEntries(prev => [...prev.slice(-200), {
+      id: `preview-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+      type: entry.type,
+      message: entry.message,
+      timestamp: Date.now(),
+    }])
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
+
   // Sync file changes to WebContainer
   // This is handled inline since it needs wc reference
   // (moved to an effect below)
@@ -438,7 +448,7 @@ export function Workspace(props: WorkspaceProps) {
                       (state.rightTab === 'code' || state.rightTab === 'terminal') && '-z-10 invisible pointer-events-none',
                     )}>
                       <PanelErrorBoundary name="Preview">
-                        <PreviewPanel files={files} projectId={projectId} onFixErrors={(msg) => state.setPendingChatMessage(msg)} onCapturePreview={(msg) => state.setPendingChatMessage(msg)} onPreviewReady={actions.handlePreviewReady} wcPreviewUrl={wc.previewUrl} onFileSelect={onFileSelect} />
+                        <PreviewPanel files={files} projectId={projectId} onFixErrors={(msg) => state.setPendingChatMessage(msg)} onCapturePreview={(msg) => state.setPendingChatMessage(msg)} onPreviewReady={actions.handlePreviewReady} wcPreviewUrl={wc.previewUrl} onFileSelect={onFileSelect} onConsoleEntry={handlePreviewConsoleEntry} />
                       </PanelErrorBoundary>
                     </div>
                   </div>
@@ -510,7 +520,7 @@ export function Workspace(props: WorkspaceProps) {
               </div>
             </div>
           )}
-          {state.mobileTab === 'preview' && <PreviewPanel files={files} projectId={projectId} onFixErrors={(msg) => state.setPendingChatMessage(msg)} onCapturePreview={(msg) => state.setPendingChatMessage(msg)} onPreviewReady={actions.handlePreviewReady} wcPreviewUrl={wc.previewUrl} onFileSelect={onFileSelect} />}
+          {state.mobileTab === 'preview' && <PreviewPanel files={files} projectId={projectId} onFixErrors={(msg) => state.setPendingChatMessage(msg)} onCapturePreview={(msg) => state.setPendingChatMessage(msg)} onPreviewReady={actions.handlePreviewReady} wcPreviewUrl={wc.previewUrl} onFileSelect={onFileSelect} onConsoleEntry={handlePreviewConsoleEntry} />}
           {state.mobileTab === 'menu' && (
             <div className="h-full flex flex-col bg-forge-panel">
               {/* If a sidebar panel is open, show it with a back button */}

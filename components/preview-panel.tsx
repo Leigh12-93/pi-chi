@@ -28,6 +28,8 @@ interface PreviewPanelProps {
   wcPreviewUrl?: string | null
   /** Navigate to a file in the editor */
   onFileSelect?: (path: string) => void
+  /** Forward preview console entries to parent (workspace console) */
+  onConsoleEntry?: (entry: { type: 'info' | 'error' | 'warn' | 'success'; message: string }) => void
 }
 
 /** Extract clickable file paths from error messages that match project files */
@@ -64,7 +66,7 @@ function ErrorMessageWithFileLinks({ message, files, onFileClick }: { message: s
   )
 }
 
-export const PreviewPanel = memo(function PreviewPanel({ files, projectId, onFixErrors, onCapturePreview, onPreviewReady, wcPreviewUrl, onFileSelect }: PreviewPanelProps) {
+export const PreviewPanel = memo(function PreviewPanel({ files, projectId, onFixErrors, onCapturePreview, onPreviewReady, wcPreviewUrl, onFileSelect, onConsoleEntry }: PreviewPanelProps) {
   const [viewMode, setViewMode] = useState<DevicePreset>('full')
   const [refreshKey, setRefreshKey] = useState(0)
   const [previewError, setPreviewError] = useState<string | null>(null)
@@ -98,7 +100,6 @@ export const PreviewPanel = memo(function PreviewPanel({ files, projectId, onFix
   const [isCrossfading, setIsCrossfading] = useState(false) // transition from building to live
   const crossfadeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null) // cleanup crossfade
   const sandboxUrlRef = useRef<string | null>(null) // stable ref for sync effect
-  const errorAutoFeedRef = useRef<Map<string, number>>(new Map()) // error → attempt count (cap at 3)
   const errorFeedTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const [iframeError, setIframeError] = useState<string | null>(null)
   const [errorPopupDismissed, setErrorPopupDismissed] = useState(false)
@@ -109,18 +110,20 @@ export const PreviewPanel = memo(function PreviewPanel({ files, projectId, onFix
   const sandboxReadyAfterRef = useRef<number>(0) // earliest time to hide loading overlay
   const sandboxReadyTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null) // deferred ready transition
   const buildPhaseRef = useRef<BuildPhase>(null) // stable ref for timeout closures
+  const wcIframeTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null) // WC iframe load safety
 
   // Navigation state
   const [currentPath, setCurrentPath] = useState('/')
   const [isEditingUrl, setIsEditingUrl] = useState(false)
   const [urlInput, setUrlInput] = useState('/')
   const [navCount, setNavCount] = useState(0) // track navigations for back button enable
-  const lastAutoFeedRef = useRef(0) // global cooldown for error auto-feed
   const consoleLogsRef = useRef(consoleLogs) // stable ref for message listener
   const onFixErrorsRef = useRef(onFixErrors) // stable ref to avoid stale closure in setTimeout
+  const onConsoleEntryRef = useRef(onConsoleEntry) // stable ref to avoid addLog dep churn
 
   // Keep buildPhaseRef in sync for use in timeout closures (avoids stale closures)
   useEffect(() => { buildPhaseRef.current = buildPhase }, [buildPhase])
+  useEffect(() => { onConsoleEntryRef.current = onConsoleEntry }, [onConsoleEntry])
 
   // Memoized file hash — avoids O(n) hashing on every render/effect
   const filesHash = useMemo(() => hashFileMapDeep(files), [files])
@@ -195,10 +198,8 @@ export const PreviewPanel = memo(function PreviewPanel({ files, projectId, onFix
   const [missingImports, setMissingImports] = useState<string[]>([])
   const missingImportsFedRef = useRef(false) // only auto-feed once per set of missing imports
 
-  // Clear error autofeed state on project switch
+  // Clear state on project switch
   useEffect(() => {
-    errorAutoFeedRef.current.clear()
-    lastAutoFeedRef.current = 0
     missingImportsFedRef.current = false
     setMissingImports([])
   }, [projectId])
@@ -210,7 +211,26 @@ export const PreviewPanel = memo(function PreviewPanel({ files, projectId, onFix
       requestAnimationFrame(() => consoleEndRef.current?.scrollIntoView({ behavior: 'smooth' }))
       return next
     })
+    // Forward non-system entries to workspace console via ref (avoids dep churn)
+    if (level !== 'system' && onConsoleEntryRef.current) {
+      const type = level === 'error' ? 'error' as const : level === 'warn' ? 'warn' as const : 'info' as const
+      onConsoleEntryRef.current({ type, message: msg })
+    }
   }, [])
+
+  // Safety timeout: if WC iframe doesn't load within 20s, drop the spinner
+  useEffect(() => {
+    if (wcIframeTimeoutRef.current) clearTimeout(wcIframeTimeoutRef.current)
+    if (wcPreviewUrl && !wcIframeReady) {
+      wcIframeTimeoutRef.current = setTimeout(() => {
+        setWcIframeReady(true)
+        addLog('WebContainer preview loading slowly — showing as-is', 'warn', 'forge')
+      }, 20_000)
+    }
+    return () => {
+      if (wcIframeTimeoutRef.current) clearTimeout(wcIframeTimeoutRef.current)
+    }
+  }, [wcPreviewUrl, wcIframeReady, addLog])
 
   // Warm up: pre-check sandbox availability on mount so it's ready instantly
   useEffect(() => {
@@ -722,6 +742,7 @@ export const PreviewPanel = memo(function PreviewPanel({ files, projectId, onFix
       if (sandboxReadyTimerRef.current) clearTimeout(sandboxReadyTimerRef.current)
       if (idleOverlayTimerRef.current) clearTimeout(idleOverlayTimerRef.current)
       if (errorFeedTimerRef.current) clearTimeout(errorFeedTimerRef.current)
+      if (wcIframeTimeoutRef.current) clearTimeout(wcIframeTimeoutRef.current)
       if (projectId && (sandboxStatus === 'running' || startingRef.current)) {
         fetch('/api/sandbox', {
           method: 'DELETE',
@@ -1722,6 +1743,21 @@ export const PreviewPanel = memo(function PreviewPanel({ files, projectId, onFix
                   setSandboxError(null)
                   setSandboxLoadFailed(false)
 
+                  // Guard: already transitioned — just track navigation
+                  const currentPhase = buildPhaseRef.current
+                  if (currentPhase === 'ready' || currentPhase === null) {
+                    try {
+                      const url = (e.target as HTMLIFrameElement).contentWindow?.location.href
+                      if (url) {
+                        const parsed = new URL(url)
+                        if (!wcIframeReady) setCurrentPath(parsed.pathname + parsed.search + parsed.hash)
+                      }
+                    } catch {
+                      if (!wcIframeReady) setNavCount(prev => prev + 1)
+                    }
+                    return
+                  }
+
                   // Detect blocked/error content: if we CAN access contentDocument,
                   // the iframe loaded a same-origin page (error page, about:blank) instead
                   // of the cross-origin sandbox URL. Real sandbox is always cross-origin.
@@ -1811,6 +1847,7 @@ export const PreviewPanel = memo(function PreviewPanel({ files, projectId, onFix
                 title="Live Preview"
                 allow="cross-origin-isolated"
                 onLoad={(e) => {
+                  if (wcIframeTimeoutRef.current) { clearTimeout(wcIframeTimeoutRef.current); wcIframeTimeoutRef.current = null }
                   setWcIframeReady(true)
                   setIframeLoading(false)
                   setIframeError(null)

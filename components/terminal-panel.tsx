@@ -19,6 +19,17 @@ export const TerminalPanel = memo(function TerminalPanel({ getShellProcess, wcRe
   const writerRef = useRef<WritableStreamDefaultWriter | null>(null)
   const [ready, setReady] = useState(false)
   const [maximized, setMaximized] = useState(false)
+  const [waitingTooLong, setWaitingTooLong] = useState(false)
+
+  // Show "unavailable" message after 10s of !wcReady
+  useEffect(() => {
+    if (wcReady) {
+      setWaitingTooLong(false)
+      return
+    }
+    const timer = setTimeout(() => setWaitingTooLong(true), 10_000)
+    return () => clearTimeout(timer)
+  }, [wcReady])
 
   // Initialize xterm + connect to WebContainer shell
   useEffect(() => {
@@ -133,7 +144,7 @@ export const TerminalPanel = memo(function TerminalPanel({ getShellProcess, wcRe
         <div className="flex items-center gap-2 text-xs text-forge-text-dim">
           <TerminalIcon className="w-3.5 h-3.5" />
           <span>Terminal</span>
-          {!wcReady && (
+          {!wcReady && !waitingTooLong && (
             <span className="text-yellow-500 animate-pulse">Starting...</span>
           )}
         </div>
@@ -146,7 +157,18 @@ export const TerminalPanel = memo(function TerminalPanel({ getShellProcess, wcRe
           </button>
         </div>
       </div>
-      <div ref={terminalRef} className="flex-1 p-1" />
+      {!wcReady && waitingTooLong && (
+        <div className="flex-1 flex items-center justify-center p-4">
+          <div className="text-center max-w-xs">
+            <TerminalIcon className="w-8 h-8 text-forge-text-dim/30 mx-auto mb-3" />
+            <p className="text-xs text-forge-text-dim mb-1">Terminal unavailable</p>
+            <p className="text-[10px] text-forge-text-dim/50">
+              The v0 sandbox is handling your preview. Terminal requires WebContainer which is not currently active.
+            </p>
+          </div>
+        </div>
+      )}
+      <div ref={terminalRef} className={cn('flex-1 p-1', !wcReady && waitingTooLong && 'hidden')} />
     </div>
   )
 })
