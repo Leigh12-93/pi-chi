@@ -86,6 +86,16 @@ export function loadBrainState(): BrainState {
   const raw = readFileSync(STATE_FILE, 'utf-8')
   const state = JSON.parse(raw) as BrainState
 
+  // Backfill new fields for existing state files (migration)
+  const defaults = createInitialState()
+  if (!state.threads) state.threads = defaults.threads
+  if (!state.mood) state.mood = defaults.mood
+  if (state.lastDreamAt === undefined) state.lastDreamAt = defaults.lastDreamAt
+  if (state.dreamCount === undefined) state.dreamCount = defaults.dreamCount
+  if (state.lastGoodCommit === undefined) state.lastGoodCommit = defaults.lastGoodCommit
+  if (state.consecutiveCrashes === undefined) state.consecutiveCrashes = defaults.consecutiveCrashes
+  if (state.lastSelfEditAt === undefined) state.lastSelfEditAt = defaults.lastSelfEditAt
+
   // Reset daily SMS count if it's a new day
   const today = new Date().toISOString().slice(0, 10)
   if (state.smsTodayDate !== today) {
