@@ -18,15 +18,19 @@ export function middleware(request: NextRequest) {
     `base-uri 'self'`,
   ].join('; ')
 
+  const isHttps = request.nextUrl.protocol === 'https:'
   const response = NextResponse.next()
   response.headers.set('x-nonce', nonce)
   response.headers.set('Content-Security-Policy', csp)
-  response.headers.set('Strict-Transport-Security', 'max-age=63072000; includeSubDomains; preload')
+  if (isHttps) {
+    response.headers.set('Strict-Transport-Security', 'max-age=63072000; includeSubDomains; preload')
+  }
 
   // Route-scoped cross-origin isolation for WebContainer (SharedArrayBuffer)
   // ONLY workspace/shared routes get isolation headers.
   // Auth routes stay clean so GitHub OAuth redirects work.
-  if (path === '/' || path.startsWith('/shared')) {
+  // Skip on HTTP (e.g. Pi on local network) — COOP breaks OAuth redirects over HTTP
+  if (isHttps && (path === '/' || path.startsWith('/shared'))) {
     response.headers.set('Cross-Origin-Opener-Policy', 'same-origin')
     response.headers.set('Cross-Origin-Embedder-Policy', 'credentialless')
   }
