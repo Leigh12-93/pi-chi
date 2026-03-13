@@ -603,6 +603,63 @@ export function createBrainTools(state: BrainState) {
         return { success: true, mood: state.mood }
       },
     }),
+
+    claude_code: tool({
+      description: `Use Claude Code CLI for complex code tasks — multi-file refactors, builds, fixing type errors, creating new features. This is your heavy-lifting tool. It spawns a Claude Code process that can read, write, and edit files autonomously. Use this instead of manual write_file/edit_file when: (1) you need to modify multiple files, (2) you need to fix build errors, (3) you need to create a new feature with proper types, (4) you want higher quality code output. The prompt you provide should be a clear, specific instruction. Claude Code has access to the full codebase. IMPORTANT: Claude Code can ONLY work in ~/pi-chi and ~/pi-chi-projects. Max runtime: 5 minutes.`,
+      inputSchema: z.object({
+        prompt: z.string().describe('Clear instruction for what Claude Code should do. Be specific about files, changes, and expected outcomes.'),
+        cwd: z.string().optional().describe('Working directory (default: ~/pi-chi). Must be ~/pi-chi or ~/pi-chi-projects/*'),
+      }),
+      execute: async ({ prompt, cwd }) => {
+        const workDir = cwd || join(process.env.HOME || '/home/pi', 'pi-chi')
+
+        // Guard: only allowed in pi-chi dirs
+        const guard = isWriteAllowed(workDir)
+        if (guard) {
+          addActivity(state, 'error', `Claude Code blocked: ${workDir} outside scope`)
+          return { success: false, error: guard }
+        }
+
+        state.totalToolCalls++
+        addActivity(state, 'action', `Claude Code: ${prompt.slice(0, 120)}`)
+
+        try {
+          // Build the claude command — use -p for non-interactive, --output-format for parseable output
+          const escapedPrompt = prompt.replace(/'/g, "'\\''")
+          const cmd = `claude -p '${escapedPrompt}' --output-format text --max-turns 25 --verbose 2>/dev/null`
+
+          const result = await executeCommand(cmd, {
+            cwd: workDir,
+            timeout: 300000, // 5 minute max
+          })
+
+          const output = (result.stdout || '').trim()
+          const stderr = (result.stderr || '').trim()
+
+          if (result.exitCode === 0) {
+            addActivity(state, 'action', `Claude Code completed: ${output.slice(0, 100)}`)
+            return {
+              success: true,
+              output: truncate(output),
+              stderr: stderr ? truncate(stderr) : undefined,
+            }
+          } else {
+            addActivity(state, 'error', `Claude Code failed (exit ${result.exitCode}): ${stderr.slice(0, 100)}`)
+            return {
+              success: false,
+              exitCode: result.exitCode,
+              output: truncate(output),
+              stderr: truncate(stderr),
+              error: `Claude Code exited with code ${result.exitCode}`,
+            }
+          }
+        } catch (err) {
+          const errMsg = err instanceof Error ? err.message : String(err)
+          addActivity(state, 'error', `Claude Code error: ${errMsg.slice(0, 100)}`)
+          return { success: false, error: errMsg }
+        }
+      },
+    }),
   }
 }
 
