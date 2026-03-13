@@ -3,6 +3,15 @@ import { getSession } from '@/lib/auth'
 import { supabaseFetch } from '@/lib/supabase-fetch'
 
 export async function GET() {
+  // Pi local mode: skip GitHub auth, return a local session
+  if (process.env.PI_LOCAL_MODE === 'true') {
+    return NextResponse.json({
+      user: { name: 'Leigh', email: 'local@pi-chi', image: '' },
+      githubUsername: 'Leigh12-93',
+      hasApiKey: true,
+    })
+  }
+
   const session = await getSession()
   if (!session) return NextResponse.json(null)
 
