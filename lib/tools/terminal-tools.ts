@@ -32,8 +32,15 @@ const BLOCKED_PATTERNS: RegExp[] = [
   /dd\s+if=.*of=\/dev\//,                 // disk destroy
   /:\(\)\{\s*:\|:&\s*\};\s*:/,            // fork bomb
   />\s*\/dev\/sd[a-z]/,                    // overwrite disk
+  />\s*\/dev\/mmcblk/,                     // overwrite Pi SD card
   /chmod\s+-R\s+777\s+\//,                // chmod 777 /
   /curl.*\|\s*(bash|sh)/,                  // pipe to shell
+  /wget.*\|\s*(bash|sh)/,                  // pipe to shell
+  /sudo\s+passwd/,                        // change passwords
+  /echo.*>\s*\/etc\/passwd/,              // modify system users
+  /echo.*>\s*\/etc\/shadow/,              // modify passwords
+  /flashrom.*-w/,                         // flash firmware
+  /fdisk.*\/dev\//,                       // partition disks
 ]
 
 /** Commands that are potentially dangerous — warn but allow */
@@ -46,7 +53,17 @@ const DANGEROUS_PATTERNS: RegExp[] = [
   /docker\s+(rm|stop|kill)/,
   /shutdown/,
   /reboot/,
+  /halt/,
   /systemctl\s+(stop|disable|mask)/,
+  /service\s+\w+\s+(stop|restart)/,
+  /crontab\s+-r/,                        // remove all cron jobs
+  /iptables.*-F/,                        // flush firewall rules
+  /ufw\s+(disable|reset)/,               // disable firewall
+  /raspi-config/,                        // system configuration
+  /vcgencmd.*=.*=/,                      // modify GPU settings
+  /echo.*>\s*\/boot/,                    // modify boot config
+  /mount.*\/dev/,                        // mount filesystems
+  /umount.*-f/,                          // force unmount
 ]
 
 // ── Shell detection ────────────────────────────────────────────────
