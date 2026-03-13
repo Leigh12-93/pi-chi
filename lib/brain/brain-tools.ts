@@ -633,7 +633,7 @@ export function createBrainTools(state: BrainState) {
     }),
 
     claude_code: tool({
-      description: `Use Claude Code CLI for complex code tasks — multi-file refactors, builds, fixing type errors, creating new features. This is your heavy-lifting tool. It spawns a Claude Code process that can read, write, and edit files autonomously. Use this instead of manual write_file/edit_file when: (1) you need to modify multiple files, (2) you need to fix build errors, (3) you need to create a new feature with proper types, (4) you want higher quality code output. The prompt you provide should be a clear, specific instruction. Claude Code has access to the full codebase. IMPORTANT: Claude Code can ONLY work in ~/pi-chi and ~/pi-chi-projects. Max runtime: 5 minutes.`,
+      description: `Use Claude Code CLI for complex code tasks — multi-file refactors, builds, fixing type errors, creating new features. This is your heavy-lifting tool. It spawns a Claude Code process that can read, write, and edit files autonomously. Use this instead of manual write_file/edit_file when: (1) you need to modify multiple files, (2) you need to fix build errors, (3) you need to create a new feature with proper types, (4) you want higher quality code output. The prompt you provide should be a clear, specific instruction. Claude Code has access to the full codebase. IMPORTANT: Claude Code can ONLY work in ~/pi-chi and ~/pi-chi-projects. Max runtime: 5 minutes. Output streams live to ~/.pi-chi/claude-code-live.log so Leigh can watch.`,
       inputSchema: z.object({
         prompt: z.string().describe('Clear instruction for what Claude Code should do. Be specific about files, changes, and expected outcomes.'),
         cwd: z.string().optional().describe('Working directory (default: ~/pi-chi). Must be ~/pi-chi or ~/pi-chi-projects/*'),
@@ -651,14 +651,17 @@ export function createBrainTools(state: BrainState) {
         state.totalToolCalls++
         addActivity(state, 'action', `Claude Code: ${prompt.slice(0, 120)}`)
 
+        const liveLogPath = join(process.env.HOME || '/home/pi', '.pi-chi', 'claude-code-live.log')
+
         try {
-          // Build the claude command — use -p for non-interactive, --output-format for parseable output
+          // Build the claude command with timeout wrapper and live log tee
+          // Use 'timeout' command for reliable process kill (kills process group)
           const escapedPrompt = prompt.replace(/'/g, "'\\''")
-          const cmd = `claude -p '${escapedPrompt}' --output-format text --max-turns 25 --verbose 2>/dev/null`
+          const cmd = `echo '=== Claude Code started at '$(date)' ===' > ${liveLogPath} && timeout --kill-after=30 300 claude -p '${escapedPrompt}' --output-format text --max-turns 25 2>&1 | tee -a ${liveLogPath}; echo '=== Claude Code finished at '$(date)' (exit: '$?') ===' >> ${liveLogPath}`
 
           const result = await executeCommand(cmd, {
             cwd: workDir,
-            timeout: 300000, // 5 minute max
+            timeout: 330000, // 5.5 min — slightly longer than the timeout command
           })
 
           const output = (result.stdout || '').trim()
@@ -670,6 +673,14 @@ export function createBrainTools(state: BrainState) {
               success: true,
               output: truncate(output),
               stderr: stderr ? truncate(stderr) : undefined,
+            }
+          } else if (result.exitCode === 124) {
+            // timeout command returns 124 when the process was killed
+            addActivity(state, 'error', `Claude Code timed out after 5 minutes`)
+            return {
+              success: false,
+              output: truncate(output),
+              error: 'Claude Code timed out after 5 minutes. Consider breaking the task into smaller pieces.',
             }
           } else {
             addActivity(state, 'error', `Claude Code failed (exit ${result.exitCode}): ${stderr.slice(0, 100)}`)
