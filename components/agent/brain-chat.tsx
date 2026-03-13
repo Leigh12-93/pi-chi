@@ -3,7 +3,7 @@
 import { useState, useRef, useEffect, useCallback, useMemo } from 'react'
 import {
   Send, MessageCircle, Bot, Check, CheckCheck,
-  Sparkles, Wifi, WifiOff, ArrowDown,
+  Sparkles, Wifi, WifiOff, ArrowDown, Wrench,
 } from 'lucide-react'
 import { motion, AnimatePresence, useReducedMotion } from 'framer-motion'
 import { cn } from '@/lib/utils'
@@ -82,7 +82,7 @@ const messageVariants = {
   },
 }
 
-function MessageBubble({ msg, name }: { msg: BrainChatMessage; name: string }) {
+function MessageBubble({ msg, name, isStreaming }: { msg: BrainChatMessage; name: string; isStreaming?: boolean }) {
   const isOwner = msg.from === 'owner'
   const prefersReducedMotion = useReducedMotion()
 
@@ -102,7 +102,11 @@ function MessageBubble({ msg, name }: { msg: BrainChatMessage; name: string }) {
           initial={{ scale: 0 }}
           animate={{ scale: 1 }}
           transition={{ type: 'spring', stiffness: 600, damping: 20, delay: 0.1 }}
-          className="w-7 h-7 rounded-full bg-gradient-to-br from-pi-accent/20 to-purple-500/20 border border-pi-accent/30 flex items-center justify-center mr-2 mt-1 shrink-0"
+          className={cn(
+            'w-7 h-7 rounded-full flex items-center justify-center mr-2 mt-1 shrink-0',
+            'bg-gradient-to-br from-pi-accent/20 to-purple-500/20 border border-pi-accent/30',
+            isStreaming && 'shadow-[0_0_12px_rgba(0,212,255,0.3)] animate-pulse'
+          )}
         >
           <Bot className="w-3.5 h-3.5 text-pi-accent" />
         </motion.div>
@@ -117,7 +121,8 @@ function MessageBubble({ msg, name }: { msg: BrainChatMessage; name: string }) {
           'rounded-2xl px-3.5 py-2.5 shadow-sm transition-shadow duration-300',
           isOwner
             ? 'bg-gradient-to-br from-pi-accent to-pi-accent-hover text-white rounded-br-md shadow-pi-accent/10 hover:shadow-pi-accent/20 hover:shadow-md'
-            : 'bg-pi-surface border border-pi-border text-pi-text rounded-bl-md hover:border-pi-accent/20 hover:shadow-md'
+            : 'bg-pi-surface border border-pi-border text-pi-text rounded-bl-md hover:border-pi-accent/20 hover:shadow-md',
+          isStreaming && !isOwner && 'border-pi-accent/30'
         )}>
           {/* Sender label */}
           {!isOwner && (
@@ -132,6 +137,13 @@ function MessageBubble({ msg, name }: { msg: BrainChatMessage; name: string }) {
             isOwner ? 'text-white' : 'text-pi-text'
           )}>
             {msg.message}
+            {isStreaming && (
+              <motion.span
+                animate={{ opacity: [1, 0] }}
+                transition={{ duration: 0.5, repeat: Infinity }}
+                className="inline-block w-0.5 h-[14px] bg-pi-accent ml-0.5 align-text-bottom"
+              />
+            )}
           </p>
 
           {/* Timestamp + read receipt */}
@@ -143,9 +155,9 @@ function MessageBubble({ msg, name }: { msg: BrainChatMessage; name: string }) {
               'text-[9px]',
               isOwner ? 'text-white/50' : 'text-pi-text-dim/40'
             )}>
-              {formatTime(msg.timestamp)}
+              {isStreaming ? 'typing...' : formatTime(msg.timestamp)}
             </span>
-            {isOwner && (
+            {isOwner && !isStreaming && (
               <motion.span
                 initial={{ scale: 0 }}
                 animate={{ scale: 1 }}
@@ -176,6 +188,80 @@ function MessageBubble({ msg, name }: { msg: BrainChatMessage; name: string }) {
   )
 }
 
+/* ─── Tool call indicator ──────────────────────── */
+
+function ToolCallIndicator({ toolName }: { toolName: string }) {
+  const labels: Record<string, string> = {
+    add_goal: 'Adding goal',
+    complete_goal: 'Completing goal',
+    remove_goal: 'Removing goal',
+    list_goals: 'Checking goals',
+    update_mood: 'Updating mood',
+    run_command: 'Running command',
+    set_wake_interval: 'Changing wake interval',
+    get_system_info: 'Checking system',
+  }
+  return (
+    <motion.div
+      initial={{ opacity: 0, height: 0 }}
+      animate={{ opacity: 1, height: 'auto' }}
+      exit={{ opacity: 0, height: 0 }}
+      className="flex items-center gap-2 mb-2 ml-9"
+    >
+      <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-pi-accent/10 border border-pi-accent/20">
+        <Wrench className="w-3 h-3 text-pi-accent animate-spin" style={{ animationDuration: '2s' }} />
+        <span className="text-[10px] text-pi-accent font-medium">{labels[toolName] || toolName}</span>
+      </div>
+    </motion.div>
+  )
+}
+
+/* ─── Stream parser ────────────────────────────── */
+
+async function streamBrainChat(
+  message: string,
+  onText: (text: string) => void,
+  _onToolCall: (toolName: string) => void,
+  onDone: () => void,
+  onError: (error: string) => void,
+) {
+  try {
+    const res = await fetch('/api/brain/chat', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ message }),
+    })
+
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({ error: 'Request failed' }))
+      onError(err.error || `HTTP ${res.status}`)
+      return
+    }
+
+    const reader = res.body?.getReader()
+    if (!reader) {
+      onError('No response stream')
+      return
+    }
+
+    const decoder = new TextDecoder()
+    let accumulated = ''
+
+    while (true) {
+      const { done, value } = await reader.read()
+      if (done) break
+
+      const chunk = decoder.decode(value, { stream: true })
+      accumulated += chunk
+      onText(accumulated)
+    }
+
+    onDone()
+  } catch (err) {
+    onError(err instanceof Error ? err.message : 'Connection failed')
+  }
+}
+
 /* ─── Main component ───────────────────────────── */
 
 export function BrainChat({
@@ -184,6 +270,9 @@ export function BrainChat({
 }: BrainChatProps) {
   const [input, setInput] = useState('')
   const [sending, setSending] = useState(false)
+  const [streamingText, setStreamingText] = useState('')
+  const [isStreaming, setIsStreaming] = useState(false)
+  const [activeToolCall, setActiveToolCall] = useState<string | null>(null)
   const [showScrollBtn, setShowScrollBtn] = useState(false)
   const scrollRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLTextAreaElement>(null)
@@ -193,15 +282,15 @@ export function BrainChat({
   const name = brainName || 'Pi-Chi'
   const unreadCount = chatMessages.filter(m => m.from === 'brain' && !m.read).length
 
-  // Auto-scroll on new messages (if user is at bottom)
+  // Auto-scroll on new messages or streaming text
   useEffect(() => {
-    if (chatMessages.length > prevLenRef.current && scrollRef.current && isAtBottomRef.current) {
+    if ((chatMessages.length > prevLenRef.current || isStreaming) && scrollRef.current && isAtBottomRef.current) {
       requestAnimationFrame(() => {
         scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: 'smooth' })
       })
     }
     prevLenRef.current = chatMessages.length
-  }, [chatMessages.length])
+  }, [chatMessages.length, streamingText, isStreaming])
 
   // Scroll tracking
   const handleScroll = useCallback(() => {
@@ -225,14 +314,38 @@ export function BrainChat({
     const msg = input.trim()
     if (!msg || sending) return
     setSending(true)
+    setIsStreaming(true)
+    setStreamingText('')
+    setActiveToolCall(null)
     setInput('')
-    // Reset textarea height
     if (inputRef.current) inputRef.current.style.height = 'auto'
-    const ok = await onSendMessage(msg)
-    if (!ok) setInput(msg)
-    setSending(false)
+
+    // Stream response from Pi-Chi (the endpoint saves messages to brain-state)
+    await streamBrainChat(
+      msg,
+      (text) => {
+        setStreamingText(text)
+        setActiveToolCall(null) // Clear tool call when text arrives
+      },
+      (toolName) => {
+        setActiveToolCall(toolName)
+      },
+      () => {
+        setIsStreaming(false)
+        setStreamingText('')
+        setActiveToolCall(null)
+        setSending(false)
+      },
+      (error) => {
+        console.error('Brain chat error:', error)
+        setIsStreaming(false)
+        setStreamingText('')
+        setActiveToolCall(null)
+        setSending(false)
+      },
+    )
+
     inputRef.current?.focus()
-    // Scroll to bottom after sending
     requestAnimationFrame(() => scrollToBottom())
   }, [input, sending, onSendMessage, scrollToBottom])
 
@@ -258,6 +371,15 @@ export function BrainChat({
     return groups
   }, [chatMessages])
 
+  // Create a temporary streaming message to show
+  const streamingMessage: BrainChatMessage | null = isStreaming && streamingText ? {
+    id: 'streaming',
+    from: 'brain',
+    message: streamingText,
+    timestamp: new Date().toISOString(),
+    read: false,
+  } : null
+
   return (
     <div className={cn('h-full flex flex-col relative', className)}>
       {/* ─── Header ─── */}
@@ -267,19 +389,19 @@ export function BrainChat({
             <div className={cn(
               'w-8 h-8 rounded-full flex items-center justify-center',
               'bg-gradient-to-br from-pi-accent/20 to-purple-500/20 border border-pi-accent/30',
-              brainStatus === 'running' && 'shadow-[0_0_12px_rgba(0,212,255,0.2)]'
+              (brainStatus === 'running' || isStreaming) && 'shadow-[0_0_12px_rgba(0,212,255,0.2)]'
             )}>
               <Bot className="w-4 h-4 text-pi-accent" />
             </div>
             <motion.span
-              animate={brainStatus === 'running' ? {
+              animate={(brainStatus === 'running' || isStreaming) ? {
                 scale: [1, 1.3, 1],
                 opacity: [1, 0.7, 1],
               } : {}}
               transition={{ duration: 2, repeat: Infinity, ease: 'easeInOut' }}
               className={cn(
                 'absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 rounded-full border-2 border-pi-panel',
-                brainStatus === 'running' ? 'bg-emerald-500' :
+                (brainStatus === 'running' || isStreaming) ? 'bg-emerald-500' :
                 brainStatus === 'sleeping' ? 'bg-yellow-500' :
                 'bg-gray-500'
               )}
@@ -288,7 +410,7 @@ export function BrainChat({
           <div>
             <div className="flex items-center gap-1.5">
               <span className="text-xs font-bold text-pi-text">{name}</span>
-              {brainStatus === 'running' && (
+              {(brainStatus === 'running' || isStreaming) && (
                 <Sparkles className="w-3 h-3 text-pi-accent animate-pulse" />
               )}
             </div>
@@ -298,7 +420,8 @@ export function BrainChat({
                 : <WifiOff className="w-2.5 h-2.5 text-red-400" />
               }
               <span className="text-[10px] text-pi-text-dim">
-                {brainStatus === 'running' ? 'Awake & thinking' :
+                {isStreaming ? 'Responding...' :
+                 brainStatus === 'running' ? 'Awake & thinking' :
                  brainStatus === 'sleeping' ? 'Sleeping between cycles' :
                  'Offline'}
               </span>
@@ -327,7 +450,7 @@ export function BrainChat({
         onScroll={handleScroll}
         className="flex-1 overflow-y-auto px-3 py-3 scroll-smooth"
       >
-        {chatMessages.length === 0 ? (
+        {chatMessages.length === 0 && !isStreaming ? (
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
@@ -342,8 +465,7 @@ export function BrainChat({
             </motion.div>
             <p className="text-sm font-semibold text-pi-text">Chat with {name}</p>
             <p className="text-[11px] mt-1.5 text-center max-w-[240px] leading-relaxed">
-              Send a message and {name} will see it on its next wake cycle.
-              {brainStatus === 'sleeping' && ' Currently sleeping between thoughts.'}
+              Send a message and {name} will respond instantly.
             </p>
             <motion.div
               initial={{ opacity: 0 }}
@@ -366,36 +488,48 @@ export function BrainChat({
             </motion.div>
           </motion.div>
         ) : (
-          groupedMessages.map(group => (
-            <div key={group.date}>
-              {/* Date divider */}
-              <motion.div
-                initial={{ opacity: 0, scaleX: 0.5 }}
-                animate={{ opacity: 1, scaleX: 1 }}
-                className="flex items-center gap-3 my-4"
-              >
-                <div className="flex-1 h-px bg-gradient-to-r from-transparent via-pi-border to-transparent" />
-                <span className="text-[10px] text-pi-text-dim/60 font-medium px-2 bg-pi-bg rounded-full border border-pi-border/50 py-0.5">
-                  {group.date}
-                </span>
-                <div className="flex-1 h-px bg-gradient-to-l from-transparent via-pi-border to-transparent" />
-              </motion.div>
+          <>
+            {groupedMessages.map(group => (
+              <div key={group.date}>
+                {/* Date divider */}
+                <motion.div
+                  initial={{ opacity: 0, scaleX: 0.5 }}
+                  animate={{ opacity: 1, scaleX: 1 }}
+                  className="flex items-center gap-3 my-4"
+                >
+                  <div className="flex-1 h-px bg-gradient-to-r from-transparent via-pi-border to-transparent" />
+                  <span className="text-[10px] text-pi-text-dim/60 font-medium px-2 bg-pi-bg rounded-full border border-pi-border/50 py-0.5">
+                    {group.date}
+                  </span>
+                  <div className="flex-1 h-px bg-gradient-to-l from-transparent via-pi-border to-transparent" />
+                </motion.div>
 
-              <AnimatePresence mode="popLayout">
-                {group.messages.map(msg => (
-                  <MessageBubble key={msg.id} msg={msg} name={name} />
-                ))}
-              </AnimatePresence>
-            </div>
-          ))
+                <AnimatePresence mode="popLayout">
+                  {group.messages.map(msg => (
+                    <MessageBubble key={msg.id} msg={msg} name={name} />
+                  ))}
+                </AnimatePresence>
+              </div>
+            ))}
+
+            {/* Tool call indicator */}
+            <AnimatePresence>
+              {activeToolCall && <ToolCallIndicator toolName={activeToolCall} />}
+            </AnimatePresence>
+
+            {/* Streaming message */}
+            <AnimatePresence>
+              {streamingMessage && (
+                <MessageBubble msg={streamingMessage} name={name} isStreaming />
+              )}
+            </AnimatePresence>
+
+            {/* Typing indicator (before first text arrives) */}
+            <AnimatePresence>
+              {isStreaming && !streamingText && !activeToolCall && <TypingIndicator />}
+            </AnimatePresence>
+          </>
         )}
-
-        {/* Typing indicator when brain is actively running */}
-        <AnimatePresence>
-          {brainStatus === 'running' && chatMessages.length > 0 && (
-            <TypingIndicator />
-          )}
-        </AnimatePresence>
       </div>
 
       {/* ─── Scroll-to-bottom FAB ─── */}
@@ -425,12 +559,14 @@ export function BrainChat({
               onKeyDown={handleKeyDown}
               placeholder={`Message ${name}...`}
               rows={1}
+              disabled={sending}
               className={cn(
                 'w-full resize-none bg-pi-surface border border-pi-border rounded-xl px-3.5 py-2.5',
                 'text-[13px] text-pi-text placeholder:text-pi-text-dim/40',
                 'focus:outline-none',
                 'max-h-[120px] min-h-[44px]',
-                'transition-all duration-200'
+                'transition-all duration-200',
+                sending && 'opacity-50'
               )}
               style={{ height: 'auto', minHeight: '44px' }}
               onInput={e => {
@@ -463,20 +599,6 @@ export function BrainChat({
             )}
           </motion.button>
         </div>
-
-        <AnimatePresence>
-          {brainStatus !== 'running' && brainStatus !== 'sleeping' && (
-            <motion.p
-              initial={{ opacity: 0, height: 0 }}
-              animate={{ opacity: 1, height: 'auto' }}
-              exit={{ opacity: 0, height: 0 }}
-              className="text-[10px] text-pi-warning mt-1.5 px-1 flex items-center gap-1"
-            >
-              <WifiOff className="w-2.5 h-2.5" />
-              Brain is offline. Message will be delivered when it wakes up.
-            </motion.p>
-          )}
-        </AnimatePresence>
       </div>
     </div>
   )
