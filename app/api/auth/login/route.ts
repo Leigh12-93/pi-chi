@@ -25,14 +25,14 @@ export async function GET() {
   const response = NextResponse.redirect(url)
   response.cookies.set('oauth_state', state, {
     httpOnly: true,
-    secure: process.env.NODE_ENV === 'production',
+    secure: baseUrl.startsWith('https'),
     sameSite: 'lax',
     maxAge: 600, // 10 minutes
     path: '/',
   })
   response.cookies.set('pkce_verifier', codeVerifier, {
     httpOnly: true,
-    secure: process.env.NODE_ENV === 'production',
+    secure: baseUrl.startsWith('https'),
     sameSite: 'lax',
     maxAge: 600, // 10 minutes
     path: '/',

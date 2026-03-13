@@ -24,7 +24,7 @@ export async function GET() {
   const response = NextResponse.redirect(authUrl.toString())
   response.cookies.set('vercel_oauth_state', state, {
     httpOnly: true,
-    secure: process.env.NODE_ENV === 'production',
+    secure: BASE_URL.startsWith('https'),
     sameSite: 'lax',
     maxAge: 600,
     path: '/',

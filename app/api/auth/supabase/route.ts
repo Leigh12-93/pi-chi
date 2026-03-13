@@ -33,14 +33,14 @@ export async function GET() {
   // Store PKCE verifier + state in cookies (expire in 10 min)
   response.cookies.set('sb_oauth_verifier', codeVerifier, {
     httpOnly: true,
-    secure: process.env.NODE_ENV === 'production',
+    secure: BASE_URL.startsWith('https'),
     sameSite: 'lax',
     maxAge: 600,
     path: '/',
   })
   response.cookies.set('sb_oauth_state', state, {
     httpOnly: true,
-    secure: process.env.NODE_ENV === 'production',
+    secure: BASE_URL.startsWith('https'),
     sameSite: 'lax',
     maxAge: 600,
     path: '/',

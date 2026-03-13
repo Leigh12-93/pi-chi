@@ -100,7 +100,7 @@ export async function GET(req: Request) {
     const response = NextResponse.redirect(baseUrl)
     response.cookies.set(COOKIE_NAME, jwt, {
       httpOnly: true,
-      secure: process.env.NODE_ENV === 'production',
+      secure: baseUrl.startsWith('https'),
       sameSite: 'lax',
       maxAge: 60 * 60 * 24 * 7, // 7 days
       path: '/',
