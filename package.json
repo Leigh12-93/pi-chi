@@ -11,7 +11,9 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "analyze": "ANALYZE=true next build",
-    "prepare": "husky"
+    "prepare": "husky",
+    "brain": "tsx scripts/pi-brain.ts",
+    "brain:dev": "tsx watch scripts/pi-brain.ts"
   },
   "dependencies": {
     "@ai-sdk/anthropic": "^3.0.0",
@@ -48,6 +50,7 @@
     "husky": "^9.1.7",
     "lint-staged": "^16.3.3",
     "tailwindcss": "^4.1.8",
+    "tsx": "^4.21.0",
     "typescript": "^5.8.3",
     "vitest": "^3.0.0"
   },

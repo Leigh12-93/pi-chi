@@ -5,11 +5,41 @@ import type { Goal, AgentTask, ActivityEntry, AgentStatus, ToolInvocation } from
 
 const MAX_ACTIVITY_ENTRIES = 200
 const STORAGE_KEY = 'pi_agent_goals'
+const BRAIN_POLL_MS = 10_000
+
+interface BrainApiResponse {
+  status: 'running' | 'sleeping' | 'not-running' | 'error'
+  state?: {
+    goals: Array<{
+      id: string
+      title: string
+      status: string
+      priority: string
+      reasoning?: string
+      tasks: Array<{ id: string; title: string; status: string; result?: string }>
+      createdAt: string
+    }>
+    activityLog: Array<{
+      id: string
+      time: string
+      type: string
+      message: string
+    }>
+    lastWakeAt?: string
+    totalThoughts: number
+    totalApiCost: number
+    wakeIntervalMs: number
+    lastThought?: string
+  }
+  error?: string
+}
 
 interface UseAgentStateReturn {
   goals: Goal[]
   activity: ActivityEntry[]
   agentStatus: AgentStatus
+  brainStatus: 'running' | 'sleeping' | 'not-running' | 'error'
+  brainMeta: { totalThoughts: number; totalCost: number; wakeInterval: number; lastThought?: string } | null
 
   // Goal management
   addGoal: (goal: Omit<Goal, 'id' | 'createdAt'>) => string
@@ -27,6 +57,10 @@ interface UseAgentStateReturn {
 
   // Tool invocation handler (connect to chat panel)
   handleToolInvocation: (invocation: ToolInvocation) => void
+
+  // Brain actions
+  injectGoal: (title: string, priority?: string, tasks?: string[]) => Promise<boolean>
+  injectMessage: (message: string) => Promise<boolean>
 }
 
 function generateId(): string {
@@ -39,6 +73,31 @@ function formatTime(): string {
     minute: '2-digit',
     hour12: false,
   })
+}
+
+/** Map brain goal status to dashboard goal status */
+function mapGoalStatus(s: string): Goal['status'] {
+  if (s === 'active') return 'active'
+  if (s === 'completed') return 'completed'
+  if (s === 'paused') return 'paused'
+  return 'pending'
+}
+
+/** Map brain task status to dashboard task status */
+function mapTaskStatus(s: string): AgentTask['status'] {
+  if (s === 'done') return 'done'
+  if (s === 'running' || s === 'in-progress') return 'running'
+  if (s === 'failed') return 'failed'
+  return 'pending'
+}
+
+/** Map brain activity type to dashboard activity type */
+function mapActivityType(t: string): ActivityEntry['type'] {
+  const valid = ['system', 'goal', 'action', 'decision', 'error', 'success', 'gpio', 'network'] as const
+  if ((valid as readonly string[]).includes(t)) return t as ActivityEntry['type']
+  if (t === 'thought') return 'decision'
+  if (t === 'sms') return 'system'
+  return 'action'
 }
 
 export function useAgentState(): UseAgentStateReturn {
@@ -54,10 +113,14 @@ export function useAgentState(): UseAgentStateReturn {
 
   const [activity, setActivity] = useState<ActivityEntry[]>([])
   const [agentStatus, setAgentStatus] = useState<AgentStatus>('idle')
+  const [brainStatus, setBrainStatus] = useState<BrainApiResponse['status']>('not-running')
+  const [brainMeta, setBrainMeta] = useState<UseAgentStateReturn['brainMeta']>(null)
   const mountedRef = useRef(true)
+  const brainActiveRef = useRef(false) // true when brain provides data
 
-  // Persist goals to localStorage
+  // Persist goals to localStorage (only when brain is NOT providing them)
   useEffect(() => {
+    if (brainActiveRef.current) return
     try {
       localStorage.setItem(STORAGE_KEY, JSON.stringify(goals))
     } catch { /* localStorage unavailable */ }
@@ -65,6 +128,86 @@ export function useAgentState(): UseAgentStateReturn {
 
   useEffect(() => {
     return () => { mountedRef.current = false }
+  }, [])
+
+  // ── Brain polling ────────────────────────────────────────────
+  useEffect(() => {
+    let timer: ReturnType<typeof setInterval>
+
+    async function pollBrain() {
+      try {
+        const res = await fetch('/api/brain')
+        if (!res.ok) {
+          setBrainStatus('error')
+          brainActiveRef.current = false
+          return
+        }
+        const data: BrainApiResponse = await res.json()
+        if (!mountedRef.current) return
+
+        setBrainStatus(data.status)
+
+        if (data.state && (data.status === 'running' || data.status === 'sleeping')) {
+          brainActiveRef.current = true
+
+          // Map brain goals → dashboard goals
+          const mappedGoals: Goal[] = data.state.goals.map(g => ({
+            id: g.id,
+            title: g.title,
+            status: mapGoalStatus(g.status),
+            priority: (g.priority as Goal['priority']) || 'medium',
+            reasoning: g.reasoning,
+            tasks: g.tasks.map(t => ({
+              id: t.id,
+              title: t.title,
+              status: mapTaskStatus(t.status),
+              detail: t.result,
+            })),
+            createdAt: g.createdAt,
+          }))
+          setGoals(mappedGoals)
+
+          // Map brain activity → dashboard activity (last 50)
+          const mappedActivity: ActivityEntry[] = data.state.activityLog.slice(-50).map(e => ({
+            id: e.id,
+            time: new Date(e.time).toLocaleTimeString('en-AU', { hour: '2-digit', minute: '2-digit', hour12: false }),
+            message: e.message,
+            type: mapActivityType(e.type),
+          }))
+          setActivity(mappedActivity)
+
+          // Derive agent status from brain
+          if (data.status === 'running') {
+            setAgentStatus('thinking')
+          } else {
+            setAgentStatus('idle')
+          }
+
+          // Store brain metadata
+          setBrainMeta({
+            totalThoughts: data.state.totalThoughts,
+            totalCost: data.state.totalApiCost,
+            wakeInterval: data.state.wakeIntervalMs,
+            lastThought: data.state.lastThought,
+          })
+        } else {
+          brainActiveRef.current = false
+          setBrainMeta(null)
+        }
+      } catch {
+        // Brain API not available — use localStorage fallback
+        brainActiveRef.current = false
+        setBrainStatus('not-running')
+        setBrainMeta(null)
+      }
+    }
+
+    // Initial poll
+    pollBrain()
+    // Poll every 10s
+    timer = setInterval(pollBrain, BRAIN_POLL_MS)
+
+    return () => clearInterval(timer)
   }, [])
 
   // ── Goal management ────────────────────────────────────────
@@ -160,10 +303,40 @@ export function useAgentState(): UseAgentStateReturn {
     }
   }, [addActivity])
 
+  // ── Brain actions (inject via POST /api/brain) ────────────────
+
+  const injectGoal = useCallback(async (title: string, priority?: string, tasks?: string[]): Promise<boolean> => {
+    try {
+      const res = await fetch('/api/brain', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ type: 'inject-goal', data: { title, priority: priority || 'medium', tasks: tasks || [] } }),
+      })
+      return res.ok
+    } catch {
+      return false
+    }
+  }, [])
+
+  const injectMessage = useCallback(async (message: string): Promise<boolean> => {
+    try {
+      const res = await fetch('/api/brain', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ type: 'inject-message', data: { message } }),
+      })
+      return res.ok
+    } catch {
+      return false
+    }
+  }, [])
+
   return {
     goals,
     activity,
     agentStatus,
+    brainStatus,
+    brainMeta,
     addGoal,
     updateGoal,
     removeGoal,
@@ -173,6 +346,8 @@ export function useAgentState(): UseAgentStateReturn {
     clearActivity,
     setAgentStatus,
     handleToolInvocation,
+    injectGoal,
+    injectMessage,
   }
 }
 
