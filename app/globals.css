@@ -11,14 +11,16 @@
   --color-pi-panel: #f1f3f4;
   --color-pi-border: #e1e5e9;
   --color-pi-border-bright: #d1d5db;
-  --color-pi-accent: #dc2626;
-  --color-pi-accent-hover: #b91c1c;
+  --color-pi-accent: #00d4ff;
+  --color-pi-accent-hover: #0ea5e9;
+  --color-pi-accent-secondary: #8b5cf6;
+  --color-pi-accent-secondary-hover: #7c3aed;
   --color-pi-text: #1f2937;
   --color-pi-text-dim: #6b7280;
   --color-pi-success: #059669;
   --color-pi-warning: #d97706;
   --color-pi-danger: #dc2626;
-  --color-pi-ring: rgba(220, 38, 38, 0.15);
+  --color-pi-ring: rgba(0, 212, 255, 0.2);
   --color-pi-overlay: rgba(0, 0, 0, 0.5);
 
   /* Code & terminal */
@@ -36,14 +38,14 @@ html.dark {
   --color-pi-panel: #141620;
   --color-pi-border: #2a2d3a;
   --color-pi-border-bright: #3a3d4a;
-  --color-pi-accent: #f87171;
-  --color-pi-accent-hover: #dc2626;
+  --color-pi-accent: #00d4ff;
+  --color-pi-accent-hover: #0ea5e9;
   --color-pi-text: #e5e7eb;
   --color-pi-text-dim: #9ca3af;
   --color-pi-success: #34d399;
   --color-pi-warning: #fbbf24;
   --color-pi-danger: #f87171;
-  --color-pi-ring: rgba(248, 113, 113, 0.2);
+  --color-pi-ring: rgba(0, 212, 255, 0.25);
   --color-pi-overlay: rgba(0, 0, 0, 0.65);
 
   /* Code & terminal */
@@ -55,7 +57,7 @@ html.dark {
 
 html.dark ::-webkit-scrollbar-thumb { background: #3a3d4a; }
 html.dark ::-webkit-scrollbar-thumb:hover { background: #4a4d5a; }
-html.dark ::selection { background: rgba(248, 113, 113, 0.3); }
+html.dark ::selection { background: rgba(0, 212, 255, 0.3); }
 
 /* Scrollbar */
 ::-webkit-scrollbar { width: 6px; height: 6px; }
@@ -82,7 +84,7 @@ html.dark ::selection { background: rgba(248, 113, 113, 0.3); }
 }
 
 /* Selection */
-::selection { background: rgba(220, 38, 38, 0.2); }
+::selection { background: rgba(0, 212, 255, 0.2); }
 
 /* ─── Spring easing variable ──────────────────────────────── */
 :root { --ease-spring: cubic-bezier(0.16, 1, 0.3, 1); }
