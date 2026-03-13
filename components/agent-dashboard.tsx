@@ -1,17 +1,23 @@
 'use client'
 
-import { useState, useRef, useEffect, useCallback } from 'react'
+import { useState, useRef, useEffect, useCallback, useMemo } from 'react'
 import { Panel, PanelGroup, PanelResizeHandle } from 'react-resizable-panels'
 import {
-  Activity, Terminal as TerminalIcon, MessageSquare,
+  Activity, Terminal as TerminalIcon,
+  Target, Cpu, Code2, Bot,
 } from 'lucide-react'
-import { motion } from 'framer-motion'
+import { motion, AnimatePresence } from 'framer-motion'
 import { cn } from '@/lib/utils'
 
 import { ChatPanel } from '@/components/chat-panel'
 import { GoalsPanel } from '@/components/agent/goals-panel'
 import { ActivityFeed } from '@/components/agent/activity-feed'
 import { VitalsPanel } from '@/components/agent/vitals-panel'
+import { BrainChat } from '@/components/agent/brain-chat'
+import { BrainHeader } from '@/components/agent/brain-header'
+import { BrainStats } from '@/components/agent/brain-stats'
+import { MoodPanel } from '@/components/agent/mood-panel'
+import { LiveLogPanel } from '@/components/agent/live-log-panel'
 import { AgentStatusIndicator } from '@/components/agent/agent-status'
 import { useSystemVitals } from '@/hooks/use-system-vitals'
 import { useAgentState } from '@/hooks/use-agent-state'
@@ -19,7 +25,6 @@ import { useAgentState } from '@/hooks/use-agent-state'
 /* ─── Props ─────────────────────────────────────── */
 
 interface AgentDashboardProps {
-  // Project context (passed through to ChatPanel)
   projectName: string
   projectId: string | null
   files: Record<string, string>
@@ -33,9 +38,20 @@ interface AgentDashboardProps {
   onPendingMessageSent?: () => void
 }
 
-/* ─── Center Tab Types ──────────────────────────── */
+/* ─── Tab types ─────────────────────────────────── */
 
-type CenterTab = 'chat' | 'activity' | 'terminal'
+type MobileTab = 'chat' | 'goals' | 'activity' | 'vitals' | 'terminal'
+type CenterTab = 'brain-chat' | 'ai-chat' | 'activity' | 'terminal'
+
+/* ─── Mobile tab config ─────────────────────────── */
+
+const mobileTabs: { id: MobileTab; icon: React.ElementType; label: string }[] = [
+  { id: 'chat', icon: Bot, label: 'Chat' },
+  { id: 'goals', icon: Target, label: 'Goals' },
+  { id: 'activity', icon: Activity, label: 'Activity' },
+  { id: 'vitals', icon: Cpu, label: 'Vitals' },
+  { id: 'terminal', icon: TerminalIcon, label: 'Terminal' },
+]
 
 /* ─── Component ─────────────────────────────────── */
 
@@ -44,7 +60,8 @@ export function AgentDashboard({
   onFileSelect, onFileChange, onFileDelete, onBulkFileUpdate,
   githubToken, pendingMessage, onPendingMessageSent,
 }: AgentDashboardProps) {
-  const [centerTab, setCenterTab] = useState<CenterTab>('chat')
+  const [centerTab, setCenterTab] = useState<CenterTab>('brain-chat')
+  const [mobileTab, setMobileTab] = useState<MobileTab>('chat')
   const terminalRef = useRef<HTMLDivElement>(null)
   const xtermRef = useRef<any>(null)
   const inputBufferRef = useRef('')
@@ -57,36 +74,45 @@ export function AgentDashboard({
   const { vitals, devMode } = useSystemVitals()
   const agent = useAgentState()
 
+  // Unread brain messages count for badge
+  const unreadBrainMessages = useMemo(
+    () => agent.chatMessages.filter(m => m.from === 'brain' && !m.read).length,
+    [agent.chatMessages]
+  )
+
   // Connect chat loading state to agent status
   const handleLoadingChange = useCallback((isLoading: boolean) => {
     agent.setAgentStatus(isLoading ? 'thinking' : 'idle')
   }, [agent])
 
   // Terminal prompt
-  const PROMPT = () => `\x1b[32mpi-chi\x1b[0m:\x1b[34m${cwdRef.current}\x1b[0m$ `
+  const PROMPT = () => `\x1b[36mpi-chi\x1b[0m:\x1b[34m${cwdRef.current}\x1b[0m$ `
 
-  // Initialize xterm terminal
+  // Initialize terminal
   useEffect(() => {
-    if (centerTab !== 'terminal' || !terminalRef.current || xtermRef.current) return
+    const isTerminalVisible =
+      (centerTab === 'terminal') ||
+      (mobileTab === 'terminal')
+
+    if (!isTerminalVisible || !terminalRef.current || xtermRef.current) return
 
     let cancelled = false
 
     async function initTerminal() {
       const { Terminal } = await import('@xterm/xterm')
       const { FitAddon } = await import('@xterm/addon-fit')
-
       if (cancelled || !terminalRef.current) return
 
       const fitAddon = new FitAddon()
       const terminal = new Terminal({
         cursorBlink: true,
         fontSize: 13,
-        fontFamily: 'JetBrains Mono, Menlo, Monaco, Courier New, monospace',
+        fontFamily: 'Geist Mono, JetBrains Mono, Menlo, Monaco, Courier New, monospace',
         theme: {
           background: '#0a0a0f',
           foreground: '#e4e4e7',
-          cursor: '#a78bfa',
-          selectionBackground: '#a78bfa40',
+          cursor: '#00d4ff',
+          selectionBackground: '#00d4ff30',
           black: '#18181b',
           red: '#ef4444',
           green: '#22c55e',
@@ -139,11 +165,7 @@ export function AgentDashboard({
             const res = await fetch('/api/terminal', {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({
-                command: cmd,
-                cwd: cwdRef.current === '~' ? undefined : cwdRef.current,
-                timeout: 30000,
-              }),
+              body: JSON.stringify({ command: cmd, cwd: cwdRef.current === '~' ? undefined : cwdRef.current, timeout: 30000 }),
             })
             const result = await res.json()
             terminal.write('\x1b[A\x1b[2K')
@@ -171,17 +193,15 @@ export function AgentDashboard({
             const idx = Math.min(historyIndexRef.current + 1, historyRef.current.length - 1)
             historyIndexRef.current = idx
             terminal.write('\r' + PROMPT() + ' '.repeat(inputBufferRef.current.length) + '\r' + PROMPT())
-            const histCmd = historyRef.current[idx]
-            inputBufferRef.current = histCmd
-            terminal.write(histCmd)
+            inputBufferRef.current = historyRef.current[idx]
+            terminal.write(inputBufferRef.current)
           }
         } else if (data === '\x1b[B') {
           if (historyIndexRef.current > 0) {
             historyIndexRef.current--
             terminal.write('\r' + PROMPT() + ' '.repeat(inputBufferRef.current.length) + '\r' + PROMPT())
-            const histCmd = historyRef.current[historyIndexRef.current]
-            inputBufferRef.current = histCmd
-            terminal.write(histCmd)
+            inputBufferRef.current = historyRef.current[historyIndexRef.current]
+            terminal.write(inputBufferRef.current)
           } else if (historyIndexRef.current === 0) {
             historyIndexRef.current = -1
             terminal.write('\r' + PROMPT() + ' '.repeat(inputBufferRef.current.length) + '\r' + PROMPT())
@@ -205,116 +225,316 @@ export function AgentDashboard({
 
     initTerminal()
     return () => { cancelled = true }
-  }, [centerTab])
+  }, [centerTab, mobileTab])
+
+  /* ─── Center tab config ───────────────────────── */
+
+  const centerTabs: { id: CenterTab; icon: React.ElementType; label: string; badge?: number }[] = [
+    { id: 'brain-chat', icon: Bot, label: 'Pi-Chi', badge: unreadBrainMessages },
+    { id: 'ai-chat', icon: Code2, label: 'AI Code' },
+    { id: 'activity', icon: Activity, label: 'Activity' },
+    { id: 'terminal', icon: TerminalIcon, label: 'Terminal' },
+  ]
+
+  /* ─── Render ──────────────────────────────────── */
 
   return (
     <div className="h-full flex flex-col overflow-hidden bg-pi-bg">
-      {/* Agent Status Strip */}
-      <div className="flex items-center justify-between px-4 py-1.5 border-b border-pi-border bg-pi-panel/50">
-        <AgentStatusIndicator status={agent.agentStatus} />
-        <div className="flex items-center gap-3 text-[10px] text-pi-text-dim">
-          {devMode && (
-            <span className="bg-yellow-500/10 text-yellow-500 px-2 py-0.5 rounded-full">
-              Dev Mode
-            </span>
-          )}
-          <span className="font-mono">{vitals.cpuPercent}% CPU</span>
-          <span className="font-mono">{vitals.cpuTemp}°C</span>
-        </div>
+      {/* ─── Brain Header ─── */}
+      <BrainHeader
+        brainStatus={agent.brainStatus}
+        brainMeta={agent.brainMeta}
+      />
+
+      {/* ─── DESKTOP LAYOUT (md+) ─── */}
+      <div className="hidden md:flex flex-1 overflow-hidden">
+        <PanelGroup direction="horizontal" autoSaveId="pi-agent-dashboard-v2" className="flex-1">
+          {/* ─── Left: Goals ─── */}
+          <Panel defaultSize={22} minSize={15} maxSize={35}>
+            <GoalsPanel
+              goals={agent.goals}
+              onInjectGoal={agent.injectGoal}
+            />
+          </Panel>
+
+          <PanelResizeHandle className="w-[3px] bg-transparent hover:bg-pi-accent/20 active:bg-pi-accent/40 transition-colors relative cursor-col-resize" />
+
+          {/* ─── Center: Chat / Activity / Terminal ─── */}
+          <Panel defaultSize={48} minSize={30}>
+            <div className="h-full flex flex-col bg-pi-bg">
+              {/* Tab bar */}
+              <div className="flex items-center border-b border-pi-border bg-pi-panel/80 backdrop-blur-sm" role="tablist">
+                {centerTabs.map(tab => (
+                  <button
+                    key={tab.id}
+                    role="tab"
+                    aria-selected={centerTab === tab.id}
+                    onClick={() => setCenterTab(tab.id)}
+                    className={cn(
+                      'relative flex items-center gap-1.5 px-4 py-2.5 text-xs font-medium transition-all duration-150',
+                      centerTab === tab.id
+                        ? 'text-pi-accent'
+                        : 'text-pi-text-dim hover:text-pi-text hover:bg-pi-surface/50'
+                    )}
+                  >
+                    <tab.icon className="w-3.5 h-3.5" />
+                    {tab.label}
+                    {/* Unread badge */}
+                    {tab.badge !== undefined && tab.badge > 0 && (
+                      <motion.span
+                        initial={{ scale: 0 }}
+                        animate={{ scale: 1 }}
+                        className="ml-1 bg-pi-accent text-white text-[8px] font-bold px-1.5 py-px rounded-full min-w-[16px] text-center"
+                      >
+                        {tab.badge}
+                      </motion.span>
+                    )}
+                    {/* Active indicator */}
+                    {centerTab === tab.id && (
+                      <motion.span
+                        layoutId="agent-center-tab-v2"
+                        className="absolute bottom-0 left-1 right-1 h-0.5 bg-pi-accent rounded-full"
+                        transition={{ type: 'spring', stiffness: 400, damping: 30 }}
+                      />
+                    )}
+                  </button>
+                ))}
+
+                {/* Status indicator on the right */}
+                <div className="ml-auto pr-3">
+                  <AgentStatusIndicator status={agent.agentStatus} />
+                </div>
+              </div>
+
+              {/* Tab content */}
+              <div className="flex-1 overflow-hidden relative">
+                {/* Brain Chat */}
+                <div className={cn('absolute inset-0', centerTab !== 'brain-chat' && 'hidden')}>
+                  <BrainChat
+                    chatMessages={agent.chatMessages}
+                    brainStatus={agent.brainStatus}
+                    brainName={agent.brainMeta?.name}
+                    onSendMessage={agent.injectMessage}
+                    onMarkRead={agent.markChatRead}
+                  />
+                </div>
+
+                {/* AI Code Chat */}
+                <div className={cn('absolute inset-0', centerTab !== 'ai-chat' && 'hidden')}>
+                  <ChatPanel
+                    projectName={projectName}
+                    projectId={projectId}
+                    files={files}
+                    onFileChange={onFileChange}
+                    onFileDelete={onFileDelete}
+                    onBulkFileUpdate={onBulkFileUpdate}
+                    githubToken={githubToken}
+                    pendingMessage={pendingMessage}
+                    onPendingMessageSent={onPendingMessageSent}
+                    activeFile={activeFile}
+                    onLoadingChange={handleLoadingChange}
+                    onFileSelect={onFileSelect}
+                  />
+                </div>
+
+                {/* Activity */}
+                <div className={cn('absolute inset-0', centerTab !== 'activity' && 'hidden')}>
+                  <ActivityFeed entries={agent.activity} agentStatus={agent.agentStatus} />
+                </div>
+
+                {/* Terminal */}
+                {centerTab === 'terminal' && (
+                  <div className="absolute inset-0 bg-[#0a0a0f]">
+                    <div ref={terminalRef} className="h-full p-1" />
+                  </div>
+                )}
+              </div>
+            </div>
+          </Panel>
+
+          <PanelResizeHandle className="w-[3px] bg-transparent hover:bg-pi-accent/20 active:bg-pi-accent/40 transition-colors relative cursor-col-resize" />
+
+          {/* ─── Right: Vitals + Mood + Stats + Live Log ─── */}
+          <Panel defaultSize={30} minSize={20} maxSize={40}>
+            <div className="h-full overflow-y-auto bg-pi-panel border-l border-pi-border">
+              {/* Vitals */}
+              <VitalsPanel
+                vitals={vitals}
+                devMode={devMode}
+              />
+
+              {/* Divider */}
+              <div className="mx-3 h-px bg-gradient-to-r from-transparent via-pi-border to-transparent" />
+
+              {/* Brain Stats */}
+              <div className="px-3 py-3">
+                <BrainStats
+                  brainMeta={agent.brainMeta}
+                  brainStatus={agent.brainStatus}
+                />
+              </div>
+
+              {/* Divider */}
+              <div className="mx-3 h-px bg-gradient-to-r from-transparent via-pi-border to-transparent" />
+
+              {/* Mood */}
+              <div className="px-3 py-3">
+                <MoodPanel mood={agent.mood || undefined} />
+              </div>
+
+              {/* Divider */}
+              <div className="mx-3 h-px bg-gradient-to-r from-transparent via-pi-border to-transparent" />
+
+              {/* Live Claude Code Log */}
+              <div className="px-3 py-3">
+                <LiveLogPanel />
+              </div>
+            </div>
+          </Panel>
+        </PanelGroup>
       </div>
 
-      {/* Main 3-Panel Layout */}
-      <PanelGroup direction="horizontal" autoSaveId="pi-agent-dashboard-v1" className="flex-1">
-        {/* ─── Left: Goals ─── */}
-        <Panel defaultSize={22} minSize={15} maxSize={35}>
-          <GoalsPanel goals={agent.goals} />
-        </Panel>
+      {/* ─── MOBILE LAYOUT (< md) ─── */}
+      <div className="flex md:hidden flex-1 flex-col overflow-hidden">
+        {/* Mobile content area */}
+        <div className="flex-1 overflow-hidden relative">
+          <AnimatePresence mode="wait">
+            {/* Chat (Brain Chat on mobile) */}
+            {mobileTab === 'chat' && (
+              <motion.div
+                key="mobile-chat"
+                initial={{ opacity: 0, x: -20 }}
+                animate={{ opacity: 1, x: 0 }}
+                exit={{ opacity: 0, x: 20 }}
+                transition={{ type: 'spring', stiffness: 500, damping: 35 }}
+                className="absolute inset-0"
+              >
+                <BrainChat
+                  chatMessages={agent.chatMessages}
+                  brainStatus={agent.brainStatus}
+                  brainName={agent.brainMeta?.name}
+                  onSendMessage={agent.injectMessage}
+                  onMarkRead={agent.markChatRead}
+                />
+              </motion.div>
+            )}
 
-        <PanelResizeHandle className="w-3 bg-transparent hover:bg-pi-accent/10 active:bg-pi-accent/20 transition-colors relative flex items-center justify-center cursor-col-resize after:absolute after:inset-y-0 after:left-1/2 after:-translate-x-1/2 after:w-px after:bg-pi-border">
-          <div className="resize-grip-dots"><span /><span /><span /></div>
-        </PanelResizeHandle>
+            {/* Goals */}
+            {mobileTab === 'goals' && (
+              <motion.div
+                key="mobile-goals"
+                initial={{ opacity: 0, x: -20 }}
+                animate={{ opacity: 1, x: 0 }}
+                exit={{ opacity: 0, x: 20 }}
+                transition={{ type: 'spring', stiffness: 500, damping: 35 }}
+                className="absolute inset-0"
+              >
+                <GoalsPanel goals={agent.goals} onInjectGoal={agent.injectGoal} />
+              </motion.div>
+            )}
 
-        {/* ─── Center: Chat / Activity / Terminal ─── */}
-        <Panel defaultSize={48} minSize={30}>
-          <div className="h-full flex flex-col bg-pi-bg">
-            {/* Tab bar */}
-            <div className="flex items-center border-b border-pi-border bg-pi-panel" role="tablist">
-              {([
-                { id: 'chat' as CenterTab, icon: MessageSquare, label: 'Chat' },
-                { id: 'activity' as CenterTab, icon: Activity, label: 'Activity' },
-                { id: 'terminal' as CenterTab, icon: TerminalIcon, label: 'Terminal' },
-              ]).map(tab => (
+            {/* Activity */}
+            {mobileTab === 'activity' && (
+              <motion.div
+                key="mobile-activity"
+                initial={{ opacity: 0, x: -20 }}
+                animate={{ opacity: 1, x: 0 }}
+                exit={{ opacity: 0, x: 20 }}
+                transition={{ type: 'spring', stiffness: 500, damping: 35 }}
+                className="absolute inset-0"
+              >
+                <ActivityFeed entries={agent.activity} agentStatus={agent.agentStatus} />
+              </motion.div>
+            )}
+
+            {/* Vitals (all stats on mobile) */}
+            {mobileTab === 'vitals' && (
+              <motion.div
+                key="mobile-vitals"
+                initial={{ opacity: 0, x: -20 }}
+                animate={{ opacity: 1, x: 0 }}
+                exit={{ opacity: 0, x: 20 }}
+                transition={{ type: 'spring', stiffness: 500, damping: 35 }}
+                className="absolute inset-0 overflow-y-auto"
+              >
+                <VitalsPanel vitals={vitals} devMode={devMode} />
+                <div className="px-3 py-3">
+                  <BrainStats brainMeta={agent.brainMeta} brainStatus={agent.brainStatus} />
+                </div>
+                <div className="px-3 pb-3">
+                  <MoodPanel mood={agent.mood || undefined} />
+                </div>
+                <div className="px-3 pb-3">
+                  <LiveLogPanel />
+                </div>
+              </motion.div>
+            )}
+
+            {/* Terminal */}
+            {mobileTab === 'terminal' && (
+              <motion.div
+                key="mobile-terminal"
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -20 }}
+                transition={{ type: 'spring', stiffness: 500, damping: 35 }}
+                className="absolute inset-0 bg-[#0a0a0f]"
+              >
+                <div ref={terminalRef} className="h-full p-1" />
+              </motion.div>
+            )}
+          </AnimatePresence>
+        </div>
+
+        {/* ─── Mobile bottom tab bar ─── */}
+        <div className="border-t border-pi-border bg-pi-panel/90 backdrop-blur-md safe-bottom" role="tablist">
+          <div className="flex items-center justify-around px-2 py-1">
+            {mobileTabs.map(tab => {
+              const isActive = mobileTab === tab.id
+              const badge = tab.id === 'chat' ? unreadBrainMessages : 0
+              return (
                 <button
                   key={tab.id}
                   role="tab"
-                  aria-selected={centerTab === tab.id}
-                  onClick={() => setCenterTab(tab.id)}
+                  aria-selected={isActive}
+                  onClick={() => {
+                    setMobileTab(tab.id)
+                    // Haptic feedback
+                    if ('vibrate' in navigator) navigator.vibrate(10)
+                  }}
                   className={cn(
-                    'relative flex items-center gap-1.5 px-4 py-2.5 text-xs font-medium transition-all duration-150',
-                    centerTab === tab.id
+                    'relative flex flex-col items-center gap-0.5 px-3 py-1.5 rounded-lg transition-all min-w-[52px]',
+                    isActive
                       ? 'text-pi-accent'
-                      : 'text-pi-text-dim hover:text-pi-text hover:bg-pi-surface/50'
+                      : 'text-pi-text-dim hover:text-pi-text'
                   )}
                 >
-                  <tab.icon className="w-3.5 h-3.5" />
-                  {tab.label}
-                  {centerTab === tab.id && (
+                  <div className="relative">
+                    <tab.icon className={cn('w-5 h-5 transition-transform', isActive && 'scale-110')} />
+                    {badge > 0 && (
+                      <motion.span
+                        initial={{ scale: 0 }}
+                        animate={{ scale: 1 }}
+                        className="absolute -top-1 -right-1.5 bg-pi-accent text-white text-[7px] font-bold w-3.5 h-3.5 rounded-full flex items-center justify-center"
+                      >
+                        {badge}
+                      </motion.span>
+                    )}
+                  </div>
+                  <span className="text-[9px] font-medium">{tab.label}</span>
+                  {isActive && (
                     <motion.span
-                      layoutId="agent-center-tab"
-                      className="absolute bottom-0 left-1 right-1 h-0.5 bg-pi-accent rounded-full"
-                      transition={{ type: 'spring', stiffness: 400, damping: 30 }}
+                      layoutId="mobile-tab-indicator"
+                      className="absolute -bottom-1 w-5 h-0.5 bg-pi-accent rounded-full"
+                      transition={{ type: 'spring', stiffness: 500, damping: 30 }}
                     />
                   )}
                 </button>
-              ))}
-            </div>
-
-            {/* Chat tab — embeds the real ChatPanel */}
-            <div className={cn('flex-1 overflow-hidden', centerTab !== 'chat' && 'hidden')}>
-              <ChatPanel
-                projectName={projectName}
-                projectId={projectId}
-                files={files}
-                onFileChange={onFileChange}
-                onFileDelete={onFileDelete}
-                onBulkFileUpdate={onBulkFileUpdate}
-                githubToken={githubToken}
-                pendingMessage={pendingMessage}
-                onPendingMessageSent={onPendingMessageSent}
-                activeFile={activeFile}
-                onLoadingChange={handleLoadingChange}
-                onFileSelect={onFileSelect}
-              />
-            </div>
-
-            {/* Activity tab */}
-            <div className={cn('flex-1 overflow-hidden', centerTab !== 'activity' && 'hidden')}>
-              <ActivityFeed entries={agent.activity} agentStatus={agent.agentStatus} />
-            </div>
-
-            {/* Terminal tab */}
-            {centerTab === 'terminal' && (
-              <div className="flex-1 bg-[#0a0a0f] overflow-hidden">
-                <div ref={terminalRef} className="h-full p-1" />
-              </div>
-            )}
+              )
+            })}
           </div>
-        </Panel>
-
-        <PanelResizeHandle className="w-3 bg-transparent hover:bg-pi-accent/10 active:bg-pi-accent/20 transition-colors relative flex items-center justify-center cursor-col-resize after:absolute after:inset-y-0 after:left-1/2 after:-translate-x-1/2 after:w-px after:bg-pi-border">
-          <div className="resize-grip-dots"><span /><span /><span /></div>
-        </PanelResizeHandle>
-
-        {/* ─── Right: System Vitals ─── */}
-        <Panel defaultSize={30} minSize={20} maxSize={40}>
-          <VitalsPanel
-            vitals={vitals}
-            goals={agent.goals}
-            activity={agent.activity}
-            devMode={devMode}
-          />
-        </Panel>
-      </PanelGroup>
+        </div>
+      </div>
     </div>
   )
 }

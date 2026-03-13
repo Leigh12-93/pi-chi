@@ -6,7 +6,7 @@
   "start_url": "/",
   "display": "standalone",
   "background_color": "#0f1117",
-  "theme_color": "#dc2626",
+  "theme_color": "#00d4ff",
   "orientation": "any",
   "categories": ["developer tools", "productivity"],
   "icons": [
