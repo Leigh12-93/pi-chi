@@ -604,6 +604,34 @@ export function createBrainTools(state: BrainState) {
       },
     }),
 
+    chat_owner: tool({
+      description: `Send a chat message to ${state.ownerName} via the dashboard. Unlike SMS, chat messages appear in the dashboard chat panel and ${state.ownerName} can reply. Use this for: asking questions, sharing progress, discussing ideas, requesting feedback. ${state.ownerName} will see your message next time they check the dashboard. For urgent matters, still use sms_owner.`,
+      inputSchema: z.object({
+        message: z.string().describe('Your message to the owner'),
+      }),
+      execute: async ({ message }) => {
+        state.totalToolCalls++
+        if (!state.chatMessages) state.chatMessages = []
+        state.chatMessages.push({
+          id: randomUUID(),
+          from: 'brain',
+          message,
+          timestamp: new Date().toISOString(),
+          read: false,
+        })
+        // Keep chat history manageable — last 200 messages
+        if (state.chatMessages.length > 200) {
+          state.chatMessages = state.chatMessages.slice(-200)
+        }
+        addActivity(state, 'action', `Chat to owner: ${message.slice(0, 80)}`)
+        // Lower loneliness when communicating
+        if (state.mood.loneliness > 20) {
+          state.mood.loneliness = Math.max(0, state.mood.loneliness - 10)
+        }
+        return { success: true, messageId: state.chatMessages[state.chatMessages.length - 1].id }
+      },
+    }),
+
     claude_code: tool({
       description: `Use Claude Code CLI for complex code tasks — multi-file refactors, builds, fixing type errors, creating new features. This is your heavy-lifting tool. It spawns a Claude Code process that can read, write, and edit files autonomously. Use this instead of manual write_file/edit_file when: (1) you need to modify multiple files, (2) you need to fix build errors, (3) you need to create a new feature with proper types, (4) you want higher quality code output. The prompt you provide should be a clear, specific instruction. Claude Code has access to the full codebase. IMPORTANT: Claude Code can ONLY work in ~/pi-chi and ~/pi-chi-projects. Max runtime: 5 minutes.`,
       inputSchema: z.object({

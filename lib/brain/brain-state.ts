@@ -69,6 +69,8 @@ export function createInitialState(): BrainState {
 
     lastDreamAt: null,
     dreamCount: 0,
+
+    chatMessages: [],
   }
 }
 
@@ -95,6 +97,7 @@ export function loadBrainState(): BrainState {
   if (state.lastGoodCommit === undefined) state.lastGoodCommit = defaults.lastGoodCommit
   if (state.consecutiveCrashes === undefined) state.consecutiveCrashes = defaults.consecutiveCrashes
   if (state.lastSelfEditAt === undefined) state.lastSelfEditAt = defaults.lastSelfEditAt
+  if (!state.chatMessages) state.chatMessages = defaults.chatMessages
 
   // Reset daily SMS count if it's a new day
   const today = new Date().toISOString().slice(0, 10)

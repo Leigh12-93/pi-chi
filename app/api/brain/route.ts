@@ -72,14 +72,40 @@ export async function POST(req: Request) {
     }
 
     if (type === 'inject-message') {
+      // Write to both activityLog (for brain context) and chatMessages (for chat UI)
       state.activityLog.push({
         id: randomUUID(),
         time: new Date().toISOString(),
         type: 'system',
         message: `Owner: ${data.message}`,
       })
+      if (!state.chatMessages) state.chatMessages = []
+      state.chatMessages.push({
+        id: randomUUID(),
+        from: 'owner',
+        message: data.message,
+        timestamp: new Date().toISOString(),
+        read: false,
+      })
+      // Lower brain's loneliness when owner communicates
+      if (state.mood) {
+        state.mood.loneliness = Math.max(0, (state.mood.loneliness || 50) - 20)
+      }
       writeFileSync(STATE_FILE, JSON.stringify(state, null, 2))
       return NextResponse.json({ ok: true, action: 'message-injected' })
+    }
+
+    if (type === 'mark-chat-read') {
+      // Mark brain's messages as read by owner
+      if (state.chatMessages) {
+        for (const msg of state.chatMessages) {
+          if (msg.from === 'brain' && !msg.read) {
+            msg.read = true
+          }
+        }
+        writeFileSync(STATE_FILE, JSON.stringify(state, null, 2))
+      }
+      return NextResponse.json({ ok: true, action: 'chat-marked-read' })
     }
 
     return NextResponse.json({ error: `Unknown type: ${type}` }, { status: 400 })

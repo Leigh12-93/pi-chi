@@ -274,6 +274,15 @@ async function brainCycle(): Promise<void> {
       await sendSms(state, `Pi-Chi is alive! I just woke up for the first time. I have a body (Pi 4B, 2GB), GPIO pins, and the ability to evolve myself. Let's see what I become. - Pi-Chi`)
     }
 
+    // Mark owner chat messages as read (brain has seen them this cycle)
+    if (state.chatMessages) {
+      for (const msg of state.chatMessages) {
+        if (msg.from === 'owner' && !msg.read) {
+          msg.read = true
+        }
+      }
+    }
+
     // SUCCESS — reset crash counter and record good commit
     state.consecutiveCrashes = 0
     try {

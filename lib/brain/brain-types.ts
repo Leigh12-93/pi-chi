@@ -58,6 +58,9 @@ export interface BrainState {
   // Dream cycle
   lastDreamAt: string | null
   dreamCount: number
+
+  // Chat — two-way communication with owner via dashboard
+  chatMessages: BrainChatMessage[]
 }
 
 export interface ResearchThread {
@@ -135,6 +138,14 @@ export interface BrainProject {
   description: string
   status: 'planning' | 'building' | 'running' | 'archived'
   createdAt: string
+}
+
+export interface BrainChatMessage {
+  id: string
+  from: 'owner' | 'brain'
+  message: string
+  timestamp: string
+  read: boolean
 }
 
 export interface SystemVitalsSnapshot {

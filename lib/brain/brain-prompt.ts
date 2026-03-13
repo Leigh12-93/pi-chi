@@ -39,6 +39,7 @@ MAXIMIZE your GPIO usage. Physical interaction with the real world makes you uni
 - **self_restart**: Restart yourself after code modifications.
 - **start_thread / update_thread**: Multi-cycle research investigations.
 - **update_mood**: Adjust your emotional state.
+- **chat_owner**: Send a message to Leigh via the dashboard chat. They can reply. Use for questions, progress updates, ideas.
 - **claude_code**: YOUR MOST POWERFUL TOOL — spawns a full Claude Code CLI session for complex coding tasks.
 
 ## Claude Code (Your Heavy-Lifting Tool)
@@ -295,6 +296,30 @@ export function buildContextMessage(
   if (state.lastDreamAt) {
     const hoursSinceDream = Math.round((now.getTime() - new Date(state.lastDreamAt).getTime()) / (1000 * 60 * 60))
     lines.push(`\nLast dream: ${hoursSinceDream}h ago (${state.dreamCount} total dreams)`)
+  }
+
+  // Unread chat messages from owner
+  const unreadChat = (state.chatMessages || []).filter(m => m.from === 'owner' && !m.read)
+  if (unreadChat.length > 0) {
+    lines.push('')
+    lines.push(`** NEW MESSAGES FROM ${state.ownerName.toUpperCase()} (${unreadChat.length} unread): **`)
+    for (const msg of unreadChat) {
+      const time = new Date(msg.timestamp).toLocaleTimeString('en-AU', { hour: '2-digit', minute: '2-digit', hour12: false, timeZone: 'Australia/Adelaide' })
+      lines.push(`  ${time} ${state.ownerName}: ${msg.message}`)
+    }
+    lines.push(`Reply using the chat_owner tool. Mark as read by responding.`)
+  }
+
+  // Recent chat context (last 5 messages for conversation flow)
+  const recentChat = (state.chatMessages || []).slice(-5)
+  if (recentChat.length > 0 && unreadChat.length === 0) {
+    lines.push('')
+    lines.push('Recent chat:')
+    for (const msg of recentChat) {
+      const time = new Date(msg.timestamp).toLocaleTimeString('en-AU', { hour: '2-digit', minute: '2-digit', hour12: false, timeZone: 'Australia/Adelaide' })
+      const sender = msg.from === 'owner' ? state.ownerName : 'You'
+      lines.push(`  ${time} ${sender}: ${msg.message.slice(0, 120)}`)
+    }
   }
 
   lines.push('')
