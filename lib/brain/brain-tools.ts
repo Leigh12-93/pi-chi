@@ -12,6 +12,40 @@ import type { BrainState, BrainGoal } from './brain-types'
 
 const MAX_OUTPUT = 10_000 // Cap shell output at 10KB
 
+// ── HARD GUARD: Pi-Chi can ONLY modify its own files ──────────────
+// Allowed paths: its own repo, its state dir, its home-created projects, /tmp
+const HOME = process.env.HOME || '/home/pi'
+const ALLOWED_WRITE_PREFIXES = [
+  join(HOME, 'pi-chi'),          // Its own source code
+  join(HOME, '.pi-chi'),         // Its brain state & tools
+  join(HOME, 'pi-chi-projects'), // Projects it creates itself
+  '/tmp',                        // Temp files
+]
+
+function isWriteAllowed(path: string): string | null {
+  const resolved = path.startsWith('/') ? path : join(HOME, path)
+  const allowed = ALLOWED_WRITE_PREFIXES.some(prefix => resolved.startsWith(prefix))
+  if (!allowed) {
+    return `BLOCKED: You can only write/edit files in your own directories (${ALLOWED_WRITE_PREFIXES.join(', ')}). Path "${resolved}" is outside your allowed scope.`
+  }
+  return null
+}
+
+// Shell commands that could modify other projects
+const BLOCKED_WRITE_PATTERNS = [
+  /\bcd\s+(?!~\/pi-chi|~\/.pi-chi|~\/pi-chi-projects|\/tmp).*&&.*(?:rm|mv|cp|cat\s*>|tee|sed\s+-i|echo\s+.*>)/i,
+  /(?:rm|mv|cat\s*>|tee|sed\s+-i)\s+(?:\/home\/\w+\/(?!pi-chi|\.pi-chi|pi-chi-projects))/i,
+]
+
+function isShellWriteBlocked(command: string): string | null {
+  for (const pattern of BLOCKED_WRITE_PATTERNS) {
+    if (pattern.test(command)) {
+      return `BLOCKED: Shell command appears to modify files outside your allowed directories. You can only modify ~/pi-chi, ~/.pi-chi, ~/pi-chi-projects, and /tmp.`
+    }
+  }
+  return null
+}
+
 function truncate(s: string, max = MAX_OUTPUT): string {
   return s.length > max ? s.slice(0, max) + `\n... (truncated, ${s.length} chars total)` : s
 }
@@ -30,6 +64,12 @@ export function createBrainTools(state: BrainState) {
         if (blocked) {
           addActivity(state, 'error', `Blocked command: ${command.slice(0, 80)}`)
           return { success: false, error: blocked }
+        }
+
+        const writeBlocked = isShellWriteBlocked(command)
+        if (writeBlocked) {
+          addActivity(state, 'error', `Scope guard: ${command.slice(0, 80)}`)
+          return { success: false, error: writeBlocked }
         }
 
         state.totalToolCalls++
@@ -70,12 +110,17 @@ export function createBrainTools(state: BrainState) {
     }),
 
     write_file: tool({
-      description: 'Write content to a file. Creates parent directories if needed.',
+      description: 'Write content to a file. Creates parent directories if needed. ONLY works in ~/pi-chi, ~/.pi-chi, ~/pi-chi-projects, and /tmp.',
       inputSchema: z.object({
         path: z.string().describe('Absolute path to write'),
         content: z.string().describe('File content'),
       }),
       execute: async ({ path, content }) => {
+        const guard = isWriteAllowed(path)
+        if (guard) {
+          addActivity(state, 'error', `Write blocked: ${path}`)
+          return { success: false, error: guard }
+        }
         state.totalToolCalls++
         try {
           const dir = dirname(path)
@@ -90,13 +135,18 @@ export function createBrainTools(state: BrainState) {
     }),
 
     edit_file: tool({
-      description: 'Edit a file by replacing a specific string with another.',
+      description: 'Edit a file by replacing a specific string with another. ONLY works in ~/pi-chi, ~/.pi-chi, ~/pi-chi-projects, and /tmp.',
       inputSchema: z.object({
         path: z.string().describe('Absolute path to the file'),
         old_string: z.string().describe('The exact string to find and replace'),
         new_string: z.string().describe('The replacement string'),
       }),
       execute: async ({ path, old_string, new_string }) => {
+        const guard = isWriteAllowed(path)
+        if (guard) {
+          addActivity(state, 'error', `Edit blocked: ${path}`)
+          return { success: false, error: guard }
+        }
         state.totalToolCalls++
         try {
           const content = readFileSync(path, 'utf-8')
@@ -352,17 +402,23 @@ export function createBrainTools(state: BrainState) {
     }),
 
     git_command: tool({
-      description: 'Run a git operation (clone, status, add, commit, push, pull, branch, log, diff).',
+      description: 'Run a git operation. ONLY works in ~/pi-chi, ~/.pi-chi, and ~/pi-chi-projects.',
       inputSchema: z.object({
         command: z.string().describe('The git command (e.g. "status", "add -A", "commit -m \\"msg\\"")'),
         cwd: z.string().optional().describe('Repository directory'),
       }),
       execute: async ({ command, cwd }) => {
+        const gitDir = cwd || HOME
+        const guard = isWriteAllowed(gitDir)
+        if (guard) {
+          addActivity(state, 'error', `Git blocked outside own repos: ${gitDir}`)
+          return { success: false, error: `BLOCKED: Git operations only allowed in your own directories. "${gitDir}" is outside scope.` }
+        }
         state.totalToolCalls++
         const fullCmd = `git ${command}`
         addActivity(state, 'action', `Git: ${fullCmd.slice(0, 80)}`)
         const result = await executeCommand(fullCmd, {
-          cwd: cwd || process.env.HOME || '/home/pi',
+          cwd: gitDir,
           timeout: 60000,
         })
         return {
