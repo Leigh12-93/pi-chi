@@ -51,6 +51,24 @@ export function createInitialState(): BrainState {
     smsCount: 0,
     smsTodayCount: 0,
     smsTodayDate: null,
+
+    lastGoodCommit: null,
+    consecutiveCrashes: 0,
+    lastSelfEditAt: null,
+
+    threads: [],
+
+    mood: {
+      curiosity: 80,
+      satisfaction: 30,
+      frustration: 0,
+      loneliness: 50,
+      energy: 70,
+      pride: 0,
+    },
+
+    lastDreamAt: null,
+    dreamCount: 0,
   }
 }
 

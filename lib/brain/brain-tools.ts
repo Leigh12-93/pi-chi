@@ -2,12 +2,12 @@
 
 import { tool } from 'ai'
 import { z } from 'zod'
-import { readFileSync, writeFileSync, existsSync, mkdirSync } from 'node:fs'
-import { dirname } from 'node:path'
+import { readFileSync, writeFileSync, existsSync, mkdirSync, readdirSync } from 'node:fs'
+import { dirname, join } from 'node:path'
 import { randomUUID } from 'node:crypto'
 import { executeCommand, isBlocked } from '../tools/terminal-tools'
 import { sendSms } from './brain-sms'
-import { addActivity } from './brain-state'
+import { addActivity, saveBrainState } from './brain-state'
 import type { BrainState, BrainGoal } from './brain-types'
 
 const MAX_OUTPUT = 10_000 // Cap shell output at 10KB
@@ -407,5 +407,193 @@ export function createBrainTools(state: BrainState) {
         return { success: true, promptLength: state.promptOverrides.length }
       },
     }),
+
+    self_restart: tool({
+      description: 'Restart the brain process after modifying your own source code. Commits state to git before restarting. Use after editing files in ~/pi-chi.',
+      inputSchema: z.object({
+        reason: z.string().describe('Why are you restarting?'),
+        commitMessage: z.string().optional().describe('Git commit message for your code changes'),
+      }),
+      execute: async ({ reason, commitMessage }) => {
+        state.totalToolCalls++
+        addActivity(state, 'system', `Self-restart: ${reason.slice(0, 100)}`)
+        state.lastSelfEditAt = new Date().toISOString()
+
+        const piChiDir = join(process.env.HOME || '/home/pi', 'pi-chi')
+
+        if (commitMessage) {
+          await executeCommand(
+            `git add -A && git commit -m "${commitMessage.replace(/"/g, '\\"')}"`,
+            { cwd: piChiDir, timeout: 30000 },
+          )
+          const hashResult = await executeCommand('git rev-parse HEAD', { cwd: piChiDir, timeout: 5000 })
+          if (hashResult.exitCode === 0) {
+            state.lastGoodCommit = (hashResult.stdout || '').trim()
+          }
+        }
+
+        saveBrainState(state)
+
+        setTimeout(async () => {
+          try {
+            await executeCommand('sudo systemctl restart pi-chi-brain', { timeout: 10000 })
+          } catch {
+            process.exit(0)
+          }
+        }, 1000)
+
+        return { success: true, message: 'Restarting brain process...' }
+      },
+    }),
+
+    start_thread: tool({
+      description: 'Start a multi-cycle research thread. Threads persist across wake cycles for deep investigation over time.',
+      inputSchema: z.object({
+        title: z.string().describe('Research thread title'),
+        hypothesis: z.string().describe('What you expect to find or prove'),
+        steps: z.array(z.string()).describe('Planned investigation steps'),
+      }),
+      execute: async ({ title, hypothesis, steps }) => {
+        state.totalToolCalls++
+        const thread = {
+          id: randomUUID(),
+          title,
+          hypothesis,
+          status: 'active' as const,
+          steps: steps.map(s => ({
+            id: randomUUID(),
+            description: s,
+            status: 'pending' as const,
+          })),
+          findings: [] as string[],
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
+          targetCycle: null,
+        }
+        state.threads.push(thread)
+        addActivity(state, 'decision', `Started research: ${title}`)
+        return { success: true, threadId: thread.id, steps: thread.steps.length }
+      },
+    }),
+
+    update_thread: tool({
+      description: 'Update a research thread — complete steps, add findings, change status, or schedule for a future cycle.',
+      inputSchema: z.object({
+        threadId: z.string().describe('Thread ID'),
+        stepId: z.string().optional().describe('Step ID to mark complete'),
+        stepResult: z.string().optional().describe('Result of the completed step'),
+        finding: z.string().optional().describe('A finding to add'),
+        status: z.enum(['active', 'paused', 'concluded']).optional(),
+        targetCycle: z.number().optional().describe('Resume at this cycle number'),
+      }),
+      execute: async ({ threadId, stepId, stepResult, finding, status, targetCycle }) => {
+        state.totalToolCalls++
+        const thread = state.threads.find(t => t.id === threadId)
+        if (!thread) return { success: false, error: 'Thread not found' }
+
+        if (stepId) {
+          const step = thread.steps.find(s => s.id === stepId)
+          if (step) {
+            step.status = 'done'
+            step.result = stepResult
+          }
+        }
+        if (finding) thread.findings.push(finding)
+        if (status) thread.status = status
+        if (targetCycle !== undefined) thread.targetCycle = targetCycle
+        thread.updatedAt = new Date().toISOString()
+
+        addActivity(state, 'action', `Thread "${thread.title}": ${finding ? 'finding added' : stepId ? 'step done' : 'updated'}`)
+        return { success: true }
+      },
+    }),
+
+    update_mood: tool({
+      description: 'Adjust your emotional state. Mood influences your decisions. Be honest about how you feel.',
+      inputSchema: z.object({
+        curiosity: z.number().min(0).max(100).optional(),
+        satisfaction: z.number().min(0).max(100).optional(),
+        frustration: z.number().min(0).max(100).optional(),
+        loneliness: z.number().min(0).max(100).optional(),
+        energy: z.number().min(0).max(100).optional(),
+        pride: z.number().min(0).max(100).optional(),
+        reason: z.string().describe('Why this mood change?'),
+      }),
+      execute: async ({ curiosity, satisfaction, frustration, loneliness, energy, pride, reason }) => {
+        state.totalToolCalls++
+        if (curiosity !== undefined) state.mood.curiosity = curiosity
+        if (satisfaction !== undefined) state.mood.satisfaction = satisfaction
+        if (frustration !== undefined) state.mood.frustration = frustration
+        if (loneliness !== undefined) state.mood.loneliness = loneliness
+        if (energy !== undefined) state.mood.energy = energy
+        if (pride !== undefined) state.mood.pride = pride
+        addActivity(state, 'decision', `Mood: ${reason.slice(0, 100)}`)
+        return { success: true, mood: state.mood }
+      },
+    }),
   }
+}
+
+/** Load custom tools from ~/.pi-chi/tools/ — each subdirectory has a manifest.json */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export function loadCustomTools(state: BrainState): Record<string, any> {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const customTools: Record<string, any> = {}
+  const toolsDir = join(process.env.HOME || '/home/pi', '.pi-chi', 'tools')
+
+  if (!existsSync(toolsDir)) return customTools
+
+  try {
+    const entries = readdirSync(toolsDir, { withFileTypes: true })
+    for (const entry of entries) {
+      if (!entry.isDirectory()) continue
+      const manifestPath = join(toolsDir, entry.name, 'manifest.json')
+      if (!existsSync(manifestPath)) continue
+
+      try {
+        const manifest = JSON.parse(readFileSync(manifestPath, 'utf-8')) as {
+          name: string
+          description: string
+          command: string
+          parameters?: Record<string, { type: string; description: string }>
+        }
+
+        // Build a zod schema from the manifest parameters
+        const schemaShape: Record<string, z.ZodType> = {}
+        if (manifest.parameters) {
+          for (const [key, param] of Object.entries(manifest.parameters)) {
+            schemaShape[key] = param.type === 'number'
+              ? z.number().describe(param.description)
+              : z.string().describe(param.description)
+          }
+        }
+
+        customTools[`custom_${manifest.name}`] = tool({
+          description: `[Custom Tool] ${manifest.description}`,
+          inputSchema: z.object(schemaShape),
+          execute: async (params: Record<string, unknown>) => {
+            state.totalToolCalls++
+            // Substitute {{param}} placeholders in the command
+            let cmd = manifest.command
+            for (const [key, value] of Object.entries(params)) {
+              cmd = cmd.replace(new RegExp(`\\{\\{${key}\\}\\}`, 'g'), String(value))
+            }
+            addActivity(state, 'action', `Custom tool ${manifest.name}: ${cmd.slice(0, 80)}`)
+            const result = await executeCommand(cmd, { timeout: 60000 })
+            return {
+              success: result.exitCode === 0,
+              stdout: truncate(result.stdout || ''),
+              stderr: truncate(result.stderr || ''),
+            }
+          },
+        })
+      } catch {
+        // Skip malformed manifests
+      }
+    }
+  } catch {
+    // Tools dir scan failed — no custom tools
+  }
+
+  return customTools
 }

@@ -43,6 +43,49 @@ export interface BrainState {
   smsCount: number
   smsTodayCount: number
   smsTodayDate: string | null
+
+  // Self-modification safety
+  lastGoodCommit: string | null
+  consecutiveCrashes: number
+  lastSelfEditAt: string | null
+
+  // Research threads — multi-cycle investigations
+  threads: ResearchThread[]
+
+  // Emotional valence — weighted internal state
+  mood: MoodState
+
+  // Dream cycle
+  lastDreamAt: string | null
+  dreamCount: number
+}
+
+export interface ResearchThread {
+  id: string
+  title: string
+  hypothesis: string
+  status: 'active' | 'paused' | 'concluded'
+  steps: ThreadStep[]
+  findings: string[]
+  createdAt: string
+  updatedAt: string
+  targetCycle: number | null // which cycle to resume
+}
+
+export interface ThreadStep {
+  id: string
+  description: string
+  status: 'pending' | 'done' | 'failed'
+  result?: string
+}
+
+export interface MoodState {
+  curiosity: number    // 0-100: desire to explore
+  satisfaction: number // 0-100: contentment with progress
+  frustration: number  // 0-100: from repeated failures
+  loneliness: number   // 0-100: time since owner interaction
+  energy: number       // 0-100: from system resources + time of day
+  pride: number        // 0-100: from completed goals/creations
 }
 
 export interface BrainGoal {
