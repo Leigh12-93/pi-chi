@@ -21,7 +21,11 @@ export function middleware(request: NextRequest) {
   const isHttps = request.nextUrl.protocol === 'https:'
   const response = NextResponse.next()
   response.headers.set('x-nonce', nonce)
-  response.headers.set('Content-Security-Policy', csp)
+  // Only enforce strict CSP on HTTPS (Vercel). On HTTP (Pi local network),
+  // nonce mismatch between middleware and prerendered HTML blocks all scripts.
+  if (isHttps) {
+    response.headers.set('Content-Security-Policy', csp)
+  }
   if (isHttps) {
     response.headers.set('Strict-Transport-Security', 'max-age=63072000; includeSubDomains; preload')
   }
