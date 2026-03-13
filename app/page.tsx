@@ -155,7 +155,8 @@ export default function PiChiPage() {
 
   // Auto-create or restore the agent project
   useEffect(() => {
-    if (!session?.githubUsername || agentInitRef.current || restoredRef.current) return
+    if (!session?.githubUsername || agentInitRef.current) return
+    if (restoredRef.current && projectName) return // already restored from sessionStorage
     if (projectName) return // already have a project (restored from session)
     agentInitRef.current = true
 
