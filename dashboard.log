@@ -1,0 +1,15 @@
+
+> pi-chi@0.1.2 dev
+> next dev --port 3333
+
+ ⨯ Failed to start server
+Error: listen EADDRINUSE: address already in use :::3333
+    at <unknown> (Error: listen EADDRINUSE: address already in use :::3333)
+    at new Promise (<anonymous>) {
+  code: 'EADDRINUSE',
+  errno: -98,
+  syscall: 'listen',
+  address: '::',
+  port: 3333
+}
+[?25h

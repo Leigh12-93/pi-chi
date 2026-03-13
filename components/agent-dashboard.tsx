@@ -397,7 +397,7 @@ export function AgentDashboard({
       {/* ─── MOBILE LAYOUT (< md) ─── */}
       <div className="flex md:hidden flex-1 flex-col overflow-hidden">
         {/* Mobile content area */}
-        <div className="flex-1 overflow-hidden relative">
+        <div className="flex-1 overflow-hidden relative bg-pi-bg">
           <AnimatePresence mode="wait">
             {/* Chat (Brain Chat on mobile) */}
             {mobileTab === 'chat' && (
@@ -406,8 +406,8 @@ export function AgentDashboard({
                 initial={{ opacity: 0, x: -20 }}
                 animate={{ opacity: 1, x: 0 }}
                 exit={{ opacity: 0, x: 20 }}
-                transition={{ type: 'spring', stiffness: 500, damping: 35 }}
-                className="absolute inset-0"
+                transition={{ type: 'spring', stiffness: 400, damping: 30 }}
+                className="absolute inset-0 flex flex-col"
               >
                 <BrainChat
                   chatMessages={agent.chatMessages}
@@ -426,10 +426,12 @@ export function AgentDashboard({
                 initial={{ opacity: 0, x: -20 }}
                 animate={{ opacity: 1, x: 0 }}
                 exit={{ opacity: 0, x: 20 }}
-                transition={{ type: 'spring', stiffness: 500, damping: 35 }}
-                className="absolute inset-0"
+                transition={{ type: 'spring', stiffness: 400, damping: 30 }}
+                className="absolute inset-0 overflow-y-auto"
               >
-                <GoalsPanel goals={agent.goals} onInjectGoal={agent.injectGoal} />
+                <div className="px-2 py-3">
+                  <GoalsPanel goals={agent.goals} onInjectGoal={agent.injectGoal} />
+                </div>
               </motion.div>
             )}
 
@@ -440,10 +442,12 @@ export function AgentDashboard({
                 initial={{ opacity: 0, x: -20 }}
                 animate={{ opacity: 1, x: 0 }}
                 exit={{ opacity: 0, x: 20 }}
-                transition={{ type: 'spring', stiffness: 500, damping: 35 }}
-                className="absolute inset-0"
+                transition={{ type: 'spring', stiffness: 400, damping: 30 }}
+                className="absolute inset-0 overflow-y-auto"
               >
-                <ActivityFeed entries={agent.activity} agentStatus={agent.agentStatus} />
+                <div className="px-2 py-3">
+                  <ActivityFeed entries={agent.activity} agentStatus={agent.agentStatus} />
+                </div>
               </motion.div>
             )}
 
@@ -455,16 +459,26 @@ export function AgentDashboard({
                 animate={{ opacity: 1, x: 0 }}
                 exit={{ opacity: 0, x: 20 }}
                 transition={{ type: 'spring', stiffness: 500, damping: 35 }}
-                className="absolute inset-0 overflow-y-auto"
+                className="absolute inset-0 overflow-y-auto pb-safe-bottom"
               >
                 <VitalsPanel vitals={vitals} devMode={devMode} />
-                <div className="px-3 py-3">
+                
+                {/* Better spacing between sections */}
+                <div className="mx-4 my-4 h-px bg-gradient-to-r from-transparent via-pi-border to-transparent" />
+                
+                <div className="px-4 py-3">
                   <BrainStats brainMeta={agent.brainMeta} brainStatus={agent.brainStatus} />
                 </div>
-                <div className="px-3 pb-3">
+                
+                <div className="mx-4 my-3 h-px bg-gradient-to-r from-transparent via-pi-border to-transparent" />
+                
+                <div className="px-4 py-3">
                   <MoodPanel mood={agent.mood || undefined} />
                 </div>
-                <div className="px-3 pb-3">
+                
+                <div className="mx-4 my-3 h-px bg-gradient-to-r from-transparent via-pi-border to-transparent" />
+                
+                <div className="px-4 pb-6">
                   <LiveLogPanel />
                 </div>
               </motion.div>
@@ -477,18 +491,18 @@ export function AgentDashboard({
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0, y: -20 }}
-                transition={{ type: 'spring', stiffness: 500, damping: 35 }}
-                className="absolute inset-0 bg-[#0a0a0f]"
+                transition={{ type: 'spring', stiffness: 400, damping: 30 }}
+                className="absolute inset-0 bg-[#0a0a0f] flex flex-col"
               >
-                <div ref={terminalRef} className="h-full p-1" />
+                <div ref={terminalRef} className="flex-1 p-2" />
               </motion.div>
             )}
           </AnimatePresence>
         </div>
 
         {/* ─── Mobile bottom tab bar ─── */}
-        <div className="border-t border-pi-border bg-pi-panel/90 backdrop-blur-md safe-bottom" role="tablist">
-          <div className="flex items-center justify-around px-2 py-1">
+        <div className="border-t border-pi-border bg-pi-panel/95 backdrop-blur-md supports-[padding-bottom:env(safe-area-inset-bottom)]:pb-[env(safe-area-inset-bottom)]" role="tablist">
+          <div className="flex items-center justify-around px-3 py-2">
             {mobileTabs.map(tab => {
               const isActive = mobileTab === tab.id
               const badge = tab.id === 'chat' ? unreadBrainMessages : 0
@@ -503,29 +517,32 @@ export function AgentDashboard({
                     if ('vibrate' in navigator) navigator.vibrate(10)
                   }}
                   className={cn(
-                    'relative flex flex-col items-center gap-0.5 px-3 py-1.5 rounded-lg transition-all min-w-[52px]',
+                    'relative flex flex-col items-center gap-1 px-3 py-2 rounded-xl transition-all min-w-[60px] min-h-[48px] touch-manipulation',
                     isActive
-                      ? 'text-pi-accent'
-                      : 'text-pi-text-dim hover:text-pi-text'
+                      ? 'text-pi-accent bg-pi-accent/10'
+                      : 'text-pi-text-dim hover:text-pi-text hover:bg-pi-hover/50 active:bg-pi-hover/70'
                   )}
                 >
                   <div className="relative">
-                    <tab.icon className={cn('w-5 h-5 transition-transform', isActive && 'scale-110')} />
+                    <tab.icon className={cn('w-5 h-5 transition-all', isActive && 'scale-110 drop-shadow-sm')} />
                     {badge > 0 && (
                       <motion.span
                         initial={{ scale: 0 }}
                         animate={{ scale: 1 }}
-                        className="absolute -top-1 -right-1.5 bg-pi-accent text-white text-[7px] font-bold w-3.5 h-3.5 rounded-full flex items-center justify-center"
+                        className="absolute -top-1.5 -right-1.5 bg-pi-accent text-white text-[8px] font-bold w-4 h-4 rounded-full flex items-center justify-center shadow-md"
                       >
-                        {badge}
+                        {badge > 9 ? '9+' : badge}
                       </motion.span>
                     )}
                   </div>
-                  <span className="text-[9px] font-medium">{tab.label}</span>
+                  <span className={cn(
+                    'text-[10px] font-medium leading-tight',
+                    isActive && 'font-semibold'
+                  )}>{tab.label}</span>
                   {isActive && (
                     <motion.span
                       layoutId="mobile-tab-indicator"
-                      className="absolute -bottom-1 w-5 h-0.5 bg-pi-accent rounded-full"
+                      className="absolute -bottom-0.5 w-6 h-0.5 bg-pi-accent rounded-full shadow-sm"
                       transition={{ type: 'spring', stiffness: 500, damping: 30 }}
                     />
                   )}

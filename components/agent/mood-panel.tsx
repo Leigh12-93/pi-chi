@@ -57,10 +57,10 @@ export function MoodPanel({ mood, className }: MoodPanelProps) {
   return (
     <div className={cn('', className)}>
       {/* Header with overall mood */}
-      <div className="flex items-center justify-between mb-3">
-        <div className="flex items-center gap-2">
-          <Heart className="w-3.5 h-3.5 text-pink-500" />
-          <span className="text-[11px] font-bold text-pi-text uppercase tracking-wider">Mood</span>
+      <div className="flex items-center justify-between mb-4 sm:mb-3">
+        <div className="flex items-center gap-2.5 sm:gap-2">
+          <Heart className="w-4 h-4 sm:w-3.5 sm:h-3.5 text-pink-500" />
+          <span className="text-[12px] sm:text-[11px] font-bold text-pi-text uppercase tracking-wider">Mood</span>
         </div>
         <motion.div
           initial={{ opacity: 0, scale: 0.8 }}
