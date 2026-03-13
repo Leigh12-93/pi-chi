@@ -283,6 +283,41 @@ async function brainCycle(): Promise<void> {
       }
     }
 
+    // Post-cycle build check — if source files changed, verify build still passes
+    try {
+      const diffResult = await executeCommand('git diff --name-only HEAD', { cwd: PI_CHI_DIR, timeout: 5000 })
+      const changedFiles = (diffResult.stdout || '').trim()
+      if (changedFiles && (changedFiles.includes('.ts') || changedFiles.includes('.tsx') || changedFiles.includes('.css'))) {
+        console.log('[pi-brain] Source files changed — verifying build...')
+        const buildResult = await executeCommand('npm run build', { cwd: PI_CHI_DIR, timeout: 180000 })
+        if (buildResult.exitCode !== 0) {
+          console.error('[pi-brain] BUILD FAILED — attempting auto-fix...', (buildResult.stderr || '').slice(-200))
+          addActivity(state, 'error', `Build failed after code changes. Attempting auto-fix...`)
+
+          // Try to fix with claude_code
+          const fixCmd = `timeout --kill-after=30 240 claude -p 'The build is broken. Run npm run build, read the errors, and fix them. Do NOT skip any errors. Keep fixing until npm run build succeeds.' --output-format text --max-turns 15 2>&1 || true`
+          await executeCommand(fixCmd, { cwd: PI_CHI_DIR, timeout: 270000 })
+
+          // Check if fix worked
+          const retryBuild = await executeCommand('npm run build', { cwd: PI_CHI_DIR, timeout: 180000 })
+          if (retryBuild.exitCode === 0) {
+            console.log('[pi-brain] Auto-fix succeeded — build passes now')
+            addActivity(state, 'action', 'Auto-fixed build errors after code changes')
+          } else {
+            console.error('[pi-brain] Auto-fix failed — reverting changes')
+            addActivity(state, 'error', 'Could not fix build errors — reverting to clean state')
+            await executeCommand('git checkout -- .', { cwd: PI_CHI_DIR, timeout: 10000 })
+            await executeCommand('git clean -fd', { cwd: PI_CHI_DIR, timeout: 10000 })
+            await executeCommand('npm run build', { cwd: PI_CHI_DIR, timeout: 180000 })
+          }
+        } else {
+          console.log('[pi-brain] Build verified OK after code changes')
+        }
+      }
+    } catch (buildErr) {
+      console.error('[pi-brain] Build check error:', buildErr)
+    }
+
     // SUCCESS — reset crash counter and record good commit
     state.consecutiveCrashes = 0
     try {
