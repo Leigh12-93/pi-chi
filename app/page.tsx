@@ -2,25 +2,12 @@
 
 import { useState, useCallback, useEffect, useRef } from 'react'
 import { useSession } from '@/components/session-provider'
-import { Workspace } from '@/components/workspace'
-import { ProjectPicker } from '@/components/project-picker'
+import { AgentShell } from '@/components/agent-shell'
 import { ErrorBoundary } from '@/components/error-boundary'
 import { LandingPage } from '@/components/landing/landing-page'
 import { ApiKeyGate } from '@/components/api-key-gate'
-import { Onboarding } from '@/components/onboarding'
 import { hashFileMapDeep } from '@/lib/utils'
 import { toast } from 'sonner'
-
-interface SavedProject {
-  id: string
-  name: string
-  description: string
-  framework: string
-  github_repo_url: string | null
-  vercel_url: string | null
-  updated_at: string
-  created_at: string
-}
 
 export default function PiChiPage() {
   const { session, status, refresh } = useSession()
@@ -28,35 +15,23 @@ export default function PiChiPage() {
   const [projectName, setProjectName] = useState<string | null>(null)
   const [files, setFiles] = useState<Record<string, string>>({})
   const [activeFile, setActiveFile] = useState<string | null>(null)
-  const [savedProjects, setSavedProjects] = useState<SavedProject[]>([])
-  const [loadingProjects, setLoadingProjects] = useState(false)
-  const [projectsHasMore, setProjectsHasMore] = useState(false)
-  const projectsPageRef = useRef(1)
-  const [loadingProjectId, setLoadingProjectId] = useState<string | null>(null)
+  const agentInitRef = useRef(false)
   const autoSaveTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const retryTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const lastSavedHash = useRef<string>('')
   const restoredRef = useRef(false)
   const savingRef = useRef(false)
   const saveRetriesRef = useRef(0)
-  const loadingProjectsRef = useRef(false)
   const [saveStatus, setSaveStatus] = useState<'idle' | 'pending' | 'saving' | 'saved' | 'error'>('idle')
   const [autoSaveError, setAutoSaveError] = useState(false)
-  const [projectsLoadError, setProjectsLoadError] = useState(false)
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
   const [restoringProject, setRestoringProject] = useState(false)
   const [concurrentTabWarning, setConcurrentTabWarning] = useState(false)
   const [isOffline, setIsOffline] = useState(false)
   const [pendingMessage, setPendingMessage] = useState<string | null>(null)
-  const [deletingProjectId, setDeletingProjectId] = useState<string | null>(null)
-  const [duplicatingProjectId, setDuplicatingProjectId] = useState<string | null>(null)
   const [githubRepoUrl, setGithubRepoUrl] = useState<string | null>(null)
   const [vercelUrl, setVercelUrl] = useState<string | null>(null)
   const [currentBranch, setCurrentBranch] = useState<string>('main')
-  const [onboardingDismissed, setOnboardingDismissed] = useState(() => {
-    try { return sessionStorage.getItem('pi_onboarding_done') === '1' } catch { return false }
-  })
-  // pendingAuditMessage removed — auto-scan disabled, user triggers manually
 
   useEffect(() => {
     if (typeof BroadcastChannel === 'undefined') return
@@ -162,7 +137,7 @@ export default function PiChiPage() {
     } catch { /* sessionStorage unavailable (private browsing) — non-fatal */ }
   }, [projectId, projectName, activeFile])
 
-  // Handle browser back button — go to project picker instead of leaving the site
+  // Handle browser back button — reset to re-init agent project
   useEffect(() => {
     const handlePopState = (e: PopStateEvent) => {
       if (projectName) {
@@ -171,44 +146,71 @@ export default function PiChiPage() {
         setProjectId(null)
         setFiles({})
         setActiveFile(null)
-        loadProjects()
+        agentInitRef.current = false // allow re-init
       }
     }
     window.addEventListener('popstate', handlePopState)
     return () => window.removeEventListener('popstate', handlePopState)
-  }, [projectName]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [projectName])
 
-  // Load saved projects when session is available
+  // Auto-create or restore the agent project
   useEffect(() => {
-    if (session?.githubUsername) {
-      loadProjects()
-    }
-  }, [session?.githubUsername])
+    if (!session?.githubUsername || agentInitRef.current || restoredRef.current) return
+    if (projectName) return // already have a project (restored from session)
+    agentInitRef.current = true
 
-  const loadProjects = async (page = 1) => {
-    if (loadingProjectsRef.current) return
-    loadingProjectsRef.current = true
-    setLoadingProjects(true)
-    if (page === 1) setProjectsLoadError(false)
-    try {
-      const res = await fetch(`/api/projects?page=${page}&limit=20`)
-      if (res.ok) {
-        const data = await res.json()
-        const projects = data.projects || data
-        setSavedProjects(prev => page === 1 ? projects : [...prev, ...projects])
-        setProjectsHasMore(!!data.hasMore)
-        projectsPageRef.current = page
-      } else {
-        if (page === 1) setProjectsLoadError(true)
+    async function initAgentProject() {
+      setRestoringProject(true)
+      try {
+        // Check for existing projects
+        const res = await fetch('/api/projects?page=1&limit=1')
+        if (res.ok) {
+          const data = await res.json()
+          const projects = data.projects || data
+          if (projects.length > 0) {
+            // Restore the first (most recent) project
+            const proj = projects[0]
+            const detailRes = await fetch(`/api/projects/${proj.id}`)
+            if (detailRes.ok) {
+              const detail = await detailRes.json()
+              setProjectId(detail.id)
+              setProjectName(detail.name)
+              setFiles(detail.files || {})
+              setGithubRepoUrl(detail.github_repo_url || null)
+              setVercelUrl(detail.vercel_url || null)
+              lastSavedHash.current = hashFileMapDeep(detail.files || {})
+              setRestoringProject(false)
+              return
+            }
+          }
+        }
+
+        // No existing project — create the default agent project
+        const createRes = await fetch('/api/projects', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ name: 'Pi-Chi Agent' }),
+        })
+        if (createRes.ok) {
+          const data = await createRes.json()
+          setProjectId(data.id)
+          setProjectName('Pi-Chi Agent')
+        } else {
+          // Fallback: work without cloud save
+          setProjectName('Pi-Chi Agent')
+          setErrorMessage('Cloud save unavailable. Working in local-only mode.')
+        }
+      } catch (err) {
+        console.error('Failed to init agent project:', err)
+        setProjectName('Pi-Chi Agent')
+        setErrorMessage('Cloud save unavailable. Working in local-only mode.')
+      } finally {
+        setRestoringProject(false)
       }
-    } catch (err) {
-      console.error('Failed to load projects:', err)
-      if (page === 1) setProjectsLoadError(true)
-    } finally {
-      setLoadingProjects(false)
-      loadingProjectsRef.current = false
     }
-  }
+
+    initAgentProject()
+  }, [session?.githubUsername, projectName])
 
   // Auto-save when files change (debounced 5 seconds, with save lock)
   useEffect(() => {
@@ -336,240 +338,6 @@ export default function PiChiPage() {
     }
   }, [projectId, files, handleManualSave])
 
-  // Auto-audit dispatch removed — user triggers audits manually
-
-  /** After importing from GitHub, auto-detect and connect integrations (fire-and-forget) */
-  const autoConnectFromImport = useCallback(async (importedFiles: Record<string, string>, repoUrl: string, newProjectId: string, onFilesUpdate?: (files: Record<string, string>) => void) => {
-    // Parse all env vars from project files
-    const envFileNames = ['.env.local', '.env', '.env.development', '.env.production']
-    const envVars: Record<string, string> = {}
-    for (const envFile of envFileNames) {
-      const content = importedFiles[envFile]
-      if (!content) continue
-      for (const line of content.split('\n')) {
-        const trimmed = line.trim()
-        if (trimmed.startsWith('#') || !trimmed.includes('=')) continue
-        const eqIdx = trimmed.indexOf('=')
-        const k = trimmed.slice(0, eqIdx).trim()
-        const v = trimmed.slice(eqIdx + 1).trim().replace(/^["']|["']$/g, '')
-        if (k && v && !envVars[k]) envVars[k] = v
-      }
-    }
-
-    // 1. Auto-detect Supabase credentials
-    let sbUrl = ''
-    let sbKey = ''
-    for (const [k, v] of Object.entries(envVars)) {
-      if (k.includes('SUPABASE') && k.includes('URL') && v.startsWith('https://')) sbUrl = v
-      if (k.includes('SUPABASE') && (k.includes('SERVICE_ROLE') || k.includes('ANON')) && v.startsWith('ey')) {
-        if (k.includes('SERVICE_ROLE') || !sbKey) sbKey = v
-      }
-    }
-    if (sbUrl && sbKey) {
-      try { await fetch('/api/settings', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ supabaseUrl: sbUrl, supabaseKey: sbKey, skipValidation: true }) }) } catch (e) { console.warn('[pi:env-detect] Failed to auto-save Supabase creds:', e) }
-    }
-
-    // 2. Auto-detect Anthropic API key
-    const anthropicKey = envVars['ANTHROPIC_API_KEY']
-    if (anthropicKey?.startsWith('sk-ant-')) {
-      try { await fetch('/api/settings', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ apiKey: anthropicKey, skipValidation: true }) }) } catch (e) { console.warn('[pi:env-detect] Failed to auto-save Anthropic key:', e) }
-    }
-
-    // 3. Auto-detect Vercel/deploy token
-    const vercelToken = envVars['PI_DEPLOY_TOKEN'] || envVars['VERCEL_TOKEN']
-    if (vercelToken) {
-      try { await fetch('/api/settings', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ vercelToken, skipValidation: true }) }) } catch (e) { console.warn('[pi:env-detect] Failed to auto-save Vercel token:', e) }
-    }
-
-    // 4. Auto-detect Google API key
-    const googleKey = envVars['GOOGLE_API_KEY'] || envVars['NEXT_PUBLIC_GOOGLE_API_KEY']
-    if (googleKey?.startsWith('AIza')) {
-      try { await fetch('/api/settings', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ googleApiKey: googleKey }) }) } catch (e) { console.warn('[pi:env-detect] Failed to auto-save Google key:', e) }
-    }
-
-    // 5b. Auto-detect Stripe credentials
-    const stripeSecretKey = envVars['STRIPE_SECRET_KEY'] || envVars['STRIPE_SK']
-    const stripePublishableKey = envVars['STRIPE_PUBLISHABLE_KEY'] || envVars['NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY'] || envVars['REACT_APP_STRIPE_PUBLISHABLE_KEY']
-    const stripeWebhookSecret = envVars['STRIPE_WEBHOOK_SECRET']
-    if (stripeSecretKey?.startsWith('sk_live_') || stripeSecretKey?.startsWith('sk_test_')) {
-      const stripeBody: Record<string, string> = { stripeSecretKey, skipValidation: 'true' } as any
-      if (stripePublishableKey?.startsWith('pk_')) stripeBody.stripePublishableKey = stripePublishableKey
-      if (stripeWebhookSecret?.startsWith('whsec_')) stripeBody.stripeWebhookSecret = stripeWebhookSecret
-      try { await fetch('/api/settings', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(stripeBody) }) } catch (e) { console.warn('[pi:env-detect] Failed to auto-save Stripe creds:', e) }
-    }
-
-    // 6. Auto-save all env vars to global env var store (merge, don't overwrite)
-    if (Object.keys(envVars).length > 0) {
-      try {
-        const existingRes = await fetch('/api/settings/env-export')
-        const existingData = existingRes.ok ? await existingRes.json() : { variables: [] }
-        const existingVars: Array<{ key: string; value: string }> = existingData.variables || []
-        const existingKeys = new Set(existingVars.map((v: { key: string }) => v.key))
-        const newVars = Object.entries(envVars)
-          .filter(([k]) => !existingKeys.has(k))
-          .map(([key, value]) => ({ key, value }))
-        if (newVars.length > 0) {
-          const merged = [...existingVars, ...newVars]
-          await fetch('/api/settings/env-export', {
-            method: 'PUT',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ variables: merged }),
-          })
-        }
-      } catch (e) { console.warn('[pi:env-detect] Failed to save global env vars:', e) }
-    }
-
-    // 5. Auto-detect Vercel project linked to this GitHub repo + import its env vars
-    try {
-      const res = await fetch('/api/vercel/projects')
-      if (res.ok) {
-        const data = await res.json()
-        const projects = Array.isArray(data) ? data : data.projects || []
-        const repoPath = repoUrl.replace('https://github.com/', '').toLowerCase()
-        const match = projects.find((p: any) => {
-          const linked = p.link?.repo?.toLowerCase() || p.link?.repoSlug?.toLowerCase() || ''
-          return linked === repoPath || linked === repoPath.split('/')[1]
-        })
-        if (match) {
-          await fetch(`/api/projects/${newProjectId}/connect`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ vercel_project_id: match.id }),
-          })
-          // Import Vercel env vars into .env.local
-          try {
-            const envRes = await fetch(`/api/vercel/env?projectId=${match.id}`)
-            if (envRes.ok) {
-              const vercelEnvs = await envRes.json()
-              if (Array.isArray(vercelEnvs) && vercelEnvs.length > 0) {
-                const existing = importedFiles['.env.local'] || ''
-                const existingKeys = new Set(
-                  existing.split('\n').filter(l => !l.startsWith('#') && l.includes('=')).map(l => l.split('=')[0].trim())
-                )
-                const newVars = vercelEnvs
-                  .filter((e: any) => e.value && !existingKeys.has(e.key))
-                  .map((e: any) => `${e.key}=${e.value}`)
-                if (newVars.length > 0) {
-                  const updatedEnv = [existing.trim(), '# Vercel Environment Variables', ...newVars].filter(Boolean).join('\n') + '\n'
-                  onFilesUpdate?.({ '.env.local': updatedEnv })
-                }
-              }
-            }
-          } catch (e) { console.warn('[pi:env-detect] Failed to import Vercel env vars:', e) }
-        }
-      }
-    } catch (e) { console.warn('[pi:env-detect] Failed to detect Vercel project:', e) }
-
-    // 7. Auto-inject saved global env vars into .env.local for vars the project needs but are empty/missing
-    try {
-      const globalRes = await fetch('/api/settings/env-export')
-      if (globalRes.ok) {
-        const globalData = await globalRes.json()
-        const savedVars: Array<{ key: string; value: string }> = globalData.variables || []
-        if (savedVars.length > 0) {
-          const injected: string[] = []
-          for (const sv of savedVars) {
-            // Check if this key exists in ANY env file
-            const existsWithValue = Object.values(importedFiles).some(content => {
-              if (!content) return false
-              return content.split('\n').some(line => {
-                const t = line.trim()
-                if (t.startsWith('#') || !t.includes('=')) return false
-                const k = t.slice(0, t.indexOf('=')).trim()
-                const v = t.slice(t.indexOf('=') + 1).trim().replace(/^["']|["']$/g, '')
-                return k === sv.key && v.length > 0
-              })
-            })
-            if (!existsWithValue) {
-              // Check if key is referenced in code (import.meta.env, process.env)
-              const isReferenced = Object.entries(importedFiles).some(([path, content]) => {
-                if (path.startsWith('.env') || !content) return false
-                return content.includes(`process.env.${sv.key}`) || content.includes(`import.meta.env.${sv.key}`) || content.includes(`env.${sv.key}`)
-              })
-              if (isReferenced) {
-                injected.push(`${sv.key}=${sv.value}`)
-              }
-            }
-          }
-          if (injected.length > 0) {
-            const existing = importedFiles['.env.local'] || ''
-            const updated = [existing.trim(), '# Auto-injected from saved env vars', ...injected].filter(Boolean).join('\n') + '\n'
-            onFilesUpdate?.({ '.env.local': updated })
-          }
-        }
-      }
-    } catch (e) { console.warn('[pi:env-detect] Failed to inject global env vars:', e) }
-  }, [])
-
-  const handleSelectProject = useCallback(async (name: string, id?: string, initialFiles?: Record<string, string>, query?: string, meta?: { githubRepoUrl?: string }) => {
-    if (id) {
-      setLoadingProjectId(id)
-      try {
-        const res = await fetch(`/api/projects/${id}`)
-        if (res.ok) {
-          const data = await res.json()
-          setProjectId(data.id)
-          setProjectName(data.name)
-          setFiles(data.files || {})
-          setGithubRepoUrl(data.github_repo_url || null)
-          setVercelUrl(data.vercel_url || null)
-          lastSavedHash.current = hashFileMapDeep(data.files || {})
-          setActiveFile(null)
-          return
-        }
-        console.error('Failed to load project:', res.status)
-        setErrorMessage(`Could not load project (${res.status}). It may have been deleted.`)
-        // Don't fall through to project creation — return to picker
-        return
-      } catch (err) {
-        console.error('Failed to load project:', err)
-        setErrorMessage('Could not load project. Check your connection and try again.')
-        // Don't fall through to project creation — return to picker
-        return
-      } finally {
-        setLoadingProjectId(null)
-      }
-    }
-
-    // Creating new project (only reached when id is not provided)
-    let newProjectId: string | null = null
-    if (session?.githubUsername) {
-      try {
-        const createBody: Record<string, unknown> = { name }
-        if (meta?.githubRepoUrl) createBody.github_repo_url = meta.githubRepoUrl
-        const res = await fetch('/api/projects', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(createBody),
-        })
-        if (res.ok) {
-          const data = await res.json()
-          setProjectId(data.id)
-          newProjectId = data.id
-        } else {
-          console.error('Failed to create project:', res.status)
-          setErrorMessage(`Cloud save unavailable (${res.status}). Working in local-only mode — changes won't persist across sessions.`)
-        }
-      } catch (err) {
-        console.error('Failed to create project:', err)
-        setErrorMessage('Cloud save unavailable. Working in local-only mode — changes won\'t persist across sessions.')
-      }
-    }
-
-    setProjectName(name)
-    setFiles(initialFiles || {})
-    setActiveFile(null)
-    setGithubRepoUrl(meta?.githubRepoUrl || null)
-    if (query) setPendingMessage(query)
-
-    // Auto-connect integrations from imported files (fire-and-forget)
-    if (initialFiles && meta?.githubRepoUrl && newProjectId) {
-      autoConnectFromImport(initialFiles, meta.githubRepoUrl, newProjectId, handleBulkFileUpdate)
-    }
-
-    // Auto-scan on import disabled — user triggers audits manually via chat
-  }, [session])
-
   const handleFileChange = useCallback((path: string, content: string) => {
     setFiles(prev => ({ ...prev, [path]: content }))
   }, [])
@@ -591,45 +359,6 @@ export default function PiChiPage() {
     }
   }, [])
 
-  const handleDeleteProject = useCallback(async (id: string) => {
-    setDeletingProjectId(id)
-    try {
-      const res = await fetch(`/api/projects/${id}`, { method: 'DELETE' })
-      if (res.ok) {
-        setSavedProjects(prev => prev.filter(p => p.id !== id))
-      } else {
-        setErrorMessage(`Failed to delete project (HTTP ${res.status}). Please try again.`)
-      }
-    } catch (err) {
-      console.error('Failed to delete project:', err)
-      setErrorMessage('Failed to delete project. Please try again.')
-    } finally {
-      setDeletingProjectId(null)
-    }
-  }, [])
-
-  const handleDuplicateProject = useCallback(async (id: string) => {
-    setDuplicatingProjectId(id)
-    try {
-      const res = await fetch(`/api/projects/${id}/duplicate`, { method: 'POST' })
-      if (res.ok) {
-        const newProject = await res.json()
-        setSavedProjects(prev => [newProject, ...prev])
-        toast.success(`Duplicated as "${newProject.name}"`)
-      } else {
-        const data = await res.json().catch(() => ({}))
-        toast.error(data.error || `Failed to duplicate project (HTTP ${res.status})`)
-      }
-    } catch (err) {
-      console.error('Failed to duplicate project:', err)
-      toast.error('Failed to duplicate project. Please try again.')
-    } finally {
-      setDuplicatingProjectId(null)
-    }
-  }, [])
-
-  // GitHub token is now handled server-side from JWT session — not exposed to client
-
   // Auth gate: show sign-in page if not authenticated
   if (status === 'loading') {
     return (
@@ -648,66 +377,16 @@ export default function PiChiPage() {
     return <ApiKeyGate onKeySet={() => refresh()} />
   }
 
-  if (restoringProject && !projectName) {
+  // Loading state: initializing agent project
+  if (restoringProject || !projectName) {
     return (
       <ErrorBoundary>
-        <div className="flex items-center justify-center h-screen bg-zinc-950">
-          <div className="flex items-center gap-3 text-zinc-400">
-            <div className="h-5 w-5 border-2 border-zinc-600 border-t-zinc-300 rounded-full animate-spin" />
-            <span className="text-sm">Restoring project...</span>
+        <div className="flex items-center justify-center h-screen bg-pi-bg">
+          <div className="flex flex-col items-center gap-3">
+            <div className="h-6 w-6 border-2 border-pi-border border-t-pi-accent rounded-full animate-spin" />
+            <span className="text-sm text-pi-text-dim">Initializing Pi-Chi Agent...</span>
           </div>
         </div>
-      </ErrorBoundary>
-    )
-  }
-
-  if (!projectName) {
-    // Show onboarding for users with zero projects (first-time experience)
-    if (!loadingProjects && savedProjects.length === 0 && !onboardingDismissed && !projectsLoadError) {
-      return (
-        <ErrorBoundary>
-          <Onboarding
-            onComplete={({ template, description }) => {
-              setOnboardingDismissed(true)
-              try { sessionStorage.setItem('pi_onboarding_done', '1') } catch (e) { console.warn('[pi:sessionStorage] Failed to persist onboarding state:', e) }
-              const projectName = template || 'my-project'
-              const query = description
-                ? `Create a ${template} project: ${description}`
-                : undefined
-              handleSelectProject(projectName, undefined, undefined, query)
-            }}
-          />
-        </ErrorBoundary>
-      )
-    }
-
-    return (
-      <ErrorBoundary>
-        {errorMessage && (
-          <div className="fixed top-4 right-4 z-50 bg-red-500/10 border border-red-500/20 text-red-400 px-4 py-2 rounded-lg text-sm animate-in fade-in">
-            {errorMessage}
-          </div>
-        )}
-        {isOffline && (
-          <div className="fixed bottom-4 left-4 z-50 bg-yellow-500/10 border border-yellow-500/20 text-yellow-400 px-4 py-2 rounded-lg text-sm">
-            You&apos;re offline. Changes will save when you reconnect.
-          </div>
-        )}
-        <ProjectPicker
-          onSelect={handleSelectProject}
-          savedProjects={savedProjects}
-          loadingProjects={loadingProjects}
-          onDeleteProject={handleDeleteProject}
-          onDuplicateProject={handleDuplicateProject}
-          deletingProjectId={deletingProjectId}
-          duplicatingProjectId={duplicatingProjectId}
-          loadingProjectId={loadingProjectId}
-          isLoggedIn={!!session?.user}
-          loadError={projectsLoadError}
-          onRetryLoad={loadProjects}
-          hasMoreProjects={projectsHasMore}
-          onLoadMoreProjects={() => loadProjects(projectsPageRef.current + 1)}
-        />
       </ErrorBoundary>
     )
   }
@@ -731,7 +410,7 @@ export default function PiChiPage() {
           You&apos;re offline. Changes will save when you reconnect.
         </div>
       )}
-      <Workspace
+      <AgentShell
         projectName={projectName}
         projectId={projectId}
         files={files}
@@ -741,11 +420,11 @@ export default function PiChiPage() {
         onFileDelete={handleFileDelete}
         onBulkFileUpdate={handleBulkFileUpdate}
         onSwitchProject={() => {
+          // In agent mode, "switch project" just resets state
           setProjectName(null)
           setProjectId(null)
           setFiles({})
           setActiveFile(null)
-          loadProjects()
         }}
         autoSaveError={autoSaveError}
         saveStatus={saveStatus}
@@ -753,8 +432,8 @@ export default function PiChiPage() {
         onUpdateSettings={(settings) => {
           if (settings.name) setProjectName(settings.name)
         }}
-        initialPendingMessage={pendingMessage}
-        onInitialPendingMessageSent={() => setPendingMessage(null)}
+        pendingMessage={pendingMessage}
+        onPendingMessageSent={() => setPendingMessage(null)}
         githubRepoUrl={githubRepoUrl}
         onGithubRepoUrlChange={setGithubRepoUrl}
         githubUsername={session?.githubUsername}

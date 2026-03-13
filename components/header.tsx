@@ -4,13 +4,15 @@ import { useState, useRef, useEffect } from 'react'
 import { useSession } from '@/components/session-provider'
 import {
   Brain, Github, LogOut,
-  Cpu, Activity, Wifi, WifiOff,
-  Search, ChevronRight, Sun, Moon,
-  Menu, X, Power, Settings, Target,
+  Code, Terminal,
+  Wifi, WifiOff,
+  Sun, Moon,
+  Menu, X, Settings,
 } from 'lucide-react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { useTheme } from '@/components/theme-provider'
 import { cn } from '@/lib/utils'
+import type { AppMode } from '@/lib/agent-types'
 
 interface HeaderProps {
   projectName: string
@@ -24,19 +26,20 @@ interface HeaderProps {
   vercelUrl?: string | null
   currentBranch?: string
   onBranchChange?: (branch: string) => void
+  mode?: AppMode
+  onModeChange?: (mode: AppMode) => void
 }
 
-const actions: Array<{ id: string; icon: typeof Brain; label: string; tip: string } | 'separator'> = [
-  { id: 'new-goal', icon: Target, label: 'New Goal', tip: 'Set a new goal for Pi-Chi' },
-  'separator',
-  { id: 'system-info', icon: Cpu, label: 'System', tip: 'View system information' },
-  { id: 'gpio', icon: Activity, label: 'GPIO', tip: 'GPIO pin monitor' },
-  'separator',
-  { id: 'settings', icon: Settings, label: 'Settings', tip: 'Agent settings' },
-  { id: 'restart', icon: Power, label: 'Restart', tip: 'Restart Pi-Chi agent' },
+const modeTabs: Array<{ id: AppMode; icon: typeof Brain; label: string; shortcut: string }> = [
+  { id: 'agent', icon: Brain, label: 'Agent', shortcut: '1' },
+  { id: 'ide', icon: Code, label: 'IDE', shortcut: '2' },
+  { id: 'terminal', icon: Terminal, label: 'Shell', shortcut: '3' },
 ]
 
-export function Header({ onSwitchProject, onAction, onOpenCommandPalette, notificationSlot }: HeaderProps) {
+export function Header({
+  onSwitchProject, onAction, onOpenCommandPalette, notificationSlot,
+  mode = 'agent', onModeChange,
+}: HeaderProps) {
   const { session, status } = useSession()
   const { theme, toggleTheme } = useTheme()
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
@@ -54,26 +57,19 @@ export function Header({ onSwitchProject, onAction, onOpenCommandPalette, notifi
     return () => document.removeEventListener('mousedown', handler)
   }, [mobileMenuOpen])
 
-  const actionItems = actions.filter((a): a is Exclude<typeof a, 'separator'> => a !== 'separator')
-
   return (
     <header className="h-12 sm:h-11 flex items-center justify-between px-2 sm:px-4 border-b border-pi-border bg-pi-panel/80 backdrop-blur-sm shrink-0 sticky top-0 z-30">
-      {/* Left: Logo + Agent Name */}
+      {/* Left: Logo + Connection */}
       <div className="flex items-center gap-2 sm:gap-3 min-w-0">
         <button
           onClick={onSwitchProject}
           className="group/logo flex items-center gap-1.5 sm:gap-2 shrink-0 hover:opacity-80 transition-opacity"
-          aria-label="Mission Control"
-          title="Mission Control"
+          aria-label="Pi-Chi Home"
+          title="Pi-Chi Home"
         >
           <span className="font-bold text-sm bg-gradient-to-r from-pi-accent to-red-500 bg-clip-text text-transparent transition-transform duration-200 group-hover/logo:scale-105">&pi;-&chi;</span>
           <span className="font-bold text-sm text-pi-text hidden sm:inline">Pi-Chi</span>
         </button>
-        <ChevronRight className="w-3 h-3 text-pi-text-dim hidden sm:block" />
-        <div className="flex items-center gap-1.5 px-2 py-1 text-xs text-pi-text-dim min-w-0">
-          <Brain className="w-3.5 h-3.5 shrink-0 text-pi-accent" />
-          <span className="truncate max-w-[120px] sm:max-w-none">Mission Control</span>
-        </div>
 
         {/* Connection status */}
         <span className={cn(
@@ -86,45 +82,58 @@ export function Header({ onSwitchProject, onAction, onOpenCommandPalette, notifi
         </span>
       </div>
 
-      {/* Center: Action Buttons — desktop only */}
-      <nav aria-label="Agent actions" className="hidden md:flex items-center gap-0.5 sm:gap-0 bg-pi-surface/50 rounded-lg px-0.5 py-0.5 border border-pi-border/50">
-        {actions.map((action, idx) => {
-          if (action === 'separator') {
-            return <div key={`sep-${idx}`} className="w-px h-4 bg-pi-border/60 mx-0.5" />
-          }
-          return (
-            <button
-              key={action.id}
-              onClick={() => onAction?.(action.id)}
-              className={cn(
-                'flex items-center gap-1.5 px-2.5 py-1.5 text-[11px] font-medium text-pi-text-dim hover:text-pi-accent hover:bg-pi-surface rounded transition-all duration-150 hover:scale-105 active:scale-95',
-                action.id === 'new-goal' && 'hover:shadow-[0_0_8px_rgba(220,38,38,0.3)] hover:text-pi-accent',
-                action.id === 'restart' && 'hover:text-orange-500',
-              )}
-              title={action.tip}
-              aria-label={action.label}
-            >
-              <action.icon className="w-3.5 h-3.5" />
-              <span className="hidden lg:inline">{action.label}</span>
-            </button>
-          )
-        })}
+      {/* Center: Mode Tabs */}
+      <nav aria-label="View mode" className="hidden md:flex items-center gap-0.5 bg-pi-surface/50 rounded-lg px-0.5 py-0.5 border border-pi-border/50">
+        {modeTabs.map(tab => (
+          <button
+            key={tab.id}
+            onClick={() => onModeChange?.(tab.id)}
+            className={cn(
+              'relative flex items-center gap-1.5 px-3 py-1.5 text-[11px] font-medium rounded-md transition-all duration-150',
+              mode === tab.id
+                ? 'text-pi-accent bg-pi-bg shadow-sm'
+                : 'text-pi-text-dim hover:text-pi-text hover:bg-pi-surface/80'
+            )}
+            title={`${tab.label} (Ctrl+${tab.shortcut})`}
+            aria-label={`${tab.label} mode`}
+          >
+            <tab.icon className="w-3.5 h-3.5" />
+            <span className="hidden lg:inline">{tab.label}</span>
+            {mode === tab.id && (
+              <motion.span
+                layoutId="header-mode-tab"
+                className="absolute inset-0 rounded-md bg-pi-bg shadow-sm -z-10"
+                transition={{ type: 'spring', stiffness: 400, damping: 30 }}
+              />
+            )}
+          </button>
+        ))}
       </nav>
 
-      {/* Right: Desktop controls + Mobile hamburger */}
+      {/* Right: Controls */}
       <div className="flex items-center gap-2 sm:gap-3 shrink-0">
+        {/* Settings button */}
+        <button
+          onClick={() => onAction?.('settings')}
+          className="hidden md:flex items-center gap-1.5 p-1.5 rounded-lg text-pi-text-dim hover:text-pi-text hover:bg-pi-surface transition-all"
+          title="Settings"
+          aria-label="Settings"
+        >
+          <Settings className="w-3.5 h-3.5" />
+        </button>
+
         {onOpenCommandPalette && (
           <button
             onClick={onOpenCommandPalette}
             aria-label="Open command palette"
             className="hidden md:flex items-center gap-2 px-2.5 py-1 text-[11px] text-pi-text-dim bg-pi-surface border border-pi-border rounded-lg hover:border-pi-accent/50 hover:text-pi-text active:bg-pi-surface-hover active:scale-[0.98] transition-all"
           >
-            <Search className="w-3 h-3" />
-            <span>Commands</span>
             <kbd className="px-1.5 py-0.5 text-[9px] font-mono bg-pi-bg border border-pi-border rounded shadow-[0_1px_0_0_var(--color-pi-border)]">Ctrl+K</kbd>
           </button>
         )}
+
         <span className="hidden md:inline">{notificationSlot}</span>
+
         <button
           onClick={toggleTheme}
           className="hidden md:block p-1.5 rounded-lg text-pi-text-dim hover:text-pi-text hover:bg-pi-surface transition-all"
@@ -193,38 +202,54 @@ export function Header({ onSwitchProject, onAction, onOpenCommandPalette, notifi
                 </div>
               )}
 
-              <div className="py-1 divide-y divide-pi-border/30">
-                {actionItems.map((action) => (
+              {/* Mode switcher for mobile */}
+              <div className="py-1 border-b border-pi-border/30">
+                <p className="px-4 py-1 text-[10px] text-pi-text-dim uppercase tracking-wider">View Mode</p>
+                {modeTabs.map(tab => (
                   <button
-                    key={action.id}
-                    onClick={() => { onAction?.(action.id); setMobileMenuOpen(false) }}
-                    className="flex items-center gap-3 w-full px-4 py-2.5 text-xs text-pi-text-dim hover:text-pi-text hover:bg-pi-surface-hover active:scale-[0.98] transition-all duration-150"
+                    key={tab.id}
+                    onClick={() => { onModeChange?.(tab.id); setMobileMenuOpen(false) }}
+                    className={cn(
+                      'flex items-center gap-3 w-full px-4 py-2.5 text-xs transition-all duration-150',
+                      mode === tab.id
+                        ? 'text-pi-accent bg-pi-accent/5'
+                        : 'text-pi-text-dim hover:text-pi-text hover:bg-pi-surface-hover'
+                    )}
                   >
-                    <action.icon className="w-4 h-4" />
-                    <span>{action.label}</span>
+                    <tab.icon className="w-4 h-4" />
+                    <span>{tab.label}</span>
+                    {mode === tab.id && <span className="ml-auto w-1.5 h-1.5 rounded-full bg-pi-accent" />}
                   </button>
                 ))}
               </div>
 
-              <div className="border-t border-pi-border" />
+              <div className="py-1">
+                <button
+                  onClick={() => { onAction?.('settings'); setMobileMenuOpen(false) }}
+                  className="flex items-center gap-3 w-full px-4 py-2.5 text-xs text-pi-text-dim hover:text-pi-text hover:bg-pi-surface-hover transition-colors"
+                >
+                  <Settings className="w-4 h-4" />
+                  <span>Settings</span>
+                </button>
 
-              <button
-                onClick={() => { toggleTheme(); setMobileMenuOpen(false) }}
-                className="flex items-center gap-3 w-full px-4 py-2.5 text-xs text-pi-text-dim hover:text-pi-text hover:bg-pi-surface-hover transition-colors"
-              >
-                {theme === 'dark' ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
-                <span>{theme === 'dark' ? 'Light mode' : 'Dark mode'}</span>
-              </button>
+                <button
+                  onClick={() => { toggleTheme(); setMobileMenuOpen(false) }}
+                  className="flex items-center gap-3 w-full px-4 py-2.5 text-xs text-pi-text-dim hover:text-pi-text hover:bg-pi-surface-hover transition-colors"
+                >
+                  {theme === 'dark' ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
+                  <span>{theme === 'dark' ? 'Light mode' : 'Dark mode'}</span>
+                </button>
+              </div>
 
               {session?.user ? (
-                <form action="/api/auth/logout" method="POST">
+                <form action="/api/auth/logout" method="POST" className="border-t border-pi-border">
                   <button type="submit" className="flex items-center gap-3 w-full px-4 py-2.5 text-xs text-pi-text-dim hover:text-pi-danger hover:bg-pi-surface-hover transition-colors">
                     <LogOut className="w-4 h-4" />
                     <span>Sign out</span>
                   </button>
                 </form>
               ) : (
-                <a href="/api/auth/login" className="flex items-center gap-3 w-full px-4 py-2.5 text-xs text-pi-text-dim hover:text-pi-text hover:bg-pi-surface-hover transition-colors">
+                <a href="/api/auth/login" className="flex items-center gap-3 w-full px-4 py-2.5 text-xs text-pi-text-dim hover:text-pi-text hover:bg-pi-surface-hover transition-colors border-t border-pi-border">
                   <Github className="w-4 h-4" />
                   <span>Sign in with GitHub</span>
                 </a>
