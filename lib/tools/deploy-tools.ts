@@ -45,7 +45,7 @@ export function createDeployTools(ctx: ToolContext) {
     check_task_status: tool({
       description: 'Check the status of a background task (deploy, GitHub push, build check). Use this to poll for completion after a tool returns a taskId.',
       inputSchema: z.object({
-        taskId: z.string().describe('Task ID returned by deploy_to_vercel, github_create_repo, github_push_update, or forge_check_build'),
+        taskId: z.string().describe('Task ID returned by deploy_to_vercel, github_create_repo, github_push_update, or pi_check_build'),
       }),
       execute: async ({ taskId }) => {
         // Check in-request store first
@@ -72,8 +72,8 @@ export function createDeployTools(ctx: ToolContext) {
       },
     }),
 
-    forge_check_build: tool({
-      description: 'Trigger a preview (non-production) deployment on Vercel to check if the current code builds successfully. Returns a taskId — use check_task_status to poll for completion. Use this BEFORE forge_redeploy to catch errors.',
+    pi_check_build: tool({
+      description: 'Trigger a preview (non-production) deployment on Vercel to check if the current code builds successfully. Returns a taskId — use check_task_status to poll for completion. Use this BEFORE pi_redeploy to catch errors.',
       inputSchema: z.object({
         branch: z.string().default('master').describe('Branch to build'),
       }),
@@ -95,12 +95,12 @@ export function createDeployTools(ctx: ToolContext) {
               },
               signal: AbortSignal.timeout(ctx.defaultTimeout),
               body: JSON.stringify({
-                name: 'forge',
+                name: 'pi',
                 target: 'preview',
                 gitSource: {
                   type: 'github',
                   org: 'Leigh12-93',
-                  repo: 'forge',
+                  repo: 'pi',
                   ref: branch,
                 },
               }),
@@ -153,7 +153,7 @@ export function createDeployTools(ctx: ToolContext) {
                       deployId,
                       buildFailed: true,
                       errors: errorLog || 'Build failed — check Vercel dashboard for details',
-                      note: 'DO NOT deploy to production. Fix the errors first. Use forge_read_deploy_log for full output.',
+                      note: 'DO NOT deploy to production. Fix the errors first. Use pi_read_deploy_log for full output.',
                     }
                   }
                 }
@@ -169,10 +169,10 @@ export function createDeployTools(ctx: ToolContext) {
               deployId,
               buildFailed: state === 'ERROR',
               note: state === 'READY'
-                ? 'Preview build succeeded! Safe to deploy to production with forge_redeploy.'
+                ? 'Preview build succeeded! Safe to deploy to production with pi_redeploy.'
                 : state === 'ERROR'
                   ? 'Build FAILED. Fix errors before deploying.'
-                  : `Build still in progress after ${attempts * 5}s (state: ${state}). Check forge_deployment_status later.`,
+                  : `Build still in progress after ${attempts * 5}s (state: ${state}). Check pi_deployment_status later.`,
             }
           },
         )
@@ -181,15 +181,15 @@ export function createDeployTools(ctx: ToolContext) {
       },
     }),
 
-    forge_deployment_status: tool({
-      description: 'Check the current Vercel deployment status for Forge. Use after self-modification to verify the deploy succeeded.',
+    pi_deployment_status: tool({
+      description: 'Check the current Vercel deployment status for Pi-Chi. Use after self-modification to verify the deploy succeeded.',
       inputSchema: z.object({}),
       execute: async () => {
         const token = ctx.userVercelToken || VERCEL_TOKEN
         if (!token) return { error: 'No Vercel deploy token configured' }
 
         const teamParam = VERCEL_TEAM ? `?teamId=${VERCEL_TEAM}&` : '?'
-        const res = await fetch(`https://api.vercel.com/v6/deployments${teamParam}limit=3&projectId=forge`, {
+        const res = await fetch(`https://api.vercel.com/v6/deployments${teamParam}limit=3&projectId=pi-chi`, {
           headers: { Authorization: `Bearer ${token}` },
           signal: AbortSignal.timeout(ctx.defaultTimeout),
         })
@@ -201,12 +201,12 @@ export function createDeployTools(ctx: ToolContext) {
           })
           if (!res2.ok) return { error: `Vercel API ${res2.status}` }
           const data2 = await res2.json()
-          const forgeDeployments = (data2.deployments || [])
-            .filter((d: any) => d.name === 'forge')
+          const piDeployments = (data2.deployments || [])
+            .filter((d: any) => d.name === 'pi')
             .slice(0, 3)
-          if (forgeDeployments.length === 0) return { error: 'No Forge deployments found' }
+          if (piDeployments.length === 0) return { error: 'No Pi-Chi deployments found' }
           return {
-            deployments: forgeDeployments.map((d: any) => ({
+            deployments: piDeployments.map((d: any) => ({
               id: d.uid,
               url: `https://${d.url}`,
               state: d.readyState || d.state,
@@ -230,10 +230,10 @@ export function createDeployTools(ctx: ToolContext) {
       },
     }),
 
-    forge_read_deploy_log: tool({
-      description: 'Read the full build log from a Vercel deployment. Use after forge_check_build or deploy_to_vercel to see detailed error output.',
+    pi_read_deploy_log: tool({
+      description: 'Read the full build log from a Vercel deployment. Use after pi_check_build or deploy_to_vercel to see detailed error output.',
       inputSchema: z.object({
-        deploymentId: z.string().describe('Vercel deployment ID (from forge_check_build, deploy_to_vercel, or forge_deployment_status)'),
+        deploymentId: z.string().describe('Vercel deployment ID (from pi_check_build, deploy_to_vercel, or pi_deployment_status)'),
         errorsOnly: z.boolean().optional().describe('Only show error-related lines (default: false)'),
       }),
       execute: async ({ deploymentId, errorsOnly }) => {

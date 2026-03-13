@@ -9,7 +9,7 @@ export async function GET() {
   if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
   const { data, ok } = await supabaseFetch(
-    `/forge_user_settings?github_username=eq.${encodeURIComponent(session.githubUsername)}&select=encrypted_api_key,api_key_validated_at,encrypted_vercel_token,encrypted_supabase_url,encrypted_supabase_key,encrypted_supabase_access_token,preferred_model,preferences,encrypted_google_client_id,encrypted_google_client_secret,encrypted_google_api_key,encrypted_google_service_account,encrypted_google_access_token,google_connected_email,google_connected_scopes,google_token_expiry,encrypted_stripe_secret_key,encrypted_stripe_publishable_key,encrypted_stripe_webhook_secret,encrypted_aussiesms_api_key`,
+    `/pi_user_settings?github_username=eq.${encodeURIComponent(session.githubUsername)}&select=encrypted_api_key,api_key_validated_at,encrypted_vercel_token,encrypted_supabase_url,encrypted_supabase_key,encrypted_supabase_access_token,preferred_model,preferences,encrypted_google_client_id,encrypted_google_client_secret,encrypted_google_api_key,encrypted_google_service_account,encrypted_google_access_token,google_connected_email,google_connected_scopes,google_token_expiry,encrypted_stripe_secret_key,encrypted_stripe_publishable_key,encrypted_stripe_webhook_secret,encrypted_aussiesms_api_key`,
   )
 
   // Check which OAuth providers are configured
@@ -367,7 +367,7 @@ export async function PUT(req: Request) {
   if (preferences) updates.preferences = preferences
 
   const { ok } = await supabaseFetch(
-    '/forge_user_settings',
+    '/pi_user_settings',
     {
       method: 'POST',
       headers: { 'Prefer': 'resolution=merge-duplicates,return=representation' },
@@ -427,7 +427,7 @@ export async function DELETE(req: Request) {
   }
 
   const { ok } = await supabaseFetch(
-    `/forge_user_settings?github_username=eq.${encodeURIComponent(session.githubUsername)}`,
+    `/pi_user_settings?github_username=eq.${encodeURIComponent(session.githubUsername)}`,
     {
       method: 'PATCH',
       body: JSON.stringify(patch),

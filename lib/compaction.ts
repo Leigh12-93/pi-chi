@@ -132,10 +132,10 @@ export async function compactMessages(
     // Cache the result
     compactionCache.set(cacheKey, { messages: compacted, ts: Date.now() })
 
-    console.log(`[forge:compaction] Compacted ${middleMessages.length} messages, saved ~${savedTokens} tokens`)
+    console.log(`[pi:compaction] Compacted ${middleMessages.length} messages, saved ~${savedTokens} tokens`)
     return { messages: compacted, compacted: true, tokensSaved: savedTokens }
   } catch (error) {
-    console.error('[forge:compaction] Haiku summarization failed, falling back to metadata-only summary:', error)
+    console.error('[pi:compaction] Haiku summarization failed, falling back to metadata-only summary:', error)
 
     // Fallback: extract metadata from dropped messages instead of losing them entirely
     const toolsUsed = new Set<string>()
@@ -187,7 +187,7 @@ async function generateCompactionSummary(conversationText: string): Promise<stri
     model: anthropic(COMPACTION_MODEL),
     maxOutputTokens: MAX_SUMMARY_TOKENS,
     abortSignal: AbortSignal.timeout(COMPACTION_TIMEOUT_MS),
-    system: `You are a conversation summarizer for Forge, an AI code builder. Create a structured summary that preserves everything the AI needs to continue working without re-reading old messages.
+    system: `You are a conversation summarizer for Pi-Chi, an AI code builder. Create a structured summary that preserves everything the AI needs to continue working without re-reading old messages.
 
 CRITICAL — preserve these exactly:
 1. **Architectural decisions**: Framework, state management, routing approach, data model design. Quote exact technology choices.
@@ -201,7 +201,7 @@ CRITICAL — preserve these exactly:
 Format as structured sections with headers. Be specific — file paths, color codes, library names.
 Do NOT summarize away architectural decisions — they are the most expensive information to lose.
 Keep under 1800 tokens.`,
-    prompt: `Summarize this Forge coding session:\n\n${truncated}`,
+    prompt: `Summarize this Pi-Chi coding session:\n\n${truncated}`,
   })
 
   return text

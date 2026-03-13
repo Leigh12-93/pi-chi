@@ -6,7 +6,7 @@ import { getMessageText, type ToolInvocation } from '@/lib/chat/tool-utils'
 import { estimateCost } from '@/lib/chat/constants'
 
 /** Extended message shape that includes optional metadata and legacy toolInvocations */
-interface ForgeUIMessage extends UIMessage {
+interface PiUIMessage extends UIMessage {
   metadata?: {
     usage?: { totalTokens?: number; inputTokens?: number; outputTokens?: number }
     model?: string
@@ -58,7 +58,7 @@ export function useChatMetrics(messages: UIMessage[]) {
           }
         }
       }
-      const invs = (msg as ForgeUIMessage).toolInvocations
+      const invs = (msg as PiUIMessage).toolInvocations
       if (invs) steps += invs.length
       if (msgCompleted.length > 0 || activity) {
         currentResponseCompleted = msgCompleted
@@ -83,7 +83,7 @@ export function useChatMetrics(messages: UIMessage[]) {
 
   const realTokens = useMemo(() => {
     for (let i = messages.length - 1; i >= 0; i--) {
-      const msg = messages[i] as ForgeUIMessage
+      const msg = messages[i] as PiUIMessage
       if (msg.role === 'assistant' && msg.metadata?.usage?.totalTokens) {
         return msg.metadata.usage.totalTokens
       }
@@ -93,7 +93,7 @@ export function useChatMetrics(messages: UIMessage[]) {
 
   const autoRoutedModel = useMemo(() => {
     for (let i = messages.length - 1; i >= 0; i--) {
-      const msg = messages[i] as ForgeUIMessage
+      const msg = messages[i] as PiUIMessage
       if (msg.role === 'assistant' && msg.metadata?.autoRouted) {
         return { model: String(msg.metadata.model || ''), reason: 'Auto-routed' }
       }
@@ -106,7 +106,7 @@ export function useChatMetrics(messages: UIMessage[]) {
     let totalInput = 0
     let totalOutput = 0
     for (const msg of messages) {
-      const meta = (msg as ForgeUIMessage).metadata
+      const meta = (msg as PiUIMessage).metadata
       if (meta?.usage && meta?.model) {
         const inTok = meta.usage.inputTokens || 0
         const outTok = meta.usage.outputTokens || 0
@@ -119,7 +119,7 @@ export function useChatMetrics(messages: UIMessage[]) {
   }, [messages])
 
   const getMessageCost = useCallback((msgId: string) => {
-    const msg = messages.find(m => m.id === msgId) as ForgeUIMessage | undefined
+    const msg = messages.find(m => m.id === msgId) as PiUIMessage | undefined
     if (!msg?.metadata?.usage || !msg?.metadata?.model) return null
     const { inputTokens = 0, outputTokens = 0 } = msg.metadata.usage
     const cost = estimateCost(inputTokens, outputTokens, msg.metadata.model)

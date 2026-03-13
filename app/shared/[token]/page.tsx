@@ -55,8 +55,8 @@ export default function SharedProjectPage() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-forge-bg flex items-center justify-center">
-        <div className="flex items-center gap-3 text-forge-text-dim">
+      <div className="min-h-screen bg-pi-bg flex items-center justify-center">
+        <div className="flex items-center gap-3 text-pi-text-dim">
           <Loader2 className="w-5 h-5 animate-spin" />
           <span className="text-sm">Loading shared project...</span>
         </div>
@@ -66,10 +66,10 @@ export default function SharedProjectPage() {
 
   if (error || !project) {
     return (
-      <div className="min-h-screen bg-forge-bg flex items-center justify-center">
+      <div className="min-h-screen bg-pi-bg flex items-center justify-center">
         <div className="text-center space-y-3">
           <AlertCircle className="w-10 h-10 text-red-400 mx-auto" />
-          <p className="text-sm text-forge-text">{error || 'Project not found'}</p>
+          <p className="text-sm text-pi-text">{error || 'Project not found'}</p>
         </div>
       </div>
     )
@@ -78,13 +78,13 @@ export default function SharedProjectPage() {
   const fileTree = buildTreeFromMap(project.files)
 
   return (
-    <div className="h-screen flex flex-col bg-forge-bg">
+    <div className="h-screen flex flex-col bg-pi-bg">
       {/* Header */}
-      <div className="flex items-center gap-3 px-4 py-2 border-b border-forge-border bg-forge-panel">
-        <Hammer className="w-4 h-4 text-forge-accent" />
-        <span className="text-sm font-medium text-forge-text">{project.name}</span>
-        <span className="text-xs text-forge-text-dim">by {project.githubUsername}</span>
-        <span className="ml-auto text-[10px] text-forge-text-dim/50 bg-forge-surface px-2 py-0.5 rounded">
+      <div className="flex items-center gap-3 px-4 py-2 border-b border-pi-border bg-pi-panel">
+        <Hammer className="w-4 h-4 text-pi-accent" />
+        <span className="text-sm font-medium text-pi-text">{project.name}</span>
+        <span className="text-xs text-pi-text-dim">by {project.githubUsername}</span>
+        <span className="ml-auto text-[10px] text-pi-text-dim/50 bg-pi-surface px-2 py-0.5 rounded">
           Read-only
         </span>
       </div>
@@ -93,7 +93,7 @@ export default function SharedProjectPage() {
       <div className="flex-1 overflow-hidden">
         <PanelGroup direction="horizontal">
           <Panel defaultSize={20} minSize={15}>
-            <div className="h-full overflow-auto bg-forge-panel border-r border-forge-border">
+            <div className="h-full overflow-auto bg-pi-panel border-r border-pi-border">
               <FileTree
                 files={fileTree}
                 activeFile={activeFile}
@@ -109,22 +109,22 @@ export default function SharedProjectPage() {
           <PanelResizeHandle />
           <Panel defaultSize={80} minSize={40}>
             <div className="h-full flex flex-col">
-              <div className="flex items-center border-b border-forge-border bg-forge-panel">
+              <div className="flex items-center border-b border-pi-border bg-pi-panel">
                 {(['code', 'preview'] as const).map(tab => (
                   <button
                     key={tab}
                     onClick={() => setViewTab(tab)}
                     className={cn(
                       'relative px-4 py-2 text-xs font-medium transition-colors',
-                      viewTab === tab ? 'text-forge-accent bg-forge-surface' : 'text-forge-text-dim hover:text-forge-text',
+                      viewTab === tab ? 'text-pi-accent bg-pi-surface' : 'text-pi-text-dim hover:text-pi-text',
                     )}
                   >
                     {tab === 'code' ? 'Code' : 'Preview'}
-                    {viewTab === tab && <span className="absolute bottom-0 left-1 right-1 h-0.5 bg-forge-accent rounded-full" />}
+                    {viewTab === tab && <span className="absolute bottom-0 left-1 right-1 h-0.5 bg-pi-accent rounded-full" />}
                   </button>
                 ))}
                 {activeFile && (
-                  <span className="ml-3 text-xs text-forge-text-dim font-mono">{activeFile}</span>
+                  <span className="ml-3 text-xs text-pi-text-dim font-mono">{activeFile}</span>
                 )}
               </div>
               <div className="flex-1 overflow-hidden">

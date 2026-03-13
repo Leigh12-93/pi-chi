@@ -77,9 +77,9 @@ function FileChangeRow({ change }: { change: FileChange }) {
   const config = CHANGE_CONFIG[change.type]
   const Icon = config.icon
   return (
-    <div className="flex items-center gap-2 py-1 px-2 rounded-md hover:bg-forge-surface/50 transition-colors">
+    <div className="flex items-center gap-2 py-1 px-2 rounded-md hover:bg-pi-surface/50 transition-colors">
       <Icon className={`w-3 h-3 shrink-0 ${config.color}`} />
-      <span className="text-[11px] text-forge-text truncate">{change.path}</span>
+      <span className="text-[11px] text-pi-text truncate">{change.path}</span>
     </div>
   )
 }
@@ -113,23 +113,23 @@ export function SnapshotDiffDialog({
 
   return (
     <div className="fixed inset-0 z-[100] flex items-center justify-center" onClick={onCancel}>
-      <div className="absolute inset-0 bg-forge-overlay backdrop-blur-md animate-fade-in" />
+      <div className="absolute inset-0 bg-pi-overlay backdrop-blur-md animate-fade-in" />
       <motion.div
         initial={{ opacity: 0, scale: 0.95 }}
         animate={{ opacity: 1, scale: 1 }}
         transition={{ type: 'spring', stiffness: 400, damping: 30 }}
-        className="relative w-full max-w-md mx-4 bg-forge-bg rounded-2xl shadow-2xl border border-forge-border overflow-hidden"
+        className="relative w-full max-w-md mx-4 bg-pi-bg rounded-2xl shadow-2xl border border-pi-border overflow-hidden"
         onClick={e => e.stopPropagation()}
       >
         {/* Header */}
-        <div className="flex items-center justify-between px-5 py-4 border-b border-forge-border">
+        <div className="flex items-center justify-between px-5 py-4 border-b border-pi-border">
           <div className="flex items-center gap-2">
-            <FileCode className="w-4 h-4 text-forge-accent" />
-            <h2 className="text-sm font-semibold text-forge-text">Restore Preview</h2>
+            <FileCode className="w-4 h-4 text-pi-accent" />
+            <h2 className="text-sm font-semibold text-pi-text">Restore Preview</h2>
           </div>
           <button
             onClick={onCancel}
-            className="p-1 rounded-lg text-forge-text-dim hover:text-forge-text hover:bg-forge-surface transition-colors"
+            className="p-1 rounded-lg text-pi-text-dim hover:text-pi-text hover:bg-pi-surface transition-colors"
           >
             <X className="w-4 h-4" />
           </button>
@@ -137,8 +137,8 @@ export function SnapshotDiffDialog({
 
         {/* Snapshot name */}
         <div className="px-5 pt-3 pb-2">
-          <p className="text-xs text-forge-text-dim">
-            Restoring <span className="font-medium text-forge-text">&ldquo;{snapshotLabel}&rdquo;</span>
+          <p className="text-xs text-pi-text-dim">
+            Restoring <span className="font-medium text-pi-text">&ldquo;{snapshotLabel}&rdquo;</span>
           </p>
         </div>
 
@@ -163,7 +163,7 @@ export function SnapshotDiffDialog({
             </span>
           )}
           {diff.unchangedCount > 0 && (
-            <span className="inline-flex items-center gap-1 px-2 py-0.5 text-[10px] font-medium rounded-full bg-forge-surface text-forge-text-dim border border-forge-border">
+            <span className="inline-flex items-center gap-1 px-2 py-0.5 text-[10px] font-medium rounded-full bg-pi-surface text-pi-text-dim border border-pi-border">
               {diff.unchangedCount} unchanged
             </span>
           )}
@@ -173,9 +173,9 @@ export function SnapshotDiffDialog({
         <div className="px-5 pb-3 max-h-[60vh] overflow-y-auto">
           {!hasChanges ? (
             <div className="py-6 text-center">
-              <FileCode className="w-8 h-8 mx-auto mb-2 text-forge-text-dim opacity-40" />
-              <p className="text-xs text-forge-text-dim">No differences found.</p>
-              <p className="text-[10px] text-forge-text-dim/60 mt-1">
+              <FileCode className="w-8 h-8 mx-auto mb-2 text-pi-text-dim opacity-40" />
+              <p className="text-xs text-pi-text-dim">No differences found.</p>
+              <p className="text-[10px] text-pi-text-dim/60 mt-1">
                 The snapshot is identical to the current files.
               </p>
             </div>
@@ -222,18 +222,18 @@ export function SnapshotDiffDialog({
         </div>
 
         {/* Footer */}
-        <div className="flex items-center justify-end gap-2 px-5 py-3 border-t border-forge-border bg-forge-surface/30">
+        <div className="flex items-center justify-end gap-2 px-5 py-3 border-t border-pi-border bg-pi-surface/30">
           <button
             onClick={onCancel}
             disabled={restoring}
-            className="px-3 py-1.5 text-xs text-forge-text-dim hover:text-forge-text rounded-lg hover:bg-forge-surface transition-colors disabled:opacity-50"
+            className="px-3 py-1.5 text-xs text-pi-text-dim hover:text-pi-text rounded-lg hover:bg-pi-surface transition-colors disabled:opacity-50"
           >
             Cancel
           </button>
           <button
             onClick={onConfirm}
             disabled={restoring}
-            className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-white bg-forge-accent rounded-lg hover:bg-forge-accent-hover active:scale-[0.97] transition-all disabled:opacity-50"
+            className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-white bg-pi-accent rounded-lg hover:bg-pi-accent-hover active:scale-[0.97] transition-all disabled:opacity-50"
           >
             <RotateCcw className={`w-3 h-3 ${restoring ? 'animate-spin' : ''}`} />
             {restoring ? 'Restoring...' : 'Restore'}

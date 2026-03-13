@@ -8,7 +8,7 @@ export async function GET() {
   if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
   const { data, ok } = await supabaseFetch(
-    `/forge_user_settings?github_username=eq.${encodeURIComponent(session.githubUsername)}&select=encrypted_stripe_secret_key`,
+    `/pi_user_settings?github_username=eq.${encodeURIComponent(session.githubUsername)}&select=encrypted_stripe_secret_key`,
   )
 
   if (!ok || !Array.isArray(data) || data.length === 0 || !data[0].encrypted_stripe_secret_key) {

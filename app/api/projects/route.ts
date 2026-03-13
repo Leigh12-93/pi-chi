@@ -17,7 +17,7 @@ export async function GET(req: Request) {
   const offset = (page - 1) * limit
 
   const { data, error } = await supabase
-    .from('forge_projects')
+    .from('pi_projects')
     .select('id, name, description, framework, github_repo_url, vercel_url, last_deploy_at, created_at, updated_at')
     .eq('github_username', username)
     .order('updated_at', { ascending: false })
@@ -41,7 +41,7 @@ export async function POST(req: Request) {
 
   // Check for duplicate project name — return existing project instead of error
   const { data: existing } = await supabase
-    .from('forge_projects')
+    .from('pi_projects')
     .select('*')
     .eq('github_username', username)
     .eq('name', name)
@@ -60,7 +60,7 @@ export async function POST(req: Request) {
   if (github_repo_url) insertData.github_repo_url = github_repo_url
 
   const { data, error } = await supabase
-    .from('forge_projects')
+    .from('pi_projects')
     .insert(insertData)
     .select()
     .single()

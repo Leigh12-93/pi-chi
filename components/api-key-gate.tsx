@@ -47,15 +47,15 @@ export function ApiKeyGate({ onKeySet }: ApiKeyGateProps) {
   }, [apiKey, onKeySet])
 
   return (
-    <div className="min-h-screen bg-forge-bg flex items-center justify-center p-4">
+    <div className="min-h-screen bg-pi-bg flex items-center justify-center p-4">
       <div className="w-full max-w-md space-y-6">
         <div className="text-center space-y-2">
-          <div className="w-12 h-12 mx-auto rounded-xl bg-forge-surface border border-forge-border flex items-center justify-center">
-            <Key className="w-5 h-5 text-forge-accent" />
+          <div className="w-12 h-12 mx-auto rounded-xl bg-pi-surface border border-pi-border flex items-center justify-center">
+            <Key className="w-5 h-5 text-pi-accent" />
           </div>
-          <h2 className="text-xl font-bold text-forge-text">Enter your API Key</h2>
-          <p className="text-sm text-forge-text-dim max-w-xs mx-auto">
-            Forge uses your own Anthropic API key. It's encrypted and stored securely — never logged or shared.
+          <h2 className="text-xl font-bold text-pi-text">Enter your API Key</h2>
+          <p className="text-sm text-pi-text-dim max-w-xs mx-auto">
+            Pi-Chi uses your own Anthropic API key. It's encrypted and stored securely — never logged or shared.
           </p>
         </div>
 
@@ -66,7 +66,7 @@ export function ApiKeyGate({ onKeySet }: ApiKeyGateProps) {
               value={apiKey}
               onChange={e => { setApiKey(e.target.value); setStatus('idle'); setError('') }}
               placeholder="sk-ant-api03-..."
-              className="w-full px-4 py-3 bg-forge-surface border border-forge-border rounded-xl text-sm text-forge-text placeholder:text-forge-text-dim/50 focus:outline-none focus:border-forge-accent transition-colors font-mono"
+              className="w-full px-4 py-3 bg-pi-surface border border-pi-border rounded-xl text-sm text-pi-text placeholder:text-pi-text-dim/50 focus:outline-none focus:border-pi-accent transition-colors font-mono"
               onKeyDown={e => { if (e.key === 'Enter') handleSubmit() }}
               autoFocus
             />
@@ -85,7 +85,7 @@ export function ApiKeyGate({ onKeySet }: ApiKeyGateProps) {
           <button
             onClick={handleSubmit}
             disabled={!apiKey.trim() || status === 'validating' || status === 'success'}
-            className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-forge-accent text-white font-medium rounded-xl hover:bg-forge-accent-hover transition-colors disabled:opacity-50"
+            className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-pi-accent text-white font-medium rounded-xl hover:bg-pi-accent-hover transition-colors disabled:opacity-50"
           >
             {status === 'validating' ? (
               <>
@@ -108,16 +108,16 @@ export function ApiKeyGate({ onKeySet }: ApiKeyGateProps) {
             href="https://console.anthropic.com/settings/keys"
             target="_blank"
             rel="noopener noreferrer"
-            className="inline-flex items-center gap-1.5 text-xs text-forge-text-dim hover:text-forge-accent transition-colors"
+            className="inline-flex items-center gap-1.5 text-xs text-pi-text-dim hover:text-pi-accent transition-colors"
           >
             Get an API key from Anthropic
             <ExternalLink className="w-3 h-3" />
           </a>
         </div>
 
-        <div className="rounded-lg bg-forge-surface/50 border border-forge-border p-3">
-          <p className="text-[10px] text-forge-text-dim/70 leading-relaxed">
-            <span className="font-medium text-forge-text-dim">BYOK (Bring Your Own Key):</span> Your key is encrypted with AES-256-GCM before storage. It's decrypted server-side only when making API calls. Forge never logs, caches, or shares your key. You can delete it anytime from Settings.
+        <div className="rounded-lg bg-pi-surface/50 border border-pi-border p-3">
+          <p className="text-[10px] text-pi-text-dim/70 leading-relaxed">
+            <span className="font-medium text-pi-text-dim">BYOK (Bring Your Own Key):</span> Your key is encrypted with AES-256-GCM before storage. It's decrypted server-side only when making API calls. Pi-Chi never logs, caches, or shares your key. You can delete it anytime from Settings.
           </p>
         </div>
       </div>

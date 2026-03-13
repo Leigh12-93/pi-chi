@@ -37,7 +37,7 @@ export function createGithubTools(ctx: ToolContext) {
               method: 'POST',
               body: JSON.stringify({
                 name: repoName,
-                description: description || `Built with Forge`,
+                description: description || `Built with Pi-Chi`,
                 private: !isPublic,
                 auto_init: true,
               }),
@@ -80,7 +80,7 @@ export function createGithubTools(ctx: ToolContext) {
 
             const commit = await ctx.githubFetch(`/repos/${owner}/${repoName}/git/commits`, token, {
               method: 'POST',
-              body: JSON.stringify({ message: 'Initial commit from Forge', tree: tree.sha, parents: [parentSha] }),
+              body: JSON.stringify({ message: 'Initial commit from Pi-Chi', tree: tree.sha, parents: [parentSha] }),
             })
             if (commit.error) throw new Error(`Failed to create commit: ${commit.error}`)
 
@@ -503,7 +503,7 @@ export function createGithubTools(ctx: ToolContext) {
       description: 'Search for code across GitHub repositories. Find files, functions, patterns.',
       inputSchema: z.object({
         query: z.string().describe('Search query. Supports GitHub code search syntax.'),
-        repo: z.string().optional().describe('Restrict to a specific repo, e.g. "Leigh12-93/forge"'),
+        repo: z.string().optional().describe('Restrict to a specific repo, e.g. "Leigh12-93/pi-chi"'),
       }),
       execute: async ({ query, repo }) => {
         const token = ctx.effectiveGithubToken

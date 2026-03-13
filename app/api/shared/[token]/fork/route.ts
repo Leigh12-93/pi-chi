@@ -14,7 +14,7 @@ export async function POST(
 
   // Load the shared project
   const { data: projects, ok } = await supabaseFetch(
-    `/forge_projects?share_token=eq.${encodeURIComponent(token)}&select=id,name,description,framework`,
+    `/pi_projects?share_token=eq.${encodeURIComponent(token)}&select=id,name,description,framework`,
   )
 
   if (!ok || !Array.isArray(projects) || projects.length === 0) {
@@ -25,11 +25,11 @@ export async function POST(
 
   // Load source project files
   const { data: files, ok: filesOk } = await supabaseFetch(
-    `/forge_project_files?project_id=eq.${source.id}&select=path,content`,
+    `/pi_project_files?project_id=eq.${source.id}&select=path,content`,
   )
 
   // Create forked project owned by current user
-  const { data: newProject, ok: createOk } = await supabaseFetch('/forge_projects', {
+  const { data: newProject, ok: createOk } = await supabaseFetch('/pi_projects', {
     method: 'POST',
     body: JSON.stringify({
       name: `${source.name} (fork)`,
@@ -53,14 +53,14 @@ export async function POST(
       content: f.content,
     }))
 
-    const { ok: insertOk } = await supabaseFetch('/forge_project_files', {
+    const { ok: insertOk } = await supabaseFetch('/pi_project_files', {
       method: 'POST',
       body: JSON.stringify(rows),
     })
 
     if (!insertOk) {
       // Clean up the empty project if file copy failed
-      await supabaseFetch(`/forge_projects?id=eq.${forkedProject.id}`, { method: 'DELETE' })
+      await supabaseFetch(`/pi_projects?id=eq.${forkedProject.id}`, { method: 'DELETE' })
       return NextResponse.json({ error: 'Failed to copy files' }, { status: 500 })
     }
   }

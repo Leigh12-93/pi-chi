@@ -78,21 +78,21 @@ export function StatusBar({ activeFile, fileCount, framework, saveStatus = 'idle
   }, [saveStatus])
 
   const info = SAVE_TEXT[displayed]
-  const frameworkDotColor = framework ? FRAMEWORK_COLORS[framework] || 'bg-forge-text-dim' : null
+  const frameworkDotColor = framework ? FRAMEWORK_COLORS[framework] || 'bg-pi-text-dim' : null
 
   return (
-    <div role="status" aria-live="polite" className="h-6 flex items-center justify-between px-3 border-t border-forge-border bg-forge-panel text-[10px] text-forge-text-dim shrink-0 select-none">
+    <div role="status" aria-live="polite" className="h-6 flex items-center justify-between px-3 border-t border-pi-border bg-pi-panel text-[10px] text-pi-text-dim shrink-0 select-none">
       <div className="flex items-center gap-3">
         {langDisplay && (
           <span className="font-medium">{langDisplay}</span>
         )}
         {activeFile && (
           <span className="items-center gap-3 hidden md:flex">
-            <span className="w-px h-3 bg-forge-border" />
+            <span className="w-px h-3 bg-pi-border" />
             <span>UTF-8</span>
           </span>
         )}
-        <span className="w-px h-3 bg-forge-border hidden md:block" />
+        <span className="w-px h-3 bg-pi-border hidden md:block" />
         <span className="hidden md:inline">{fileCount} file{fileCount !== 1 ? 's' : ''}</span>
       </div>
       <div className="flex items-center gap-3">
@@ -107,8 +107,8 @@ export function StatusBar({ activeFile, fileCount, framework, saveStatus = 'idle
         )}
         {framework && (
           <>
-            <span className="w-px h-3 bg-forge-border" />
-            <span className="flex items-center gap-1.5 px-1.5 py-0.5 rounded text-[9px] font-medium bg-forge-surface text-forge-text-dim border border-forge-border shadow-sm" title={`Detected framework: ${framework}`}>
+            <span className="w-px h-3 bg-pi-border" />
+            <span className="flex items-center gap-1.5 px-1.5 py-0.5 rounded text-[9px] font-medium bg-pi-surface text-pi-text-dim border border-pi-border shadow-sm" title={`Detected framework: ${framework}`}>
               {frameworkDotColor && <span className={`w-1.5 h-1.5 rounded-full ${frameworkDotColor}`} />}
               {framework}
             </span>

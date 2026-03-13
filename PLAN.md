@@ -1,19 +1,19 @@
-# Plan: Enhanced six-chi.md with Web Research, Full-Stack Spec, Error Recovery & Tailwind Safety
+# Plan: Enhanced pi-chi.md with Web Research, Full-Stack Spec, Error Recovery & Tailwind Safety
 
 ## Summary
 
-Four major enhancements to the Forge AI system prompt (`lib/system-prompt.ts`):
+Four major enhancements to the Pi-Chi AI system prompt (`lib/system-prompt.ts`):
 
-1. **Web Research Phase** — AI uses `web_search` to find real design references before writing six-chi.md
-2. **Full Backend Architecture** — New mandatory section in six-chi.md for API routes, DB schema, auth, middleware
+1. **Web Research Phase** — AI uses `web_search` to find real design references before writing pi-chi.md
+2. **Full Backend Architecture** — New mandatory section in pi-chi.md for API routes, DB schema, auth, middleware
 3. **Console Error Auto-Read** — AI must call `run_build` AND check console output, proactively fix errors
 4. **Tailwind v4 Safety Rules** — Prevent black screen from broken CSS custom property arbitrary values
 
 ---
 
-## Change 1: Design Research Phase (before six-chi.md creation)
+## Change 1: Design Research Phase (before pi-chi.md creation)
 
-**Location:** `lib/system-prompt.ts` — "When six-chi.md does NOT exist" section (lines 250-254)
+**Location:** `lib/system-prompt.ts` — "When pi-chi.md does NOT exist" section (lines 250-254)
 
 **What changes:**
 Insert a new Step 0 before the current steps. When creating a NEW project, the AI must:
@@ -28,15 +28,15 @@ Insert a new Step 0 before the current steps. When creating a NEW project, the A
    - Layout patterns that award-winning sites in this category use
    - Interaction patterns (micro-interactions, scroll behaviors, transitions)
    - Backend patterns if the project needs data/auth/payments
-3. Use these findings to inform the six-chi.md design system, page layouts, and user flows
+3. Use these findings to inform the pi-chi.md design system, page layouts, and user flows
 
 **Why:** The AI currently guesses design decisions. Web research grounds them in real-world examples, producing output that looks human-designed rather than AI-generated.
 
 ---
 
-## Change 2: Backend Architecture Section in six-chi.md
+## Change 2: Backend Architecture Section in pi-chi.md
 
-**Location:** `lib/system-prompt.ts` — six-chi.md format section (after "Data Model", before "Design System")
+**Location:** `lib/system-prompt.ts` — pi-chi.md format section (after "Data Model", before "Design System")
 
 **New mandatory section:**
 
@@ -99,7 +99,7 @@ Rules to add:
 
 ## Change 5: Enhance "Human-Like Design" Instructions
 
-**Location:** `lib/system-prompt.ts` — within the six-chi.md Design System section and Creative Philosophy
+**Location:** `lib/system-prompt.ts` — within the pi-chi.md Design System section and Creative Philosophy
 
 **Add concrete human-design techniques from research:**
 

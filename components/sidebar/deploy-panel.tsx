@@ -30,7 +30,7 @@ function detectVercelTokenFromEnv(fileContents: Record<string, string>): string 
       const eqIdx = trimmed.indexOf('=')
       const k = trimmed.slice(0, eqIdx).trim()
       const v = trimmed.slice(eqIdx + 1).trim().replace(/^["']|["']$/g, '')
-      if ((k === 'FORGE_DEPLOY_TOKEN' || k === 'VERCEL_TOKEN') && v.length > 10) return v
+      if ((k === 'PI_DEPLOY_TOKEN' || k === 'VERCEL_TOKEN') && v.length > 10) return v
     }
   }
   return null
@@ -130,38 +130,38 @@ export function DeployPanel({ onAction, projectId, vercelProjectId, onVercelConn
     <div className="p-3 space-y-3">
       <button
         onClick={() => onAction('deploy')}
-        className="w-full flex items-center gap-2 px-3 py-3 sm:py-2 text-sm sm:text-xs rounded-lg bg-forge-accent text-white hover:bg-forge-accent/90 active:scale-[0.98] transition-all duration-150 min-h-[44px]"
+        className="w-full flex items-center gap-2 px-3 py-3 sm:py-2 text-sm sm:text-xs rounded-lg bg-pi-accent text-white hover:bg-pi-accent/90 active:scale-[0.98] transition-all duration-150 min-h-[44px]"
       >
         <Rocket className="w-4 h-4 sm:w-3.5 sm:h-3.5" />
         Deploy to Vercel
       </button>
       <button
         onClick={() => onAction('download')}
-        className="w-full flex items-center gap-2 px-3 py-3 sm:py-2 text-sm sm:text-xs rounded-lg border border-forge-border hover:bg-forge-surface active:scale-[0.98] transition-all duration-150 min-h-[44px]"
+        className="w-full flex items-center gap-2 px-3 py-3 sm:py-2 text-sm sm:text-xs rounded-lg border border-pi-border hover:bg-pi-surface active:scale-[0.98] transition-all duration-150 min-h-[44px]"
       >
         <Download className="w-4 h-4 sm:w-3.5 sm:h-3.5" />
         Download ZIP
       </button>
 
       {/* Vercel connection status */}
-      <div className="border-t border-forge-border pt-3">
-        <p className="text-[10px] uppercase tracking-wider text-forge-text-dim font-medium mb-2">Vercel Project</p>
+      <div className="border-t border-pi-border pt-3">
+        <p className="text-[10px] uppercase tracking-wider text-pi-text-dim font-medium mb-2">Vercel Project</p>
         {vercelProjectId ? (
           <a
             href={connectedProject?.url || `https://vercel.com/~/projects/${vercelProjectId}`}
             target="_blank"
             rel="noopener noreferrer"
-            className="flex items-center gap-2 px-2 py-1.5 bg-forge-surface rounded-md hover:bg-forge-surface/80 transition-colors"
+            className="flex items-center gap-2 px-2 py-1.5 bg-pi-surface rounded-md hover:bg-pi-surface/80 transition-colors"
           >
-            <Check className="w-3 h-3 text-forge-success shrink-0" />
-            <span className="text-xs text-forge-text truncate">{connectedName}</span>
-            <ExternalLink className="w-3 h-3 text-forge-text-dim shrink-0 ml-auto" />
+            <Check className="w-3 h-3 text-pi-success shrink-0" />
+            <span className="text-xs text-pi-text truncate">{connectedName}</span>
+            <ExternalLink className="w-3 h-3 text-pi-text-dim shrink-0 ml-auto" />
           </a>
         ) : (
           <>
             <button
               onClick={() => setShowConnect(!showConnect)}
-              className="w-full flex items-center gap-2 px-3 py-3 sm:py-2 text-sm sm:text-xs rounded-lg border border-forge-border hover:bg-forge-surface active:scale-[0.98] transition-all duration-150 min-h-[44px]"
+              className="w-full flex items-center gap-2 px-3 py-3 sm:py-2 text-sm sm:text-xs rounded-lg border border-pi-border hover:bg-pi-surface active:scale-[0.98] transition-all duration-150 min-h-[44px]"
             >
               <Link className="w-4 h-4 sm:w-3.5 sm:h-3.5" />
               Connect Vercel Project
@@ -169,14 +169,14 @@ export function DeployPanel({ onAction, projectId, vercelProjectId, onVercelConn
             {showConnect && (
               <div className="mt-2 space-y-2 animate-fade-in">
                 {loadingProjects ? (
-                  <div className="flex items-center gap-2 py-2 text-xs text-forge-text-dim">
+                  <div className="flex items-center gap-2 py-2 text-xs text-pi-text-dim">
                     <Loader2 className="w-3 h-3 animate-spin" />
                     Loading projects...
                   </div>
                 ) : needsAuth ? (
                   /* No Vercel token — show login options */
                   <div className="space-y-2">
-                    <div className="flex items-start gap-2 p-2 rounded-md bg-forge-surface text-xs text-forge-text-dim">
+                    <div className="flex items-start gap-2 p-2 rounded-md bg-pi-surface text-xs text-pi-text-dim">
                       <AlertCircle className="w-3.5 h-3.5 shrink-0 mt-0.5 text-amber-400" />
                       <span>Connect your Vercel account to see your projects.</span>
                     </div>
@@ -193,7 +193,7 @@ export function DeployPanel({ onAction, projectId, vercelProjectId, onVercelConn
                     ) : (
                       <button
                         onClick={() => onOpenSettings?.()}
-                        className="w-full flex items-center justify-center gap-2 px-3 py-2 text-xs rounded-lg border border-forge-border hover:bg-forge-surface transition-colors"
+                        className="w-full flex items-center justify-center gap-2 px-3 py-2 text-xs rounded-lg border border-pi-border hover:bg-pi-surface transition-colors"
                       >
                         <Settings className="w-3.5 h-3.5" />
                         Add Vercel Token in Settings
@@ -205,7 +205,7 @@ export function DeployPanel({ onAction, projectId, vercelProjectId, onVercelConn
                     <select
                       value={selectedProject}
                       onChange={e => setSelectedProject(e.target.value)}
-                      className="w-full px-3 py-3 sm:py-1.5 text-sm sm:text-xs bg-forge-bg border border-forge-border rounded-lg focus:outline-none focus:border-forge-accent min-h-[44px]"
+                      className="w-full px-3 py-3 sm:py-1.5 text-sm sm:text-xs bg-pi-bg border border-pi-border rounded-lg focus:outline-none focus:border-pi-accent min-h-[44px]"
                     >
                       <option value="">Select a project...</option>
                       {vercelProjects.map(p => (
@@ -215,7 +215,7 @@ export function DeployPanel({ onAction, projectId, vercelProjectId, onVercelConn
                     <button
                       onClick={handleConnect}
                       disabled={!selectedProject || connecting}
-                      className="w-full flex items-center justify-center gap-1.5 px-3 py-3 sm:py-1.5 text-sm sm:text-xs rounded-lg bg-forge-accent text-white hover:bg-forge-accent/90 disabled:opacity-40 transition-colors min-h-[44px]"
+                      className="w-full flex items-center justify-center gap-1.5 px-3 py-3 sm:py-1.5 text-sm sm:text-xs rounded-lg bg-pi-accent text-white hover:bg-pi-accent/90 disabled:opacity-40 transition-colors min-h-[44px]"
                     >
                       {connecting && <Loader2 className="w-3 h-3 animate-spin" />}
                       Connect

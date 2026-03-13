@@ -71,7 +71,7 @@ export async function GET(req: Request) {
 
     // Save encrypted access token to user settings
     const encrypted = await encryptToken(accessToken)
-    await supabaseFetch('/forge_user_settings', {
+    await supabaseFetch('/pi_user_settings', {
       method: 'POST',
       headers: { 'Prefer': 'resolution=merge-duplicates,return=representation' },
       body: JSON.stringify({
@@ -84,7 +84,7 @@ export async function GET(req: Request) {
     if (tokens.refresh_token) {
       const encryptedRefresh = await encryptToken(tokens.refresh_token)
       await supabaseFetch(
-        `/forge_user_settings?github_username=eq.${encodeURIComponent(session.githubUsername)}`,
+        `/pi_user_settings?github_username=eq.${encodeURIComponent(session.githubUsername)}`,
         {
           method: 'PATCH',
           body: JSON.stringify({

@@ -44,7 +44,7 @@ export function LandingFeatures() {
   const isInView = useInView(ref, { once: true, margin: '-80px' })
 
   return (
-    <section ref={ref} className="py-20 lg:py-32 border-t border-forge-border/20">
+    <section ref={ref} className="py-20 lg:py-32 border-t border-pi-border/20">
       <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
         <motion.div
           className="text-center mb-16"
@@ -53,7 +53,7 @@ export function LandingFeatures() {
           transition={{ duration: 0.5, ease }}
         >
           <h2 className="text-3xl sm:text-4xl font-bold tracking-tight mb-3">Everything You Need</h2>
-          <p className="text-forge-text-dim text-lg max-w-lg mx-auto">
+          <p className="text-pi-text-dim text-lg max-w-lg mx-auto">
             A complete development environment powered by Claude.
           </p>
         </motion.div>
@@ -62,7 +62,7 @@ export function LandingFeatures() {
           {FEATURES.map((feature, i) => (
             <motion.div
               key={feature.title}
-              className="group p-6 rounded-2xl border border-forge-border bg-forge-surface/50 hover:border-forge-border-bright hover:bg-forge-surface transition-all duration-200"
+              className="group p-6 rounded-2xl border border-pi-border bg-pi-surface/50 hover:border-pi-border-bright hover:bg-pi-surface transition-all duration-200"
               initial={{ opacity: 0, y: 20 }}
               animate={isInView ? { opacity: 1, y: 0 } : {}}
               transition={{ duration: 0.5, delay: i * 0.08, ease }}
@@ -70,11 +70,11 @@ export function LandingFeatures() {
               onMouseEnter={e => (e.currentTarget.style.transform = 'translateY(-2px)')}
               onMouseLeave={e => (e.currentTarget.style.transform = 'translateY(0)')}
             >
-              <div className="w-10 h-10 rounded-xl bg-forge-accent/10 flex items-center justify-center mb-4 group-hover:bg-forge-accent/15 transition-colors">
-                <feature.icon className="w-5 h-5 text-forge-accent" />
+              <div className="w-10 h-10 rounded-xl bg-pi-accent/10 flex items-center justify-center mb-4 group-hover:bg-pi-accent/15 transition-colors">
+                <feature.icon className="w-5 h-5 text-pi-accent" />
               </div>
-              <h3 className="text-base font-semibold text-forge-text mb-1.5">{feature.title}</h3>
-              <p className="text-sm text-forge-text-dim leading-relaxed">{feature.desc}</p>
+              <h3 className="text-base font-semibold text-pi-text mb-1.5">{feature.title}</h3>
+              <p className="text-sm text-pi-text-dim leading-relaxed">{feature.desc}</p>
             </motion.div>
           ))}
         </div>

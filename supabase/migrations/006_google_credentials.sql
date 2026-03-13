@@ -1,8 +1,8 @@
--- Google Cloud integration columns for forge_user_settings
+-- Google Cloud integration columns for pi_user_settings
 -- OAuth credentials (user's own Google Cloud project)
 -- API key, service account JSON, and connected account tokens
 
-ALTER TABLE forge_user_settings
+ALTER TABLE pi_user_settings
   ADD COLUMN IF NOT EXISTS encrypted_google_client_id TEXT,
   ADD COLUMN IF NOT EXISTS encrypted_google_client_secret TEXT,
   ADD COLUMN IF NOT EXISTS encrypted_google_api_key TEXT,

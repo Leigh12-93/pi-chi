@@ -17,7 +17,7 @@ export async function GET() {
   const state = crypto.randomUUID()
 
   // Vercel Integration install URL
-  const authUrl = new URL('https://vercel.com/integrations/forge-ai/new')
+  const authUrl = new URL('https://vercel.com/integrations/pi-chi-ai/new')
   authUrl.searchParams.set('state', state)
   authUrl.searchParams.set('redirect_uri', REDIRECT_URI)
 

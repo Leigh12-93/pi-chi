@@ -98,25 +98,25 @@ export function CommandPalette({ open, onClose, commands }: CommandPaletteProps)
   return (
     <div className="fixed inset-0 z-[100] flex items-start justify-center pt-[10vh] sm:pt-[20vh]" onClick={onClose} role="dialog" aria-modal="true" aria-label="Command palette">
       {/* Backdrop */}
-      <div className="absolute inset-0 bg-forge-overlay backdrop-blur-md cmd-backdrop-enter" />
+      <div className="absolute inset-0 bg-pi-overlay backdrop-blur-md cmd-backdrop-enter" />
 
       {/* Palette */}
       <div
-        className="relative w-full max-w-md mx-4 bg-forge-bg rounded-2xl shadow-2xl border border-forge-border overflow-hidden cmd-palette-enter"
+        className="relative w-full max-w-md mx-4 bg-pi-bg rounded-2xl shadow-2xl border border-pi-border overflow-hidden cmd-palette-enter"
         onClick={e => e.stopPropagation()}
       >
         {/* Search input */}
-        <div className="flex items-center gap-3 px-4 py-3 border-b border-forge-border">
-          <Search className="w-4 h-4 text-forge-text-dim shrink-0" />
+        <div className="flex items-center gap-3 px-4 py-3 border-b border-pi-border">
+          <Search className="w-4 h-4 text-pi-text-dim shrink-0" />
           <input
             ref={inputRef}
             value={query}
             onChange={e => setQuery(e.target.value)}
             onKeyDown={handleKeyDown}
             placeholder="Type a command..."
-            className="flex-1 text-sm text-forge-text bg-transparent outline-none placeholder:text-forge-text-dim/50"
+            className="flex-1 text-sm text-pi-text bg-transparent outline-none placeholder:text-pi-text-dim/50"
           />
-          <kbd className="hidden sm:inline-flex items-center px-1.5 py-0.5 text-[10px] font-mono text-forge-text-dim bg-forge-surface border border-forge-border rounded">
+          <kbd className="hidden sm:inline-flex items-center px-1.5 py-0.5 text-[10px] font-mono text-pi-text-dim bg-pi-surface border border-pi-border rounded">
             ESC
           </kbd>
         </div>
@@ -125,14 +125,14 @@ export function CommandPalette({ open, onClose, commands }: CommandPaletteProps)
         <div className="max-h-[300px] overflow-y-auto py-1">
           {flatFiltered.length === 0 ? (
             <div className="px-4 py-8 text-center">
-              <Search className="w-5 h-5 text-forge-text-dim/30 mx-auto mb-2 console-breathe" />
-              <p className="text-sm text-forge-text-dim">No matching commands</p>
+              <Search className="w-5 h-5 text-pi-text-dim/30 mx-auto mb-2 console-breathe" />
+              <p className="text-sm text-pi-text-dim">No matching commands</p>
             </div>
           ) : (
             Object.entries(grouped).map(([category, cmds]) => (
               <div key={category}>
                 <div className="px-4 pt-2 pb-1">
-                  <span className="text-[10px] font-semibold uppercase tracking-wider text-forge-text-dim/70">
+                  <span className="text-[10px] font-semibold uppercase tracking-wider text-pi-text-dim/70">
                     {categoryLabels[category] || category}
                   </span>
                 </div>
@@ -145,28 +145,28 @@ export function CommandPalette({ open, onClose, commands }: CommandPaletteProps)
                       onMouseEnter={() => setSelectedIndex(cmd.flatIndex)}
                       className={cn(
                         'w-full flex items-center gap-3 px-4 py-3 sm:py-2 text-left transition-all duration-150',
-                        isSelected ? 'bg-forge-accent/10' : 'hover:bg-forge-surface',
+                        isSelected ? 'bg-pi-accent/10' : 'hover:bg-pi-surface',
                       )}
                     >
                       <div className={cn(
                         'w-9 h-9 sm:w-7 sm:h-7 rounded-lg flex items-center justify-center shrink-0 transition-all duration-150',
-                        isSelected ? 'bg-forge-accent/20 text-forge-accent scale-110' : 'bg-forge-surface text-forge-text-dim',
+                        isSelected ? 'bg-pi-accent/20 text-pi-accent scale-110' : 'bg-pi-surface text-pi-text-dim',
                       )}>
                         <cmd.icon className="w-4 h-4 sm:w-3.5 sm:h-3.5" />
                       </div>
                       <div className="flex-1 min-w-0">
                         <p className={cn(
                           'text-sm sm:text-xs font-medium truncate',
-                          isSelected ? 'text-forge-accent' : 'text-forge-text',
+                          isSelected ? 'text-pi-accent' : 'text-pi-text',
                         )}>
                           {cmd.label}
                         </p>
                         {cmd.description && (
-                          <p className="text-xs sm:text-[10px] text-forge-text-dim truncate">{cmd.description}</p>
+                          <p className="text-xs sm:text-[10px] text-pi-text-dim truncate">{cmd.description}</p>
                         )}
                       </div>
                       {cmd.shortcut && (
-                        <kbd className="hidden sm:inline-flex items-center px-1.5 py-0.5 text-[10px] font-mono text-forge-text-dim bg-forge-surface border border-forge-border rounded shrink-0">
+                        <kbd className="hidden sm:inline-flex items-center px-1.5 py-0.5 text-[10px] font-mono text-pi-text-dim bg-pi-surface border border-pi-border rounded shrink-0">
                           {cmd.shortcut}
                         </kbd>
                       )}
@@ -179,12 +179,12 @@ export function CommandPalette({ open, onClose, commands }: CommandPaletteProps)
         </div>
 
         {/* Footer */}
-        <div className="px-4 py-2 border-t border-forge-border bg-forge-surface/50 flex items-center justify-between">
-          <div className="flex items-center gap-3 text-[10px] text-forge-text-dim">
-            <span className="flex items-center gap-1"><kbd className="px-1 py-0.5 bg-forge-bg border border-forge-border rounded text-[9px]">&uarr;&darr;</kbd> navigate</span>
-            <span className="flex items-center gap-1"><kbd className="px-1 py-0.5 bg-forge-bg border border-forge-border rounded text-[9px]">&crarr;</kbd> select</span>
+        <div className="px-4 py-2 border-t border-pi-border bg-pi-surface/50 flex items-center justify-between">
+          <div className="flex items-center gap-3 text-[10px] text-pi-text-dim">
+            <span className="flex items-center gap-1"><kbd className="px-1 py-0.5 bg-pi-bg border border-pi-border rounded text-[9px]">&uarr;&darr;</kbd> navigate</span>
+            <span className="flex items-center gap-1"><kbd className="px-1 py-0.5 bg-pi-bg border border-pi-border rounded text-[9px]">&crarr;</kbd> select</span>
           </div>
-          <div className="flex items-center gap-1 text-[10px] text-forge-text-dim">
+          <div className="flex items-center gap-1 text-[10px] text-pi-text-dim">
             <Keyboard className="w-3 h-3" />
             <span>{flatFiltered.length} commands</span>
           </div>

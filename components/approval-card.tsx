@@ -17,10 +17,10 @@ function getToolIcon(toolName: string) {
     case 'delete_file': return Trash2
     case 'db_mutate': return Database
     case 'run_command': return Terminal
-    case 'forge_modify_own_source':
-    case 'forge_redeploy':
-    case 'forge_revert_commit':
-    case 'forge_merge_pr': return ShieldAlert
+    case 'pi_modify_own_source':
+    case 'pi_redeploy':
+    case 'pi_revert_commit':
+    case 'pi_merge_pr': return ShieldAlert
     case 'github_modify_external_file': return ShieldAlert
     case 'google_gmail_send': return ShieldAlert
     default: return ShieldAlert
@@ -39,13 +39,13 @@ function getDescription(toolName: string, args: Record<string, unknown>): { titl
     }
     case 'run_command':
       return { title: 'Run destructive command', detail: String(args.command || '').slice(0, 120), consequence: 'This command may modify or delete files in the project' }
-    case 'forge_modify_own_source':
-      return { title: 'Modify Forge source code', detail: `File: ${String(args.path || args.file || 'unknown')}`, consequence: 'This will push a commit to the Forge repository itself' }
-    case 'forge_redeploy':
-      return { title: 'Redeploy Forge', detail: 'Trigger production redeployment', consequence: 'The live Forge app will be redeployed with current code' }
-    case 'forge_revert_commit':
-      return { title: 'Revert commit', detail: `SHA: ${String(args.sha || args.commit || 'unknown').slice(0, 12)}`, consequence: 'This commit will be reverted in the Forge repository' }
-    case 'forge_merge_pr':
+    case 'pi_modify_own_source':
+      return { title: 'Modify Pi-Chi source code', detail: `File: ${String(args.path || args.file || 'unknown')}`, consequence: 'This will push a commit to the Pi-Chi repository itself' }
+    case 'pi_redeploy':
+      return { title: 'Redeploy Pi-Chi', detail: 'Trigger production redeployment', consequence: 'The live Pi-Chi app will be redeployed with current code' }
+    case 'pi_revert_commit':
+      return { title: 'Revert commit', detail: `SHA: ${String(args.sha || args.commit || 'unknown').slice(0, 12)}`, consequence: 'This commit will be reverted in the Pi-Chi repository' }
+    case 'pi_merge_pr':
       return { title: 'Merge pull request', detail: `PR #${String(args.pr_number || args.number || 'unknown')}`, consequence: 'This PR will be merged into the main branch' }
     case 'github_modify_external_file':
       return { title: 'Modify external repo file', detail: `${String(args.owner || '')}/${String(args.repo || '')}: ${String(args.path || '')}`, consequence: 'A commit will be pushed to this external repository' }
@@ -78,10 +78,10 @@ export function ApprovalCard({ toolName, args, onApprove, onDeny }: ApprovalCard
     if (timeoutRef.current) clearTimeout(timeoutRef.current)
     if (alwaysAllow) {
       try {
-        const stored = JSON.parse(localStorage.getItem('forge:approved-tools') || '[]')
+        const stored = JSON.parse(localStorage.getItem('pi:approved-tools') || '[]')
         if (!stored.includes(toolName)) {
           stored.push(toolName)
-          localStorage.setItem('forge:approved-tools', JSON.stringify(stored))
+          localStorage.setItem('pi:approved-tools', JSON.stringify(stored))
         }
       } catch { /* localStorage unavailable */ }
     }
@@ -155,7 +155,7 @@ export function ApprovalCard({ toolName, args, onApprove, onDeny }: ApprovalCard
 /** Check if a tool is pre-approved via localStorage */
 export function isToolPreApproved(toolName: string): boolean {
   try {
-    const stored = JSON.parse(localStorage.getItem('forge:approved-tools') || '[]')
+    const stored = JSON.parse(localStorage.getItem('pi:approved-tools') || '[]')
     return stored.includes(toolName)
   } catch {
     return false
@@ -172,17 +172,17 @@ export type ToolPermission = 'ask' | 'allow' | 'deny'
 
 export function getToolPermission(toolName: string): ToolPermission {
   try {
-    const config = JSON.parse(localStorage.getItem('forge:tool-permissions') || '{}')
+    const config = JSON.parse(localStorage.getItem('pi:tool-permissions') || '{}')
     if (config[toolName]) return config[toolName]
-  } catch (e) { console.warn('[forge:localStorage] Failed to read tool permissions:', e) }
+  } catch (e) { console.warn('[pi:localStorage] Failed to read tool permissions:', e) }
   if (isToolPreApproved(toolName)) return 'allow'
   return 'ask'
 }
 
 export function setToolPermission(toolName: string, permission: ToolPermission) {
   try {
-    const config = JSON.parse(localStorage.getItem('forge:tool-permissions') || '{}')
+    const config = JSON.parse(localStorage.getItem('pi:tool-permissions') || '{}')
     config[toolName] = permission
-    localStorage.setItem('forge:tool-permissions', JSON.stringify(config))
-  } catch (e) { console.warn('[forge:localStorage] Failed to save tool permissions:', e) }
+    localStorage.setItem('pi:tool-permissions', JSON.stringify(config))
+  } catch (e) { console.warn('[pi:localStorage] Failed to save tool permissions:', e) }
 }

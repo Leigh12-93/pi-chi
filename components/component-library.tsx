@@ -68,20 +68,20 @@ export function ComponentLibrary({ onInsert: _onInsert }: ComponentLibraryProps)
   }
 
   return (
-    <div className="h-full flex flex-col bg-forge-panel">
+    <div className="h-full flex flex-col bg-pi-panel">
       <div className="px-3 pt-3 pb-2 space-y-2">
         <div className="flex items-center gap-2">
-          <Package className="w-4 h-4 text-forge-accent" />
-          <span className="text-xs font-medium text-forge-text">Components</span>
+          <Package className="w-4 h-4 text-pi-accent" />
+          <span className="text-xs font-medium text-pi-text">Components</span>
         </div>
 
-        <div className="flex items-center gap-1.5 bg-forge-surface border border-forge-border rounded-lg px-2">
-          <Search className="w-3 h-3 text-forge-text-dim" />
+        <div className="flex items-center gap-1.5 bg-pi-surface border border-pi-border rounded-lg px-2">
+          <Search className="w-3 h-3 text-pi-text-dim" />
           <input
             value={search}
             onChange={e => setSearch(e.target.value)}
             placeholder="Search components..."
-            className="flex-1 py-1.5 text-xs bg-transparent text-forge-text placeholder:text-forge-text-dim/50 focus:outline-none"
+            className="flex-1 py-1.5 text-xs bg-transparent text-pi-text placeholder:text-pi-text-dim/50 focus:outline-none"
           />
         </div>
 
@@ -93,8 +93,8 @@ export function ComponentLibrary({ onInsert: _onInsert }: ComponentLibraryProps)
               className={cn(
                 'px-2 py-1 text-[10px] rounded-full whitespace-nowrap transition-colors',
                 category === cat.id
-                  ? 'bg-forge-accent/10 text-forge-accent'
-                  : 'text-forge-text-dim hover:text-forge-text',
+                  ? 'bg-pi-accent/10 text-pi-accent'
+                  : 'text-pi-text-dim hover:text-pi-text',
               )}
             >
               {cat.label}
@@ -107,15 +107,15 @@ export function ComponentLibrary({ onInsert: _onInsert }: ComponentLibraryProps)
         {filtered.map(comp => (
           <div
             key={comp.name}
-            className="flex items-center justify-between px-2.5 py-2 rounded-lg hover:bg-forge-surface/50 transition-colors group"
+            className="flex items-center justify-between px-2.5 py-2 rounded-lg hover:bg-pi-surface/50 transition-colors group"
           >
             <div className="min-w-0">
-              <p className="text-xs font-medium text-forge-text">{comp.name}</p>
-              <p className="text-[10px] text-forge-text-dim truncate">{comp.desc}</p>
+              <p className="text-xs font-medium text-pi-text">{comp.name}</p>
+              <p className="text-[10px] text-pi-text-dim truncate">{comp.desc}</p>
             </div>
             <button
               onClick={() => handleCopy(comp.name)}
-              className="p-1.5 text-forge-text-dim hover:text-forge-accent opacity-0 group-hover:opacity-100 transition-all"
+              className="p-1.5 text-pi-text-dim hover:text-pi-accent opacity-0 group-hover:opacity-100 transition-all"
               title="Copy prompt to add this component"
             >
               {copiedId === comp.name ? (
@@ -127,7 +127,7 @@ export function ComponentLibrary({ onInsert: _onInsert }: ComponentLibraryProps)
           </div>
         ))}
         {filtered.length === 0 && (
-          <p className="text-xs text-forge-text-dim text-center py-4">No components found</p>
+          <p className="text-xs text-pi-text-dim text-center py-4">No components found</p>
         )}
       </div>
     </div>

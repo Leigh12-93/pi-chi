@@ -21,7 +21,7 @@ export async function getGoogleCredentials(
 ): Promise<{ credentials?: GoogleCredentials; error?: string }> {
   try {
     const { data, ok } = await supabaseFetch(
-      `/forge_user_settings?github_username=eq.${encodeURIComponent(githubUsername)}&select=encrypted_google_access_token,encrypted_google_refresh_token,encrypted_google_client_id,encrypted_google_client_secret,google_token_expiry,encrypted_google_api_key`
+      `/pi_user_settings?github_username=eq.${encodeURIComponent(githubUsername)}&select=encrypted_google_access_token,encrypted_google_refresh_token,encrypted_google_client_id,encrypted_google_client_secret,google_token_expiry,encrypted_google_api_key`
     )
 
     if (!ok || !Array.isArray(data) || data.length === 0) {
@@ -89,7 +89,7 @@ export async function getGoogleCredentials(
           ? row.encrypted_google_api_key.slice(3)
           : row.encrypted_google_api_key
         apiKey = await decryptToken(rawKey)
-      } catch (e) { console.warn('[forge:google-auth] Failed to decrypt Google API key:', e) }
+      } catch (e) { console.warn('[pi:google-auth] Failed to decrypt Google API key:', e) }
     }
 
     return {

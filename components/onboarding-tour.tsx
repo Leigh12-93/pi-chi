@@ -5,7 +5,7 @@ import { X, ChevronRight, Sparkles, MessageSquare, Eye, FolderTree, Rocket } fro
 
 const STEPS = [
   {
-    title: 'Welcome to Six-Chi',
+    title: 'Welcome to Pi-Chi',
     description: 'Build React websites with AI. Describe what you want and watch it come to life.',
     icon: Sparkles,
   },
@@ -36,13 +36,13 @@ export function OnboardingTour() {
   const [step, setStep] = useState(0)
 
   useEffect(() => {
-    const seen = localStorage.getItem('forge-onboarding-seen')
+    const seen = localStorage.getItem('pi-onboarding-seen')
     if (!seen) setVisible(true)
   }, [])
 
   const handleDismiss = () => {
     setVisible(false)
-    localStorage.setItem('forge-onboarding-seen', '1')
+    localStorage.setItem('pi-onboarding-seen', '1')
   }
 
   const [transitioning, setTransitioning] = useState(false)
@@ -96,14 +96,14 @@ export function OnboardingTour() {
 
   return (
     <div className="fixed inset-0 z-[110] flex items-center justify-center" onClick={handleDismiss} onKeyDown={handleKeyDown}>
-      <div className="absolute inset-0 bg-forge-overlay backdrop-blur-md animate-fade-in" />
+      <div className="absolute inset-0 bg-pi-overlay backdrop-blur-md animate-fade-in" />
       <div
-        className="relative w-full max-w-sm mx-4 bg-forge-bg rounded-2xl shadow-2xl border border-forge-border overflow-hidden animate-scale-in"
+        className="relative w-full max-w-sm mx-4 bg-pi-bg rounded-2xl shadow-2xl border border-pi-border overflow-hidden animate-scale-in"
         onClick={e => e.stopPropagation()}
       >
         <button
           onClick={handleDismiss}
-          className="absolute top-3 right-3 p-1 rounded-lg text-forge-text-dim hover:text-forge-text hover:bg-forge-surface transition-colors z-10"
+          className="absolute top-3 right-3 p-1 rounded-lg text-pi-text-dim hover:text-pi-text hover:bg-pi-surface transition-colors z-10"
         >
           <X className="w-4 h-4" />
         </button>
@@ -112,21 +112,21 @@ export function OnboardingTour() {
           className="p-6 text-center transition-all duration-150 ease-out"
           style={{ opacity: transitioning ? 0 : 1, transform: transitioning ? 'translateY(4px)' : 'translateY(0)' }}
         >
-          <div className="inline-flex items-center justify-center w-14 h-14 rounded-2xl bg-gradient-to-br from-forge-accent/20 to-purple-500/20 mb-4 animate-breathe">
-            <StepIcon className="w-7 h-7 text-forge-accent" />
+          <div className="inline-flex items-center justify-center w-14 h-14 rounded-2xl bg-gradient-to-br from-pi-accent/20 to-purple-500/20 mb-4 animate-breathe">
+            <StepIcon className="w-7 h-7 text-pi-accent" />
           </div>
-          <h2 className="text-base font-semibold text-forge-text mb-2">{currentStep.title}</h2>
-          <p className="text-xs text-forge-text-dim leading-relaxed">{currentStep.description}</p>
+          <h2 className="text-base font-semibold text-pi-text mb-2">{currentStep.title}</h2>
+          <p className="text-xs text-pi-text-dim leading-relaxed">{currentStep.description}</p>
         </div>
 
-        <div className="flex items-center justify-between px-5 py-3 border-t border-forge-border bg-forge-surface/30">
+        <div className="flex items-center justify-between px-5 py-3 border-t border-pi-border bg-pi-surface/30">
           {/* Dots */}
           <div className="flex items-center gap-1.5">
             {STEPS.map((_, i) => (
               <div
                 key={i}
                 className={`h-1.5 rounded-full transition-all duration-300 ${
-                  i === step ? 'bg-forge-accent w-4' : i < step ? 'bg-forge-accent/50 w-1.5' : 'bg-forge-border w-1.5'
+                  i === step ? 'bg-pi-accent w-4' : i < step ? 'bg-pi-accent/50 w-1.5' : 'bg-pi-border w-1.5'
                 }`}
               />
             ))}
@@ -135,13 +135,13 @@ export function OnboardingTour() {
           <div className="flex items-center gap-2">
             <button
               onClick={handleDismiss}
-              className="px-3 py-1.5 text-xs text-forge-text-dim hover:text-forge-text rounded-lg hover:bg-forge-surface transition-colors"
+              className="px-3 py-1.5 text-xs text-pi-text-dim hover:text-pi-text rounded-lg hover:bg-pi-surface transition-colors"
             >
               Skip
             </button>
             <button
               onClick={handleNext}
-              className="flex items-center gap-1 px-3 py-1.5 text-xs font-medium text-white bg-forge-accent hover:bg-forge-accent-hover rounded-lg transition-colors"
+              className="flex items-center gap-1 px-3 py-1.5 text-xs font-medium text-white bg-pi-accent hover:bg-pi-accent-hover rounded-lg transition-colors"
             >
               {step < STEPS.length - 1 ? (
                 <>

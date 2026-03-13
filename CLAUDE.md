@@ -1,4 +1,4 @@
-# CLAUDE.md — Forge
+# CLAUDE.md — Pi-Chi
 
 AI-powered React website builder with self-modification superpowers.
 v0/Bolt.ai clone using Claude API. Architecture inspired by Brick CLI.
@@ -24,7 +24,7 @@ Projects persist to Supabase (auto-save 5s debounce).
 app/
   page.tsx                 Main page — project persistence, auto-save, project picker → workspace
   layout.tsx               Root layout (dark theme, SessionProvider)
-  globals.css              Tailwind v4 + custom forge theme tokens
+  globals.css              Tailwind v4 + custom pi theme tokens
   api/chat/route.ts        AI endpoint — VirtualFS, 60+ tools, extended thinking, project memory, auto-routing
   api/projects/route.ts    Project CRUD (GET list, POST create)
   api/projects/[id]/       Project detail (GET with files, PUT save, DELETE)
@@ -48,7 +48,7 @@ lib/
   chat/constants.ts        Model pricing, token formatting, destructive tool patterns
   chat/tool-utils.ts       extractFileUpdates, getToolSummary, diff snapshots
 supabase/
-  migrations/001_forge_tables.sql   Database schema (run in Supabase SQL editor)
+  migrations/001_pi_tables.sql   Database schema (run in Supabase SQL editor)
 ```
 
 ## AI Tools (60+)
@@ -61,7 +61,7 @@ supabase/
 | GitHub | `github_create_repo`, `github_push_update`, `github_read_file`, `github_list_repo_files`, `github_modify_external_file`, `github_search_code`, `github_pull_latest` |
 | Deploy | `deploy_to_vercel` |
 | Database | `db_query`, `db_mutate`, `db_introspect`, `save_project` |
-| Self-Mod | `forge_read_own_source`, `forge_modify_own_source`, `forge_redeploy`, `forge_revert_commit`, `forge_create_branch`, `forge_create_pr`, `forge_merge_pr`, `forge_check_npm_package`, `forge_list_branches`, `forge_delete_branch` |
+| Self-Mod | `pi_read_own_source`, `pi_modify_own_source`, `pi_redeploy`, `pi_revert_commit`, `pi_create_branch`, `pi_create_pr`, `pi_merge_pr`, `pi_check_npm_package`, `pi_list_branches`, `pi_delete_branch` |
 | Task Mgmt | `check_task_status` |
 | Model | `select_model` (switch between haiku/sonnet/opus mid-session) |
 | Memory | `save_memory`, `load_memory` (persistent per-project memory) |
@@ -70,15 +70,15 @@ supabase/
 
 ### Self-Modification
 The AI can read and modify its own source code via GitHub API:
-- `forge_read_own_source` — read any file from `Leigh12-93/forge`
-- `forge_modify_own_source` — push a commit to modify its own code
-- `forge_redeploy` — trigger Vercel redeployment after self-mod
+- `pi_read_own_source` — read any file from `Leigh12-93/pi-chi`
+- `pi_modify_own_source` — push a commit to modify its own code
+- `pi_redeploy` — trigger Vercel redeployment after self-mod
 
 ### Database Access
 Full CRUD on Supabase via PostgREST:
 - `db_query` — SELECT with filters, ordering, limits
 - `db_mutate` — INSERT, UPDATE, UPSERT, DELETE
-- Forge tables: `forge_projects`, `forge_project_files`, `forge_chat_messages`, `forge_deployments`
+- Pi-Chi tables: `pi_projects`, `pi_project_files`, `pi_chat_messages`, `pi_deployments`
 
 ### External Repo Access
 Read and modify any GitHub repo the user has access to:
@@ -94,7 +94,7 @@ Read and modify any GitHub repo the user has access to:
 - Filtered by GitHub username from OAuth session
 
 ### Persistent Project Memory
-Per-project memory stored as JSONB in `forge_projects.memory`:
+Per-project memory stored as JSONB in `pi_projects.memory`:
 - `save_memory` tool — AI saves key/value pairs (conventions, architecture, preferences)
 - `load_memory` tool — AI reads all memory entries at conversation start
 - Memory auto-loaded into system prompt on each request
@@ -150,23 +150,23 @@ The `localFiles` ref maintains a running copy so chained edits resolve correctly
 | `AUTH_SECRET` | NextAuth session encryption | `.env.local` + Vercel |
 | `NEXT_PUBLIC_SUPABASE_URL` | Supabase endpoint | `.env.local` + Vercel |
 | `SUPABASE_SERVICE_ROLE_KEY` | Supabase service role | `.env.local` + Vercel |
-| `FORGE_DEPLOY_TOKEN` | Vercel deployments | Vercel only (NOT `VERCEL_TOKEN` — reserved) |
+| `PI_DEPLOY_TOKEN` | Vercel deployments | Vercel only (NOT `VERCEL_TOKEN` — reserved) |
 
 **Important:** All Vercel env vars get `\r\n` appended. Code uses `.trim()` on all tokens.
 
 ## Database
 
 **Supabase instance:** `koghrdiduiuicaysvwci` (shared with tank-reminder)
-**Tables:** All prefixed with `forge_` to avoid collisions.
+**Tables:** All prefixed with `pi_` to avoid collisions.
 
 | Table | Purpose |
 |-------|---------|
-| `forge_projects` | Project metadata (name, github_username, framework, URLs, memory JSONB) |
-| `forge_project_files` | All virtual files per project (path + content) |
-| `forge_chat_messages` | Conversation history per project |
-| `forge_deployments` | Deployment history |
+| `pi_projects` | Project metadata (name, github_username, framework, URLs, memory JSONB) |
+| `pi_project_files` | All virtual files per project (path + content) |
+| `pi_chat_messages` | Conversation history per project |
+| `pi_deployments` | Deployment history |
 
-**To create tables:** Run `supabase/migrations/001_forge_tables.sql` in the Supabase SQL editor:
+**To create tables:** Run `supabase/migrations/001_pi_tables.sql` in the Supabase SQL editor:
 https://supabase.com/dashboard/project/koghrdiduiuicaysvwci/sql/new
 
 ## Credentials
@@ -174,8 +174,8 @@ https://supabase.com/dashboard/project/koghrdiduiuicaysvwci/sql/new
 | Setting | Value |
 |---------|-------|
 | Anthropic API Key | In `.env.local` |
-| GitHub Repo | `https://github.com/Leigh12-93/forge` |
-| Vercel Project | `forge` → `https://forge-six-chi.vercel.app` |
+| GitHub Repo | `https://github.com/Leigh12-93/pi-chi` |
+| Vercel Project | `pi-chi` → `https://pi-chi.vercel.app` |
 | Supabase Dashboard | `https://supabase.com/dashboard/project/koghrdiduiuicaysvwci` |
 
 ## Auth Flow

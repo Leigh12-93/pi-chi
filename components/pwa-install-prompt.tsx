@@ -17,8 +17,8 @@ export function PWAInstallPrompt() {
     if (dismissed && Date.now() - Number(dismissed) < 7 * 24 * 60 * 60 * 1000) return
 
     // Visit counter — show after 2nd visit
-    const visits = Number(localStorage.getItem('sixchi-visits') || '0') + 1
-    localStorage.setItem('sixchi-visits', String(visits))
+    const visits = Number(localStorage.getItem('pichi-visits') || '0') + 1
+    localStorage.setItem('pichi-visits', String(visits))
     if (visits < 2) return
 
     const handler = (e: Event) => {
@@ -56,20 +56,20 @@ export function PWAInstallPrompt() {
           transition={{ type: 'spring', stiffness: 300, damping: 30 }}
           className="fixed bottom-20 left-3 right-3 z-50 md:hidden"
         >
-          <div className="flex items-center gap-3 px-4 py-3 bg-forge-panel/95 backdrop-blur-lg border border-forge-border rounded-2xl shadow-lg">
-            <Download className="w-5 h-5 text-forge-accent shrink-0" />
-            <span className="flex-1 text-xs text-forge-text">
-              Add Six-Chi to your home screen
+          <div className="flex items-center gap-3 px-4 py-3 bg-pi-panel/95 backdrop-blur-lg border border-pi-border rounded-2xl shadow-lg">
+            <Download className="w-5 h-5 text-pi-accent shrink-0" />
+            <span className="flex-1 text-xs text-pi-text">
+              Add Pi-Chi to your home screen
             </span>
             <button
               onClick={handleInstall}
-              className="px-3 py-1.5 text-xs font-medium bg-forge-accent text-white rounded-lg hover:bg-forge-accent-hover transition-colors"
+              className="px-3 py-1.5 text-xs font-medium bg-pi-accent text-white rounded-lg hover:bg-pi-accent-hover transition-colors"
             >
               Install
             </button>
             <button
               onClick={handleDismiss}
-              className="p-1 text-forge-text-dim hover:text-forge-text transition-colors"
+              className="p-1 text-pi-text-dim hover:text-pi-text transition-colors"
               aria-label="Dismiss"
             >
               <X className="w-4 h-4" />

@@ -13,14 +13,14 @@ export async function GET(
   const { id: projectId, sid: snapshotId } = await params
 
   const check = await supabaseFetch(
-    `/forge_projects?id=eq.${projectId}&github_username=eq.${encodeURIComponent(session.githubUsername)}&select=id`,
+    `/pi_projects?id=eq.${projectId}&github_username=eq.${encodeURIComponent(session.githubUsername)}&select=id`,
   )
   if (!check.ok || !Array.isArray(check.data) || check.data.length === 0) {
     return NextResponse.json({ error: 'Not found' }, { status: 404 })
   }
 
   const { data, ok } = await supabaseFetch(
-    `/forge_project_snapshots?id=eq.${snapshotId}&project_id=eq.${projectId}&select=id,description,files,file_count,created_at`,
+    `/pi_project_snapshots?id=eq.${snapshotId}&project_id=eq.${projectId}&select=id,description,files,file_count,created_at`,
   )
   if (!ok || !Array.isArray(data) || data.length === 0) {
     return NextResponse.json({ error: 'Snapshot not found' }, { status: 404 })
@@ -41,7 +41,7 @@ export async function PUT(
 
   // Verify project ownership
   const check = await supabaseFetch(
-    `/forge_projects?id=eq.${projectId}&github_username=eq.${encodeURIComponent(session.githubUsername)}&select=id`,
+    `/pi_projects?id=eq.${projectId}&github_username=eq.${encodeURIComponent(session.githubUsername)}&select=id`,
   )
   if (!check.ok || !Array.isArray(check.data) || check.data.length === 0) {
     return NextResponse.json({ error: 'Not found' }, { status: 404 })
@@ -49,7 +49,7 @@ export async function PUT(
 
   // Fetch snapshot
   const { data, ok } = await supabaseFetch(
-    `/forge_project_snapshots?id=eq.${snapshotId}&project_id=eq.${projectId}&select=files`,
+    `/pi_project_snapshots?id=eq.${snapshotId}&project_id=eq.${projectId}&select=files`,
   )
   if (!ok || !Array.isArray(data) || data.length === 0) {
     return NextResponse.json({ error: 'Snapshot not found' }, { status: 404 })
@@ -71,14 +71,14 @@ export async function DELETE(
 
   // Verify project ownership
   const check = await supabaseFetch(
-    `/forge_projects?id=eq.${projectId}&github_username=eq.${encodeURIComponent(session.githubUsername)}&select=id`,
+    `/pi_projects?id=eq.${projectId}&github_username=eq.${encodeURIComponent(session.githubUsername)}&select=id`,
   )
   if (!check.ok || !Array.isArray(check.data) || check.data.length === 0) {
     return NextResponse.json({ error: 'Not found' }, { status: 404 })
   }
 
   const { ok } = await supabaseFetch(
-    `/forge_project_snapshots?id=eq.${snapshotId}&project_id=eq.${projectId}`,
+    `/pi_project_snapshots?id=eq.${snapshotId}&project_id=eq.${projectId}`,
     { method: 'DELETE' },
   )
 

@@ -21,7 +21,7 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
 
   // Sync with localStorage on mount, falling back to OS preference
   useEffect(() => {
-    const stored = localStorage.getItem('forge-theme') as Theme | null
+    const stored = localStorage.getItem('pi-theme') as Theme | null
     if (stored) {
       setTheme(stored)
       document.documentElement.classList.toggle('dark', stored === 'dark')
@@ -37,7 +37,7 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
     // Listen for OS preference changes (only applies when no explicit user choice)
     const mq = window.matchMedia('(prefers-color-scheme: dark)')
     const handler = (e: MediaQueryListEvent) => {
-      if (localStorage.getItem('forge-theme')) return // User made explicit choice
+      if (localStorage.getItem('pi-theme')) return // User made explicit choice
       const next: Theme = e.matches ? 'dark' : 'light'
       setTheme(next)
       document.documentElement.classList.toggle('dark', next === 'dark')
@@ -50,7 +50,7 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
     setTheme(prev => {
       const next = prev === 'light' ? 'dark' : 'light'
       document.documentElement.classList.toggle('dark', next === 'dark')
-      localStorage.setItem('forge-theme', next)
+      localStorage.setItem('pi-theme', next)
       return next
     })
   }, [])

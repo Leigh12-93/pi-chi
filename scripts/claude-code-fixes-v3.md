@@ -1,4 +1,4 @@
-# Forge Audit Fixes v3 — Claude Code Implementation Prompt
+# Pi-Chi Audit Fixes v3 — Claude Code Implementation Prompt
 
 Apply all fixes below in order. Each fix includes the exact file, line numbers, the problem, WHY it matters, and the replacement code. After all changes: `npx tsc --noEmit` then `npm run build`.
 
@@ -68,7 +68,7 @@ export function rateLimit(
 ## Fix 2: CSP allows unsafe-eval and unused CDN (XSS vulnerability)
 
 **File:** `middleware.ts`, line 8
-**Problem:** The Content-Security-Policy header includes `'unsafe-eval'` in `script-src` and references `cdn.tailwindcss.com`. Nothing in Forge uses `eval()` and Tailwind is bundled locally. `unsafe-eval` allows any injected script to call `eval()`, `Function()`, or `setTimeout('string')`.
+**Problem:** The Content-Security-Policy header includes `'unsafe-eval'` in `script-src` and references `cdn.tailwindcss.com`. Nothing in Pi-Chi uses `eval()` and Tailwind is bundled locally. `unsafe-eval` allows any injected script to call `eval()`, `Function()`, or `setTimeout('string')`.
 **Why:** Removing `unsafe-eval` tightens the XSS attack surface. Keep `unsafe-inline` for now (needed for code block copy buttons and Next.js inline scripts).
 
 **Fix:** Replace line 8:
@@ -125,7 +125,7 @@ const response: any = {
 
 ```ts
   } catch (error) {
-    console.error('[forge:compaction] Haiku summarization failed, falling back to metadata-only summary:', error)
+    console.error('[pi:compaction] Haiku summarization failed, falling back to metadata-only summary:', error)
 
     // Fallback: extract metadata from dropped messages instead of losing them entirely
     const toolsUsed = new Set<string>()
@@ -302,7 +302,7 @@ export async function supabaseFetch(
 ## Fix 9: AUTH_SECRET empty string allows unsigned JWTs in production
 
 **File:** `lib/auth.ts`, lines 4-8 and the `createSession` function
-**Problem:** When `AUTH_SECRET` is empty (not set), `SECRET` becomes a zero-length key. `jose` still signs JWTs with this — any attacker who knows the secret is empty can forge valid sessions.
+**Problem:** When `AUTH_SECRET` is empty (not set), `SECRET` becomes a zero-length key. `jose` still signs JWTs with this — any attacker who knows the secret is empty can pi valid sessions.
 **Why:** In production, if the env var is accidentally unset, the app silently runs with no auth security. The existing warning only fires for 1-31 char secrets, not empty.
 
 **Fix:** Replace lines 4-8:
@@ -310,10 +310,10 @@ export async function supabaseFetch(
 ```ts
 const authSecret = (process.env.AUTH_SECRET || '').trim()
 if (!authSecret && process.env.NODE_ENV === 'production') {
-  console.error('[forge] FATAL: AUTH_SECRET is not set in production. Authentication is disabled.')
+  console.error('[pi] FATAL: AUTH_SECRET is not set in production. Authentication is disabled.')
 }
 if (authSecret.length > 0 && authSecret.length < 32) {
-  console.warn('[forge] AUTH_SECRET is shorter than 32 characters. This is insecure.')
+  console.warn('[pi] AUTH_SECRET is shorter than 32 characters. This is insecure.')
 }
 const SECRET = new TextEncoder().encode(authSecret)
 ```
@@ -321,7 +321,7 @@ const SECRET = new TextEncoder().encode(authSecret)
 And add a guard to `createSession`:
 
 ```ts
-export async function createSession(data: ForgeSession): Promise<string> {
+export async function createSession(data: Pi-ChiSession): Promise<string> {
   if (!authSecret) {
     throw new Error('Cannot create session: AUTH_SECRET is not configured')
   }
@@ -338,20 +338,20 @@ export async function createSession(data: ForgeSession): Promise<string> {
 ## Fix 10: db_tools ALLOWED_TABLES regex matches unintended names
 
 **File:** `lib/tools/db-tools.ts`, lines 28 and 109
-**Problem:** The regex `/^(forge_|credit_packages$)/` matches any table starting with `forge_` including `forge_` itself (empty suffix). While this is unlikely to be exploited since table names come from the AI, a more precise regex prevents accidental queries against tables with no suffix.
-**Why:** Defense in depth — the regex should require at least one character after `forge_`.
+**Problem:** The regex `/^(pi_|credit_packages$)/` matches any table starting with `pi_` including `pi_` itself (empty suffix). While this is unlikely to be exploited since table names come from the AI, a more precise regex prevents accidental queries against tables with no suffix.
+**Why:** Defense in depth — the regex should require at least one character after `pi_`.
 
 **Fix:** Replace both occurrences (lines 28 and 109):
 
 ```ts
 // Before:
-const ALLOWED_TABLES = /^(forge_|credit_packages$)/
+const ALLOWED_TABLES = /^(pi_|credit_packages$)/
 
 // After:
-const ALLOWED_TABLES = /^(forge_\w+|credit_packages)$/
+const ALLOWED_TABLES = /^(pi_\w+|credit_packages)$/
 ```
 
-This ensures the table name must be `forge_` followed by one or more word characters, or exactly `credit_packages`. The `$` anchor on the outer group prevents partial matches.
+This ensures the table name must be `pi_` followed by one or more word characters, or exactly `credit_packages`. The `$` anchor on the outer group prevents partial matches.
 
 ---
 

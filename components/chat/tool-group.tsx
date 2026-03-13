@@ -87,13 +87,13 @@ export function getGroupMeta(tools: ToolGroupData['tools']): { Icon: typeof Sear
   for (const t of tools) counts[t.toolName] = (counts[t.toolName] || 0) + 1
   const dominant = Object.entries(counts).sort((a, b) => b[1] - a[1])[0]?.[0] || ''
 
-  if (['read_file', 'list_files', 'get_all_files', 'forge_read_own_source'].includes(dominant))
+  if (['read_file', 'list_files', 'get_all_files', 'pi_read_own_source'].includes(dominant))
     return { Icon: Search, label: 'Explore', color: 'blue' }
   if (['search_files', 'grep_files', 'github_search_code', 'search_references', 'get_reference_code'].includes(dominant))
     return { Icon: Search, label: 'Search', color: 'purple' }
   if (['write_file', 'edit_file', 'rename_file', 'delete_file', 'scaffold_component'].includes(dominant))
     return { Icon: Pencil, label: 'Edit', color: 'yellow' }
-  if (dominant.startsWith('github_') || dominant.startsWith('forge_'))
+  if (dominant.startsWith('github_') || dominant.startsWith('pi_'))
     return { Icon: GitBranch, label: 'Git', color: 'green' }
   if (dominant.startsWith('db_'))
     return { Icon: Database, label: 'Database', color: 'green' }
@@ -149,16 +149,16 @@ export function CollapsibleToolGroup({ tools }: { tools: ToolGroupData['tools'] 
     >
       <button
         onClick={() => setExpanded(!expanded)}
-        className="flex items-center gap-2.5 w-full px-3.5 py-2 text-[13px] text-forge-text-dim hover:text-forge-text transition-colors group/toolbtn"
+        className="flex items-center gap-2.5 w-full px-3.5 py-2 text-[13px] text-pi-text-dim hover:text-pi-text transition-colors group/toolbtn"
       >
         <div className={cn('w-5 h-5 rounded-md flex items-center justify-center shrink-0', colorClasses[groupMeta.color] || colorClasses.gray)}>
           <groupMeta.Icon className="w-3 h-3" />
         </div>
         <span className="flex-1 text-left font-medium text-[12px]">{groupMeta.label}</span>
         <div className="flex items-center gap-1.5 shrink-0">
-          <span className="text-[10.5px] text-forge-text-dim/40 font-mono">{fileCount} file{fileCount !== 1 ? 's' : ''}</span>
+          <span className="text-[10.5px] text-pi-text-dim/40 font-mono">{fileCount} file{fileCount !== 1 ? 's' : ''}</span>
           <CheckCircle className="w-3 h-3 text-emerald-500/50" />
-          <ChevronDown className={cn('w-3 h-3 text-forge-text-dim/20 transition-transform duration-200', expanded && 'rotate-180')} />
+          <ChevronDown className={cn('w-3 h-3 text-pi-text-dim/20 transition-transform duration-200', expanded && 'rotate-180')} />
         </div>
       </button>
 
@@ -166,10 +166,10 @@ export function CollapsibleToolGroup({ tools }: { tools: ToolGroupData['tools'] 
       {!expanded && fileChips.length > 0 && (
         <div className="flex flex-wrap gap-1.5 px-3.5 pb-2">
           {fileChips.map(([name, count]) => (
-            <span key={name} className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md text-[11px] font-mono text-forge-text-dim/60 bg-forge-surface/50 border border-forge-border/30">
+            <span key={name} className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md text-[11px] font-mono text-pi-text-dim/60 bg-pi-surface/50 border border-pi-border/30">
               <CheckCircle className="w-3 h-3 text-emerald-500/70" />
               {name}
-              {count > 1 && <span className="text-forge-text-dim/40">x{count}</span>}
+              {count > 1 && <span className="text-pi-text-dim/40">x{count}</span>}
             </span>
           ))}
         </div>
@@ -184,7 +184,7 @@ export function CollapsibleToolGroup({ tools }: { tools: ToolGroupData['tools'] 
             transition={{ type: 'spring', stiffness: 500, damping: 32 }}
             className="overflow-hidden"
           >
-            <div className="border-t border-forge-border/20 px-3.5 py-2 space-y-0.5">
+            <div className="border-t border-pi-border/20 px-3.5 py-2 space-y-0.5">
               {tools.map((t, i) => (
                 <GroupedToolDetail key={t.partIdx} tool={t} index={i} />
               ))}
@@ -211,20 +211,20 @@ function GroupedToolDetail({ tool: t, index: i }: { tool: ToolGroupData['tools']
       transition={{ duration: 0.15, delay: i * 0.03 }}
     >
       <div
-        className="flex items-center gap-1.5 py-0.5 text-[12px] text-forge-text-dim/70 cursor-pointer hover:text-forge-text-dim/90 transition-colors"
+        className="flex items-center gap-1.5 py-0.5 text-[12px] text-pi-text-dim/70 cursor-pointer hover:text-pi-text-dim/90 transition-colors"
         onClick={() => setDetailOpen(!detailOpen)}
         role="button"
         tabIndex={0}
         onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') setDetailOpen(!detailOpen) }}
       >
         <CheckCircle className="w-3 h-3 text-emerald-500/40 shrink-0" />
-        <span className="text-forge-text-dim/50 shrink-0">{TOOL_COMPLETE_LABELS[t.toolName] || info.label}</span>
+        <span className="text-pi-text-dim/50 shrink-0">{TOOL_COMPLETE_LABELS[t.toolName] || info.label}</span>
         <span className="font-mono shrink-0">{fileInfo.name}</span>
         {fileInfo.path && <span className="tool-timeline-path hidden sm:inline">{fileInfo.path}</span>}
         {summary && (
-          <span className="text-[10px] text-forge-text-dim/30 font-mono shrink-0 hidden sm:inline">{summary}</span>
+          <span className="text-[10px] text-pi-text-dim/30 font-mono shrink-0 hidden sm:inline">{summary}</span>
         )}
-        <ChevronRight className={cn('w-2.5 h-2.5 text-forge-text-dim/20 shrink-0 ml-auto transition-transform duration-150', detailOpen && 'rotate-90')} />
+        <ChevronRight className={cn('w-2.5 h-2.5 text-pi-text-dim/20 shrink-0 ml-auto transition-transform duration-150', detailOpen && 'rotate-90')} />
       </div>
       <AnimatePresence>
         {detailOpen && (

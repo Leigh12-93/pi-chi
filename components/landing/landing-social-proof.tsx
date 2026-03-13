@@ -32,8 +32,8 @@ function AnimatedStat({ target, label, isInView }: StatProps) {
 
   return (
     <div className="text-center px-6 py-4">
-      <p className="text-3xl font-bold text-forge-text font-mono">{display}</p>
-      <p className="text-sm text-forge-text-dim mt-1">{label}</p>
+      <p className="text-3xl font-bold text-pi-text font-mono">{display}</p>
+      <p className="text-sm text-pi-text-dim mt-1">{label}</p>
     </div>
   )
 }
@@ -50,9 +50,9 @@ export function LandingSocialProof() {
   const isInView = useInView(ref, { once: true, margin: '-40px' })
 
   return (
-    <section ref={ref} className="border-y border-forge-border/30">
+    <section ref={ref} className="border-y border-pi-border/30">
       <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-0 divide-x divide-forge-border/30">
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-0 divide-x divide-pi-border/30">
           {STATS.map(stat => (
             <AnimatedStat key={stat.label} {...stat} isInView={isInView} />
           ))}

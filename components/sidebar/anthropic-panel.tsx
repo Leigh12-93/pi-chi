@@ -74,7 +74,7 @@ const TOOL_CATEGORIES: ToolCategory[] = [
     label: 'Deploy',
     icon: Rocket,
     color: 'text-blue-400',
-    tools: ['deploy_to_vercel', 'forge_deployment_status', 'forge_check_build', 'forge_read_deploy_log', 'set_custom_domain'],
+    tools: ['deploy_to_vercel', 'pi_deployment_status', 'pi_check_build', 'pi_read_deploy_log', 'set_custom_domain'],
   },
   {
     label: 'Database',
@@ -86,7 +86,7 @@ const TOOL_CATEGORIES: ToolCategory[] = [
     label: 'Self-Modification',
     icon: Wrench,
     color: 'text-red-400',
-    tools: ['forge_read_own_source', 'forge_modify_own_source', 'forge_redeploy', 'forge_revert_commit', 'forge_create_branch', 'forge_create_pr', 'forge_merge_pr', 'forge_list_branches', 'forge_delete_branch'],
+    tools: ['pi_read_own_source', 'pi_modify_own_source', 'pi_redeploy', 'pi_revert_commit', 'pi_create_branch', 'pi_create_pr', 'pi_merge_pr', 'pi_list_branches', 'pi_delete_branch'],
   },
   {
     label: 'Terminal',
@@ -146,10 +146,10 @@ function Section({ title, defaultOpen = true, children, badge }: {
 }) {
   const [open, setOpen] = useState(defaultOpen)
   return (
-    <div className="border-b border-forge-border last:border-b-0">
+    <div className="border-b border-pi-border last:border-b-0">
       <button
         onClick={() => setOpen(o => !o)}
-        className="w-full flex items-center gap-1.5 px-3 py-2 text-[10px] uppercase tracking-wider text-forge-text-dim font-medium hover:text-forge-text transition-colors"
+        className="w-full flex items-center gap-1.5 px-3 py-2 text-[10px] uppercase tracking-wider text-pi-text-dim font-medium hover:text-pi-text transition-colors"
       >
         <ChevronDown className={cn('w-3 h-3 transition-transform', !open && '-rotate-90')} />
         <span className="flex-1 text-left">{title}</span>
@@ -193,7 +193,7 @@ export function AnthropicPanel({ onOpenSettings: _onOpenSettings, onOpenMcpManag
       setHasApiKey(!!data.hasApiKey)
       setValidatedAt(data.apiKeyValidatedAt || null)
       setPreferredModel(data.preferredModel || 'claude-sonnet-4-20250514')
-    } catch (e) { console.warn('[forge:anthropic] Failed to load Anthropic settings:', e) } finally {
+    } catch (e) { console.warn('[pi:anthropic] Failed to load Anthropic settings:', e) } finally {
       setLoading(false)
     }
   }, [])
@@ -206,7 +206,7 @@ export function AnthropicPanel({ onOpenSettings: _onOpenSettings, onOpenMcpManag
       if (!res.ok) return
       const data = await res.json()
       setMcpServers(data.servers || [])
-    } catch (e) { console.warn('[forge:mcp] Failed to load MCP servers:', e) } finally {
+    } catch (e) { console.warn('[pi:mcp] Failed to load MCP servers:', e) } finally {
       setMcpLoading(false)
     }
   }, [])
@@ -306,8 +306,8 @@ export function AnthropicPanel({ onOpenSettings: _onOpenSettings, onOpenMcpManag
     return (
       <div className="p-3">
         <div className="flex items-center gap-2 py-6 justify-center">
-          <Loader2 className="w-4 h-4 animate-spin text-forge-accent" />
-          <span className="text-xs text-forge-text-dim">Loading...</span>
+          <Loader2 className="w-4 h-4 animate-spin text-pi-accent" />
+          <span className="text-xs text-pi-text-dim">Loading...</span>
         </div>
       </div>
     )
@@ -323,7 +323,7 @@ export function AnthropicPanel({ onOpenSettings: _onOpenSettings, onOpenMcpManag
               <div className="flex-1 min-w-0">
                 <p className="text-[10px] text-green-400 font-medium">Connected</p>
                 {validatedAt && (
-                  <p className="text-[9px] text-forge-text-dim">Validated {formatValidatedAt(validatedAt)}</p>
+                  <p className="text-[9px] text-pi-text-dim">Validated {formatValidatedAt(validatedAt)}</p>
                 )}
               </div>
             </div>
@@ -335,20 +335,20 @@ export function AnthropicPanel({ onOpenSettings: _onOpenSettings, onOpenMcpManag
                   onChange={e => setApiKeyInput(e.target.value)}
                   onKeyDown={e => { if (e.key === 'Enter') handleSaveKey() }}
                   placeholder="sk-ant-..."
-                  className="w-full px-2.5 py-1.5 text-xs bg-forge-bg border border-forge-border rounded-lg outline-none focus:border-forge-accent/50 font-mono"
+                  className="w-full px-2.5 py-1.5 text-xs bg-pi-bg border border-pi-border rounded-lg outline-none focus:border-pi-accent/50 font-mono"
                   autoFocus
                 />
                 <div className="flex items-center gap-1.5">
                   <button
                     onClick={handleSaveKey}
                     disabled={!apiKeyInput.trim() || saving}
-                    className="flex-1 px-2 py-1.5 text-[11px] font-medium bg-forge-accent text-white rounded-lg hover:bg-forge-accent-hover disabled:opacity-40 transition-colors"
+                    className="flex-1 px-2 py-1.5 text-[11px] font-medium bg-pi-accent text-white rounded-lg hover:bg-pi-accent-hover disabled:opacity-40 transition-colors"
                   >
                     {saving ? 'Validating...' : 'Update Key'}
                   </button>
                   <button
                     onClick={() => { setShowInput(false); setApiKeyInput('') }}
-                    className="px-2 py-1.5 text-[11px] text-forge-text-dim hover:text-forge-text rounded-lg hover:bg-forge-surface transition-colors"
+                    className="px-2 py-1.5 text-[11px] text-pi-text-dim hover:text-pi-text rounded-lg hover:bg-pi-surface transition-colors"
                   >
                     Cancel
                   </button>
@@ -358,7 +358,7 @@ export function AnthropicPanel({ onOpenSettings: _onOpenSettings, onOpenMcpManag
               <div className="flex items-center gap-1.5">
                 <button
                   onClick={() => setShowInput(true)}
-                  className="flex-1 flex items-center justify-center gap-1.5 px-2 py-1.5 text-[11px] text-forge-text-dim hover:text-forge-text border border-forge-border rounded-lg hover:bg-forge-surface transition-colors"
+                  className="flex-1 flex items-center justify-center gap-1.5 px-2 py-1.5 text-[11px] text-pi-text-dim hover:text-pi-text border border-pi-border rounded-lg hover:bg-pi-surface transition-colors"
                 >
                   <Key className="w-3 h-3" />
                   Update
@@ -366,7 +366,7 @@ export function AnthropicPanel({ onOpenSettings: _onOpenSettings, onOpenMcpManag
                 <button
                   onClick={handleRemoveKey}
                   disabled={removing}
-                  className="flex items-center justify-center gap-1 px-2 py-1.5 text-[11px] text-red-400 hover:text-red-300 border border-forge-border rounded-lg hover:bg-red-500/10 hover:border-red-500/30 transition-colors"
+                  className="flex items-center justify-center gap-1 px-2 py-1.5 text-[11px] text-red-400 hover:text-red-300 border border-pi-border rounded-lg hover:bg-red-500/10 hover:border-red-500/30 transition-colors"
                 >
                   {removing ? <Loader2 className="w-3 h-3 animate-spin" /> : <Trash2 className="w-3 h-3" />}
                   Remove
@@ -376,11 +376,11 @@ export function AnthropicPanel({ onOpenSettings: _onOpenSettings, onOpenMcpManag
           </div>
         ) : (
           <div className="space-y-2">
-            <div className="flex items-center gap-2 p-2 bg-forge-surface border border-forge-border rounded-lg">
-              <Key className="w-3.5 h-3.5 text-forge-text-dim shrink-0" />
+            <div className="flex items-center gap-2 p-2 bg-pi-surface border border-pi-border rounded-lg">
+              <Key className="w-3.5 h-3.5 text-pi-text-dim shrink-0" />
               <div className="min-w-0">
-                <p className="text-xs font-medium text-forge-text">No API key configured</p>
-                <p className="text-[10px] text-forge-text-dim mt-0.5">Add your Anthropic API key to get started.</p>
+                <p className="text-xs font-medium text-pi-text">No API key configured</p>
+                <p className="text-[10px] text-pi-text-dim mt-0.5">Add your Anthropic API key to get started.</p>
               </div>
             </div>
             <input
@@ -389,12 +389,12 @@ export function AnthropicPanel({ onOpenSettings: _onOpenSettings, onOpenMcpManag
               onChange={e => setApiKeyInput(e.target.value)}
               onKeyDown={e => { if (e.key === 'Enter') handleSaveKey() }}
               placeholder="sk-ant-..."
-              className="w-full px-2.5 py-1.5 text-xs bg-forge-bg border border-forge-border rounded-lg outline-none focus:border-forge-accent/50 font-mono"
+              className="w-full px-2.5 py-1.5 text-xs bg-pi-bg border border-pi-border rounded-lg outline-none focus:border-pi-accent/50 font-mono"
             />
             <button
               onClick={handleSaveKey}
               disabled={!apiKeyInput.trim() || saving}
-              className="w-full px-2 py-1.5 text-[11px] font-medium bg-forge-accent text-white rounded-lg hover:bg-forge-accent-hover disabled:opacity-40 transition-colors"
+              className="w-full px-2 py-1.5 text-[11px] font-medium bg-pi-accent text-white rounded-lg hover:bg-pi-accent-hover disabled:opacity-40 transition-colors"
             >
               {saving ? 'Validating...' : 'Save Key'}
             </button>
@@ -402,7 +402,7 @@ export function AnthropicPanel({ onOpenSettings: _onOpenSettings, onOpenMcpManag
               href="https://console.anthropic.com/settings/keys"
               target="_blank"
               rel="noopener noreferrer"
-              className="flex items-center gap-1 text-[10px] text-forge-accent hover:underline"
+              className="flex items-center gap-1 text-[10px] text-pi-accent hover:underline"
             >
               Get an API key <ExternalLink className="w-2.5 h-2.5" />
             </a>
@@ -411,7 +411,7 @@ export function AnthropicPanel({ onOpenSettings: _onOpenSettings, onOpenMcpManag
       </Section>
 
       <Section title="Model" defaultOpen={true} badge={
-        <span className="text-[9px] text-forge-text-dim/60 normal-case tracking-normal font-normal">
+        <span className="text-[9px] text-pi-text-dim/60 normal-case tracking-normal font-normal">
           {MODEL_OPTIONS.find(m => m.id === preferredModel)?.label || 'Sonnet 4'}
         </span>
       }>
@@ -426,23 +426,23 @@ export function AnthropicPanel({ onOpenSettings: _onOpenSettings, onOpenMcpManag
                 className={cn(
                   'w-full flex items-center gap-2 px-2 py-1.5 rounded-lg text-left transition-colors',
                   isSelected
-                    ? 'bg-forge-accent/10 border border-forge-accent/25 text-forge-text'
-                    : 'hover:bg-forge-surface border border-transparent text-forge-text-dim hover:text-forge-text',
+                    ? 'bg-pi-accent/10 border border-pi-accent/25 text-pi-text'
+                    : 'hover:bg-pi-surface border border-transparent text-pi-text-dim hover:text-pi-text',
                 )}
               >
                 <div className={cn(
                   'w-3.5 h-3.5 rounded-full border-2 flex items-center justify-center shrink-0',
-                  isSelected ? 'border-forge-accent' : 'border-forge-text-dim/30',
+                  isSelected ? 'border-pi-accent' : 'border-pi-text-dim/30',
                 )}>
-                  {isSelected && <div className="w-1.5 h-1.5 rounded-full bg-forge-accent" />}
+                  {isSelected && <div className="w-1.5 h-1.5 rounded-full bg-pi-accent" />}
                 </div>
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-1.5">
                     <span className="text-xs font-medium">{model.label}</span>
-                    <span className="text-[9px] text-forge-text-dim">{model.description}</span>
+                    <span className="text-[9px] text-pi-text-dim">{model.description}</span>
                   </div>
                   {pricing && (
-                    <p className="text-[9px] text-forge-text-dim/60">
+                    <p className="text-[9px] text-pi-text-dim/60">
                       ${pricing.input}/M in · ${pricing.output}/M out
                     </p>
                   )}
@@ -455,7 +455,7 @@ export function AnthropicPanel({ onOpenSettings: _onOpenSettings, onOpenMcpManag
 
       <Section title="Session Usage" defaultOpen={true} badge={
         sessionCost && sessionCost.cost > 0 ? (
-          <span className="text-[9px] text-forge-accent normal-case tracking-normal font-normal">
+          <span className="text-[9px] text-pi-accent normal-case tracking-normal font-normal">
             ${sessionCost.cost < 0.01 ? sessionCost.cost.toFixed(4) : sessionCost.cost.toFixed(2)}
           </span>
         ) : undefined
@@ -463,17 +463,17 @@ export function AnthropicPanel({ onOpenSettings: _onOpenSettings, onOpenMcpManag
         {sessionCost && (sessionCost.inputTokens > 0 || sessionCost.outputTokens > 0) ? (
           <div className="space-y-1.5">
             <div className="grid grid-cols-2 gap-1.5">
-              <div className="p-2 bg-forge-surface rounded-lg">
-                <p className="text-[9px] text-forge-text-dim uppercase tracking-wider">Input</p>
-                <p className="text-xs font-medium text-forge-text tabular-nums">
+              <div className="p-2 bg-pi-surface rounded-lg">
+                <p className="text-[9px] text-pi-text-dim uppercase tracking-wider">Input</p>
+                <p className="text-xs font-medium text-pi-text tabular-nums">
                   {sessionCost.inputTokens > 1000
                     ? `${(sessionCost.inputTokens / 1000).toFixed(1)}K`
                     : sessionCost.inputTokens}
                 </p>
               </div>
-              <div className="p-2 bg-forge-surface rounded-lg">
-                <p className="text-[9px] text-forge-text-dim uppercase tracking-wider">Output</p>
-                <p className="text-xs font-medium text-forge-text tabular-nums">
+              <div className="p-2 bg-pi-surface rounded-lg">
+                <p className="text-[9px] text-pi-text-dim uppercase tracking-wider">Output</p>
+                <p className="text-xs font-medium text-pi-text tabular-nums">
                   {sessionCost.outputTokens > 1000
                     ? `${(sessionCost.outputTokens / 1000).toFixed(1)}K`
                     : sessionCost.outputTokens}
@@ -481,21 +481,21 @@ export function AnthropicPanel({ onOpenSettings: _onOpenSettings, onOpenMcpManag
               </div>
             </div>
             {sessionCost.cost > 0 && (
-              <div className="p-2 bg-forge-surface rounded-lg flex items-center justify-between">
-                <p className="text-[9px] text-forge-text-dim uppercase tracking-wider">Cost</p>
-                <p className="text-xs font-medium text-forge-accent tabular-nums">
+              <div className="p-2 bg-pi-surface rounded-lg flex items-center justify-between">
+                <p className="text-[9px] text-pi-text-dim uppercase tracking-wider">Cost</p>
+                <p className="text-xs font-medium text-pi-accent tabular-nums">
                   ${sessionCost.cost < 0.01 ? sessionCost.cost.toFixed(4) : sessionCost.cost.toFixed(2)}
                 </p>
               </div>
             )}
           </div>
         ) : (
-          <p className="text-[10px] text-forge-text-dim text-center py-2">No usage yet this session</p>
+          <p className="text-[10px] text-pi-text-dim text-center py-2">No usage yet this session</p>
         )}
       </Section>
 
       <Section title="Tools" defaultOpen={false} badge={
-        <span className="text-[9px] px-1.5 py-0.5 bg-forge-surface rounded-full text-forge-text-dim normal-case tracking-normal font-normal">
+        <span className="text-[9px] px-1.5 py-0.5 bg-pi-surface rounded-full text-pi-text-dim normal-case tracking-normal font-normal">
           {totalTools}
         </span>
       }>
@@ -506,19 +506,19 @@ export function AnthropicPanel({ onOpenSettings: _onOpenSettings, onOpenMcpManag
               <div key={cat.label}>
                 <button
                   onClick={() => setExpandedCategory(isExpanded ? null : cat.label)}
-                  className="w-full flex items-center gap-2 px-1.5 py-1 rounded-md hover:bg-forge-surface transition-colors text-left"
+                  className="w-full flex items-center gap-2 px-1.5 py-1 rounded-md hover:bg-pi-surface transition-colors text-left"
                 >
                   <cat.icon className={cn('w-3 h-3 shrink-0', cat.color)} />
-                  <span className="flex-1 text-[11px] text-forge-text">{cat.label}</span>
-                  <span className="text-[9px] px-1.5 py-0.5 bg-forge-surface rounded-full text-forge-text-dim">{cat.tools.length}</span>
-                  <ChevronDown className={cn('w-2.5 h-2.5 text-forge-text-dim transition-transform', !isExpanded && '-rotate-90')} />
+                  <span className="flex-1 text-[11px] text-pi-text">{cat.label}</span>
+                  <span className="text-[9px] px-1.5 py-0.5 bg-pi-surface rounded-full text-pi-text-dim">{cat.tools.length}</span>
+                  <ChevronDown className={cn('w-2.5 h-2.5 text-pi-text-dim transition-transform', !isExpanded && '-rotate-90')} />
                 </button>
                 {isExpanded && (
                   <div className="ml-5 mt-0.5 mb-1 space-y-0.5">
                     {cat.tools.map(tool => {
                       const def = TOOL_LABELS[tool]
                       return (
-                        <div key={tool} className="flex items-center gap-1.5 px-1.5 py-0.5 text-[10px] text-forge-text-dim">
+                        <div key={tool} className="flex items-center gap-1.5 px-1.5 py-0.5 text-[10px] text-pi-text-dim">
                           {def ? <def.Icon className="w-2.5 h-2.5 shrink-0" /> : <Wrench className="w-2.5 h-2.5 shrink-0" />}
                           <span className="truncate">{def?.label || tool}</span>
                         </div>
@@ -534,28 +534,28 @@ export function AnthropicPanel({ onOpenSettings: _onOpenSettings, onOpenMcpManag
 
       <Section title="MCP Servers" defaultOpen={true} badge={
         mcpServers.length > 0 ? (
-          <span className="text-[9px] px-1.5 py-0.5 bg-forge-surface rounded-full text-forge-text-dim normal-case tracking-normal font-normal">
+          <span className="text-[9px] px-1.5 py-0.5 bg-pi-surface rounded-full text-pi-text-dim normal-case tracking-normal font-normal">
             {mcpServers.length}
           </span>
         ) : undefined
       }>
         {mcpLoading ? (
           <div className="flex items-center gap-2 py-2 justify-center">
-            <Loader2 className="w-3 h-3 animate-spin text-forge-text-dim" />
-            <span className="text-[10px] text-forge-text-dim">Loading servers...</span>
+            <Loader2 className="w-3 h-3 animate-spin text-pi-text-dim" />
+            <span className="text-[10px] text-pi-text-dim">Loading servers...</span>
           </div>
         ) : mcpServers.length > 0 ? (
           <div className="space-y-1">
             {mcpServers.map(server => (
               <div
                 key={server.id}
-                className="flex items-center gap-2 px-2 py-1.5 rounded-md bg-forge-surface"
+                className="flex items-center gap-2 px-2 py-1.5 rounded-md bg-pi-surface"
               >
                 <span className={cn(
                   'w-1.5 h-1.5 rounded-full shrink-0',
                   server.connected ? 'bg-green-400' : 'bg-red-400',
                 )} />
-                <span className="flex-1 text-[11px] text-forge-text truncate">{server.name}</span>
+                <span className="flex-1 text-[11px] text-pi-text truncate">{server.name}</span>
                 {server.error && (
                   <span title={server.error}><AlertCircle className="w-3 h-3 text-red-400 shrink-0" /></span>
                 )}
@@ -563,11 +563,11 @@ export function AnthropicPanel({ onOpenSettings: _onOpenSettings, onOpenMcpManag
             ))}
           </div>
         ) : (
-          <p className="text-[10px] text-forge-text-dim text-center py-1">No servers connected</p>
+          <p className="text-[10px] text-pi-text-dim text-center py-1">No servers connected</p>
         )}
         <button
           onClick={onOpenMcpManager}
-          className="w-full flex items-center justify-center gap-1.5 px-2 py-1.5 mt-2 text-[11px] text-forge-text-dim hover:text-forge-text border border-forge-border rounded-lg hover:bg-forge-surface transition-colors"
+          className="w-full flex items-center justify-center gap-1.5 px-2 py-1.5 mt-2 text-[11px] text-pi-text-dim hover:text-pi-text border border-pi-border rounded-lg hover:bg-pi-surface transition-colors"
         >
           <Plug className="w-3 h-3" />
           Manage Servers

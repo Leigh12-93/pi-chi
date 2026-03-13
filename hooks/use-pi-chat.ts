@@ -31,12 +31,12 @@ interface MessagePart {
 }
 
 /** Extended UIMessage with optional legacy toolInvocations */
-interface ForgeUIMessage extends UIMessage {
+interface PiUIMessage extends UIMessage {
   toolInvocations?: ToolInvocation[]
 }
 
 
-export interface UseForgeChatProps {
+export interface UsePiChatProps {
   projectName: string
   projectId: string | null
   files: Record<string, string>
@@ -51,7 +51,7 @@ export interface UseForgeChatProps {
 }
 
 
-export function useForgeChat(props: UseForgeChatProps) {
+export function usePiChat(props: UsePiChatProps) {
   const {
     projectName, projectId, files,
     onFileChange, onFileDelete, onBulkFileUpdate,
@@ -121,7 +121,7 @@ export function useForgeChat(props: UseForgeChatProps) {
         content: '',
         parts: [{ type: 'text' as const, text: `[Pre-flight compaction: ${dropped} older messages removed to fit request size limit]` }],
       }
-      console.log(`[forge:preflight] Compacted ${dropped} messages (body ~${(estimatedBodyBytes / 1024 / 1024).toFixed(1)}MB)`)
+      console.log(`[pi:preflight] Compacted ${dropped} messages (body ~${(estimatedBodyBytes / 1024 / 1024).toFixed(1)}MB)`)
       return [...first2, summaryMsg, ...recent6]
     }
 
@@ -250,7 +250,7 @@ export function useForgeChat(props: UseForgeChatProps) {
       retryAfterCompactRef.current = false
       // Small delay to let React settle after setMessages
       const timer = setTimeout(() => {
-        console.log('[forge:retry] Retrying after emergency compaction')
+        console.log('[pi:retry] Retrying after emergency compaction')
         sendMessage({ text })
       }, 300)
       return () => clearTimeout(timer)
@@ -346,7 +346,7 @@ export function useForgeChat(props: UseForgeChatProps) {
         }
       }
       // Also check legacy toolInvocations array
-      const legacyInvs = (msg as ForgeUIMessage).toolInvocations
+      const legacyInvs = (msg as PiUIMessage).toolInvocations
       if (legacyInvs) {
         for (const inv of legacyInvs) {
           invocations.push(inv)
@@ -385,7 +385,7 @@ export function useForgeChat(props: UseForgeChatProps) {
           // Check localStorage for pre-approved tools
           let preApproved = false
           try {
-            const stored = JSON.parse(localStorage.getItem('forge:approved-tools') || '[]')
+            const stored = JSON.parse(localStorage.getItem('pi:approved-tools') || '[]')
             preApproved = stored.includes(inv.toolName)
           } catch { /* ignore */ }
 
@@ -407,7 +407,7 @@ export function useForgeChat(props: UseForgeChatProps) {
         // capture_preview — signal client to extract preview DOM content
         if (inv.toolName === 'capture_preview' && isResult) {
           processedInvs.current.add(key)
-          window.dispatchEvent(new CustomEvent('forge:capture-preview', {
+          window.dispatchEvent(new CustomEvent('pi:capture-preview', {
             detail: { messageId: msg.id, invocationIndex: i }
           }))
           continue
@@ -419,7 +419,7 @@ export function useForgeChat(props: UseForgeChatProps) {
           const result = inv.result as Record<string, unknown>
           if (result.__terminal_action) {
             processedInvs.current.add(key)
-            window.dispatchEvent(new CustomEvent('forge:terminal-action', {
+            window.dispatchEvent(new CustomEvent('pi:terminal-action', {
               detail: result
             }))
             continue
@@ -436,11 +436,11 @@ export function useForgeChat(props: UseForgeChatProps) {
             // Check auto-approve for plans
             if (inv.toolName === 'present_plan' && (isCall || isResult)) {
               try {
-                const autoApprove = localStorage.getItem('forge:auto-approve-plans') === 'true'
+                const autoApprove = localStorage.getItem('pi:auto-approve-plans') === 'true'
                 if (autoApprove) {
                   sendMessage({ text: '[PLAN APPROVED]' })
                 }
-              } catch (e) { console.warn('[forge:plan] Failed to check auto-approve setting:', e) }
+              } catch (e) { console.warn('[pi:plan] Failed to check auto-approve setting:', e) }
             }
             continue
           }
@@ -452,7 +452,7 @@ export function useForgeChat(props: UseForgeChatProps) {
           const result = (inv.result || inv.args) as Record<string, unknown>
           if (result?.__audit_gate || result?.plan || result?.findings) {
             processedInvs.current.add(key)
-            window.dispatchEvent(new CustomEvent('forge:audit-plan', {
+            window.dispatchEvent(new CustomEvent('pi:audit-plan', {
               detail: result.plan || result
             }))
             continue
@@ -503,7 +503,7 @@ export function useForgeChat(props: UseForgeChatProps) {
           }
           onBulkFileUpdate(changes.updates)
           // Signal workspace that AI edited these files (for highlight animation + diff badges)
-          window.dispatchEvent(new CustomEvent('forge:file-edited', {
+          window.dispatchEvent(new CustomEvent('pi:file-edited', {
             detail: { paths: Object.keys(changes.updates) }
           }))
         }

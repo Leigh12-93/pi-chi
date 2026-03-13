@@ -21,7 +21,7 @@ export function LandingPage() {
   }
 
   return (
-    <div className="min-h-screen bg-forge-bg text-forge-text overflow-x-hidden scroll-smooth">
+    <div className="min-h-screen bg-pi-bg text-pi-text overflow-x-hidden scroll-smooth">
       <LandingNav onSignIn={handleSignIn} loading={loading} />
       <LandingHero onSignIn={handleSignIn} loading={loading} />
       <LandingSocialProof />

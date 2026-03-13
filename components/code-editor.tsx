@@ -7,7 +7,7 @@ import { type OnMount, type BeforeMount } from '@monaco-editor/react'
 const Editor = dynamic(() => import('@monaco-editor/react').then(m => m.default), {
   ssr: false,
   loading: () => (
-    <div className="flex-1 bg-forge-bg p-4 space-y-2.5">
+    <div className="flex-1 bg-pi-bg p-4 space-y-2.5">
       {Array.from({ length: 12 }, (_, i) => (
         <div key={i} className="flex items-center gap-3">
           <div className="w-6 h-3 rounded animate-skeleton" />
@@ -239,7 +239,7 @@ export const CodeEditor = memo(function CodeEditor({ path, content, previousCont
     if (!LINTABLE_EXTENSIONS.has(ext)) {
       // Clear markers for non-lintable files
       const model = editor.getModel()
-      if (model) monaco.editor.setModelMarkers(model, 'forge-lint', [])
+      if (model) monaco.editor.setModelMarkers(model, 'pi-lint', [])
       return
     }
 
@@ -263,24 +263,24 @@ export const CodeEditor = memo(function CodeEditor({ path, content, previousCont
             startColumn: match.index + 1,
             endLineNumber: i + 1,
             endColumn: match.index + match[0].length + 1,
-            source: 'forge-lint',
+            source: 'pi-lint',
           })
         }
       }
     }
 
-    monaco.editor.setModelMarkers(model, 'forge-lint', markers)
+    monaco.editor.setModelMarkers(model, 'pi-lint', markers)
   }, [content, path])
 
   if (!path) {
     return (
-      <div className="h-full flex items-center justify-center text-forge-text-dim">
+      <div className="h-full flex items-center justify-center text-pi-text-dim">
         <div className="text-center">
-          <div className="w-12 h-12 rounded-2xl bg-forge-surface border border-forge-border flex items-center justify-center mx-auto mb-3 animate-breathe">
+          <div className="w-12 h-12 rounded-2xl bg-pi-surface border border-pi-border flex items-center justify-center mx-auto mb-3 animate-breathe">
             <FileText className="w-5 h-5 opacity-40" />
           </div>
           <p className="text-xs font-medium">Select a file to edit</p>
-          <p className="text-[11px] text-forge-text-dim/60 mt-1">Click a file in the tree or press Ctrl+P to open a file</p>
+          <p className="text-[11px] text-pi-text-dim/60 mt-1">Click a file in the tree or press Ctrl+P to open a file</p>
         </div>
       </div>
     )
@@ -292,20 +292,20 @@ export const CodeEditor = memo(function CodeEditor({ path, content, previousCont
     <div className="h-full flex flex-col" role="region" aria-label={`Code editor: ${path}`}>
       {/* Breadcrumb path bar */}
       <div className={cn(
-        'flex items-center justify-between px-3 py-2.5 sm:py-2 bg-forge-panel border-b border-forge-border text-xs sm:text-[11px] transition-all',
-        modified && 'border-t-2 border-t-forge-accent',
+        'flex items-center justify-between px-3 py-2.5 sm:py-2 bg-pi-panel border-b border-pi-border text-xs sm:text-[11px] transition-all',
+        modified && 'border-t-2 border-t-pi-accent',
       )}>
-        <nav aria-label="File path" className="flex items-center gap-0.5 text-forge-text-dim font-mono truncate min-w-0">
+        <nav aria-label="File path" className="flex items-center gap-0.5 text-pi-text-dim font-mono truncate min-w-0">
           {path.split('/').map((segment, i, arr) => (
             <span key={i} className="flex items-center gap-0.5">
               {i > 0 && <ChevronRight className="w-3 h-3 shrink-0 opacity-40" />}
               <span className={cn(
                 'px-0.5 rounded transition-colors',
-                i === arr.length - 1 ? 'text-forge-text font-medium' : 'hover:text-forge-text hover:bg-forge-surface-hover',
+                i === arr.length - 1 ? 'text-pi-text font-medium' : 'hover:text-pi-text hover:bg-pi-surface-hover',
               )}>{segment}</span>
             </span>
           ))}
-          {modified && <span className="text-forge-accent ml-1 animate-pulse-dot">●</span>}
+          {modified && <span className="text-pi-accent ml-1 animate-pulse-dot">●</span>}
         </nav>
         {modified && (
           <button
@@ -315,7 +315,7 @@ export const CodeEditor = memo(function CodeEditor({ path, content, previousCont
                 setModified(false)
               }
             }}
-            className="flex items-center gap-1 px-2 py-1.5 sm:p-0 text-forge-accent hover:text-forge-accent-hover transition-colors shrink-0 ml-2"
+            className="flex items-center gap-1 px-2 py-1.5 sm:p-0 text-pi-accent hover:text-pi-accent-hover transition-colors shrink-0 ml-2"
             aria-label="Save file"
           >
             <Save className="w-4 h-4 sm:w-3 sm:h-3" />

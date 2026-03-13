@@ -1,5 +1,5 @@
-/** Database-backed version history for Forge projects.
- *  Stores snapshots in forge_project_snapshots table.
+/** Database-backed version history for Pi-Chi projects.
+ *  Stores snapshots in pi_project_snapshots table.
  *  Max 50 snapshots per project (auto-prune on insert). */
 
 export interface Snapshot {

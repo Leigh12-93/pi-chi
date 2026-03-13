@@ -130,16 +130,16 @@ export function MCPManager({ isOpen, onClose }: MCPManagerProps) {
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm" onClick={onClose}>
       <div
-        className="w-full max-w-4xl max-h-[80vh] bg-forge-bg border border-forge-border rounded-xl shadow-2xl overflow-hidden flex flex-col"
+        className="w-full max-w-4xl max-h-[80vh] bg-pi-bg border border-pi-border rounded-xl shadow-2xl overflow-hidden flex flex-col"
         onClick={e => e.stopPropagation()}
       >
         {/* Header */}
-        <div className="flex items-center justify-between px-4 py-3 border-b border-forge-border shrink-0">
+        <div className="flex items-center justify-between px-4 py-3 border-b border-pi-border shrink-0">
           <div className="flex items-center gap-2">
-            <Plug className="w-4 h-4 text-forge-accent" />
-            <h2 className="text-sm font-medium text-forge-text">MCP Server Manager</h2>
+            <Plug className="w-4 h-4 text-pi-accent" />
+            <h2 className="text-sm font-medium text-pi-text">MCP Server Manager</h2>
           </div>
-          <button onClick={onClose} className="p-1 text-forge-text-dim hover:text-forge-text rounded transition-colors">
+          <button onClick={onClose} className="p-1 text-pi-text-dim hover:text-pi-text rounded transition-colors">
             <X className="w-4 h-4" />
           </button>
         </div>
@@ -148,20 +148,20 @@ export function MCPManager({ isOpen, onClose }: MCPManagerProps) {
         <div className="flex-1 overflow-y-auto p-4 space-y-6">
           {/* Connected Servers */}
           <div>
-            <p className="text-[10px] uppercase tracking-wider text-forge-text-dim font-medium mb-3">Connected Servers</p>
+            <p className="text-[10px] uppercase tracking-wider text-pi-text-dim font-medium mb-3">Connected Servers</p>
             {servers.length === 0 ? (
               <div className="text-center py-8">
-                <Plug className="w-10 h-10 mx-auto mb-3 text-forge-text-dim/30" />
-                <p className="text-xs text-forge-text-dim">No MCP servers connected</p>
-                <p className="text-[10px] text-forge-text-dim/70 mt-1">Connect to external services below</p>
+                <Plug className="w-10 h-10 mx-auto mb-3 text-pi-text-dim/30" />
+                <p className="text-xs text-pi-text-dim">No MCP servers connected</p>
+                <p className="text-[10px] text-pi-text-dim/70 mt-1">Connect to external services below</p>
               </div>
             ) : (
               <div className="space-y-3">
                 {servers.map((server) => (
-                  <div key={server.id} className="p-4 rounded-xl bg-forge-surface border border-forge-border">
+                  <div key={server.id} className="p-4 rounded-xl bg-pi-surface border border-pi-border">
                     {/* Server header */}
                     <div className="flex items-center justify-between mb-1">
-                      <span className="text-xs font-medium text-forge-text">{server.name}</span>
+                      <span className="text-xs font-medium text-pi-text">{server.name}</span>
                       <div className="flex items-center gap-2">
                         {server.status === 'connected' && (
                           <span className="inline-flex items-center gap-1 px-2 py-0.5 text-[10px] rounded-full bg-green-500/10 text-green-400">
@@ -177,7 +177,7 @@ export function MCPManager({ isOpen, onClose }: MCPManagerProps) {
                         )}
                         <button
                           onClick={() => disconnectServer(server.id)}
-                          className="px-2.5 py-1 text-[10px] text-forge-text-dim border border-forge-border rounded-lg hover:text-forge-text hover:bg-forge-surface/80 transition-colors"
+                          className="px-2.5 py-1 text-[10px] text-pi-text-dim border border-pi-border rounded-lg hover:text-pi-text hover:bg-pi-surface/80 transition-colors"
                         >
                           Disconnect
                         </button>
@@ -189,18 +189,18 @@ export function MCPManager({ isOpen, onClose }: MCPManagerProps) {
                         </button>
                       </div>
                     </div>
-                    <p className="text-[10px] font-mono text-forge-text-dim truncate">{server.url}</p>
+                    <p className="text-[10px] font-mono text-pi-text-dim truncate">{server.url}</p>
 
                     {/* Tool badges */}
                     {server.tools && server.tools.length > 0 && (
                       <div className="flex flex-wrap gap-1 mt-3">
                         {server.tools.slice(0, 5).map((tool) => (
-                          <span key={tool} className="px-2 py-0.5 text-[10px] rounded-full bg-forge-accent/10 text-forge-accent border border-forge-accent/20">
+                          <span key={tool} className="px-2 py-0.5 text-[10px] rounded-full bg-pi-accent/10 text-pi-accent border border-pi-accent/20">
                             {tool}
                           </span>
                         ))}
                         {server.tools.length > 5 && (
-                          <span className="px-2 py-0.5 text-[10px] rounded-full bg-forge-accent/10 text-forge-accent border border-forge-accent/20">
+                          <span className="px-2 py-0.5 text-[10px] rounded-full bg-pi-accent/10 text-pi-accent border border-pi-accent/20">
                             +{server.tools.length - 5} more
                           </span>
                         )}
@@ -221,34 +221,34 @@ export function MCPManager({ isOpen, onClose }: MCPManagerProps) {
 
           {/* Custom Server Connection */}
           <div>
-            <p className="text-[10px] uppercase tracking-wider text-forge-text-dim font-medium mb-3">Connect Custom Server</p>
-            <div className="p-4 rounded-xl bg-forge-surface border border-forge-border space-y-4">
+            <p className="text-[10px] uppercase tracking-wider text-pi-text-dim font-medium mb-3">Connect Custom Server</p>
+            <div className="p-4 rounded-xl bg-pi-surface border border-pi-border space-y-4">
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-1.5">
-                  <label htmlFor="custom-name" className="text-xs text-forge-text-dim">Server Name</label>
+                  <label htmlFor="custom-name" className="text-xs text-pi-text-dim">Server Name</label>
                   <input
                     id="custom-name"
                     placeholder="My MCP Server"
                     value={customName}
                     onChange={(e) => setCustomName(e.target.value)}
-                    className="w-full px-3 py-2 text-xs bg-forge-bg border border-forge-border rounded-lg text-forge-text placeholder:text-forge-text-dim/50 focus:outline-none focus:border-forge-accent"
+                    className="w-full px-3 py-2 text-xs bg-pi-bg border border-pi-border rounded-lg text-pi-text placeholder:text-pi-text-dim/50 focus:outline-none focus:border-pi-accent"
                   />
                 </div>
                 <div className="space-y-1.5">
-                  <label htmlFor="custom-url" className="text-xs text-forge-text-dim">Server URL</label>
+                  <label htmlFor="custom-url" className="text-xs text-pi-text-dim">Server URL</label>
                   <input
                     id="custom-url"
                     placeholder="https://api.example.com/mcp"
                     value={customUrl}
                     onChange={(e) => setCustomUrl(e.target.value)}
-                    className="w-full px-3 py-2 text-xs bg-forge-bg border border-forge-border rounded-lg text-forge-text placeholder:text-forge-text-dim/50 focus:outline-none focus:border-forge-accent"
+                    className="w-full px-3 py-2 text-xs bg-pi-bg border border-pi-border rounded-lg text-pi-text placeholder:text-pi-text-dim/50 focus:outline-none focus:border-pi-accent"
                   />
                 </div>
               </div>
               <button
                 onClick={connectCustomServer}
                 disabled={isLoading}
-                className="inline-flex items-center gap-1.5 px-4 py-2 text-xs font-medium bg-forge-accent text-white rounded-lg hover:bg-forge-accent-hover disabled:opacity-50 transition-colors"
+                className="inline-flex items-center gap-1.5 px-4 py-2 text-xs font-medium bg-pi-accent text-white rounded-lg hover:bg-pi-accent-hover disabled:opacity-50 transition-colors"
               >
                 <Plus className="w-3.5 h-3.5" />
                 Connect Server
@@ -258,27 +258,27 @@ export function MCPManager({ isOpen, onClose }: MCPManagerProps) {
 
           {/* Preset Servers */}
           <div>
-            <p className="text-[10px] uppercase tracking-wider text-forge-text-dim font-medium mb-3">Popular MCP Servers</p>
+            <p className="text-[10px] uppercase tracking-wider text-pi-text-dim font-medium mb-3">Popular MCP Servers</p>
             <div className="grid gap-3 sm:grid-cols-2">
               {MCP_SERVER_TEMPLATES.map((preset) => (
                 <div
                   key={preset.name}
-                  className="p-4 rounded-xl bg-forge-surface border border-forge-border hover:border-forge-accent/30 transition-colors"
+                  className="p-4 rounded-xl bg-pi-surface border border-pi-border hover:border-pi-accent/30 transition-colors"
                 >
                   <div className="flex items-center justify-between mb-1">
-                    <span className="text-xs font-medium text-forge-text">{preset.name}</span>
+                    <span className="text-xs font-medium text-pi-text">{preset.name}</span>
                     <button
                       onClick={() => connectPresetServer(preset)}
                       disabled={isLoading}
-                      className="p-1.5 text-forge-text-dim hover:text-forge-accent hover:bg-forge-accent/10 rounded-lg transition-colors disabled:opacity-50"
+                      className="p-1.5 text-pi-text-dim hover:text-pi-accent hover:bg-pi-accent/10 rounded-lg transition-colors disabled:opacity-50"
                     >
                       <Plus className="w-3.5 h-3.5" />
                     </button>
                   </div>
-                  <p className="text-[10px] text-forge-text-dim mb-3">{preset.description}</p>
+                  <p className="text-[10px] text-pi-text-dim mb-3">{preset.description}</p>
                   <div className="flex flex-wrap gap-1">
                     {preset.tags.map((tag) => (
-                      <span key={tag} className="px-2 py-0.5 text-[10px] rounded-full bg-forge-accent/10 text-forge-accent">
+                      <span key={tag} className="px-2 py-0.5 text-[10px] rounded-full bg-pi-accent/10 text-pi-accent">
                         {tag}
                       </span>
                     ))}
@@ -288,7 +288,7 @@ export function MCPManager({ isOpen, onClose }: MCPManagerProps) {
                       href={preset.docsUrl}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="inline-flex items-center gap-1 text-[10px] text-forge-accent hover:underline mt-2"
+                      className="inline-flex items-center gap-1 text-[10px] text-pi-accent hover:underline mt-2"
                     >
                       <ExternalLink className="w-3 h-3" />
                       Documentation

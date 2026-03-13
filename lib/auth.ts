@@ -4,16 +4,16 @@ import { cookies } from 'next/headers'
 const authSecret = (process.env.AUTH_SECRET || '').trim()
 if (process.env.NODE_ENV === 'production') {
   if (!authSecret) {
-    throw new Error('[forge] FATAL: AUTH_SECRET is not set. Authentication cannot function without it.')
+    throw new Error('[pi] FATAL: AUTH_SECRET is not set. Authentication cannot function without it.')
   }
   if (authSecret.length < 32) {
-    throw new Error('[forge] FATAL: AUTH_SECRET must be at least 32 characters in production.')
+    throw new Error('[pi] FATAL: AUTH_SECRET must be at least 32 characters in production.')
   }
 } else if (authSecret.length > 0 && authSecret.length < 32) {
-  console.warn('[forge] AUTH_SECRET is shorter than 32 characters. This is insecure.')
+  console.warn('[pi] AUTH_SECRET is shorter than 32 characters. This is insecure.')
 }
 const SECRET = new TextEncoder().encode(authSecret)
-const COOKIE_NAME = 'forge-session'
+const COOKIE_NAME = 'pi-session'
 
 // AES-GCM token encryption (256-bit key derived from AUTH_SECRET via SHA-256)
 async function getEncryptionKey(): Promise<CryptoKey> {
@@ -51,7 +51,7 @@ export async function decryptToken(encrypted: string): Promise<string> {
   return new TextDecoder().decode(decrypted)
 }
 
-export interface ForgeSession {
+export interface PiSession {
   user: {
     name: string
     email: string
@@ -63,12 +63,12 @@ export interface ForgeSession {
 
 /** JWT payload stores encrypted token, not plaintext */
 interface JWTPayload {
-  user: ForgeSession['user']
+  user: PiSession['user']
   encryptedAccessToken: string
   githubUsername: string
 }
 
-export async function createSession(data: ForgeSession): Promise<string> {
+export async function createSession(data: PiSession): Promise<string> {
   if (!authSecret) {
     throw new Error('Cannot create session: AUTH_SECRET is not configured')
   }
@@ -85,7 +85,7 @@ export async function createSession(data: ForgeSession): Promise<string> {
     .sign(SECRET)
 }
 
-export async function getSession(): Promise<ForgeSession | null> {
+export async function getSession(): Promise<PiSession | null> {
   try {
     const cookieStore = await cookies()
     const token = cookieStore.get(COOKIE_NAME)?.value

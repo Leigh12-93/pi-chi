@@ -192,7 +192,7 @@ export function ActivityBlock({
         <div className="w-5 h-5 rounded-md flex items-center justify-center shrink-0 text-emerald-600 bg-emerald-50 dark:text-emerald-400 dark:bg-emerald-950/40">
           <CheckCircle className="w-3 h-3 animate-check-in" />
         </div>
-        <span className="text-[13px] text-forge-text-dim font-medium">
+        <span className="text-[13px] text-pi-text-dim font-medium">
           Worked for {parts.join(' \u00b7 ')}
         </span>
       </motion.div>
@@ -205,12 +205,12 @@ export function ActivityBlock({
         initial={{ opacity: 0, y: 4 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.25, ease: [0.16, 1, 0.3, 1] }}
-        className={cn('rounded-xl border border-forge-border/50 bg-forge-bg/50 overflow-hidden', elapsed >= 10 && 'thinking-glow')}
+        className={cn('rounded-xl border border-pi-border/50 bg-pi-bg/50 overflow-hidden', elapsed >= 10 && 'thinking-glow')}
       >
         {/* Header */}
         <div className="flex items-center gap-2.5 px-3.5 py-2.5">
-          <div className="w-5 h-5 rounded-md bg-forge-accent/10 border border-forge-accent/20 flex items-center justify-center shrink-0 icon-glow-pulse">
-            <Brain className="w-3 h-3 text-forge-accent thinking-brain" />
+          <div className="w-5 h-5 rounded-md bg-pi-accent/10 border border-pi-accent/20 flex items-center justify-center shrink-0 icon-glow-pulse">
+            <Brain className="w-3 h-3 text-pi-accent thinking-brain" />
           </div>
           <div className="flex-1 min-w-0 flex items-center gap-1.5">
             <AnimatePresence mode="wait">
@@ -220,7 +220,7 @@ export function ActivityBlock({
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0, y: -2 }}
                 transition={{ duration: 0.2 }}
-                className="text-[13px] text-forge-text font-medium shimmer-text"
+                className="text-[13px] text-pi-text font-medium shimmer-text"
               >
                 {THINKING_MESSAGES[messageIdx]}
               </motion.span>
@@ -231,7 +231,7 @@ export function ActivityBlock({
               <span className="typing-dot" />
             </span>
           </div>
-          <span className="text-[11px] text-forge-text-dim/40 font-mono shrink-0 tabular-nums">
+          <span className="text-[11px] text-pi-text-dim/40 font-mono shrink-0 tabular-nums">
             {formatElapsed(elapsed)}
           </span>
         </div>
@@ -245,15 +245,15 @@ export function ActivityBlock({
         initial={{ opacity: 0, y: 4 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.25, ease: [0.16, 1, 0.3, 1] }}
-        className="rounded-xl border border-forge-border/50 bg-forge-bg/50 overflow-hidden"
+        className="rounded-xl border border-pi-border/50 bg-pi-bg/50 overflow-hidden"
       >
         {/* Header */}
         <div className="flex items-center gap-2.5 px-3.5 py-2.5">
-          <div className="w-5 h-5 rounded-md bg-forge-accent/10 border border-forge-accent/20 flex items-center justify-center shrink-0">
-            <Sparkles className="w-3 h-3 text-forge-accent animate-pulse" />
+          <div className="w-5 h-5 rounded-md bg-pi-accent/10 border border-pi-accent/20 flex items-center justify-center shrink-0">
+            <Sparkles className="w-3 h-3 text-pi-accent animate-pulse" />
           </div>
-          <span className="text-[13px] text-forge-text font-medium flex-1">Working...</span>
-          <span className="text-[11px] text-forge-text-dim/40 font-mono shrink-0 tabular-nums">
+          <span className="text-[13px] text-pi-text font-medium flex-1">Working...</span>
+          <span className="text-[11px] text-pi-text-dim/40 font-mono shrink-0 tabular-nums">
             {formatElapsed(elapsed)}
           </span>
         </div>
@@ -265,15 +265,15 @@ export function ActivityBlock({
             <div key={`${group.label}-${idx}`} className="space-y-0.5">
               <div className="flex items-center gap-2">
                 <CheckCircle className="w-3.5 h-3.5 text-emerald-500/70 shrink-0" />
-                <span className="text-[12.5px] text-forge-text-dim font-medium">{group.label}</span>
+                <span className="text-[12.5px] text-pi-text-dim font-medium">{group.label}</span>
                 {group.files.length > 0 && (
-                  <span className="text-[11px] text-forge-text-dim/40 font-mono shrink-0 ml-auto">
+                  <span className="text-[11px] text-pi-text-dim/40 font-mono shrink-0 ml-auto">
                     {group.files.length} file{group.files.length !== 1 ? 's' : ''}
                   </span>
                 )}
               </div>
               {group.files.length > 0 && (
-                <div className="pl-[22px] text-[11px] font-mono text-forge-text-dim/50 truncate">
+                <div className="pl-[22px] text-[11px] font-mono text-pi-text-dim/50 truncate">
                   {group.files.join(' \u00b7 ')}
                 </div>
               )}
@@ -283,8 +283,8 @@ export function ActivityBlock({
           {/* Active step */}
           {activeToolName && (
             <div className="flex items-center gap-2">
-              <Loader2 className="w-3.5 h-3.5 text-forge-accent animate-spin shrink-0" />
-              <span className="text-[12.5px] text-forge-text font-medium shimmer-text truncate">
+              <Loader2 className="w-3.5 h-3.5 text-pi-accent animate-spin shrink-0" />
+              <span className="text-[12.5px] text-pi-text font-medium shimmer-text truncate">
                 {getActiveLabel(activeToolName, activeToolArgs)}
               </span>
             </div>

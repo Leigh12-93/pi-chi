@@ -28,13 +28,13 @@ export class ErrorBoundary extends React.Component<
   render() {
     if (this.state.hasError) {
       return (
-        <div className="h-screen flex items-center justify-center bg-forge-bg p-6">
+        <div className="h-screen flex items-center justify-center bg-pi-bg p-6">
           <div className="max-w-md w-full text-center">
             <div className="w-14 h-14 rounded-2xl bg-red-50 dark:bg-red-950/30 flex items-center justify-center mx-auto mb-5">
               <AlertTriangle className="w-7 h-7 text-red-500" />
             </div>
-            <h2 className="text-lg font-semibold text-forge-text mb-2">Something went wrong</h2>
-            <p className="text-sm text-forge-text-dim mb-1">
+            <h2 className="text-lg font-semibold text-pi-text mb-2">Something went wrong</h2>
+            <p className="text-sm text-pi-text-dim mb-1">
               An unexpected error occurred. Your recent changes may not have been saved. Click 'Try Again' to recover your work.
             </p>
             {this.state.error && (
@@ -42,17 +42,17 @@ export class ErrorBoundary extends React.Component<
                 {this.state.error.message}
               </pre>
             )}
-            <p className="text-xs text-forge-text-dim mb-4">If this keeps happening, try reloading the page.</p>
+            <p className="text-xs text-pi-text-dim mb-4">If this keeps happening, try reloading the page.</p>
             <div className="flex items-center gap-3">
               <button
                 onClick={() => this.setState({ hasError: false, error: null })}
-                className="inline-flex items-center gap-2 px-4 py-2.5 bg-forge-accent text-white text-sm font-medium rounded-xl hover:bg-forge-accent-hover transition-colors shadow-sm"
+                className="inline-flex items-center gap-2 px-4 py-2.5 bg-pi-accent text-white text-sm font-medium rounded-xl hover:bg-pi-accent-hover transition-colors shadow-sm"
               >
                 Try to Recover
               </button>
               <button
                 onClick={() => window.location.reload()}
-                className="inline-flex items-center gap-2 px-4 py-2.5 bg-forge-surface text-forge-text text-sm font-medium rounded-xl border border-forge-border hover:bg-forge-panel transition-colors"
+                className="inline-flex items-center gap-2 px-4 py-2.5 bg-pi-surface text-pi-text text-sm font-medium rounded-xl border border-pi-border hover:bg-pi-panel transition-colors"
               >
                 <RefreshCw className="w-4 h-4" />
                 Full Reload
@@ -65,7 +65,7 @@ export class ErrorBoundary extends React.Component<
                       navigator.clipboard.writeText(`${err.message}\n${err.stack || ''}`)
                     }
                   }}
-                  className="inline-flex items-center gap-2 px-4 py-2.5 text-forge-text-dim text-sm font-medium rounded-xl border border-forge-border hover:bg-forge-panel transition-colors"
+                  className="inline-flex items-center gap-2 px-4 py-2.5 text-pi-text-dim text-sm font-medium rounded-xl border border-pi-border hover:bg-pi-panel transition-colors"
                 >
                   <Copy className="w-4 h-4" />
                   Copy Error
@@ -106,16 +106,16 @@ export class PanelErrorBoundary extends Component<PanelProps, PanelState> {
     if (this.state.hasError) {
       return (
         <div className="flex flex-col items-center justify-center h-full gap-3 p-8 text-center">
-          <div className="w-10 h-10 rounded-xl bg-forge-surface flex items-center justify-center">
-            <AlertTriangle className="w-5 h-5 text-forge-warning" />
+          <div className="w-10 h-10 rounded-xl bg-pi-surface flex items-center justify-center">
+            <AlertTriangle className="w-5 h-5 text-pi-warning" />
           </div>
           <div>
-            <p className="text-sm font-medium text-forge-text">{this.props.name || 'Panel'} failed to render</p>
-            <p className="text-xs text-forge-text-dim mt-1">Try refreshing the page</p>
+            <p className="text-sm font-medium text-pi-text">{this.props.name || 'Panel'} failed to render</p>
+            <p className="text-xs text-pi-text-dim mt-1">Try refreshing the page</p>
           </div>
           <button
             onClick={() => this.setState({ hasError: false, error: null })}
-            className="px-3 py-1.5 text-xs font-medium text-forge-accent bg-forge-surface hover:bg-forge-surface-hover rounded-lg transition-colors"
+            className="px-3 py-1.5 text-xs font-medium text-pi-accent bg-pi-surface hover:bg-pi-surface-hover rounded-lg transition-colors"
           >
             Try again
           </button>

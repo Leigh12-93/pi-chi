@@ -13,7 +13,7 @@ export async function GET() {
   let useTeam = true
 
   const { data, ok } = await supabaseFetch(
-    `/forge_user_settings?github_username=eq.${encodeURIComponent(session.githubUsername)}&select=encrypted_vercel_token`,
+    `/pi_user_settings?github_username=eq.${encodeURIComponent(session.githubUsername)}&select=encrypted_vercel_token`,
   )
 
   if (ok && Array.isArray(data) && data.length > 0) {

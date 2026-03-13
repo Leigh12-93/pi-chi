@@ -27,7 +27,7 @@ export function CheckpointCard({ phase, completed, nextPhase, previewReady, ques
 
   if (submitted) {
     return (
-      <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="flex items-center gap-2 py-2 text-[12px] text-forge-text-dim">
+      <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="flex items-center gap-2 py-2 text-[12px] text-pi-text-dim">
         <CheckCircle className="w-4 h-4 text-emerald-500" />
         <span>Continuing to: {nextPhase}</span>
       </motion.div>
@@ -39,7 +39,7 @@ export function CheckpointCard({ phase, completed, nextPhase, previewReady, ques
       initial={{ opacity: 0, y: 4 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.25 }}
-      className="border border-emerald-500/20 rounded-xl overflow-hidden bg-forge-bg/80"
+      className="border border-emerald-500/20 rounded-xl overflow-hidden bg-pi-bg/80"
     >
       {/* Header */}
       <div className="px-3.5 py-2.5 bg-gradient-to-r from-emerald-950/30 to-emerald-900/10 border-b border-emerald-500/15 flex items-center gap-2.5">
@@ -61,28 +61,28 @@ export function CheckpointCard({ phase, completed, nextPhase, previewReady, ques
           {completed.map((file, i) => (
             <div key={i} className="flex items-center gap-1.5 text-[11px]">
               <CheckCircle className="w-3 h-3 text-emerald-500 shrink-0" />
-              <span className="font-mono text-forge-text-dim/60 truncate">{file}</span>
+              <span className="font-mono text-pi-text-dim/60 truncate">{file}</span>
             </div>
           ))}
         </div>
 
         {/* Next phase */}
-        <div className="flex items-center gap-2 pt-1 text-[12px] text-forge-text-dim/70">
-          <ArrowRight className="w-3 h-3 text-forge-accent shrink-0" />
-          <span>Next: <span className="text-forge-text font-medium">{nextPhase}</span></span>
+        <div className="flex items-center gap-2 pt-1 text-[12px] text-pi-text-dim/70">
+          <ArrowRight className="w-3 h-3 text-pi-accent shrink-0" />
+          <span>Next: <span className="text-pi-text font-medium">{nextPhase}</span></span>
         </div>
 
         {/* Question + Continue button */}
         {question && onAnswer && (
           <div className="space-y-2 pt-1">
-            <p className="text-[12px] text-forge-text">{question}</p>
+            <p className="text-[12px] text-pi-text">{question}</p>
             <div className="flex gap-2">
               <input
                 type="text"
                 value={answer}
                 onChange={e => setAnswer(e.target.value)}
                 placeholder="Your feedback (or just click Continue)..."
-                className="flex-1 px-2.5 py-1.5 bg-forge-surface border border-forge-border/30 rounded-lg text-[12px] text-forge-text outline-none focus:border-emerald-500/40 transition-colors"
+                className="flex-1 px-2.5 py-1.5 bg-pi-surface border border-pi-border/30 rounded-lg text-[12px] text-pi-text outline-none focus:border-emerald-500/40 transition-colors"
                 onKeyDown={e => { if (e.key === 'Enter') handleContinue() }}
               />
               <button onClick={handleContinue} className="px-3 py-1.5 rounded-lg text-[12px] font-medium bg-emerald-500/20 text-emerald-400 hover:bg-emerald-500/30 border border-emerald-500/20 transition-all">

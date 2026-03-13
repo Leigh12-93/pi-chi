@@ -43,8 +43,8 @@ export function UsageDashboard({ projects }: UsageDashboardProps) {
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             query: `SELECT
-              (SELECT count(*) FROM forge_chat_messages WHERE role = 'user') as message_count,
-              (SELECT count(*) FROM forge_deployments) as deployment_count`,
+              (SELECT count(*) FROM pi_chat_messages WHERE role = 'user') as message_count,
+              (SELECT count(*) FROM pi_deployments) as deployment_count`,
           }),
         })
         if (res.ok) {
@@ -73,7 +73,7 @@ export function UsageDashboard({ projects }: UsageDashboardProps) {
   if (loading) {
     return (
       <div className="flex items-center justify-center py-8">
-        <Loader2 className="w-5 h-5 animate-spin text-forge-text-dim" />
+        <Loader2 className="w-5 h-5 animate-spin text-pi-text-dim" />
       </div>
     )
   }
@@ -95,38 +95,38 @@ export function UsageDashboard({ projects }: UsageDashboardProps) {
       {/* Stat cards */}
       <div className="grid grid-cols-2 gap-3">
         {cards.map(card => (
-          <div key={card.label} className="p-3 rounded-xl bg-forge-surface border border-forge-border">
+          <div key={card.label} className="p-3 rounded-xl bg-pi-surface border border-pi-border">
             <div className="flex items-center gap-2 mb-1">
               <card.icon className={cn('w-4 h-4', card.color)} />
-              <span className="text-[10px] text-forge-text-dim uppercase tracking-wider">{card.label}</span>
+              <span className="text-[10px] text-pi-text-dim uppercase tracking-wider">{card.label}</span>
             </div>
-            <p className="text-xl font-bold text-forge-text">
+            <p className="text-xl font-bold text-pi-text">
               {card.value}
-              {card.suffix && <span className="text-xs font-normal text-forge-text-dim ml-1">{card.suffix}</span>}
+              {card.suffix && <span className="text-xs font-normal text-pi-text-dim ml-1">{card.suffix}</span>}
             </p>
           </div>
         ))}
       </div>
 
       {/* Activity chart */}
-      <div className="p-3 rounded-xl bg-forge-surface border border-forge-border">
+      <div className="p-3 rounded-xl bg-pi-surface border border-pi-border">
         <div className="flex items-center gap-2 mb-3">
-          <BarChart3 className="w-4 h-4 text-forge-accent" />
-          <span className="text-[10px] text-forge-text-dim uppercase tracking-wider">Activity (7 days)</span>
+          <BarChart3 className="w-4 h-4 text-pi-accent" />
+          <span className="text-[10px] text-pi-text-dim uppercase tracking-wider">Activity (7 days)</span>
         </div>
         <div className="flex items-end gap-1 h-16">
           {stats.recentActivity.map(day => (
             <div key={day.date} className="flex-1 flex flex-col items-center gap-1">
               <div
-                className="w-full bg-forge-accent/20 rounded-t"
+                className="w-full bg-pi-accent/20 rounded-t"
                 style={{ height: `${Math.max(4, (day.count / maxActivity) * 100)}%` }}
               >
                 <div
-                  className="w-full bg-forge-accent rounded-t transition-all"
+                  className="w-full bg-pi-accent rounded-t transition-all"
                   style={{ height: day.count > 0 ? '100%' : '0%' }}
                 />
               </div>
-              <span className="text-[8px] text-forge-text-dim/50">
+              <span className="text-[8px] text-pi-text-dim/50">
                 {new Date(day.date).toLocaleDateString('en', { weekday: 'narrow' })}
               </span>
             </div>

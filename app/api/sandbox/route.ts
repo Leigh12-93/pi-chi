@@ -25,7 +25,7 @@ function validateFileValues(files: Record<string, unknown>): files is Record<str
 
 /** Verify the authenticated user owns the project */
 async function verifyOwnership(projectId: string, username: string): Promise<boolean> {
-  const check = await supabaseFetch(`/forge_projects?id=eq.${encodeURIComponent(projectId)}&github_username=eq.${encodeURIComponent(username)}&select=id&limit=1`)
+  const check = await supabaseFetch(`/pi_projects?id=eq.${encodeURIComponent(projectId)}&github_username=eq.${encodeURIComponent(username)}&select=id&limit=1`)
   return check.ok && Array.isArray(check.data) && check.data.length > 0
 }
 

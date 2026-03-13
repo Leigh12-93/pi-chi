@@ -13,14 +13,14 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
 
   // Verify ownership
   const check = await supabaseFetch(
-    `/forge_projects?id=eq.${projectId}&github_username=eq.${encodeURIComponent(session.githubUsername)}&select=id`,
+    `/pi_projects?id=eq.${projectId}&github_username=eq.${encodeURIComponent(session.githubUsername)}&select=id`,
   )
   if (!check.ok || !Array.isArray(check.data) || check.data.length === 0) {
     return NextResponse.json({ error: 'Not found' }, { status: 404 })
   }
 
   const { data, ok } = await supabaseFetch(
-    `/forge_project_snapshots?project_id=eq.${projectId}&select=id,description,file_count,created_at&order=created_at.desc&limit=50`,
+    `/pi_project_snapshots?project_id=eq.${projectId}&select=id,description,file_count,created_at&order=created_at.desc&limit=50`,
   )
 
   if (!ok) return NextResponse.json([])
@@ -42,7 +42,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
 
   // Verify ownership
   const check = await supabaseFetch(
-    `/forge_projects?id=eq.${projectId}&github_username=eq.${encodeURIComponent(session.githubUsername)}&select=id`,
+    `/pi_projects?id=eq.${projectId}&github_username=eq.${encodeURIComponent(session.githubUsername)}&select=id`,
   )
   if (!check.ok || !Array.isArray(check.data) || check.data.length === 0) {
     return NextResponse.json({ error: 'Not found' }, { status: 404 })
@@ -50,17 +50,17 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
 
   // Auto-prune: delete oldest snapshots over limit
   const countRes = await supabaseFetch(
-    `/forge_project_snapshots?project_id=eq.${projectId}&select=id&order=created_at.desc&offset=${MAX_SNAPSHOTS - 1}`,
+    `/pi_project_snapshots?project_id=eq.${projectId}&select=id&order=created_at.desc&offset=${MAX_SNAPSHOTS - 1}`,
   )
   if (countRes.ok && Array.isArray(countRes.data) && countRes.data.length > 0) {
     const idsToDelete = (countRes.data as any[]).map(r => r.id)
     for (const id of idsToDelete) {
-      await supabaseFetch(`/forge_project_snapshots?id=eq.${id}`, { method: 'DELETE' })
+      await supabaseFetch(`/pi_project_snapshots?id=eq.${id}`, { method: 'DELETE' })
     }
   }
 
   // Insert new snapshot
-  const { data, ok } = await supabaseFetch('/forge_project_snapshots', {
+  const { data, ok } = await supabaseFetch('/pi_project_snapshots', {
     method: 'POST',
     body: JSON.stringify({
       project_id: projectId,

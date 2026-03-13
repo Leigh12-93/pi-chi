@@ -216,8 +216,8 @@ export function ServiceConnectCard({
 
   if (!def) {
     return (
-      <div className="border border-forge-border rounded-xl p-3.5 text-[12px]">
-        <p className="text-forge-text-dim">Unknown service: {service}</p>
+      <div className="border border-pi-border rounded-xl p-3.5 text-[12px]">
+        <p className="text-pi-text-dim">Unknown service: {service}</p>
       </div>
     )
   }
@@ -238,8 +238,8 @@ export function ServiceConnectCard({
           </div>
           <span className={cn('font-semibold text-[13px]', def.color)}>{def.label}</span>
         </div>
-        {message && <p className="text-forge-text-dim mb-2.5">{message}</p>}
-        <p className="text-forge-text-dim mb-2">{def.description}</p>
+        {message && <p className="text-pi-text-dim mb-2.5">{message}</p>}
+        <p className="text-pi-text-dim mb-2">{def.description}</p>
         <a
           href="/api/auth/login"
           className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-md bg-white text-gray-900 hover:bg-gray-100 text-[12px] font-medium transition-colors"
@@ -301,7 +301,7 @@ export function ServiceConnectCard({
           </div>
           <div>
             <span className="font-semibold text-[13px] text-green-400">{def.label} Connected</span>
-            <p className="text-[11px] text-forge-text-dim mt-0.5">Credentials saved and verified.</p>
+            <p className="text-[11px] text-pi-text-dim mt-0.5">Credentials saved and verified.</p>
           </div>
         </div>
       </div>
@@ -319,10 +319,10 @@ export function ServiceConnectCard({
       </div>
 
       {/* Custom message from AI */}
-      {message && <p className="text-forge-text mb-2">{message}</p>}
+      {message && <p className="text-pi-text mb-2">{message}</p>}
 
       {/* Description */}
-      <p className="text-forge-text-dim mb-3">{def.description}</p>
+      <p className="text-pi-text-dim mb-3">{def.description}</p>
 
       {/* Error */}
       {error && (
@@ -337,7 +337,7 @@ export function ServiceConnectCard({
         {fields.map(field => (
           <div key={field.key}>
             <div className="flex items-center gap-1 mb-1">
-              <span className="text-[11px] font-medium text-forge-text">{field.name}</span>
+              <span className="text-[11px] font-medium text-pi-text">{field.name}</span>
               {field.required !== false && <span className="text-red-500 text-[9px]">*</span>}
             </div>
             <div className="relative">
@@ -346,12 +346,12 @@ export function ServiceConnectCard({
                 value={values[field.key] || ''}
                 onChange={e => setValues(prev => ({ ...prev, [field.key]: e.target.value }))}
                 placeholder={field.placeholder || field.name}
-                className="w-full px-2.5 py-1.5 rounded-md bg-forge-bg border border-forge-border text-[11.5px] font-mono text-forge-text placeholder:text-forge-text-dim/40 focus:outline-none focus:border-forge-accent/40 focus:shadow-[0_0_0_3px_var(--color-forge-ring)] transition-all pr-7"
+                className="w-full px-2.5 py-1.5 rounded-md bg-pi-bg border border-pi-border text-[11.5px] font-mono text-pi-text placeholder:text-pi-text-dim/40 focus:outline-none focus:border-pi-accent/40 focus:shadow-[0_0_0_3px_var(--color-pi-ring)] transition-all pr-7"
               />
               {field.sensitive && (
                 <button
                   onClick={() => setShowFields(prev => ({ ...prev, [field.key]: !prev[field.key] }))}
-                  className="absolute right-1.5 top-1/2 -translate-y-1/2 text-forge-text-dim hover:text-forge-text"
+                  className="absolute right-1.5 top-1/2 -translate-y-1/2 text-pi-text-dim hover:text-pi-text"
                 >
                   {showFields[field.key] ? <EyeOff className="w-3 h-3" /> : <Eye className="w-3 h-3" />}
                 </button>
@@ -369,10 +369,10 @@ export function ServiceConnectCard({
           className={cn(
             'flex items-center gap-1.5 px-3.5 py-1.5 rounded-md text-[12px] font-medium transition-colors',
             saving
-              ? 'bg-forge-surface text-forge-text-dim cursor-wait'
+              ? 'bg-pi-surface text-pi-text-dim cursor-wait'
               : fields.filter(f => f.required !== false).every(f => values[f.key]?.trim())
-                ? 'bg-forge-accent hover:bg-forge-accent/90 text-white cursor-pointer'
-                : 'bg-forge-surface text-forge-text-dim/50 cursor-not-allowed'
+                ? 'bg-pi-accent hover:bg-pi-accent/90 text-white cursor-pointer'
+                : 'bg-pi-surface text-pi-text-dim/50 cursor-not-allowed'
           )}
         >
           {saving ? <Loader2 className="w-3 h-3 animate-spin" /> : <Key className="w-3 h-3" />}
@@ -384,7 +384,7 @@ export function ServiceConnectCard({
             href={def.docsUrl}
             target="_blank"
             rel="noopener noreferrer"
-            className="flex items-center gap-1 text-[11px] text-forge-accent hover:underline"
+            className="flex items-center gap-1 text-[11px] text-pi-accent hover:underline"
           >
             <ExternalLink className="w-3 h-3" />
             {def.docsLabel}

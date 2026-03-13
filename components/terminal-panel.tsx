@@ -110,7 +110,7 @@ export const TerminalPanel = memo(function TerminalPanel({ getShellProcess, wcRe
     return () => {
       cancelled = true
       if (writerRef.current) {
-        try { writerRef.current.close() } catch (e) { console.warn('[forge:terminal] Error closing writer:', e) }
+        try { writerRef.current.close() } catch (e) { console.warn('[pi:terminal] Error closing writer:', e) }
       }
       if (xtermRef.current) {
         xtermRef.current.dispose()
@@ -124,7 +124,7 @@ export const TerminalPanel = memo(function TerminalPanel({ getShellProcess, wcRe
     if (!fitAddonRef.current) return
 
     const observer = new ResizeObserver(() => {
-      try { fitAddonRef.current?.fit() } catch (e) { console.warn('[forge:terminal] Error fitting terminal:', e) }
+      try { fitAddonRef.current?.fit() } catch (e) { console.warn('[pi:terminal] Error fitting terminal:', e) }
     })
 
     if (terminalRef.current) {
@@ -140,8 +140,8 @@ export const TerminalPanel = memo(function TerminalPanel({ getShellProcess, wcRe
       maximized && 'fixed inset-0 z-50',
       className,
     )}>
-      <div className="flex items-center justify-between px-3 py-1.5 border-b border-forge-border bg-forge-panel">
-        <div className="flex items-center gap-2 text-xs text-forge-text-dim">
+      <div className="flex items-center justify-between px-3 py-1.5 border-b border-pi-border bg-pi-panel">
+        <div className="flex items-center gap-2 text-xs text-pi-text-dim">
           <TerminalIcon className="w-3.5 h-3.5" />
           <span>Terminal</span>
           {!wcReady && !waitingTooLong && (
@@ -151,7 +151,7 @@ export const TerminalPanel = memo(function TerminalPanel({ getShellProcess, wcRe
         <div className="flex items-center gap-1">
           <button
             onClick={() => setMaximized(prev => !prev)}
-            className="p-1 text-forge-text-dim hover:text-forge-text rounded transition-colors"
+            className="p-1 text-pi-text-dim hover:text-pi-text rounded transition-colors"
           >
             {maximized ? <Minimize2 className="w-3.5 h-3.5" /> : <Maximize2 className="w-3.5 h-3.5" />}
           </button>
@@ -160,9 +160,9 @@ export const TerminalPanel = memo(function TerminalPanel({ getShellProcess, wcRe
       {!wcReady && waitingTooLong && (
         <div className="flex-1 flex items-center justify-center p-4">
           <div className="text-center max-w-xs">
-            <TerminalIcon className="w-8 h-8 text-forge-text-dim/30 mx-auto mb-3" />
-            <p className="text-xs text-forge-text-dim mb-1">Terminal unavailable</p>
-            <p className="text-[10px] text-forge-text-dim/50">
+            <TerminalIcon className="w-8 h-8 text-pi-text-dim/30 mx-auto mb-3" />
+            <p className="text-xs text-pi-text-dim mb-1">Terminal unavailable</p>
+            <p className="text-[10px] text-pi-text-dim/50">
               The v0 sandbox is handling your preview. Terminal requires WebContainer which is not currently active.
             </p>
           </div>

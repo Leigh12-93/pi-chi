@@ -59,24 +59,24 @@ export function NotificationCenter({ notifications, onMarkAllRead, onDismiss }: 
     <div className="relative" ref={panelRef}>
       <button
         onClick={() => { setOpen(prev => !prev); if (!open) onMarkAllRead() }}
-        className="relative p-2 sm:p-1.5 rounded-lg text-forge-text-dim hover:text-forge-text hover:bg-forge-surface transition-colors"
+        className="relative p-2 sm:p-1.5 rounded-lg text-pi-text-dim hover:text-pi-text hover:bg-pi-surface transition-colors"
         title="Notifications"
         aria-label="Notifications"
       >
         <Bell className={cn('w-3.5 h-3.5', bellRing && 'animate-bell-ring')} />
         {unreadCount > 0 && (
-          <span className="absolute -top-0.5 -right-0.5 w-3.5 h-3.5 text-[8px] font-bold text-white bg-forge-accent rounded-full flex items-center justify-center animate-pulse-dot">
+          <span className="absolute -top-0.5 -right-0.5 w-3.5 h-3.5 text-[8px] font-bold text-white bg-pi-accent rounded-full flex items-center justify-center animate-pulse-dot">
             {unreadCount > 9 ? '9+' : unreadCount}
           </span>
         )}
       </button>
 
       {open && (
-        <div className="absolute right-0 top-full mt-1 w-72 bg-forge-bg border border-forge-border rounded-xl shadow-xl overflow-hidden animate-fade-in-up z-50">
-          <div className="flex items-center justify-between px-3 py-2 border-b border-forge-border">
-            <span className="text-xs font-medium text-forge-text">Notifications</span>
+        <div className="absolute right-0 top-full mt-1 w-72 bg-pi-bg border border-pi-border rounded-xl shadow-xl overflow-hidden animate-fade-in-up z-50">
+          <div className="flex items-center justify-between px-3 py-2 border-b border-pi-border">
+            <span className="text-xs font-medium text-pi-text">Notifications</span>
             {notifications.length > 0 && (
-              <button onClick={onMarkAllRead} className="text-[10px] text-forge-text-dim hover:text-forge-accent transition-colors">
+              <button onClick={onMarkAllRead} className="text-[10px] text-pi-text-dim hover:text-pi-accent transition-colors">
                 Mark all read
               </button>
             )}
@@ -84,7 +84,7 @@ export function NotificationCenter({ notifications, onMarkAllRead, onDismiss }: 
 
           <div className="max-h-64 overflow-y-auto scroll-fade-bottom" role="log" aria-label="Notification history">
             {notifications.length === 0 ? (
-              <div className="py-8 text-center text-xs text-forge-text-dim">
+              <div className="py-8 text-center text-xs text-pi-text-dim">
                 No notifications yet
               </div>
             ) : (
@@ -94,24 +94,24 @@ export function NotificationCenter({ notifications, onMarkAllRead, onDismiss }: 
                   <div
                     key={notif.id}
                     className={cn(
-                      'flex items-start gap-2 px-3 py-2 border-b border-forge-border/50 last:border-0 hover:bg-forge-surface/50 transition-all hover:-translate-y-px animate-fade-in-up',
-                      !notif.read && 'bg-forge-accent/5',
+                      'flex items-start gap-2 px-3 py-2 border-b border-pi-border/50 last:border-0 hover:bg-pi-surface/50 transition-all hover:-translate-y-px animate-fade-in-up',
+                      !notif.read && 'bg-pi-accent/5',
                     )}
                     style={{ animationDelay: `${idx * 30}ms` }}
                   >
                     <Icon className={cn('w-3.5 h-3.5 mt-0.5 shrink-0', color)} />
                     <div className="flex-1 min-w-0">
-                      <p className="text-[11px] font-medium text-forge-text truncate">{notif.title}</p>
+                      <p className="text-[11px] font-medium text-pi-text truncate">{notif.title}</p>
                       {notif.description && (
-                        <p className="text-[10px] text-forge-text-dim truncate">{notif.description}</p>
+                        <p className="text-[10px] text-pi-text-dim truncate">{notif.description}</p>
                       )}
-                      <span className="text-[9px] text-forge-text-dim/60">
+                      <span className="text-[9px] text-pi-text-dim/60">
                         {formatRelative(notif.timestamp)}
                       </span>
                     </div>
                     <button
                       onClick={() => onDismiss(notif.id)}
-                      className="p-0.5 rounded text-forge-text-dim/50 hover:text-forge-text-dim transition-colors shrink-0"
+                      className="p-0.5 rounded text-pi-text-dim/50 hover:text-pi-text-dim transition-colors shrink-0"
                     >
                       <X className="w-3 h-3" />
                     </button>

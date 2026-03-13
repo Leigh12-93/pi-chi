@@ -10,7 +10,7 @@ export async function GET() {
   let hasApiKey = false
   try {
     const { data, ok } = await supabaseFetch(
-      `/forge_user_settings?github_username=eq.${encodeURIComponent(session.githubUsername)}&select=encrypted_api_key`,
+      `/pi_user_settings?github_username=eq.${encodeURIComponent(session.githubUsername)}&select=encrypted_api_key`,
     )
     if (ok && Array.isArray(data) && data.length > 0) {
       hasApiKey = !!(data[0] as any).encrypted_api_key

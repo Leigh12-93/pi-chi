@@ -20,8 +20,8 @@ export function usePreviewEvents(sendMessage: (opts: { text: string }) => void) 
       }
       sendMessage({ text: parts.join('\n') })
     }
-    window.addEventListener('forge:preview-captured', handler)
-    return () => window.removeEventListener('forge:preview-captured', handler)
+    window.addEventListener('pi:preview-captured', handler)
+    return () => window.removeEventListener('pi:preview-captured', handler)
   }, [sendMessage])
 
   useEffect(() => {
@@ -35,8 +35,8 @@ export function usePreviewEvents(sendMessage: (opts: { text: string }) => void) 
         text: `[PREVIEW ERROR] The preview at ${detail.url} failed to load (${detail.errorType || 'unknown'}). Please use diagnose_preview to check the headers and suggest fixes.`,
       })
     }
-    window.addEventListener('forge:preview-error', handler)
-    return () => window.removeEventListener('forge:preview-error', handler)
+    window.addEventListener('pi:preview-error', handler)
+    return () => window.removeEventListener('pi:preview-error', handler)
   }, [sendMessage])
 
   return { diagnosedUrls }

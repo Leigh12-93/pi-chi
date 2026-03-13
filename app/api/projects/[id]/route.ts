@@ -12,8 +12,8 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
   if (!username) return NextResponse.json({ error: 'Not authenticated' }, { status: 401 })
 
   const { data: project, error: projErr } = await supabase
-    .from('forge_projects')
-    .select('*, forge_project_files(path, content)')
+    .from('pi_projects')
+    .select('*, pi_project_files(path, content)')
     .eq('id', id)
     .eq('github_username', username)
     .single()
@@ -21,13 +21,13 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
   if (projErr || !project) return NextResponse.json({ error: 'Project not found' }, { status: 404 })
 
   const fileMap: Record<string, string> = {}
-  const fileRows = (project as Record<string, unknown>).forge_project_files as Array<{ path: string; content: string }> | undefined
+  const fileRows = (project as Record<string, unknown>).pi_project_files as Array<{ path: string; content: string }> | undefined
   for (const f of fileRows || []) {
     fileMap[f.path] = f.content
   }
 
   // Remove nested relation from response, flatten to files map
-  const { forge_project_files: _, ...projectData } = project as Record<string, unknown>
+  const { pi_project_files: _, ...projectData } = project as Record<string, unknown>
   return NextResponse.json({ ...projectData, files: fileMap })
 }
 
@@ -41,7 +41,7 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
 
   // Verify ownership
   const { data: project } = await supabase
-    .from('forge_projects')
+    .from('pi_projects')
     .select('id')
     .eq('id', id)
     .eq('github_username', username)
@@ -61,7 +61,7 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
     if (body.vercel_url) updates.vercel_url = body.vercel_url
     if (body.memory !== undefined) updates.memory = body.memory
 
-    await supabase.from('forge_projects').update(updates).eq('id', id)
+    await supabase.from('pi_projects').update(updates).eq('id', id)
   }
 
   // Upsert files if provided
@@ -96,7 +96,7 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
     // Delete files that no longer exist — use safe parameterized filtering
     if (filePaths.length > 0) {
       const { data: existingFiles } = await supabase
-        .from('forge_project_files')
+        .from('pi_project_files')
         .select('path')
         .eq('project_id', id)
 
@@ -106,13 +106,13 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
 
       if (pathsToDelete.length > 0) {
         await supabase
-          .from('forge_project_files')
+          .from('pi_project_files')
           .delete()
           .eq('project_id', id)
           .in('path', pathsToDelete)
       }
     } else {
-      await supabase.from('forge_project_files').delete().eq('project_id', id)
+      await supabase.from('pi_project_files').delete().eq('project_id', id)
     }
 
     // Upsert current files
@@ -124,7 +124,7 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
       }))
 
       await supabase
-        .from('forge_project_files')
+        .from('pi_project_files')
         .upsert(rows, { onConflict: 'project_id,path' })
     }
   }
@@ -141,7 +141,7 @@ export async function DELETE(_req: Request, { params }: { params: Promise<{ id: 
   if (!username) return NextResponse.json({ error: 'Not authenticated' }, { status: 401 })
 
   const { error } = await supabase
-    .from('forge_projects')
+    .from('pi_projects')
     .delete()
     .eq('id', id)
     .eq('github_username', username)

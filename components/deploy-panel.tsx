@@ -218,7 +218,7 @@ export function DeployPanel({ projectId, files, projectName, onClose, onSuccess,
       <div className={cn('fixed bottom-4 right-4 left-4 sm:left-auto z-40', exiting ? 'deploy-exit' : 'deploy-enter')}>
         <div
           onClick={() => { setAutoCollapsed(false); setCollapsed(false) }}
-          className="group flex items-center gap-2.5 w-full sm:w-auto px-3.5 py-2.5 rounded-full border backdrop-blur-xl shadow-lg bg-forge-bg/90 border-emerald-500/20 hover:border-emerald-500/40 transition-all duration-200 cursor-pointer hover:scale-[1.02] active:scale-[0.98]"
+          className="group flex items-center gap-2.5 w-full sm:w-auto px-3.5 py-2.5 rounded-full border backdrop-blur-xl shadow-lg bg-pi-bg/90 border-emerald-500/20 hover:border-emerald-500/40 transition-all duration-200 cursor-pointer hover:scale-[1.02] active:scale-[0.98]"
         >
           <CheckCircle className="w-3.5 h-3.5 text-emerald-500 shrink-0" />
           <a
@@ -245,28 +245,28 @@ export function DeployPanel({ projectId, files, projectName, onClose, onSuccess,
           className={cn(
             'group flex items-center justify-center sm:justify-start gap-2.5 w-full sm:w-auto pl-3 pr-3.5 py-2.5 sm:py-2 rounded-full border backdrop-blur-xl shadow-lg transition-all duration-200',
             'hover:scale-[1.02] active:scale-[0.98]',
-            status === 'deploying' && 'bg-forge-bg/90 border-forge-accent/20 hover:border-forge-accent/40 deploy-pill-glow',
-            status === 'success' && 'bg-forge-bg/90 border-emerald-500/20 hover:border-emerald-500/40',
-            status === 'error' && 'bg-forge-bg/90 border-forge-danger/20 hover:border-forge-danger/40',
+            status === 'deploying' && 'bg-pi-bg/90 border-pi-accent/20 hover:border-pi-accent/40 deploy-pill-glow',
+            status === 'success' && 'bg-pi-bg/90 border-emerald-500/20 hover:border-emerald-500/40',
+            status === 'error' && 'bg-pi-bg/90 border-pi-danger/20 hover:border-pi-danger/40',
           )}
         >
           {status === 'deploying' && (
             <div className="relative">
-              <Loader2 className="w-3.5 h-3.5 text-forge-accent animate-spin" />
-              <div className="absolute inset-0 w-3.5 h-3.5 rounded-full bg-forge-accent/20 animate-ping" />
+              <Loader2 className="w-3.5 h-3.5 text-pi-accent animate-spin" />
+              <div className="absolute inset-0 w-3.5 h-3.5 rounded-full bg-pi-accent/20 animate-ping" />
             </div>
           )}
           {status === 'success' && <CheckCircle className="w-3.5 h-3.5 text-emerald-500" />}
-          {status === 'error' && <XCircle className="w-3.5 h-3.5 text-forge-danger" />}
+          {status === 'error' && <XCircle className="w-3.5 h-3.5 text-pi-danger" />}
           <span className={cn(
             'text-xs font-medium',
-            status === 'deploying' && 'text-forge-text',
+            status === 'deploying' && 'text-pi-text',
             status === 'success' && 'text-emerald-500',
-            status === 'error' && 'text-forge-danger',
+            status === 'error' && 'text-pi-danger',
           )}>
             {status === 'deploying' ? `Deploying ${formatElapsed(elapsed)}` : status === 'success' ? 'Deployed' : 'Failed'}
           </span>
-          <ChevronDown className="w-3 h-3 text-forge-text-dim group-hover:text-forge-text transition-colors rotate-180" />
+          <ChevronDown className="w-3 h-3 text-pi-text-dim group-hover:text-pi-text transition-colors rotate-180" />
         </button>
       </div>
     )
@@ -275,20 +275,20 @@ export function DeployPanel({ projectId, files, projectName, onClose, onSuccess,
   return (
     <div className={cn(
       'fixed bottom-4 left-4 right-4 sm:left-auto sm:right-4 z-40 sm:w-[440px] rounded-2xl border backdrop-blur-xl shadow-2xl flex flex-col overflow-hidden',
-      'bg-forge-bg/95 border-forge-border/60',
+      'bg-pi-bg/95 border-pi-border/60',
       exiting ? 'deploy-exit' : 'deploy-enter',
       status === 'deploying' && 'deploy-glow-accent',
       status === 'success' && 'deploy-glow-success',
       status === 'error' && 'deploy-glow-error',
     )}>
       {/* Animated gradient bar at top */}
-      <div className="h-[2px] w-full relative overflow-hidden bg-forge-border/30">
+      <div className="h-[2px] w-full relative overflow-hidden bg-pi-border/30">
         <div
           className={cn(
             'absolute inset-y-0 left-0 transition-all duration-1000 ease-out rounded-full',
             status === 'deploying' && 'deploy-progress-bar',
             status === 'success' && 'bg-emerald-500',
-            status === 'error' && 'bg-forge-danger',
+            status === 'error' && 'bg-pi-danger',
           )}
           style={{ width: `${progressPercent}%` }}
         />
@@ -299,19 +299,19 @@ export function DeployPanel({ projectId, files, projectName, onClose, onSuccess,
         <div className="flex items-center gap-2.5">
           <div className={cn(
             'flex items-center justify-center w-6 h-6 rounded-lg transition-colors duration-300',
-            status === 'deploying' && 'bg-forge-accent/10',
+            status === 'deploying' && 'bg-pi-accent/10',
             status === 'success' && 'bg-emerald-500/10',
-            status === 'error' && 'bg-forge-danger/10',
+            status === 'error' && 'bg-pi-danger/10',
           )}>
-            {status === 'deploying' && <Rocket className="w-3.5 h-3.5 text-forge-accent deploy-rocket" />}
+            {status === 'deploying' && <Rocket className="w-3.5 h-3.5 text-pi-accent deploy-rocket" />}
             {status === 'success' && <CheckCircle className="w-3.5 h-3.5 text-emerald-500 deploy-success-pop" />}
-            {status === 'error' && <XCircle className="w-3.5 h-3.5 text-forge-danger" />}
+            {status === 'error' && <XCircle className="w-3.5 h-3.5 text-pi-danger" />}
           </div>
           <div className="flex flex-col">
-            <span className="text-xs font-semibold text-forge-text leading-none">
+            <span className="text-xs font-semibold text-pi-text leading-none">
               {status === 'deploying' ? 'Deploying' : status === 'success' ? 'Deployment Complete' : 'Deployment Failed'}
             </span>
-            <span className="text-[10px] text-forge-text-dim mt-0.5 leading-none">
+            <span className="text-[10px] text-pi-text-dim mt-0.5 leading-none">
               {status === 'deploying'
                 ? deployProgress?.message || 'Starting...'
                 : status === 'success'
@@ -322,18 +322,18 @@ export function DeployPanel({ projectId, files, projectName, onClose, onSuccess,
         </div>
         <div className="flex items-center gap-1">
           {status === 'deploying' && (
-            <span className="text-[10px] text-forge-text-dim tabular-nums font-mono mr-1">{formatElapsed(elapsed)}</span>
+            <span className="text-[10px] text-pi-text-dim tabular-nums font-mono mr-1">{formatElapsed(elapsed)}</span>
           )}
           <button
             onClick={() => setCollapsed(true)}
-            className="p-1.5 rounded-lg text-forge-text-dim hover:text-forge-text hover:bg-forge-surface transition-all duration-150"
+            className="p-1.5 rounded-lg text-pi-text-dim hover:text-pi-text hover:bg-pi-surface transition-all duration-150"
             title="Minimize"
           >
             <Minus className="w-3.5 h-3.5" />
           </button>
           <button
             onClick={handleClose}
-            className="p-1.5 rounded-lg text-forge-text-dim hover:text-forge-text hover:bg-forge-surface transition-all duration-150"
+            className="p-1.5 rounded-lg text-pi-text-dim hover:text-pi-text hover:bg-pi-surface transition-all duration-150"
             title="Close"
           >
             <X className="w-3.5 h-3.5" />
@@ -356,18 +356,18 @@ export function DeployPanel({ projectId, files, projectName, onClose, onSuccess,
                   'flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg transition-all duration-300',
                   isDone && !isAutoFix && 'bg-emerald-500/8',
                   isDone && isAutoFix && 'bg-amber-500/8',
-                  isCurrent && !isAutoFix && 'bg-forge-accent/8 shadow-[0_0_8px_rgba(99,102,241,0.15)]',
+                  isCurrent && !isAutoFix && 'bg-pi-accent/8 shadow-[0_0_8px_rgba(99,102,241,0.15)]',
                   isCurrent && isAutoFix && 'bg-amber-500/8 shadow-[0_0_8px_rgba(245,158,11,0.15)]',
-                  isError && 'bg-forge-danger/8 shadow-[0_0_8px_rgba(239,68,68,0.15)]',
+                  isError && 'bg-pi-danger/8 shadow-[0_0_8px_rgba(239,68,68,0.15)]',
                 )}>
                   <div className={cn(
                     'flex items-center justify-center w-4.5 h-4.5 rounded-md transition-all duration-300',
                     isDone && !isAutoFix && 'text-emerald-500',
                     isDone && isAutoFix && 'text-amber-500',
-                    isCurrent && !isAutoFix && 'text-forge-accent',
+                    isCurrent && !isAutoFix && 'text-pi-accent',
                     isCurrent && isAutoFix && 'text-amber-500',
-                    isError && 'text-forge-danger',
-                    !isDone && !isCurrent && !isError && 'text-forge-text-dim/40',
+                    isError && 'text-pi-danger',
+                    !isDone && !isCurrent && !isError && 'text-pi-text-dim/40',
                   )}>
                     {isDone ? (
                       <CheckCircle className="w-3.5 h-3.5 animate-check-in" />
@@ -381,7 +381,7 @@ export function DeployPanel({ projectId, files, projectName, onClose, onSuccess,
                   </div>
                   <span className={cn(
                     'text-[11px] font-medium transition-colors duration-300',
-                    isDone && !isAutoFix ? 'text-emerald-500' : isDone && isAutoFix ? 'text-amber-500' : (isCurrent || isError) ? 'text-forge-text' : 'text-forge-text-dim/50'
+                    isDone && !isAutoFix ? 'text-emerald-500' : isDone && isAutoFix ? 'text-amber-500' : (isCurrent || isError) ? 'text-pi-text' : 'text-pi-text-dim/50'
                   )}>
                     {isDone ? s.doneLabel : s.label}
                   </span>
@@ -390,7 +390,7 @@ export function DeployPanel({ projectId, files, projectName, onClose, onSuccess,
                   <div className="flex-1 mx-0.5">
                     <div className={cn(
                       'h-px transition-colors duration-500',
-                      isDone ? 'bg-emerald-500/30' : 'bg-forge-border/50'
+                      isDone ? 'bg-emerald-500/30' : 'bg-pi-border/50'
                     )} />
                   </div>
                 )}
@@ -428,11 +428,11 @@ export function DeployPanel({ projectId, files, projectName, onClose, onSuccess,
         <div className="px-4 pb-3">
           <button
             onClick={() => setShowLogs(!showLogs)}
-            className="flex items-center gap-1.5 text-[10px] text-forge-text-dim hover:text-forge-text transition-colors mb-1.5 group"
+            className="flex items-center gap-1.5 text-[10px] text-pi-text-dim hover:text-pi-text transition-colors mb-1.5 group"
           >
             <ChevronDown className={cn('w-3 h-3 transition-transform duration-200', showLogs && 'rotate-180')} />
             <span>Build Output</span>
-            {logs.length > 0 && <span className="text-forge-text-dim/50">{logs.length} lines</span>}
+            {logs.length > 0 && <span className="text-pi-text-dim/50">{logs.length} lines</span>}
           </button>
 
           {showLogs && (
@@ -466,11 +466,11 @@ export function DeployPanel({ projectId, files, projectName, onClose, onSuccess,
         <div className="px-4 pb-4">
           <div className="flex items-center gap-3 py-3 justify-center">
             <div className="flex gap-1">
-              <div className="w-1.5 h-1.5 rounded-full bg-forge-accent deploy-dot" style={{ animationDelay: '0ms' }} />
-              <div className="w-1.5 h-1.5 rounded-full bg-forge-accent deploy-dot" style={{ animationDelay: '150ms' }} />
-              <div className="w-1.5 h-1.5 rounded-full bg-forge-accent deploy-dot" style={{ animationDelay: '300ms' }} />
+              <div className="w-1.5 h-1.5 rounded-full bg-pi-accent deploy-dot" style={{ animationDelay: '0ms' }} />
+              <div className="w-1.5 h-1.5 rounded-full bg-pi-accent deploy-dot" style={{ animationDelay: '150ms' }} />
+              <div className="w-1.5 h-1.5 rounded-full bg-pi-accent deploy-dot" style={{ animationDelay: '300ms' }} />
             </div>
-            <span className="text-xs text-forge-text-dim">{deployProgress?.message || 'Preparing deployment...'}</span>
+            <span className="text-xs text-pi-text-dim">{deployProgress?.message || 'Preparing deployment...'}</span>
           </div>
         </div>
       )}
@@ -485,7 +485,7 @@ export function DeployPanel({ projectId, files, projectName, onClose, onSuccess,
                 <span className="text-[10px] font-medium text-emerald-500/80 uppercase tracking-wider">Production URL</span>
               </div>
               <div className="flex items-center gap-2">
-                <span className="text-sm text-forge-text font-mono truncate flex-1">{result.url}</span>
+                <span className="text-sm text-pi-text font-mono truncate flex-1">{result.url}</span>
                 <button
                   onClick={() => {
                     navigator.clipboard.writeText(String(result.url))
@@ -496,7 +496,7 @@ export function DeployPanel({ projectId, files, projectName, onClose, onSuccess,
                     'p-1.5 rounded-lg transition-all duration-150 shrink-0',
                     copied
                       ? 'bg-emerald-500/10 text-emerald-500'
-                      : 'text-forge-text-dim hover:text-forge-text hover:bg-forge-surface'
+                      : 'text-pi-text-dim hover:text-pi-text hover:bg-pi-surface'
                   )}
                 >
                   {copied ? <Check className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />}
@@ -521,7 +521,7 @@ export function DeployPanel({ projectId, files, projectName, onClose, onSuccess,
               </span>
             </div>
           )}
-          <div className="flex items-center gap-4 text-[10px] text-forge-text-dim">
+          <div className="flex items-center gap-4 text-[10px] text-pi-text-dim">
             {typeof result.framework === 'string' && (
               <div className="flex items-center gap-1">
                 <FileCode className="w-3 h-3" />
@@ -546,15 +546,15 @@ export function DeployPanel({ projectId, files, projectName, onClose, onSuccess,
       {/* Error */}
       {status === 'error' && (
         <div className="px-4 pb-4 deploy-slide-up">
-          <div className="rounded-xl border border-forge-danger/15 bg-forge-danger/[0.03] p-3 mb-3">
-            <pre className="text-[10px] text-forge-danger font-mono whitespace-pre-wrap break-words leading-relaxed max-h-[100px] overflow-y-auto">
+          <div className="rounded-xl border border-pi-danger/15 bg-pi-danger/[0.03] p-3 mb-3">
+            <pre className="text-[10px] text-pi-danger font-mono whitespace-pre-wrap break-words leading-relaxed max-h-[100px] overflow-y-auto">
               {error}
             </pre>
           </div>
           <div className="flex justify-end gap-2">
             <button
               onClick={handleRetry}
-              className="flex items-center gap-1.5 px-3 py-1.5 text-[11px] font-medium text-forge-text-dim hover:text-forge-text rounded-lg border border-forge-border hover:border-forge-border-bright transition-all duration-150"
+              className="flex items-center gap-1.5 px-3 py-1.5 text-[11px] font-medium text-pi-text-dim hover:text-pi-text rounded-lg border border-pi-border hover:border-pi-border-bright transition-all duration-150"
             >
               <RefreshCw className="w-3 h-3" />
               Retry
@@ -562,7 +562,7 @@ export function DeployPanel({ projectId, files, projectName, onClose, onSuccess,
             {onFix && isBuildError && (
               <button
                 onClick={() => { onFix(error); handleClose() }}
-                className="flex items-center gap-1.5 px-3 py-1.5 text-[11px] font-medium bg-forge-accent text-white rounded-lg hover:bg-forge-accent-hover transition-all duration-150"
+                className="flex items-center gap-1.5 px-3 py-1.5 text-[11px] font-medium bg-pi-accent text-white rounded-lg hover:bg-pi-accent-hover transition-all duration-150"
               >
                 <Zap className="w-3 h-3" />
                 Fix with AI

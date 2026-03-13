@@ -1,8 +1,8 @@
 {
-  "name": "forge",
+  "name": "pi-chi",
   "version": "0.1.2",
   "private": true,
-  "description": "AI React website builder — v0/Bolt clone powered by Claude",
+  "description": "Autonomous AI agent system for Raspberry Pi — full system control, GPIO, self-directed goals",
   "scripts": {
     "dev": "next dev --port 3333",
     "build": "next build",

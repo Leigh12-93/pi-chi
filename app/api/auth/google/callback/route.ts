@@ -35,7 +35,7 @@ export async function GET(req: Request) {
 
   // Fetch + decrypt user's Client ID and Client Secret
   const { data, ok } = await supabaseFetch(
-    `/forge_user_settings?github_username=eq.${encodeURIComponent(session.githubUsername)}&select=encrypted_google_client_id,encrypted_google_client_secret`,
+    `/pi_user_settings?github_username=eq.${encodeURIComponent(session.githubUsername)}&select=encrypted_google_client_id,encrypted_google_client_secret`,
   )
 
   if (!ok || !Array.isArray(data) || data.length === 0) {
@@ -110,7 +110,7 @@ export async function GET(req: Request) {
       updates.encrypted_google_refresh_token = `v1:${await encryptToken(refresh_token)}`
     }
 
-    await supabaseFetch('/forge_user_settings', {
+    await supabaseFetch('/pi_user_settings', {
       method: 'POST',
       headers: { 'Prefer': 'resolution=merge-duplicates,return=representation' },
       body: JSON.stringify({

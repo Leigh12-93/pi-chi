@@ -7,7 +7,7 @@ export async function GET() {
 
   // Check Supabase connectivity
   try {
-    const { error } = await supabase.from('forge_projects').select('id').limit(1)
+    const { error } = await supabase.from('pi_projects').select('id').limit(1)
     checks.database = !error
   } catch {
     checks.database = false

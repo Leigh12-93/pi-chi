@@ -111,7 +111,7 @@ export function DbPanel({ fileContents, onOpenDbExplorer, onOpenSettings }: DbPa
           skipValidation: true, // already connected, no need to re-validate
         }),
       })
-    } catch (e) { console.warn('[forge:db] Failed to persist Supabase creds (non-fatal, env-based connection still works):', e) }
+    } catch (e) { console.warn('[pi:db] Failed to persist Supabase creds (non-fatal, env-based connection still works):', e) }
   }, [])
 
   // Auto-connect on mount: saved creds → env detection (+ auto-save)
@@ -128,7 +128,7 @@ export function DbPanel({ fileContents, onOpenDbExplorer, onOpenSettings }: DbPa
         if (settingsData.oauthProviders && !cancelled) {
           setOauthProviders(settingsData.oauthProviders)
         }
-      } catch (e) { console.warn('[forge:db] Failed to load OAuth providers:', e) }
+      } catch (e) { console.warn('[pi:db] Failed to load OAuth providers:', e) }
 
       // 1. Try saved credentials
       try {
@@ -142,7 +142,7 @@ export function DbPanel({ fileContents, onOpenDbExplorer, onOpenSettings }: DbPa
           fetchTables('saved')
           return
         }
-      } catch (e) { console.warn('[forge:db] Failed to load saved DB credentials:', e) }
+      } catch (e) { console.warn('[pi:db] Failed to load saved DB credentials:', e) }
 
       // 2. Try env file detection → auto-save for persistence
       if (envDetected && !cancelled) {
@@ -174,8 +174,8 @@ export function DbPanel({ fileContents, onOpenDbExplorer, onOpenSettings }: DbPa
     return (
       <div className="p-3">
         <div className="flex items-center gap-2 py-6 justify-center">
-          <Loader2 className="w-4 h-4 animate-spin text-forge-accent" />
-          <span className="text-xs text-forge-text-dim">Connecting to Supabase...</span>
+          <Loader2 className="w-4 h-4 animate-spin text-pi-accent" />
+          <span className="text-xs text-pi-text-dim">Connecting to Supabase...</span>
         </div>
       </div>
     )
@@ -185,11 +185,11 @@ export function DbPanel({ fileContents, onOpenDbExplorer, onOpenSettings }: DbPa
   if (!connected) {
     return (
       <div className="p-3 space-y-3">
-        <div className="flex items-center gap-2 p-3 bg-forge-surface border border-forge-border rounded-lg">
-          <Database className="w-4 h-4 text-forge-text-dim shrink-0" />
+        <div className="flex items-center gap-2 p-3 bg-pi-surface border border-pi-border rounded-lg">
+          <Database className="w-4 h-4 text-pi-text-dim shrink-0" />
           <div className="min-w-0">
-            <p className="text-xs font-medium text-forge-text">No database connected</p>
-            <p className="text-[10px] text-forge-text-dim mt-0.5">
+            <p className="text-xs font-medium text-pi-text">No database connected</p>
+            <p className="text-[10px] text-pi-text-dim mt-0.5">
               Connect Supabase to browse tables and run queries.
             </p>
           </div>
@@ -209,14 +209,14 @@ export function DbPanel({ fileContents, onOpenDbExplorer, onOpenSettings }: DbPa
           ) : (
             <button
               onClick={onOpenSettings}
-              className="w-full flex items-center gap-2.5 p-2.5 text-left rounded-lg border border-forge-border hover:border-forge-accent/50 hover:bg-forge-accent/5 transition-colors group"
+              className="w-full flex items-center gap-2.5 p-2.5 text-left rounded-lg border border-pi-border hover:border-pi-accent/50 hover:bg-pi-accent/5 transition-colors group"
             >
               <div className="w-7 h-7 rounded-md bg-emerald-500/10 flex items-center justify-center shrink-0">
                 <Zap className="w-3.5 h-3.5 text-emerald-400" />
               </div>
               <div className="min-w-0">
-                <p className="text-xs text-forge-text group-hover:text-forge-accent transition-colors">Connect via Access Token</p>
-                <p className="text-[9px] text-forge-text-dim">One-click — auto-finds your projects & keys</p>
+                <p className="text-xs text-pi-text group-hover:text-pi-accent transition-colors">Connect via Access Token</p>
+                <p className="text-[9px] text-pi-text-dim">One-click — auto-finds your projects & keys</p>
               </div>
             </button>
           )}
@@ -224,29 +224,29 @@ export function DbPanel({ fileContents, onOpenDbExplorer, onOpenSettings }: DbPa
           {/* Option 2: Manual in settings */}
           <button
             onClick={onOpenSettings}
-            className="w-full flex items-center gap-2.5 p-2.5 text-left rounded-lg border border-forge-border hover:border-forge-accent/50 hover:bg-forge-accent/5 transition-colors group"
+            className="w-full flex items-center gap-2.5 p-2.5 text-left rounded-lg border border-pi-border hover:border-pi-accent/50 hover:bg-pi-accent/5 transition-colors group"
           >
-            <div className="w-7 h-7 rounded-md bg-forge-surface flex items-center justify-center shrink-0">
-              <Settings className="w-3.5 h-3.5 text-forge-text-dim" />
+            <div className="w-7 h-7 rounded-md bg-pi-surface flex items-center justify-center shrink-0">
+              <Settings className="w-3.5 h-3.5 text-pi-text-dim" />
             </div>
             <div className="min-w-0">
-              <p className="text-xs text-forge-text group-hover:text-forge-accent transition-colors">{oauthProviders?.supabase ? 'Or connect manually' : 'Enter URL & Key Manually'}</p>
-              <p className="text-[9px] text-forge-text-dim">Paste from Supabase dashboard</p>
+              <p className="text-xs text-pi-text group-hover:text-pi-accent transition-colors">{oauthProviders?.supabase ? 'Or connect manually' : 'Enter URL & Key Manually'}</p>
+              <p className="text-[9px] text-pi-text-dim">Paste from Supabase dashboard</p>
             </div>
           </button>
 
           <div className="flex items-center gap-2 px-1">
-            <span className="flex-1 h-px bg-forge-border" />
-            <span className="text-[9px] text-forge-text-dim">or</span>
-            <span className="flex-1 h-px bg-forge-border" />
+            <span className="flex-1 h-px bg-pi-border" />
+            <span className="text-[9px] text-pi-text-dim">or</span>
+            <span className="flex-1 h-px bg-pi-border" />
           </div>
 
           {/* Option 3: Auto from .env */}
-          <div className="p-2.5 rounded-lg border border-dashed border-forge-border">
-            <p className="text-[9px] text-forge-text-dim leading-relaxed">
-              Add <code className="text-forge-accent px-0.5 bg-forge-accent/10 rounded">SUPABASE_URL</code> and{' '}
-              <code className="text-forge-accent px-0.5 bg-forge-accent/10 rounded">SUPABASE_SERVICE_ROLE_KEY</code>{' '}
-              to your <code className="text-forge-accent px-0.5 bg-forge-accent/10 rounded">.env.local</code> — auto-connects instantly.
+          <div className="p-2.5 rounded-lg border border-dashed border-pi-border">
+            <p className="text-[9px] text-pi-text-dim leading-relaxed">
+              Add <code className="text-pi-accent px-0.5 bg-pi-accent/10 rounded">SUPABASE_URL</code> and{' '}
+              <code className="text-pi-accent px-0.5 bg-pi-accent/10 rounded">SUPABASE_SERVICE_ROLE_KEY</code>{' '}
+              to your <code className="text-pi-accent px-0.5 bg-pi-accent/10 rounded">.env.local</code> — auto-connects instantly.
             </p>
           </div>
         </div>
@@ -270,19 +270,19 @@ export function DbPanel({ fileContents, onOpenDbExplorer, onOpenSettings }: DbPa
                 href={dashboardUrl}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="text-forge-text-dim hover:text-forge-accent transition-colors"
+                className="text-pi-text-dim hover:text-pi-accent transition-colors"
                 title="Open in Supabase Dashboard"
               >
                 <ExternalLink className="w-2.5 h-2.5" />
               </a>
             )}
           </div>
-          <p className="text-[9px] text-forge-text-dim font-mono truncate">{projectRef}</p>
+          <p className="text-[9px] text-pi-text-dim font-mono truncate">{projectRef}</p>
         </div>
         <button
           onClick={handleRefresh}
           disabled={loading}
-          className="p-1 text-forge-text-dim hover:text-forge-text transition-colors shrink-0"
+          className="p-1 text-pi-text-dim hover:text-pi-text transition-colors shrink-0"
           title="Refresh tables"
         >
           {loading ? <Loader2 className="w-3 h-3 animate-spin" /> : <RefreshCw className="w-3 h-3" />}
@@ -299,12 +299,12 @@ export function DbPanel({ fileContents, onOpenDbExplorer, onOpenSettings }: DbPa
       {/* Tables */}
       {loading && tables.length === 0 ? (
         <div className="flex items-center gap-2 py-4 justify-center">
-          <Loader2 className="w-3.5 h-3.5 animate-spin text-forge-text-dim" />
-          <span className="text-xs text-forge-text-dim">Loading tables...</span>
+          <Loader2 className="w-3.5 h-3.5 animate-spin text-pi-text-dim" />
+          <span className="text-xs text-pi-text-dim">Loading tables...</span>
         </div>
       ) : tables.length > 0 ? (
         <div className="space-y-0.5">
-          <p className="text-[10px] uppercase tracking-wider text-forge-text-dim font-medium px-1 pb-1">
+          <p className="text-[10px] uppercase tracking-wider text-pi-text-dim font-medium px-1 pb-1">
             Tables ({tables.length})
           </p>
           <div className="max-h-[calc(100vh-280px)] overflow-y-auto space-y-0.5">
@@ -312,22 +312,22 @@ export function DbPanel({ fileContents, onOpenDbExplorer, onOpenSettings }: DbPa
               <button
                 key={table}
                 onClick={onOpenDbExplorer}
-                className="w-full flex items-center gap-2 px-2 py-1.5 text-xs rounded-md hover:bg-forge-surface transition-colors text-left group"
+                className="w-full flex items-center gap-2 px-2 py-1.5 text-xs rounded-md hover:bg-pi-surface transition-colors text-left group"
               >
-                <Database className="w-3.5 h-3.5 text-forge-accent/60 shrink-0" />
-                <span className="truncate text-forge-text font-mono flex-1">{table}</span>
-                <ChevronRight className="w-3 h-3 text-forge-text-dim opacity-0 group-hover:opacity-100 transition-opacity" />
+                <Database className="w-3.5 h-3.5 text-pi-accent/60 shrink-0" />
+                <span className="truncate text-pi-text font-mono flex-1">{table}</span>
+                <ChevronRight className="w-3 h-3 text-pi-text-dim opacity-0 group-hover:opacity-100 transition-opacity" />
               </button>
             ))}
           </div>
         </div>
       ) : !loading && !error && (
-        <p className="text-[10px] text-forge-text-dim text-center py-2">No public tables found</p>
+        <p className="text-[10px] text-pi-text-dim text-center py-2">No public tables found</p>
       )}
 
       <button
         onClick={onOpenDbExplorer}
-        className="w-full flex items-center justify-center gap-2 px-3 py-2 text-xs rounded-lg border border-forge-border hover:bg-forge-surface transition-colors"
+        className="w-full flex items-center justify-center gap-2 px-3 py-2 text-xs rounded-lg border border-pi-border hover:bg-pi-surface transition-colors"
       >
         Open SQL Explorer
       </button>

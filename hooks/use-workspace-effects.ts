@@ -43,13 +43,13 @@ export function useWorkspaceEffects(deps: WorkspaceEffectsDeps) {
         onFileSelect(detail.path)
       }
     }
-    window.addEventListener('forge:terminal-action', handleTerminalAction)
-    window.addEventListener('forge:audit-plan', handleAuditPlan)
-    window.addEventListener('forge:open-file', handleOpenFile)
+    window.addEventListener('pi:terminal-action', handleTerminalAction)
+    window.addEventListener('pi:audit-plan', handleAuditPlan)
+    window.addEventListener('pi:open-file', handleOpenFile)
     return () => {
-      window.removeEventListener('forge:terminal-action', handleTerminalAction)
-      window.removeEventListener('forge:audit-plan', handleAuditPlan)
-      window.removeEventListener('forge:open-file', handleOpenFile)
+      window.removeEventListener('pi:terminal-action', handleTerminalAction)
+      window.removeEventListener('pi:audit-plan', handleAuditPlan)
+      window.removeEventListener('pi:open-file', handleOpenFile)
     }
   }, [wcStatus, onFileSelect]) // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -114,9 +114,9 @@ export function useWorkspaceEffects(deps: WorkspaceEffectsDeps) {
       }
     }
 
-    window.addEventListener('forge:file-edited', handleFileEdited)
+    window.addEventListener('pi:file-edited', handleFileEdited)
     return () => {
-      window.removeEventListener('forge:file-edited', handleFileEdited)
+      window.removeEventListener('pi:file-edited', handleFileEdited)
       state.aiEditTimersRef.current.forEach(t => clearTimeout(t))
       state.aiEditTimersRef.current.clear()
     }

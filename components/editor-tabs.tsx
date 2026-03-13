@@ -95,14 +95,14 @@ export function EditorTabs({
   if (openFiles.length === 0) return null
 
   return (
-    <div className="flex items-center bg-forge-panel border-b border-forge-border relative">
+    <div className="flex items-center bg-pi-panel border-b border-pi-border relative">
       {/* Left scroll button */}
       {showLeftArrow && (
         <button
           onClick={() => scroll('left')}
-          className="absolute left-0 z-10 h-full px-1 bg-gradient-to-r from-forge-panel to-transparent hover:from-forge-surface scroll-btn-in"
+          className="absolute left-0 z-10 h-full px-1 bg-gradient-to-r from-pi-panel to-transparent hover:from-pi-surface scroll-btn-in"
         >
-          <ChevronLeft className="w-3 h-3 text-forge-text-dim" />
+          <ChevronLeft className="w-3 h-3 text-pi-text-dim" />
         </button>
       )}
 
@@ -157,26 +157,26 @@ export function EditorTabs({
               title={file}
               className={cn(
                 'group relative flex items-center gap-1.5 px-3 py-2 text-xs cursor-pointer transition-all duration-150 whitespace-nowrap select-none min-w-0',
-                'border-r border-forge-border/50',
+                'border-r border-pi-border/50',
                 isActive
-                  ? 'bg-forge-surface text-forge-text'
-                  : 'text-forge-text-dim hover:text-forge-text hover:bg-forge-surface/50',
-                isDragTarget && 'border-l-2 border-l-forge-accent bg-forge-accent/5 shadow-[inset_2px_0_4px_-2px_rgba(99,102,241,0.3)]',
+                  ? 'bg-pi-surface text-pi-text'
+                  : 'text-pi-text-dim hover:text-pi-text hover:bg-pi-surface/50',
+                isDragTarget && 'border-l-2 border-l-pi-accent bg-pi-accent/5 shadow-[inset_2px_0_4px_-2px_rgba(99,102,241,0.3)]',
                 dragIndex === idx && 'opacity-40 scale-[0.97]',
               )}
             >
               {/* Color dot for file extension */}
-              <span className={cn('w-1.5 h-1.5 rounded-full shrink-0', FILE_ICON_COLORS[ext] || 'bg-forge-text-dim')} />
+              <span className={cn('w-1.5 h-1.5 rounded-full shrink-0', FILE_ICON_COLORS[ext] || 'bg-pi-text-dim')} />
               <span className="truncate max-w-[120px]">{name}</span>
               {isModified && (
-                <span className="w-1.5 h-1.5 rounded-full bg-forge-accent shrink-0" />
+                <span className="w-1.5 h-1.5 rounded-full bg-pi-accent shrink-0" />
               )}
               <button
                 onClick={(e) => {
                   e.stopPropagation()
                   onCloseFile(file)
                 }}
-                className="ml-0.5 p-0.5 opacity-0 group-hover:opacity-60 hover:!opacity-100 hover:text-forge-danger text-[10px] transition-all duration-150 rounded hover:bg-forge-danger/10"
+                className="ml-0.5 p-0.5 opacity-0 group-hover:opacity-60 hover:!opacity-100 hover:text-pi-danger text-[10px] transition-all duration-150 rounded hover:bg-pi-danger/10"
                 aria-label={`Close ${name}`}
               >
                 <X className="w-3 h-3" />
@@ -184,7 +184,7 @@ export function EditorTabs({
               {isActive && (
                 <motion.span
                   layoutId="editor-tab-indicator"
-                  className="absolute bottom-0 left-0 right-0 h-0.5 bg-forge-accent"
+                  className="absolute bottom-0 left-0 right-0 h-0.5 bg-pi-accent"
                   transition={{ type: 'spring', stiffness: 400, damping: 30 }}
                 />
               )}
@@ -197,9 +197,9 @@ export function EditorTabs({
       {showRightArrow && (
         <button
           onClick={() => scroll('right')}
-          className="absolute right-0 z-10 h-full px-1 bg-gradient-to-l from-forge-panel to-transparent hover:from-forge-surface scroll-btn-in"
+          className="absolute right-0 z-10 h-full px-1 bg-gradient-to-l from-pi-panel to-transparent hover:from-pi-surface scroll-btn-in"
         >
-          <ChevronRight className="w-3 h-3 text-forge-text-dim" />
+          <ChevronRight className="w-3 h-3 text-pi-text-dim" />
         </button>
       )}
     </div>

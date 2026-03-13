@@ -45,9 +45,9 @@ export function getToolSummary(toolName: string, args: Record<string, unknown>, 
     case 'db_query': return args.table ? `${args.table}${args.filters ? ` (${String(args.filters).slice(0, 40)})` : ''}` : 'Querying...'
     case 'db_mutate': return args.table ? `${args.operation} on ${args.table}` : 'Mutating...'
     case 'save_project': return data?.ok ? `${(data as Record<string, unknown>).savedFiles || 0} files saved` : 'Saving...'
-    case 'forge_read_own_source': return args.path ? `forge/${args.path}` : 'Reading...'
-    case 'forge_modify_own_source': return args.path ? `forge/${args.path}` : 'Modifying...'
-    case 'forge_redeploy': return data?.ok ? `Deploying: ${(data as Record<string, unknown>).reason || ''}`.slice(0, 60) : 'Redeploying...'
+    case 'pi_read_own_source': return args.path ? `pi-chi/${args.path}` : 'Reading...'
+    case 'pi_modify_own_source': return args.path ? `pi-chi/${args.path}` : 'Modifying...'
+    case 'pi_redeploy': return data?.ok ? `Deploying: ${(data as Record<string, unknown>).reason || ''}`.slice(0, 60) : 'Redeploying...'
     case 'github_read_file': return args.path ? `${args.owner}/${args.repo}/${args.path}` : 'Reading...'
     case 'github_list_repo_files': return args.repo ? `${args.owner}/${args.repo}/${args.path || ''}` : 'Listing...'
     case 'github_modify_external_file': return args.path ? `${args.owner}/${args.repo}/${args.path}` : 'Modifying...'
@@ -69,16 +69,16 @@ export function getToolSummary(toolName: string, args: Record<string, unknown>, 
     case 'mcp_list_servers': return data ? `${(data as Record<string, unknown>).count || 0} servers` : 'Listing...'
     case 'mcp_connect_server': return args.serverName ? `${args.serverName}` : 'Connecting...'
     case 'mcp_call_tool': return args.toolName ? `${args.serverName}/${args.toolName}` : 'Calling...'
-    case 'forge_check_npm_package': return args.packageName ? `${args.packageName}` : 'Checking...'
-    case 'forge_revert_commit': return data?.ok ? 'Commit reverted' : 'Reverting...'
-    case 'forge_create_branch': return args.branchName ? `${args.branchName}` : 'Creating...'
-    case 'forge_create_pr': return data?.url ? `PR created` : 'Creating PR...'
-    case 'forge_merge_pr': return data?.ok ? 'PR merged' : 'Merging...'
-    case 'forge_deployment_status': return data?.state ? `${data.state}` : 'Checking...'
-    case 'forge_check_build': return data?.ok ? 'Build passed' : (data?.error ? 'Build failed' : 'Building...')
-    case 'forge_list_branches': return data ? `${(data as Record<string, unknown>).count || 0} branches` : 'Listing...'
-    case 'forge_delete_branch': return data?.ok ? 'Branch deleted' : 'Deleting...'
-    case 'forge_read_deploy_log': return data ? 'Log retrieved' : 'Reading...'
+    case 'pi_check_npm_package': return args.packageName ? `${args.packageName}` : 'Checking...'
+    case 'pi_revert_commit': return data?.ok ? 'Commit reverted' : 'Reverting...'
+    case 'pi_create_branch': return args.branchName ? `${args.branchName}` : 'Creating...'
+    case 'pi_create_pr': return data?.url ? `PR created` : 'Creating PR...'
+    case 'pi_merge_pr': return data?.ok ? 'PR merged' : 'Merging...'
+    case 'pi_deployment_status': return data?.state ? `${data.state}` : 'Checking...'
+    case 'pi_check_build': return data?.ok ? 'Build passed' : (data?.error ? 'Build failed' : 'Building...')
+    case 'pi_list_branches': return data ? `${(data as Record<string, unknown>).count || 0} branches` : 'Listing...'
+    case 'pi_delete_branch': return data?.ok ? 'Branch deleted' : 'Deleting...'
+    case 'pi_read_deploy_log': return data ? 'Log retrieved' : 'Reading...'
     case 'db_introspect': return args.table ? `${args.table}` : 'Inspecting...'
     case 'scaffold_component': return args.name ? `${args.name}` : 'Scaffolding...'
     case 'generate_env_file': return data?.ok ? '.env.example created' : 'Generating...'
@@ -126,7 +126,7 @@ export function getPhaseLabel(lastToolName: string | null): string {
   switch (lastToolName) {
     // Reading files
     case 'read_file':
-    case 'forge_read_own_source':
+    case 'pi_read_own_source':
     case 'github_read_file':
       return 'Reading file'
     case 'get_all_files':
@@ -143,7 +143,7 @@ export function getPhaseLabel(lastToolName: string | null): string {
       return 'Searching file contents'
     case 'get_reference_code':
       return 'Looking up references'
-    case 'forge_check_npm_package':
+    case 'pi_check_npm_package':
     case 'check_dependency_health':
       return 'Checking dependencies'
 
@@ -156,7 +156,7 @@ export function getPhaseLabel(lastToolName: string | null): string {
       return 'Renaming file'
     case 'delete_file':
       return 'Deleting file'
-    case 'forge_modify_own_source':
+    case 'pi_modify_own_source':
     case 'github_modify_external_file':
       return 'Modifying source'
     case 'scaffold_component':
@@ -184,11 +184,11 @@ export function getPhaseLabel(lastToolName: string | null): string {
     // Deployment
     case 'deploy_to_vercel':
       return 'Deploying to Vercel'
-    case 'forge_redeploy':
+    case 'pi_redeploy':
       return 'Redeploying'
-    case 'forge_deployment_status':
-    case 'forge_check_build':
-    case 'forge_read_deploy_log':
+    case 'pi_deployment_status':
+    case 'pi_check_build':
+    case 'pi_read_deploy_log':
       return 'Checking deployment'
 
     // Git
@@ -199,16 +199,16 @@ export function getPhaseLabel(lastToolName: string | null): string {
       return 'Pushing to GitHub'
     case 'github_pull_latest':
       return 'Pulling latest'
-    case 'forge_create_branch':
+    case 'pi_create_branch':
       return 'Creating branch'
-    case 'forge_create_pr':
+    case 'pi_create_pr':
       return 'Creating pull request'
-    case 'forge_merge_pr':
+    case 'pi_merge_pr':
       return 'Merging pull request'
-    case 'forge_revert_commit':
+    case 'pi_revert_commit':
       return 'Reverting commit'
-    case 'forge_list_branches':
-    case 'forge_delete_branch':
+    case 'pi_list_branches':
+    case 'pi_delete_branch':
       return 'Managing branches'
 
     // Database

@@ -131,10 +131,10 @@ export const FileTree = memo(function FileTree({
   }, [newFilePath, onFileCreate])
 
   return (
-    <div className="h-full bg-forge-panel border-r border-forge-border flex flex-col" data-file-tree role="tree" aria-label="File explorer">
+    <div className="h-full bg-pi-panel border-r border-pi-border flex flex-col" data-file-tree role="tree" aria-label="File explorer">
       {/* Header */}
-      <div className="flex items-center justify-between px-3 py-2.5 sm:py-2 border-b border-forge-border shrink-0">
-        <span className="text-xs sm:text-[10px] uppercase tracking-wider text-forge-text-dim font-semibold">
+      <div className="flex items-center justify-between px-3 py-2.5 sm:py-2 border-b border-pi-border shrink-0">
+        <span className="text-xs sm:text-[10px] uppercase tracking-wider text-pi-text-dim font-semibold">
           Files
         </span>
         <div className="flex items-center gap-0.5">
@@ -143,7 +143,7 @@ export const FileTree = memo(function FileTree({
               onClick={() => { setShowNewFile(prev => !prev); if (showNewFile) setNewFilePath('') }}
               className={cn(
                 'p-2 sm:p-1 rounded transition-colors',
-                showNewFile ? 'text-forge-accent bg-forge-accent/10' : 'text-forge-text-dim hover:text-forge-text hover:bg-forge-surface',
+                showNewFile ? 'text-pi-accent bg-pi-accent/10' : 'text-pi-text-dim hover:text-pi-text hover:bg-pi-surface',
               )}
               title="New file"
               aria-label="New file"
@@ -155,7 +155,7 @@ export const FileTree = memo(function FileTree({
             onClick={() => { setShowSearch(prev => !prev); if (showSearch) setSearchQuery('') }}
             className={cn(
               'p-2 sm:p-1 rounded transition-colors',
-              showSearch ? 'text-forge-accent bg-forge-accent/10' : 'text-forge-text-dim hover:text-forge-text hover:bg-forge-surface',
+              showSearch ? 'text-pi-accent bg-pi-accent/10' : 'text-pi-text-dim hover:text-pi-text hover:bg-pi-surface',
             )}
             title="Search files (Ctrl+F)"
             aria-label="Search files"
@@ -167,9 +167,9 @@ export const FileTree = memo(function FileTree({
 
       {/* New file input */}
       {showNewFile && (
-        <div className="px-2 py-1.5 border-b border-forge-border animate-fade-in">
+        <div className="px-2 py-1.5 border-b border-pi-border animate-fade-in">
           <div className="relative">
-            <FilePlus className="absolute left-2 top-1/2 -translate-y-1/2 w-3 h-3 text-forge-accent" />
+            <FilePlus className="absolute left-2 top-1/2 -translate-y-1/2 w-3 h-3 text-pi-accent" />
             <input
               ref={newFileRef}
               value={newFilePath}
@@ -180,12 +180,12 @@ export const FileTree = memo(function FileTree({
               }}
               placeholder="path/to/file.tsx"
               aria-label="New file path"
-              className="w-full pl-7 pr-7 py-2 sm:py-1 text-xs sm:text-[11px] bg-forge-surface border border-forge-accent/50 rounded-md text-forge-text outline-none focus:border-forge-accent focus:ring-2 focus:ring-forge-accent/20 placeholder:text-forge-text-dim/50"
+              className="w-full pl-7 pr-7 py-2 sm:py-1 text-xs sm:text-[11px] bg-pi-surface border border-pi-accent/50 rounded-md text-pi-text outline-none focus:border-pi-accent focus:ring-2 focus:ring-pi-accent/20 placeholder:text-pi-text-dim/50"
             />
             {newFilePath && (
               <button
                 onClick={handleCreateFile}
-                className="absolute right-1.5 top-1/2 -translate-y-1/2 p-0.5 text-forge-accent hover:text-forge-accent-hover"
+                className="absolute right-1.5 top-1/2 -translate-y-1/2 p-0.5 text-pi-accent hover:text-pi-accent-hover"
                 title="Create file (Enter)"
                 aria-label="Create file"
               >
@@ -198,9 +198,9 @@ export const FileTree = memo(function FileTree({
 
       {/* Search input */}
       {showSearch && (
-        <div className="px-2 py-1.5 border-b border-forge-border animate-fade-in">
+        <div className="px-2 py-1.5 border-b border-pi-border animate-fade-in">
           <div className="relative">
-            <Search className="absolute left-2 top-1/2 -translate-y-1/2 w-3 h-3 text-forge-text-dim" />
+            <Search className="absolute left-2 top-1/2 -translate-y-1/2 w-3 h-3 text-pi-text-dim" />
             <input
               ref={searchRef}
               value={searchQuery}
@@ -208,17 +208,17 @@ export const FileTree = memo(function FileTree({
               onKeyDown={e => { if (e.key === 'Escape') { setShowSearch(false); setSearchQuery('') } }}
               placeholder="Filter files..."
               aria-label="Filter files"
-              className="w-full pl-7 pr-7 py-2 sm:py-1 text-xs sm:text-[11px] bg-forge-surface border border-forge-border rounded-md text-forge-text outline-none focus:border-forge-accent/50 placeholder:text-forge-text-dim/50"
+              className="w-full pl-7 pr-7 py-2 sm:py-1 text-xs sm:text-[11px] bg-pi-surface border border-pi-border rounded-md text-pi-text outline-none focus:border-pi-accent/50 placeholder:text-pi-text-dim/50"
             />
             {searchQuery && (
-              <span className="absolute right-7 top-1/2 -translate-y-1/2 text-[9px] text-forge-text-dim/50 tabular-nums">
+              <span className="absolute right-7 top-1/2 -translate-y-1/2 text-[9px] text-pi-text-dim/50 tabular-nums">
                 {filteredFiles.length} result{filteredFiles.length !== 1 ? 's' : ''}
               </span>
             )}
             {searchQuery && (
               <button
                 onClick={() => setSearchQuery('')}
-                className="absolute right-1.5 top-1/2 -translate-y-1/2 p-0.5 text-forge-text-dim hover:text-forge-text"
+                className="absolute right-1.5 top-1/2 -translate-y-1/2 p-0.5 text-pi-text-dim hover:text-pi-text"
                 aria-label="Clear search"
               >
                 <X className="w-3 h-3" />
@@ -230,13 +230,13 @@ export const FileTree = memo(function FileTree({
 
       {/* Mobile breadcrumbs — show current file path */}
       {activeFile && (
-        <div className="flex items-center gap-0.5 px-2 py-1.5 border-b border-forge-border text-[10px] text-forge-text-dim font-mono overflow-x-auto whitespace-nowrap md:hidden shrink-0">
+        <div className="flex items-center gap-0.5 px-2 py-1.5 border-b border-pi-border text-[10px] text-pi-text-dim font-mono overflow-x-auto whitespace-nowrap md:hidden shrink-0">
           {activeFile.split('/').map((segment, i, arr) => (
             <span key={i} className="flex items-center gap-0.5">
               {i > 0 && <ChevronRight className="w-2.5 h-2.5 shrink-0 opacity-40" />}
               <span className={cn(
                 'px-0.5 rounded',
-                i === arr.length - 1 ? 'text-forge-text font-medium' : 'text-forge-text-dim',
+                i === arr.length - 1 ? 'text-pi-text font-medium' : 'text-pi-text-dim',
               )}>{segment}</span>
             </span>
           ))}
@@ -245,9 +245,9 @@ export const FileTree = memo(function FileTree({
 
       {/* Recently Modified section */}
       {modifiedFiles && modifiedFiles.size > 0 && !searchQuery && (
-        <div className="border-b border-forge-border shrink-0">
+        <div className="border-b border-pi-border shrink-0">
           <div className="px-3 py-1.5 flex items-center justify-between">
-            <span className="text-[9px] uppercase tracking-wider text-forge-accent/70 font-semibold">
+            <span className="text-[9px] uppercase tracking-wider text-pi-accent/70 font-semibold">
               Modified ({modifiedFiles.size})
             </span>
           </div>
@@ -261,7 +261,7 @@ export const FileTree = memo(function FileTree({
                   onClick={() => onFileSelect(path)}
                   className={cn(
                     'w-full flex items-center gap-1.5 px-2 py-1 text-left text-[11px] rounded-md transition-colors group',
-                    activeFile === path ? 'bg-forge-accent/10 text-forge-accent' : 'text-forge-text-dim hover:bg-forge-surface hover:text-forge-text',
+                    activeFile === path ? 'bg-pi-accent/10 text-pi-accent' : 'text-pi-text-dim hover:bg-pi-surface hover:text-pi-text',
                   )}
                 >
                   <FileTypeDot name={name} />
@@ -284,17 +284,17 @@ export const FileTree = memo(function FileTree({
       <div className="flex-1 overflow-y-auto py-1 scroll-fade-bottom">
         {files.length === 0 ? (
           <div className="flex flex-col items-center justify-center h-full px-4 py-8">
-            <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-forge-accent/10 to-purple-500/10 flex items-center justify-center mb-3 animate-breathe">
-              <FileText className="w-5 h-5 text-forge-accent/50" />
+            <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-pi-accent/10 to-purple-500/10 flex items-center justify-center mb-3 animate-breathe">
+              <FileText className="w-5 h-5 text-pi-accent/50" />
             </div>
-            <p className="text-xs font-medium text-forge-text-dim text-center">No files yet</p>
-            <p className="text-[10px] text-forge-text-dim/60 text-center mt-1 max-w-[180px]">
+            <p className="text-xs font-medium text-pi-text-dim text-center">No files yet</p>
+            <p className="text-[10px] text-pi-text-dim/60 text-center mt-1 max-w-[180px]">
               Describe what you want to build in the chat to get started
             </p>
             {onFileCreate && (
               <button
                 onClick={() => setShowNewFile(true)}
-                className="mt-3 flex items-center gap-1.5 px-3 py-1.5 text-[11px] text-forge-accent hover:bg-forge-accent/10 rounded-lg transition-colors"
+                className="mt-3 flex items-center gap-1.5 px-3 py-1.5 text-[11px] text-pi-accent hover:bg-pi-accent/10 rounded-lg transition-colors"
               >
                 <FilePlus className="w-3 h-3" />
                 Create a file
@@ -302,7 +302,7 @@ export const FileTree = memo(function FileTree({
             )}
           </div>
         ) : filteredFiles.length === 0 ? (
-          <div className="px-3 py-6 text-center text-forge-text-dim text-[11px]">
+          <div className="px-3 py-6 text-center text-pi-text-dim text-[11px]">
             No files matching &ldquo;{searchQuery}&rdquo;
           </div>
         ) : (
@@ -449,7 +449,7 @@ function TreeItem({
         {depth > 0 && Array.from({ length: depth }, (_, i) => (
           <span
             key={i}
-            className="absolute top-0 bottom-0 border-l border-forge-border/40 group-hover:border-forge-border/60 transition-colors"
+            className="absolute top-0 bottom-0 border-l border-pi-border/40 group-hover:border-pi-border/60 transition-colors"
             style={{ left: `${i * 12 + 13}px` }}
             aria-hidden="true"
           />
@@ -463,24 +463,24 @@ function TreeItem({
           aria-expanded={isDir ? isExpanded : undefined}
           aria-label={isDir ? `${node.name} folder` : node.name}
           className={cn(
-            'flex items-center gap-1.5 sm:gap-1 flex-1 text-left px-2 py-2.5 sm:py-[5px] text-xs sm:text-[12px] hover:bg-forge-surface-hover/50 transition-all duration-150 min-h-[44px] sm:min-h-0 border-l-2',
-            isActive && !isDir && 'bg-forge-accent/10 text-forge-accent border-l-forge-accent',
-            !isActive && !isDir && 'text-forge-text-dim hover:text-forge-text border-l-transparent hover:translate-x-0.5',
-            !isActive && isDir && 'text-forge-text-dim hover:text-forge-text border-l-transparent',
+            'flex items-center gap-1.5 sm:gap-1 flex-1 text-left px-2 py-2.5 sm:py-[5px] text-xs sm:text-[12px] hover:bg-pi-surface-hover/50 transition-all duration-150 min-h-[44px] sm:min-h-0 border-l-2',
+            isActive && !isDir && 'bg-pi-accent/10 text-pi-accent border-l-pi-accent',
+            !isActive && !isDir && 'text-pi-text-dim hover:text-pi-text border-l-transparent hover:translate-x-0.5',
+            !isActive && isDir && 'text-pi-text-dim hover:text-pi-text border-l-transparent',
             !isDir && aiEditingFiles?.has(node.path) && 'animate-ai-edit-pulse',
           )}
           style={{ paddingLeft: `${depth * 12 + 8}px` }}
         >
           {isDir ? (
             <>
-              <ChevronRight className={cn('w-3 h-3 shrink-0 text-forge-text-dim transition-transform duration-200', isExpanded && 'rotate-90')} />
+              <ChevronRight className={cn('w-3 h-3 shrink-0 text-pi-text-dim transition-transform duration-200', isExpanded && 'rotate-90')} />
               {isExpanded ? (
                 <FolderOpen className="w-3.5 h-3.5 shrink-0 text-amber-500 transition-colors" />
               ) : (
                 <Folder className="w-3.5 h-3.5 shrink-0 text-amber-400 transition-colors" />
               )}
               {node.children && (
-                <span className="text-[9px] text-forge-text-dim/40 ml-0.5">({node.children.length})</span>
+                <span className="text-[9px] text-pi-text-dim/40 ml-0.5">({node.children.length})</span>
               )}
             </>
           ) : (
@@ -497,7 +497,7 @@ function TreeItem({
               onChange={(e) => setNewName(e.target.value)}
               onBlur={handleRename}
               onKeyDown={handleKeyDown}
-              className="ml-1 bg-forge-surface border border-forge-accent rounded px-1 py-0 text-[12px] text-forge-text outline-none focus:ring-2 focus:ring-forge-accent/30 flex-1 min-w-0"
+              className="ml-1 bg-pi-surface border border-pi-accent rounded px-1 py-0 text-[12px] text-pi-text outline-none focus:ring-2 focus:ring-pi-accent/30 flex-1 min-w-0"
             />
           ) : (
             <>
@@ -509,7 +509,7 @@ function TreeItem({
                 return (
                   <span className="text-[9px] font-mono ml-auto mr-1 shrink-0 flex gap-0.5">
                     {diff.added > 0 && <span className="text-emerald-500">+{diff.added}</span>}
-                    {diff.removed > 0 && <span className="text-forge-danger">-{diff.removed}</span>}
+                    {diff.removed > 0 && <span className="text-pi-danger">-{diff.removed}</span>}
                   </span>
                 )
               })()}
@@ -529,11 +529,11 @@ function TreeItem({
               setContextMenuPos({ x: rect.right - 140, y: rect.bottom + 4 })
               setShowContextMenu(!showContextMenu)
             }}
-            className="opacity-60 sm:opacity-0 sm:group-hover:opacity-100 p-2 sm:p-1 hover:bg-forge-surface hover:rotate-90 rounded transition-all duration-150 mr-1"
+            className="opacity-60 sm:opacity-0 sm:group-hover:opacity-100 p-2 sm:p-1 hover:bg-pi-surface hover:rotate-90 rounded transition-all duration-150 mr-1"
             aria-label="File options"
             title="More options"
           >
-            <MoreHorizontal className="w-4 h-4 sm:w-3 sm:h-3 text-forge-text-dim" />
+            <MoreHorizontal className="w-4 h-4 sm:w-3 sm:h-3 text-pi-text-dim" />
           </button>
         )}
       </div>
@@ -542,7 +542,7 @@ function TreeItem({
       {showContextMenu && !isDir && contextMenuPos && (
         <div
           ref={contextMenuRef}
-          className="fixed z-50 bg-forge-panel border border-forge-border rounded-lg shadow-lg py-1 min-w-[140px] animate-scale-in origin-top-right"
+          className="fixed z-50 bg-pi-panel border border-pi-border rounded-lg shadow-lg py-1 min-w-[140px] animate-scale-in origin-top-right"
           style={{ left: Math.min(contextMenuPos.x, window.innerWidth - 160), top: Math.min(contextMenuPos.y, window.innerHeight - 200) }}
         >
           {onFileRename && (
@@ -551,7 +551,7 @@ function TreeItem({
                 setIsRenaming(true)
                 setShowContextMenu(false)
               }}
-              className="flex items-center gap-2 w-full px-3 py-2.5 sm:py-1.5 text-sm sm:text-xs text-forge-text hover:bg-forge-surface transition-colors"
+              className="flex items-center gap-2 w-full px-3 py-2.5 sm:py-1.5 text-sm sm:text-xs text-pi-text hover:bg-pi-surface transition-colors"
             >
               <Edit3 className="w-4 h-4 sm:w-3 sm:h-3" />
               Rename
@@ -563,7 +563,7 @@ function TreeItem({
               toast.success('Path copied', { duration: 1500 })
               setShowContextMenu(false)
             }}
-            className="flex items-center gap-2 w-full px-3 py-2.5 sm:py-1.5 text-sm sm:text-xs text-forge-text hover:bg-forge-surface transition-colors"
+            className="flex items-center gap-2 w-full px-3 py-2.5 sm:py-1.5 text-sm sm:text-xs text-pi-text hover:bg-pi-surface transition-colors"
           >
             <Copy className="w-4 h-4 sm:w-3 sm:h-3" />
             Copy path
@@ -571,7 +571,7 @@ function TreeItem({
           {fileContents && fileContents[node.path] !== undefined && (
             <button
               onClick={handleCopyContents}
-              className="flex items-center gap-2 w-full px-3 py-2.5 sm:py-1.5 text-sm sm:text-xs text-forge-text hover:bg-forge-surface transition-colors"
+              className="flex items-center gap-2 w-full px-3 py-2.5 sm:py-1.5 text-sm sm:text-xs text-pi-text hover:bg-pi-surface transition-colors"
             >
               {copied
                 ? <Check className="w-4 h-4 sm:w-3 sm:h-3 text-green-500" />
@@ -586,7 +586,7 @@ function TreeItem({
                 onFileDelete(node.path)
                 setShowContextMenu(false)
               }}
-              className="flex items-center gap-2 w-full px-3 py-2.5 sm:py-1.5 text-sm sm:text-xs text-forge-danger hover:bg-forge-danger/10 transition-colors"
+              className="flex items-center gap-2 w-full px-3 py-2.5 sm:py-1.5 text-sm sm:text-xs text-pi-danger hover:bg-pi-danger/10 transition-colors"
             >
               <Trash2 className="w-4 h-4 sm:w-3 sm:h-3" />
               Delete

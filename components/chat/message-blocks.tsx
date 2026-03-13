@@ -33,10 +33,10 @@ export function ReasoningBlock({ text }: { text: string }) {
         <div className="w-5 h-5 rounded-md flex items-center justify-center shrink-0 text-purple-600 bg-purple-50 dark:text-purple-400 dark:bg-purple-950/40">
           <Brain className="w-3 h-3" />
         </div>
-        <span className="flex-1 text-left text-forge-text-dim font-medium truncate">
+        <span className="flex-1 text-left text-pi-text-dim font-medium truncate">
           {expanded ? 'Thinking' : preview}{!expanded && isTruncated ? '...' : ''}
         </span>
-        <ChevronRight className={cn('w-3.5 h-3.5 text-forge-text-dim/40 transition-transform duration-200 shrink-0', expanded && 'rotate-90')} />
+        <ChevronRight className={cn('w-3.5 h-3.5 text-pi-text-dim/40 transition-transform duration-200 shrink-0', expanded && 'rotate-90')} />
       </button>
       <AnimatePresence>
         {expanded && (
@@ -47,8 +47,8 @@ export function ReasoningBlock({ text }: { text: string }) {
             transition={{ duration: 0.25 }}
             className="overflow-hidden"
           >
-            <div className="ml-2.5 border-l border-forge-border/40 pl-4 py-2">
-              <p className="text-[12.5px] text-forge-text-dim/70 leading-relaxed whitespace-pre-wrap">{text}</p>
+            <div className="ml-2.5 border-l border-pi-border/40 pl-4 py-2">
+              <p className="text-[12.5px] text-pi-text-dim/70 leading-relaxed whitespace-pre-wrap">{text}</p>
             </div>
           </motion.div>
         )}
@@ -81,17 +81,17 @@ export function CommandOutputBlock({ toolName, args, result }: {
       transition={{ duration: 0.2 }}
       className="tool-timeline-item"
     >
-      <div className="rounded-lg border border-forge-border bg-forge-terminal dark:bg-forge-terminal-dark overflow-hidden text-[12px] font-mono">
+      <div className="rounded-lg border border-pi-border bg-pi-terminal dark:bg-pi-terminal-dark overflow-hidden text-[12px] font-mono">
         {/* Command header */}
         <div className={cn(
           'flex items-center gap-2 px-3 py-1.5 border-b',
-          ok ? 'border-forge-diff-added/30 bg-forge-diff-added/10' : 'border-forge-diff-removed/30 bg-forge-diff-removed/10'
+          ok ? 'border-pi-diff-added/30 bg-pi-diff-added/10' : 'border-pi-diff-removed/30 bg-pi-diff-removed/10'
         )}>
-          <Terminal className={cn('w-3 h-3', ok ? 'text-forge-diff-added' : 'text-forge-diff-removed')} />
+          <Terminal className={cn('w-3 h-3', ok ? 'text-pi-diff-added' : 'text-pi-diff-removed')} />
           <span className="text-gray-300 dark:text-gray-300 flex-1 truncate">$ {command}</span>
           <span className={cn(
             'text-[10px] px-1.5 py-0.5 rounded',
-            ok ? 'text-forge-diff-added bg-forge-diff-added/20' : 'text-forge-diff-removed bg-forge-diff-removed/20'
+            ok ? 'text-pi-diff-added bg-pi-diff-added/20' : 'text-pi-diff-removed bg-pi-diff-removed/20'
           )}>
             {ok ? 'exit 0' : `exit ${exitCode}`}
           </span>
@@ -101,7 +101,7 @@ export function CommandOutputBlock({ toolName, args, result }: {
           <div className="px-3 py-2">
             <pre className={cn(
               'text-[11.5px] leading-relaxed whitespace-pre-wrap break-all',
-              ok ? 'text-gray-300' : 'text-forge-diff-removed/80'
+              ok ? 'text-gray-300' : 'text-pi-diff-removed/80'
             )}>
               {expanded ? output : preview}
             </pre>
@@ -142,10 +142,10 @@ export function InlineDiffBlock({ oldStr, newStr, path }: {
         onClick={() => setExpanded(!expanded)}
         className="flex items-center gap-2 w-full py-0.5 text-[11px] hover:opacity-80 transition-opacity"
       >
-        <span className="text-forge-diff-removed font-mono">-{oldLines.length}</span>
-        <span className="text-forge-diff-added font-mono">+{newLines.length}</span>
-        <span className="text-forge-text-dim/50 truncate flex-1 text-left">{path}</span>
-        <ChevronRight className={cn('w-3 h-3 text-forge-text-dim/30 transition-transform', expanded && 'rotate-90')} />
+        <span className="text-pi-diff-removed font-mono">-{oldLines.length}</span>
+        <span className="text-pi-diff-added font-mono">+{newLines.length}</span>
+        <span className="text-pi-text-dim/50 truncate flex-1 text-left">{path}</span>
+        <ChevronRight className={cn('w-3 h-3 text-pi-text-dim/30 transition-transform', expanded && 'rotate-90')} />
       </button>
       <AnimatePresence>
         {expanded && (
@@ -156,16 +156,16 @@ export function InlineDiffBlock({ oldStr, newStr, path }: {
             transition={{ duration: 0.2 }}
             className="overflow-hidden"
           >
-            <div className="rounded-lg border border-forge-border bg-forge-terminal dark:bg-forge-terminal-dark overflow-hidden text-[11px] font-mono mt-1 max-h-[200px] overflow-y-auto">
+            <div className="rounded-lg border border-pi-border bg-pi-terminal dark:bg-pi-terminal-dark overflow-hidden text-[11px] font-mono mt-1 max-h-[200px] overflow-y-auto">
               {oldLines.map((line, i) => (
-                <div key={`old-${i}`} className="px-2 py-0.5 bg-forge-diff-removed/10 text-forge-diff-removed/80">
-                  <span className="text-forge-diff-removed/50 inline-block w-4 text-right mr-2 select-none">-</span>
+                <div key={`old-${i}`} className="px-2 py-0.5 bg-pi-diff-removed/10 text-pi-diff-removed/80">
+                  <span className="text-pi-diff-removed/50 inline-block w-4 text-right mr-2 select-none">-</span>
                   {line}
                 </div>
               ))}
               {newLines.map((line, i) => (
-                <div key={`new-${i}`} className="px-2 py-0.5 bg-forge-diff-added/10 text-forge-diff-added/80">
-                  <span className="text-forge-diff-added/50 inline-block w-4 text-right mr-2 select-none">+</span>
+                <div key={`new-${i}`} className="px-2 py-0.5 bg-pi-diff-added/10 text-pi-diff-added/80">
+                  <span className="text-pi-diff-added/50 inline-block w-4 text-right mr-2 select-none">+</span>
                   {line}
                 </div>
               ))}
@@ -190,12 +190,12 @@ export function CostChip({ inputTokens, outputTokens, cost, model }: {
     : model.includes('opus') ? 'Opus'
     : 'Sonnet'
   return (
-    <div className="flex items-center gap-1.5 text-[10px] text-forge-text-dim/40 mt-1 select-none cost-chip-enter" title={`${modelLabel}: ${inputTokens.toLocaleString()} input + ${outputTokens.toLocaleString()} output tokens`}>
+    <div className="flex items-center gap-1.5 text-[10px] text-pi-text-dim/40 mt-1 select-none cost-chip-enter" title={`${modelLabel}: ${inputTokens.toLocaleString()} input + ${outputTokens.toLocaleString()} output tokens`}>
       <Coins className="w-2.5 h-2.5" />
       <span>{formatTokens(inputTokens)} in</span>
-      <span className="text-forge-text-dim/20">&middot;</span>
+      <span className="text-pi-text-dim/20">&middot;</span>
       <span>{formatTokens(outputTokens)} out</span>
-      <span className="text-forge-text-dim/20">&middot;</span>
+      <span className="text-pi-text-dim/20">&middot;</span>
       <span>~${cost < 0.01 ? cost.toFixed(4) : cost.toFixed(3)}</span>
     </div>
   )
@@ -238,7 +238,7 @@ export function ExpandableToolItem({ toolName, args, result, canExpand, children
             transition={{ type: 'spring', stiffness: 300, damping: 28 }}
             className="overflow-hidden"
           >
-            <div className="border-t border-forge-border/20 px-3.5 py-2.5">
+            <div className="border-t border-pi-border/20 px-3.5 py-2.5">
               <ToolResultDetail toolName={toolName} args={args} result={result || null} />
             </div>
           </motion.div>
@@ -251,26 +251,26 @@ export function ExpandableToolItem({ toolName, args, result, canExpand, children
 /** Suggestion improvement card */
 export function SuggestionBlock({ args }: { args: Record<string, string> }) {
   const priority = args.priority || 'medium'
-  const priorityColor = priority === 'high' ? 'text-red-600 bg-red-50 dark:text-red-400 dark:bg-red-950/40' : priority === 'medium' ? 'text-forge-warning bg-forge-warning/10' : 'text-blue-600 bg-blue-50 dark:text-blue-400 dark:bg-blue-950/40'
+  const priorityColor = priority === 'high' ? 'text-red-600 bg-red-50 dark:text-red-400 dark:bg-red-950/40' : priority === 'medium' ? 'text-pi-warning bg-pi-warning/10' : 'text-blue-600 bg-blue-50 dark:text-blue-400 dark:bg-blue-950/40'
   return (
     <motion.div
       initial={{ opacity: 0, y: 4 }}
       animate={{ opacity: 1, y: 0 }}
-      className="border border-forge-warning/30 bg-forge-warning/5 rounded-xl p-3.5 text-[12px]"
+      className="border border-pi-warning/30 bg-pi-warning/5 rounded-xl p-3.5 text-[12px]"
     >
       <div className="flex items-center gap-2 mb-2">
-        <div className="w-5 h-5 rounded-md flex items-center justify-center shrink-0 text-forge-warning bg-forge-warning/10">
+        <div className="w-5 h-5 rounded-md flex items-center justify-center shrink-0 text-pi-warning bg-pi-warning/10">
           <Lightbulb className="w-3 h-3" />
         </div>
-        <span className="font-medium text-forge-warning">Suggestion</span>
+        <span className="font-medium text-pi-warning">Suggestion</span>
         <span className={cn('px-1.5 py-0.5 rounded-md text-[10px] font-medium uppercase', priorityColor)}>{priority}</span>
       </div>
-      <p className="text-forge-warning/80 mb-1">{args.issue || ''}</p>
+      <p className="text-pi-warning/80 mb-1">{args.issue || ''}</p>
       {args.suggestion && (
-        <pre className="text-[11.5px] bg-forge-surface text-forge-text rounded-md p-2.5 mt-1.5 whitespace-pre-wrap font-mono border border-forge-border/30">{args.suggestion}</pre>
+        <pre className="text-[11.5px] bg-pi-surface text-pi-text rounded-md p-2.5 mt-1.5 whitespace-pre-wrap font-mono border border-pi-border/30">{args.suggestion}</pre>
       )}
       {args.file && (
-        <span className="inline-block mt-1.5 px-1.5 py-0.5 bg-forge-surface text-forge-text-dim rounded-md text-[11px] font-mono border border-forge-border/30">{args.file}</span>
+        <span className="inline-block mt-1.5 px-1.5 py-0.5 bg-pi-surface text-pi-text-dim rounded-md text-[11px] font-mono border border-pi-border/30">{args.file}</span>
       )}
     </motion.div>
   )
@@ -286,13 +286,13 @@ export function DeploySuccessCard({ toolName, resultData }: {
     <motion.div
       initial={{ opacity: 0, scale: 0.98 }}
       animate={{ opacity: 1, scale: 1 }}
-      className="border border-forge-success/30 bg-forge-success/5 rounded-xl p-3.5 text-[12px] animate-success-glow"
+      className="border border-pi-success/30 bg-pi-success/5 rounded-xl p-3.5 text-[12px] animate-success-glow"
     >
       <div className="flex items-center gap-2 mb-2">
-        <div className="w-5 h-5 rounded-md flex items-center justify-center shrink-0 text-forge-success bg-forge-success/10">
+        <div className="w-5 h-5 rounded-md flex items-center justify-center shrink-0 text-pi-success bg-pi-success/10">
           <CheckCircle className="w-3 h-3" />
         </div>
-        <span className="font-medium text-forge-success">
+        <span className="font-medium text-pi-success">
           {toolName === 'deploy_to_vercel' ? 'Deployed successfully' : `${String(resultData.type || 'Task')} completed`}
         </span>
       </div>
@@ -300,7 +300,7 @@ export function DeploySuccessCard({ toolName, resultData }: {
         href={deployUrl}
         target="_blank"
         rel="noopener noreferrer"
-        className="flex items-center gap-1.5 text-[11.5px] text-forge-accent hover:underline font-mono break-all"
+        className="flex items-center gap-1.5 text-[11.5px] text-pi-accent hover:underline font-mono break-all"
       >
         {deployUrl}
         <ExternalLink className="w-3 h-3 shrink-0" />
@@ -355,12 +355,12 @@ export function TaskFailedCard({ resultData, friendlyError }: {
     <motion.div
       initial={{ opacity: 0, y: 4 }}
       animate={{ opacity: 1, y: 0 }}
-      className="flex items-center gap-2.5 px-3 py-2 rounded-xl text-[12px] border border-forge-danger/30 bg-forge-danger/5"
+      className="flex items-center gap-2.5 px-3 py-2 rounded-xl text-[12px] border border-pi-danger/30 bg-pi-danger/5"
     >
-      <div className="w-5 h-5 rounded-md flex items-center justify-center shrink-0 text-forge-danger bg-forge-danger/10">
+      <div className="w-5 h-5 rounded-md flex items-center justify-center shrink-0 text-pi-danger bg-pi-danger/10">
         <XCircle className="w-3 h-3" />
       </div>
-      <span className="truncate flex-1 text-forge-danger" title={rawError}>
+      <span className="truncate flex-1 text-pi-danger" title={rawError}>
         {`${resultData.type || 'Task'}: ${friendlyError || 'failed'}`}
       </span>
     </motion.div>
@@ -373,12 +373,12 @@ export function TaskCompletedCard({ resultData }: { resultData: Record<string, u
     <motion.div
       initial={{ opacity: 0, y: 4 }}
       animate={{ opacity: 1, y: 0 }}
-      className="flex items-center gap-2.5 px-3 py-2 rounded-xl text-[12px] border border-forge-success/30 bg-forge-success/5"
+      className="flex items-center gap-2.5 px-3 py-2 rounded-xl text-[12px] border border-pi-success/30 bg-pi-success/5"
     >
-      <div className="w-5 h-5 rounded-md flex items-center justify-center shrink-0 text-forge-success bg-forge-success/10">
+      <div className="w-5 h-5 rounded-md flex items-center justify-center shrink-0 text-pi-success bg-pi-success/10">
         <CheckCircle className="w-3 h-3" />
       </div>
-      <span className="truncate flex-1 text-forge-success">
+      <span className="truncate flex-1 text-pi-success">
         {`${resultData.type || 'Task'}: completed`}
       </span>
     </motion.div>

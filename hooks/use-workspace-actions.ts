@@ -238,7 +238,7 @@ export function useWorkspaceActions(deps: WorkspaceActionsDeps) {
       if (res.ok) {
         onGithubRepoUrlChange?.(repoUrl)
       }
-    } catch (e) { console.warn('[forge:workspace] Failed to auto-connect repo:', e) }
+    } catch (e) { console.warn('[pi:workspace] Failed to auto-connect repo:', e) }
   }, [projectId, onGithubRepoUrlChange])
 
   const handleDialogSuccess = useCallback((result: Record<string, unknown>) => {

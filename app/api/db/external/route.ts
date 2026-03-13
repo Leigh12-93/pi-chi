@@ -9,7 +9,7 @@ export async function GET() {
   if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
   const { data, ok } = await supabaseFetch(
-    `/forge_user_settings?github_username=eq.${encodeURIComponent(session.githubUsername)}&select=encrypted_supabase_url,encrypted_supabase_key`,
+    `/pi_user_settings?github_username=eq.${encodeURIComponent(session.githubUsername)}&select=encrypted_supabase_url,encrypted_supabase_key`,
   )
 
   if (!ok || !Array.isArray(data) || data.length === 0 || !data[0].encrypted_supabase_url || !data[0].encrypted_supabase_key) {
@@ -41,7 +41,7 @@ export async function POST(req: Request) {
 
   // Only allow saved credentials — never accept raw keys in request body
   const { data, ok } = await supabaseFetch(
-    `/forge_user_settings?github_username=eq.${encodeURIComponent(session.githubUsername)}&select=encrypted_supabase_url,encrypted_supabase_key`,
+    `/pi_user_settings?github_username=eq.${encodeURIComponent(session.githubUsername)}&select=encrypted_supabase_url,encrypted_supabase_key`,
   )
   if (!ok || !Array.isArray(data) || data.length === 0 || !data[0].encrypted_supabase_url) {
     return NextResponse.json({ error: 'No saved Supabase credentials. Connect your database first.' }, { status: 400 })

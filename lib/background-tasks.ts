@@ -94,7 +94,7 @@ export class TaskStore {
     operation: (onProgress: (msg: string) => Promise<void>) => Promise<unknown>,
   ): Promise<{ ok: true; taskId: string } | { ok: false; error: string }> {
     // Insert the task row
-    const insertResult = await sbFetch('/forge_tasks', {
+    const insertResult = await sbFetch('/pi_tasks', {
       method: 'POST',
       body: JSON.stringify({
         project_id: projectId,
@@ -115,7 +115,7 @@ export class TaskStore {
 
     // Progress callback — patches the task row's progress field
     const onProgress = async (msg: string) => {
-      await sbFetch(`/forge_tasks?id=eq.${taskId}`, {
+      await sbFetch(`/pi_tasks?id=eq.${taskId}`, {
         method: 'PATCH',
         body: JSON.stringify({ progress: msg }),
       })
@@ -130,7 +130,7 @@ export class TaskStore {
         let retries = MAX_RETRIES
         while (retries >= 0) {
           try {
-            const res = await sbFetch(`/forge_tasks?id=eq.${taskId}`, {
+            const res = await sbFetch(`/pi_tasks?id=eq.${taskId}`, {
               method: 'PATCH',
               body: JSON.stringify({
                 status: 'completed',
@@ -151,7 +151,7 @@ export class TaskStore {
         let retries = MAX_RETRIES
         while (retries >= 0) {
           try {
-            const res = await sbFetch(`/forge_tasks?id=eq.${taskId}`, {
+            const res = await sbFetch(`/pi_tasks?id=eq.${taskId}`, {
               method: 'PATCH',
               body: JSON.stringify({
                 status: 'failed',
@@ -178,7 +178,7 @@ export class TaskStore {
    * Check a persistent task's status from Supabase.
    */
   static async checkPersistent(sbFetch: SupabaseFetch, taskId: string): Promise<TaskStatus | null> {
-    const result = await sbFetch(`/forge_tasks?id=eq.${taskId}&select=*`)
+    const result = await sbFetch(`/pi_tasks?id=eq.${taskId}&select=*`)
     if (!result.ok || !Array.isArray(result.data) || result.data.length === 0) return null
 
     const row = result.data[0] as Record<string, unknown>
@@ -208,7 +208,7 @@ export class TaskStore {
     }
 
     // Patch the row regardless — covers cases where the controller already finished
-    const result = await sbFetch(`/forge_tasks?id=eq.${taskId}`, {
+    const result = await sbFetch(`/pi_tasks?id=eq.${taskId}`, {
       method: 'PATCH',
       body: JSON.stringify({
         status: 'cancelled',
@@ -242,7 +242,7 @@ export class TaskStore {
 
       // Step 1: Find stale task IDs before patching, so we know which controllers to abort
       const listResult = await sbFetch(
-        `/forge_tasks?status=eq.running&created_at=lt.${cutoff}&select=id`,
+        `/pi_tasks?status=eq.running&created_at=lt.${cutoff}&select=id`,
         { method: 'GET' },
       )
       let staleIds: Set<string> = new Set()
@@ -255,7 +255,7 @@ export class TaskStore {
       let patched = 0
       if (staleIds.size > 0) {
         const patchResult = await sbFetch(
-          `/forge_tasks?status=eq.running&created_at=lt.${cutoff}`,
+          `/pi_tasks?status=eq.running&created_at=lt.${cutoff}`,
           {
             method: 'PATCH',
             body: JSON.stringify({

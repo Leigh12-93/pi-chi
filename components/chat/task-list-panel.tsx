@@ -21,13 +21,13 @@ interface TaskListPanelProps {
 }
 
 const STATUS_CONFIG: Record<string, { Icon: typeof Circle; color: string; bg: string }> = {
-  pending: { Icon: Circle, color: 'text-forge-text-dim/40', bg: '' },
-  in_progress: { Icon: Loader2, color: 'text-forge-accent', bg: 'bg-forge-accent/5' },
+  pending: { Icon: Circle, color: 'text-pi-text-dim/40', bg: '' },
+  in_progress: { Icon: Loader2, color: 'text-pi-accent', bg: 'bg-pi-accent/5' },
   completed: { Icon: CheckCircle, color: 'text-emerald-500', bg: '' },
   done: { Icon: CheckCircle, color: 'text-emerald-500', bg: '' },
   failed: { Icon: XCircle, color: 'text-red-500', bg: 'bg-red-50/50 dark:bg-red-950/10' },
   error: { Icon: XCircle, color: 'text-red-500', bg: 'bg-red-50/50 dark:bg-red-950/10' },
-  blocked: { Icon: Lock, color: 'text-forge-text-dim/30', bg: 'bg-forge-surface/30' },
+  blocked: { Icon: Lock, color: 'text-pi-text-dim/30', bg: 'bg-pi-surface/30' },
 }
 
 export const TaskListPanel = memo(function TaskListPanel({ tasks, defaultCollapsed = false }: TaskListPanelProps) {
@@ -50,21 +50,21 @@ export const TaskListPanel = memo(function TaskListPanel({ tasks, defaultCollaps
       initial={{ opacity: 0, y: 6 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.25, ease: [0.16, 1, 0.3, 1] }}
-      className="border border-forge-border rounded-xl overflow-hidden bg-forge-bg/50"
+      className="border border-pi-border rounded-xl overflow-hidden bg-pi-bg/50"
     >
       {/* Header — clickable to collapse/expand */}
       <button
         onClick={() => setCollapsed(c => !c)}
-        className="w-full px-3.5 py-2.5 border-b border-forge-border/50 flex items-center justify-between hover:bg-forge-surface/30 transition-colors"
+        className="w-full px-3.5 py-2.5 border-b border-pi-border/50 flex items-center justify-between hover:bg-pi-surface/30 transition-colors"
       >
         <div className="flex items-center gap-2">
           <motion.div
             animate={{ rotate: collapsed ? -90 : 0 }}
             transition={{ duration: 0.15 }}
           >
-            <ChevronDown className="w-3.5 h-3.5 text-forge-text-dim/50" />
+            <ChevronDown className="w-3.5 h-3.5 text-pi-text-dim/50" />
           </motion.div>
-          <span className="text-[12px] font-medium text-forge-text-dim">
+          <span className="text-[12px] font-medium text-pi-text-dim">
             {allComplete
               ? 'All tasks complete'
               : inProgress
@@ -75,16 +75,16 @@ export const TaskListPanel = memo(function TaskListPanel({ tasks, defaultCollaps
         </div>
         <span className={cn(
           'text-[11px] font-mono tabular-nums',
-          allComplete ? 'text-emerald-500' : 'text-forge-text-dim/60',
+          allComplete ? 'text-emerald-500' : 'text-pi-text-dim/60',
         )}>
           {done}/{total} {pct > 0 && `(${pct}%)`}
         </span>
       </button>
 
       {/* Progress bar */}
-      <div className="h-[2px] bg-forge-border/30">
+      <div className="h-[2px] bg-pi-border/30">
         <motion.div
-          className={cn('h-full', allComplete ? 'bg-emerald-500' : 'bg-forge-accent')}
+          className={cn('h-full', allComplete ? 'bg-emerald-500' : 'bg-pi-accent')}
           initial={{ width: 0 }}
           animate={{ width: `${pct}%` }}
           transition={{ duration: 0.4, ease: [0.16, 1, 0.3, 1] }}
@@ -136,14 +136,14 @@ export const TaskListPanel = memo(function TaskListPanel({ tasks, defaultCollaps
                       </motion.div>
                       <span className={cn(
                         'flex-1 min-w-0 truncate transition-all duration-300',
-                        isComplete ? 'text-forge-text-dim line-through' : 'text-forge-text',
+                        isComplete ? 'text-pi-text-dim line-through' : 'text-pi-text',
                         (task.status === 'error' || task.status === 'failed') && 'text-red-500',
-                        task.status === 'blocked' && 'text-forge-text-dim/40',
+                        task.status === 'blocked' && 'text-pi-text-dim/40',
                       )}>
                         {task.label}
                       </span>
                       {task.status === 'blocked' && blockerLabels && blockerLabels.length > 0 && (
-                        <span className="text-[9px] text-forge-text-dim/30 truncate max-w-[120px]" title={`Blocked by: ${blockerLabels.join(', ')}`}>
+                        <span className="text-[9px] text-pi-text-dim/30 truncate max-w-[120px]" title={`Blocked by: ${blockerLabels.join(', ')}`}>
                           blocked
                         </span>
                       )}
@@ -162,7 +162,7 @@ export const TaskListPanel = memo(function TaskListPanel({ tasks, defaultCollaps
                     if (phaseTasks.length === 0) return null
                     return (
                       <div key={phase}>
-                        <div className="px-2 pt-2 pb-0.5 text-[10px] text-forge-text-dim/40 uppercase tracking-wider font-medium">{phase}</div>
+                        <div className="px-2 pt-2 pb-0.5 text-[10px] text-pi-text-dim/40 uppercase tracking-wider font-medium">{phase}</div>
                         {phaseTasks.map(renderTask)}
                       </div>
                     )

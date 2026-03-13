@@ -30,19 +30,19 @@ export function createDbTools(ctx: ToolContext) {
 
   return {
     db_query: tool({
-      description: 'Query the Supabase database. Restricted to forge_* tables and credit_packages (read-only). Tables: forge_projects, forge_project_files, forge_chat_messages, forge_deployments, forge_tasks, credit_packages.',
+      description: 'Query the Supabase database. Restricted to pi_* tables and credit_packages (read-only). Tables: pi_projects, pi_project_files, pi_chat_messages, pi_deployments, pi_tasks, credit_packages.',
       inputSchema: z.object({
-        table: z.string().describe('Table name, e.g. "forge_projects"'),
+        table: z.string().describe('Table name, e.g. "pi_projects"'),
         select: z.string().optional().describe('Columns to select, e.g. "id, name, created_at" (default: *)'),
         filters: z.string().optional().describe('PostgREST filter query string, e.g. "status=eq.active&limit=10"'),
         order: z.string().optional().describe('Order clause, e.g. "created_at.desc"'),
         limit: z.number().optional().describe('Max rows to return (default: 50)'),
       }),
       execute: async ({ table, select, filters, order, limit }) => {
-        // Security: restrict to forge_* tables + credit_packages read-only
-        const ALLOWED_TABLES = /^(forge_\w+|credit_packages)$/
+        // Security: restrict to pi_* tables + credit_packages read-only
+        const ALLOWED_TABLES = /^(pi_\w+|credit_packages)$/
         if (!ALLOWED_TABLES.test(table)) {
-          return { error: `Access denied: db_query restricted to forge_* tables. "${table}" is not allowed.` }
+          return { error: `Access denied: db_query restricted to pi_* tables. "${table}" is not allowed.` }
         }
 
         const params = new URLSearchParams()
@@ -70,10 +70,10 @@ export function createDbTools(ctx: ToolContext) {
     }),
 
     db_mutate: tool({
-      description: 'Insert, update, or delete data in forge_* tables in the Supabase database.',
+      description: 'Insert, update, or delete data in pi_* tables in the Supabase database.',
       inputSchema: z.object({
         operation: z.enum(['insert', 'update', 'upsert', 'delete']).describe('Operation type'),
-        table: z.string().describe('Table name (must start with forge_)'),
+        table: z.string().describe('Table name (must start with pi_)'),
         data: z.union([
           z.record(z.string(), z.unknown()),
           z.array(z.record(z.string(), z.unknown())),
@@ -82,10 +82,10 @@ export function createDbTools(ctx: ToolContext) {
         onConflict: z.string().optional().describe('For upsert: conflict column(s), e.g. "project_id,path"'),
       }),
       execute: async ({ operation, table, data, filters, onConflict }) => {
-        // Security: restrict to forge_* tables only
-        const ALLOWED_MUTATE_TABLES = /^forge_\w+$/
+        // Security: restrict to pi_* tables only
+        const ALLOWED_MUTATE_TABLES = /^pi_\w+$/
         if (!ALLOWED_MUTATE_TABLES.test(table)) {
-          return { error: `Access denied: can only mutate forge_* tables, got "${table}"` }
+          return { error: `Access denied: can only mutate pi_* tables, got "${table}"` }
         }
 
         const path = `/${table}`
@@ -143,19 +143,19 @@ export function createDbTools(ctx: ToolContext) {
     }),
 
     db_introspect: tool({
-      description: 'Discover the schema of a Supabase table — columns, types, constraints. Restricted to forge_* and credit_packages tables.',
+      description: 'Discover the schema of a Supabase table — columns, types, constraints. Restricted to pi_* and credit_packages tables.',
       inputSchema: z.object({
-        table: z.string().describe('Table name to inspect, e.g. "forge_projects"'),
+        table: z.string().describe('Table name to inspect, e.g. "pi_projects"'),
       }),
       execute: async ({ table }) => {
         // Validate table name (alphanumeric + underscores only)
         if (!/^[a-zA-Z_][a-zA-Z0-9_]*$/.test(table)) {
           return { error: 'Invalid table name. Use only letters, numbers, and underscores.' }
         }
-        // Security: restrict to forge_* tables + credit_packages
-        const ALLOWED_TABLES = /^(forge_\w+|credit_packages)$/
+        // Security: restrict to pi_* tables + credit_packages
+        const ALLOWED_TABLES = /^(pi_\w+|credit_packages)$/
         if (!ALLOWED_TABLES.test(table)) {
-          return { error: `Access denied: db_introspect restricted to forge_* tables. "${table}" is not allowed.` }
+          return { error: `Access denied: db_introspect restricted to pi_* tables. "${table}" is not allowed.` }
         }
 
         // Step 1: Check table exists and get row count
@@ -196,7 +196,7 @@ export function createDbTools(ctx: ToolContext) {
         const updates: Record<string, unknown> = {}
         if (description) updates.description = description
         if (Object.keys(updates).length > 0) {
-          await supabaseFetch(`/forge_projects?id=eq.${projectId}`, {
+          await supabaseFetch(`/pi_projects?id=eq.${projectId}`, {
             method: 'PATCH',
             body: JSON.stringify(updates),
           })
@@ -204,7 +204,7 @@ export function createDbTools(ctx: ToolContext) {
 
         // Delete removed files — fetch existing paths then delete obsolete ones
         if (filePaths.length > 0) {
-          const existingRes = await supabaseFetch(`/forge_project_files?project_id=eq.${projectId}&select=path`)
+          const existingRes = await supabaseFetch(`/pi_project_files?project_id=eq.${projectId}&select=path`)
           const existingFiles = existingRes.ok && Array.isArray(existingRes.data) ? existingRes.data : []
 
           const pathsToDelete = existingFiles
@@ -214,7 +214,7 @@ export function createDbTools(ctx: ToolContext) {
           if (pathsToDelete.length > 0) {
             // Batch delete in a single request using PostgREST .in() filter
             const encoded = pathsToDelete.map((p: string) => `"${p.replace(/"/g, '\\"')}"`).join(',')
-            await supabaseFetch(`/forge_project_files?project_id=eq.${projectId}&path=in.(${encoded})`, {
+            await supabaseFetch(`/pi_project_files?project_id=eq.${projectId}&path=in.(${encoded})`, {
               method: 'DELETE',
             })
           }
@@ -230,7 +230,7 @@ export function createDbTools(ctx: ToolContext) {
           const BATCH_SIZE = 50
           for (let i = 0; i < rows.length; i += BATCH_SIZE) {
             const batch = rows.slice(i, i + BATCH_SIZE)
-            const upsertRes = await supabaseFetch(`/forge_project_files`, {
+            const upsertRes = await supabaseFetch(`/pi_project_files`, {
               method: 'POST',
               headers: { 'Prefer': 'resolution=merge-duplicates' },
               body: JSON.stringify(batch),

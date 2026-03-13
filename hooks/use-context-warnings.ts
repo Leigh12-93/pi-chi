@@ -5,7 +5,7 @@ import type { UIMessage } from 'ai'
 import { toast } from 'sonner'
 
 /** Custom data parts injected by the server aren't in UIMessage's standard part types */
-interface ForgeMetaPart { type: string; data?: string }
+interface PiMetaPart { type: string; data?: string }
 
 export function useContextWarnings(messages: UIMessage[]) {
   const contextWarningShownRef = useRef<string | null>(null)
@@ -15,8 +15,8 @@ export function useContextWarnings(messages: UIMessage[]) {
   useEffect(() => {
     for (const msg of messages) {
       if (msg.role !== 'assistant' || !msg.parts) continue
-      for (const p of msg.parts as ForgeMetaPart[]) {
-        if (p.type !== 'data-forge-meta' || typeof p.data !== 'string') continue
+      for (const p of msg.parts as PiMetaPart[]) {
+        if (p.type !== 'data-pi-meta' || typeof p.data !== 'string') continue
         try {
           const parsed = JSON.parse(p.data)
           if (parsed.type === 'context_warning' && contextWarningShownRef.current !== msg.id) {

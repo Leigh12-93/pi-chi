@@ -527,7 +527,7 @@ export function GooglePanel({ fileContents, onFileChange }: GooglePanelProps) {
   if (loading) {
     return (
       <div className="p-3 flex items-center justify-center">
-        <Loader2 className="w-4 h-4 animate-spin text-forge-text-dim" />
+        <Loader2 className="w-4 h-4 animate-spin text-pi-text-dim" />
       </div>
     )
   }
@@ -538,7 +538,7 @@ export function GooglePanel({ fileContents, onFileChange }: GooglePanelProps) {
 
   return (
     <div className="p-3 space-y-2.5">
-      <p className="text-[10px] uppercase tracking-wider text-forge-text-dim font-medium">Google Cloud</p>
+      <p className="text-[10px] uppercase tracking-wider text-pi-text-dim font-medium">Google Cloud</p>
 
       {/* Error banner */}
       {errorBanner && (
@@ -556,10 +556,10 @@ export function GooglePanel({ fileContents, onFileChange }: GooglePanelProps) {
       )}
 
       {/* Status Summary Bar */}
-      <div className="rounded-md border border-forge-border bg-forge-surface/30 p-2.5">
+      <div className="rounded-md border border-pi-border bg-pi-surface/30 p-2.5">
         <div className="flex items-center justify-between mb-1.5">
-          <span className="text-[11px] font-medium text-forge-text">Connection Status</span>
-          <span className="text-[10px] text-forge-text-dim">
+          <span className="text-[11px] font-medium text-pi-text">Connection Status</span>
+          <span className="text-[10px] text-pi-text-dim">
             {connectedCount}/{GOOGLE_SERVICES.length} services
           </span>
         </div>
@@ -567,7 +567,7 @@ export function GooglePanel({ fileContents, onFileChange }: GooglePanelProps) {
         {/* Quick status indicators */}
         <div className="flex flex-wrap gap-1.5">
           {settings.hasGoogleAccount ? (
-            <div className="flex items-center gap-1 text-[10px] text-forge-success">
+            <div className="flex items-center gap-1 text-[10px] text-pi-success">
               <CheckCircle2 className="w-3 h-3" />
               <span className="truncate max-w-[130px]">{settings.googleConnectedEmail || 'OAuth connected'}</span>
             </div>
@@ -578,17 +578,17 @@ export function GooglePanel({ fileContents, onFileChange }: GooglePanelProps) {
             </div>
           ) : null}
           {settings.hasGoogleApiKey && (
-            <div className="flex items-center gap-1 text-[10px] text-forge-success">
+            <div className="flex items-center gap-1 text-[10px] text-pi-success">
               <CheckCircle2 className="w-3 h-3" /> API Key
             </div>
           )}
           {settings.hasGoogleServiceAccount && (
-            <div className="flex items-center gap-1 text-[10px] text-forge-success">
+            <div className="flex items-center gap-1 text-[10px] text-pi-success">
               <CheckCircle2 className="w-3 h-3" /> Service Account
             </div>
           )}
           {!hasAnyAuth && (
-            <div className="flex items-center gap-1 text-[10px] text-forge-text-dim">
+            <div className="flex items-center gap-1 text-[10px] text-pi-text-dim">
               <XCircle className="w-3 h-3" /> No credentials configured
             </div>
           )}
@@ -597,7 +597,7 @@ export function GooglePanel({ fileContents, onFileChange }: GooglePanelProps) {
         {/* Token expiry + quick refresh */}
         {settings.hasGoogleAccount && settings.googleTokenExpiry && (
           <div className="flex items-center gap-1.5 mt-1.5">
-            <span className="text-[10px] text-forge-text-dim">
+            <span className="text-[10px] text-pi-text-dim">
               Token: {timeUntilExpiry(settings.googleTokenExpiry) === 'expired'
                 ? <span className="text-amber-400">expired</span>
                 : <>expires in {timeUntilExpiry(settings.googleTokenExpiry)}</>}
@@ -605,7 +605,7 @@ export function GooglePanel({ fileContents, onFileChange }: GooglePanelProps) {
             <button
               onClick={handleRefresh}
               disabled={refreshing}
-              className="p-0.5 text-forge-text-dim hover:text-forge-accent transition-colors"
+              className="p-0.5 text-pi-text-dim hover:text-pi-accent transition-colors"
               title="Refresh token"
             >
               <RefreshCw className={`w-3 h-3 ${refreshing ? 'animate-spin' : ''}`} />
@@ -627,7 +627,7 @@ export function GooglePanel({ fileContents, onFileChange }: GooglePanelProps) {
           {detectedEnvVars.slice(0, 5).map(v => (
             <div key={v.key} className="flex items-center gap-1.5 py-0.5">
               <code className="text-[9px] font-mono text-blue-300/80 truncate flex-1">{v.key}</code>
-              <span className="text-[9px] text-forge-text-dim">{v.file}</span>
+              <span className="text-[9px] text-pi-text-dim">{v.file}</span>
             </div>
           ))}
           {detectedApiKey && !settings.hasGoogleApiKey && (
@@ -644,52 +644,52 @@ export function GooglePanel({ fileContents, onFileChange }: GooglePanelProps) {
 
       {/* Project Integrations Detected */}
       {(usesGoogleMaps || googleFonts.detected) && (
-        <div className="rounded-md border border-forge-border bg-forge-surface/30 p-2.5">
+        <div className="rounded-md border border-pi-border bg-pi-surface/30 p-2.5">
           <div className="flex items-center gap-1.5 mb-1">
-            <Search className="w-3 h-3 text-forge-text-dim" />
-            <span className="text-[11px] font-medium text-forge-text">Detected in Project</span>
+            <Search className="w-3 h-3 text-pi-text-dim" />
+            <span className="text-[11px] font-medium text-pi-text">Detected in Project</span>
           </div>
           {usesGoogleMaps && (
             <div className="flex items-center gap-1.5 py-0.5">
-              <Map className="w-3 h-3 text-forge-text-dim" />
-              <span className="text-[10px] text-forge-text">Google Maps</span>
+              <Map className="w-3 h-3 text-pi-text-dim" />
+              <span className="text-[10px] text-pi-text">Google Maps</span>
               {!detectedMapsKey && !settings.hasGoogleApiKey && (
                 <span className="text-[9px] text-amber-400 ml-auto">Needs API key</span>
               )}
               {(detectedMapsKey || settings.hasGoogleApiKey) && (
-                <CheckCircle2 className="w-3 h-3 text-forge-success ml-auto" />
+                <CheckCircle2 className="w-3 h-3 text-pi-success ml-auto" />
               )}
             </div>
           )}
           {googleFonts.detected && (
             <div className="flex items-center gap-1.5 py-0.5">
-              <FileText className="w-3 h-3 text-forge-text-dim" />
-              <span className="text-[10px] text-forge-text">
+              <FileText className="w-3 h-3 text-pi-text-dim" />
+              <span className="text-[10px] text-pi-text">
                 Google Fonts: {googleFonts.fonts.slice(0, 3).join(', ')}
                 {googleFonts.fonts.length > 3 && ` +${googleFonts.fonts.length - 3}`}
               </span>
-              <CheckCircle2 className="w-3 h-3 text-forge-success ml-auto" />
+              <CheckCircle2 className="w-3 h-3 text-pi-success ml-auto" />
             </div>
           )}
         </div>
       )}
 
       {/* Authentication Setup */}
-      <div className="rounded-md border border-forge-border">
+      <div className="rounded-md border border-pi-border">
         <button
           onClick={() => toggleSection('auth')}
-          className="w-full flex items-center gap-2 px-2.5 py-2 text-left hover:bg-forge-surface/50 transition-colors"
+          className="w-full flex items-center gap-2 px-2.5 py-2 text-left hover:bg-pi-surface/50 transition-colors"
         >
-          <ChevronDown className={`w-3 h-3 text-forge-text-dim transition-transform ${activeSection === 'auth' ? '' : '-rotate-90'}`} />
-          <Shield className="w-3.5 h-3.5 text-forge-text-dim" />
-          <span className="text-[11px] font-medium text-forge-text flex-1">Authentication</span>
-          {hasAnyAuth && <Check className="w-3 h-3 text-forge-success" />}
+          <ChevronDown className={`w-3 h-3 text-pi-text-dim transition-transform ${activeSection === 'auth' ? '' : '-rotate-90'}`} />
+          <Shield className="w-3.5 h-3.5 text-pi-text-dim" />
+          <span className="text-[11px] font-medium text-pi-text flex-1">Authentication</span>
+          {hasAnyAuth && <Check className="w-3 h-3 text-pi-success" />}
         </button>
 
         {activeSection === 'auth' && (
-          <div className="border-t border-forge-border/50">
+          <div className="border-t border-pi-border/50">
             {/* Auth type tabs */}
-            <div className="flex border-b border-forge-border/30">
+            <div className="flex border-b border-pi-border/30">
               {([
                 { id: 'oauth' as const, label: 'OAuth', hasIt: settings.hasGoogleOAuth },
                 { id: 'apikey' as const, label: 'API Key', hasIt: settings.hasGoogleApiKey },
@@ -700,12 +700,12 @@ export function GooglePanel({ fileContents, onFileChange }: GooglePanelProps) {
                   onClick={() => setAuthTab(tab.id)}
                   className={`flex-1 flex items-center justify-center gap-1 py-1.5 text-[10px] transition-colors border-b-2 ${
                     authTab === tab.id
-                      ? 'border-forge-accent text-forge-accent'
-                      : 'border-transparent text-forge-text-dim hover:text-forge-text'
+                      ? 'border-pi-accent text-pi-accent'
+                      : 'border-transparent text-pi-text-dim hover:text-pi-text'
                   }`}
                 >
                   {tab.label}
-                  {tab.hasIt && <Check className="w-2.5 h-2.5 text-forge-success" />}
+                  {tab.hasIt && <Check className="w-2.5 h-2.5 text-pi-success" />}
                 </button>
               ))}
             </div>
@@ -716,7 +716,7 @@ export function GooglePanel({ fileContents, onFileChange }: GooglePanelProps) {
                 <>
                   {!settings.hasGoogleOAuth ? (
                     <>
-                      <p className="text-[10px] text-forge-text-dim leading-relaxed">
+                      <p className="text-[10px] text-pi-text-dim leading-relaxed">
                         For Sheets, Calendar, Gmail, Drive access. Create OAuth credentials in Google Cloud Console.
                       </p>
                       <input
@@ -724,7 +724,7 @@ export function GooglePanel({ fileContents, onFileChange }: GooglePanelProps) {
                         placeholder="Client ID (xxx.apps.googleusercontent.com)"
                         value={clientId}
                         onChange={e => setClientId(e.target.value)}
-                        className="w-full px-2 py-1.5 text-xs font-mono bg-forge-bg border border-forge-border rounded-md focus:outline-none focus:border-forge-accent"
+                        className="w-full px-2 py-1.5 text-xs font-mono bg-pi-bg border border-pi-border rounded-md focus:outline-none focus:border-pi-accent"
                       />
                       <div className="relative">
                         <input
@@ -732,11 +732,11 @@ export function GooglePanel({ fileContents, onFileChange }: GooglePanelProps) {
                           placeholder="Client Secret"
                           value={clientSecret}
                           onChange={e => setClientSecret(e.target.value)}
-                          className="w-full px-2 py-1.5 pr-7 text-xs font-mono bg-forge-bg border border-forge-border rounded-md focus:outline-none focus:border-forge-accent"
+                          className="w-full px-2 py-1.5 pr-7 text-xs font-mono bg-pi-bg border border-pi-border rounded-md focus:outline-none focus:border-pi-accent"
                         />
                         <button
                           onClick={() => setShowSecret(!showSecret)}
-                          className="absolute right-1.5 top-1/2 -translate-y-1/2 text-forge-text-dim hover:text-forge-text"
+                          className="absolute right-1.5 top-1/2 -translate-y-1/2 text-pi-text-dim hover:text-pi-text"
                         >
                           {showSecret ? <EyeOff className="w-3 h-3" /> : <Eye className="w-3 h-3" />}
                         </button>
@@ -744,7 +744,7 @@ export function GooglePanel({ fileContents, onFileChange }: GooglePanelProps) {
                       <button
                         onClick={handleSaveOAuth}
                         disabled={saving === 'oauth' || !clientId.trim() || !clientSecret.trim()}
-                        className="w-full flex items-center justify-center gap-1.5 px-3 py-1.5 text-xs rounded-md bg-forge-accent text-white hover:bg-forge-accent/90 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                        className="w-full flex items-center justify-center gap-1.5 px-3 py-1.5 text-xs rounded-md bg-pi-accent text-white hover:bg-pi-accent/90 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
                       >
                         {saving === 'oauth' ? <Loader2 className="w-3 h-3 animate-spin" /> : null}
                         Save & Continue
@@ -752,12 +752,12 @@ export function GooglePanel({ fileContents, onFileChange }: GooglePanelProps) {
 
                       {/* Redirect URI helper */}
                       <div className="space-y-1 pt-1">
-                        <p className="text-[10px] text-forge-text-dim">Redirect URI (add to Google Console):</p>
+                        <p className="text-[10px] text-pi-text-dim">Redirect URI (add to Google Console):</p>
                         <div className="flex items-center gap-1">
-                          <code className="flex-1 text-[9px] font-mono text-forge-text bg-forge-bg px-1.5 py-1 rounded border border-forge-border truncate">
+                          <code className="flex-1 text-[9px] font-mono text-pi-text bg-pi-bg px-1.5 py-1 rounded border border-pi-border truncate">
                             {redirectUri}
                           </code>
-                          <button onClick={handleCopyRedirectUri} className="p-1 text-forge-text-dim hover:text-forge-text" title="Copy">
+                          <button onClick={handleCopyRedirectUri} className="p-1 text-pi-text-dim hover:text-pi-text" title="Copy">
                             <Copy className="w-3 h-3" />
                           </button>
                         </div>
@@ -765,17 +765,17 @@ export function GooglePanel({ fileContents, onFileChange }: GooglePanelProps) {
 
                       {/* Setup help links */}
                       <div className="pt-1 space-y-0.5">
-                        <p className="text-[10px] text-forge-text-dim font-medium">Quick setup:</p>
+                        <p className="text-[10px] text-pi-text-dim font-medium">Quick setup:</p>
                         <a href="https://console.cloud.google.com/apis/credentials" target="_blank" rel="noopener noreferrer"
-                          className="flex items-center gap-1 text-[10px] text-forge-accent hover:underline">
+                          className="flex items-center gap-1 text-[10px] text-pi-accent hover:underline">
                           <ExternalLink className="w-2.5 h-2.5" /> 1. Create OAuth Client ID
                         </a>
                         <a href="https://console.cloud.google.com/apis/credentials/consent" target="_blank" rel="noopener noreferrer"
-                          className="flex items-center gap-1 text-[10px] text-forge-accent hover:underline">
+                          className="flex items-center gap-1 text-[10px] text-pi-accent hover:underline">
                           <ExternalLink className="w-2.5 h-2.5" /> 2. Configure consent screen
                         </a>
                         <a href="https://console.cloud.google.com/apis/library" target="_blank" rel="noopener noreferrer"
-                          className="flex items-center gap-1 text-[10px] text-forge-accent hover:underline">
+                          className="flex items-center gap-1 text-[10px] text-pi-accent hover:underline">
                           <ExternalLink className="w-2.5 h-2.5" /> 3. Enable APIs
                         </a>
                       </div>
@@ -785,8 +785,8 @@ export function GooglePanel({ fileContents, onFileChange }: GooglePanelProps) {
                       {settings.hasGoogleAccount ? (
                         <div className="space-y-1.5">
                           <div className="flex items-center gap-1.5">
-                            <Check className="w-3 h-3 text-forge-success shrink-0" />
-                            <span className="text-[11px] text-forge-text truncate">
+                            <Check className="w-3 h-3 text-pi-success shrink-0" />
+                            <span className="text-[11px] text-pi-text truncate">
                               {settings.googleConnectedEmail || 'Connected'}
                             </span>
                           </div>
@@ -797,7 +797,7 @@ export function GooglePanel({ fileContents, onFileChange }: GooglePanelProps) {
                               {settings.googleConnectedScopes
                                 .filter(s => !['openid', 'email', 'profile'].includes(s) && !s.includes('/auth/userinfo'))
                                 .map(s => (
-                                  <span key={s} className="text-[9px] px-1.5 py-0.5 rounded-full bg-forge-surface text-forge-text-dim">
+                                  <span key={s} className="text-[9px] px-1.5 py-0.5 rounded-full bg-pi-surface text-pi-text-dim">
                                     {scopeLabel(s)}
                                   </span>
                                 ))}
@@ -811,7 +811,7 @@ export function GooglePanel({ fileContents, onFileChange }: GooglePanelProps) {
                                 key={svc}
                                 onClick={() => handleTest(svc)}
                                 disabled={testing !== null}
-                                className="px-1.5 py-0.5 text-[9px] rounded border border-forge-border hover:bg-forge-surface disabled:opacity-40 transition-colors capitalize"
+                                className="px-1.5 py-0.5 text-[9px] rounded border border-pi-border hover:bg-pi-surface disabled:opacity-40 transition-colors capitalize"
                               >
                                 {testing === svc ? <Loader2 className="w-2.5 h-2.5 animate-spin inline" /> : `Test ${svc}`}
                               </button>
@@ -836,8 +836,8 @@ export function GooglePanel({ fileContents, onFileChange }: GooglePanelProps) {
                       ) : (
                         <div className="space-y-1.5">
                           <div className="flex items-center gap-1.5">
-                            <Check className="w-3 h-3 text-forge-success shrink-0" />
-                            <span className="text-[11px] text-forge-text">OAuth configured</span>
+                            <Check className="w-3 h-3 text-pi-success shrink-0" />
+                            <span className="text-[11px] text-pi-text">OAuth configured</span>
                           </div>
                           <button
                             onClick={handleConnect}
@@ -869,7 +869,7 @@ export function GooglePanel({ fileContents, onFileChange }: GooglePanelProps) {
                 <>
                   {!settings.hasGoogleApiKey ? (
                     <>
-                      <p className="text-[10px] text-forge-text-dim leading-relaxed">
+                      <p className="text-[10px] text-pi-text-dim leading-relaxed">
                         For Maps, YouTube, Translate, and other key-based services.
                       </p>
                       {detectedApiKey && (
@@ -884,11 +884,11 @@ export function GooglePanel({ fileContents, onFileChange }: GooglePanelProps) {
                           placeholder="API Key (AIza...)"
                           value={apiKey}
                           onChange={e => setApiKey(e.target.value)}
-                          className="w-full px-2 py-1.5 pr-7 text-xs font-mono bg-forge-bg border border-forge-border rounded-md focus:outline-none focus:border-forge-accent"
+                          className="w-full px-2 py-1.5 pr-7 text-xs font-mono bg-pi-bg border border-pi-border rounded-md focus:outline-none focus:border-pi-accent"
                         />
                         <button
                           onClick={() => setShowApiKey(!showApiKey)}
-                          className="absolute right-1.5 top-1/2 -translate-y-1/2 text-forge-text-dim hover:text-forge-text"
+                          className="absolute right-1.5 top-1/2 -translate-y-1/2 text-pi-text-dim hover:text-pi-text"
                         >
                           {showApiKey ? <EyeOff className="w-3 h-3" /> : <Eye className="w-3 h-3" />}
                         </button>
@@ -896,13 +896,13 @@ export function GooglePanel({ fileContents, onFileChange }: GooglePanelProps) {
                       <button
                         onClick={handleSaveApiKey}
                         disabled={saving === 'apiKey' || !apiKey.trim()}
-                        className="w-full flex items-center justify-center gap-1.5 px-3 py-1.5 text-xs rounded-md bg-forge-accent text-white hover:bg-forge-accent/90 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                        className="w-full flex items-center justify-center gap-1.5 px-3 py-1.5 text-xs rounded-md bg-pi-accent text-white hover:bg-pi-accent/90 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
                       >
                         {saving === 'apiKey' ? <Loader2 className="w-3 h-3 animate-spin" /> : null}
                         Save API Key
                       </button>
                       <a href="https://console.cloud.google.com/apis/credentials" target="_blank" rel="noopener noreferrer"
-                        className="flex items-center gap-1 text-[10px] text-forge-accent hover:underline">
+                        className="flex items-center gap-1 text-[10px] text-pi-accent hover:underline">
                         <ExternalLink className="w-2.5 h-2.5" /> Create API key in Google Console
                       </a>
                     </>
@@ -910,8 +910,8 @@ export function GooglePanel({ fileContents, onFileChange }: GooglePanelProps) {
                     <div className="space-y-1.5">
                       <div className="flex items-center justify-between">
                         <div className="flex items-center gap-1.5">
-                          <Check className="w-3 h-3 text-forge-success" />
-                          <span className="text-[11px] text-forge-text">API Key saved</span>
+                          <Check className="w-3 h-3 text-pi-success" />
+                          <span className="text-[11px] text-pi-text">API Key saved</span>
                         </div>
                         <button
                           onClick={() => handleDelete('googleApiKey', 'API Key')}
@@ -923,7 +923,7 @@ export function GooglePanel({ fileContents, onFileChange }: GooglePanelProps) {
                       {/* Show which services can use this key */}
                       <div className="flex flex-wrap gap-1">
                         {GOOGLE_SERVICES.filter(s => s.authType === 'apikey').map(s => (
-                          <span key={s.id} className="text-[9px] px-1.5 py-0.5 rounded-full bg-forge-surface text-forge-text-dim">
+                          <span key={s.id} className="text-[9px] px-1.5 py-0.5 rounded-full bg-pi-surface text-pi-text-dim">
                             {s.label}
                           </span>
                         ))}
@@ -938,7 +938,7 @@ export function GooglePanel({ fileContents, onFileChange }: GooglePanelProps) {
                 <>
                   {!settings.hasGoogleServiceAccount ? (
                     <>
-                      <p className="text-[10px] text-forge-text-dim leading-relaxed">
+                      <p className="text-[10px] text-pi-text-dim leading-relaxed">
                         For Firebase Admin, Cloud Storage, BigQuery. Server-to-server auth.
                       </p>
                       <textarea
@@ -946,13 +946,13 @@ export function GooglePanel({ fileContents, onFileChange }: GooglePanelProps) {
                         value={serviceAccountJson}
                         onChange={e => setServiceAccountJson(e.target.value)}
                         rows={5}
-                        className="w-full px-2 py-1.5 text-xs font-mono bg-forge-bg border border-forge-border rounded-md focus:outline-none focus:border-forge-accent resize-none"
+                        className="w-full px-2 py-1.5 text-xs font-mono bg-pi-bg border border-pi-border rounded-md focus:outline-none focus:border-pi-accent resize-none"
                       />
                       <div className="flex items-center gap-2">
-                        <span className="text-[10px] text-forge-text-dim">or</span>
+                        <span className="text-[10px] text-pi-text-dim">or</span>
                         <button
                           onClick={() => fileInputRef.current?.click()}
-                          className="flex items-center gap-1 text-[10px] text-forge-accent hover:underline"
+                          className="flex items-center gap-1 text-[10px] text-pi-accent hover:underline"
                         >
                           <Upload className="w-2.5 h-2.5" /> Upload .json
                         </button>
@@ -961,29 +961,29 @@ export function GooglePanel({ fileContents, onFileChange }: GooglePanelProps) {
                       <button
                         onClick={handleSaveServiceAccount}
                         disabled={saving === 'sa' || !serviceAccountJson.trim()}
-                        className="w-full flex items-center justify-center gap-1.5 px-3 py-1.5 text-xs rounded-md bg-forge-accent text-white hover:bg-forge-accent/90 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                        className="w-full flex items-center justify-center gap-1.5 px-3 py-1.5 text-xs rounded-md bg-pi-accent text-white hover:bg-pi-accent/90 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
                       >
                         {saving === 'sa' ? <Loader2 className="w-3 h-3 animate-spin" /> : null}
                         Save Service Account
                       </button>
                       <a href="https://console.cloud.google.com/iam-admin/serviceaccounts" target="_blank" rel="noopener noreferrer"
-                        className="flex items-center gap-1 text-[10px] text-forge-accent hover:underline">
+                        className="flex items-center gap-1 text-[10px] text-pi-accent hover:underline">
                         <ExternalLink className="w-2.5 h-2.5" /> Create service account
                       </a>
                     </>
                   ) : (
                     <div className="space-y-1.5">
                       <div className="flex items-center gap-1.5">
-                        <Check className="w-3 h-3 text-forge-success shrink-0" />
-                        <span className="text-[11px] text-forge-text">Service Account configured</span>
+                        <Check className="w-3 h-3 text-pi-success shrink-0" />
+                        <span className="text-[11px] text-pi-text">Service Account configured</span>
                       </div>
                       {settings.googleServiceAccountEmail && (
-                        <p className="text-[10px] text-forge-text-dim font-mono truncate pl-[18px]">
+                        <p className="text-[10px] text-pi-text-dim font-mono truncate pl-[18px]">
                           {settings.googleServiceAccountEmail}
                         </p>
                       )}
                       {settings.googleServiceAccountProject && (
-                        <p className="text-[10px] text-forge-text-dim pl-[18px]">
+                        <p className="text-[10px] text-pi-text-dim pl-[18px]">
                           Project: {settings.googleServiceAccountProject}
                         </p>
                       )}
@@ -1003,43 +1003,43 @@ export function GooglePanel({ fileContents, onFileChange }: GooglePanelProps) {
       </div>
 
       {/* Google Services */}
-      <div className="rounded-md border border-forge-border">
+      <div className="rounded-md border border-pi-border">
         <button
           onClick={() => toggleSection('services')}
-          className="w-full flex items-center gap-2 px-2.5 py-2 text-left hover:bg-forge-surface/50 transition-colors"
+          className="w-full flex items-center gap-2 px-2.5 py-2 text-left hover:bg-pi-surface/50 transition-colors"
         >
-          <ChevronDown className={`w-3 h-3 text-forge-text-dim transition-transform ${activeSection === 'services' ? '' : '-rotate-90'}`} />
-          <Globe className="w-3.5 h-3.5 text-forge-text-dim" />
-          <span className="text-[11px] font-medium text-forge-text flex-1">Services & Tools</span>
-          <span className="text-[9px] text-forge-text-dim">{connectedCount} active</span>
+          <ChevronDown className={`w-3 h-3 text-pi-text-dim transition-transform ${activeSection === 'services' ? '' : '-rotate-90'}`} />
+          <Globe className="w-3.5 h-3.5 text-pi-text-dim" />
+          <span className="text-[11px] font-medium text-pi-text flex-1">Services & Tools</span>
+          <span className="text-[9px] text-pi-text-dim">{connectedCount} active</span>
         </button>
 
         {activeSection === 'services' && (
-          <div className="border-t border-forge-border/50">
+          <div className="border-t border-pi-border/50">
             {GOOGLE_SERVICES.map(service => {
               const status = getServiceStatus(service)
               const Icon = service.icon
 
               return (
-                <div key={service.id} className="border-b border-forge-border/30 last:border-b-0">
+                <div key={service.id} className="border-b border-pi-border/30 last:border-b-0">
                   {/* Service header */}
                   <div className="px-2.5 py-2 flex items-center gap-2">
                     <Icon className={`w-3.5 h-3.5 shrink-0 ${
-                      status === 'ready' ? 'text-forge-success'
+                      status === 'ready' ? 'text-pi-success'
                         : status === 'partial' ? 'text-amber-400'
-                        : 'text-forge-text-dim/30'
+                        : 'text-pi-text-dim/30'
                     }`} />
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-1.5">
                         <span className={`text-[11px] font-medium ${
-                          status === 'ready' ? 'text-forge-text' : 'text-forge-text-dim'
+                          status === 'ready' ? 'text-pi-text' : 'text-pi-text-dim'
                         }`}>
                           {service.label}
                         </span>
-                        {status === 'ready' && <CheckCircle2 className="w-3 h-3 text-forge-success" />}
+                        {status === 'ready' && <CheckCircle2 className="w-3 h-3 text-pi-success" />}
                         {status === 'partial' && <Clock className="w-3 h-3 text-amber-400" />}
                       </div>
-                      <p className="text-[9px] text-forge-text-dim/70 leading-tight">{service.description}</p>
+                      <p className="text-[9px] text-pi-text-dim/70 leading-tight">{service.description}</p>
                     </div>
 
                     {/* Auth requirement badge */}
@@ -1056,8 +1056,8 @@ export function GooglePanel({ fileContents, onFileChange }: GooglePanelProps) {
                   <div className="px-2.5 pb-2 pl-8">
                     {service.tools.map(t => (
                       <div key={t.name} className="flex items-center gap-1.5 py-0.5">
-                        <Zap className={`w-2.5 h-2.5 shrink-0 ${status === 'ready' ? 'text-forge-accent' : 'text-forge-text-dim/20'}`} />
-                        <span className={`text-[9px] font-mono ${status === 'ready' ? 'text-forge-text-dim' : 'text-forge-text-dim/30'}`}>
+                        <Zap className={`w-2.5 h-2.5 shrink-0 ${status === 'ready' ? 'text-pi-accent' : 'text-pi-text-dim/20'}`} />
+                        <span className={`text-[9px] font-mono ${status === 'ready' ? 'text-pi-text-dim' : 'text-pi-text-dim/30'}`}>
                           {t.name}
                         </span>
                       </div>
@@ -1069,7 +1069,7 @@ export function GooglePanel({ fileContents, onFileChange }: GooglePanelProps) {
                         {service.authType === 'oauth' && (
                           <button
                             onClick={() => { toggleSection('auth'); setAuthTab('oauth') }}
-                            className="text-[9px] text-forge-accent hover:underline"
+                            className="text-[9px] text-pi-accent hover:underline"
                           >
                             Set up OAuth to enable
                           </button>
@@ -1077,7 +1077,7 @@ export function GooglePanel({ fileContents, onFileChange }: GooglePanelProps) {
                         {service.authType === 'apikey' && (
                           <button
                             onClick={() => { toggleSection('auth'); setAuthTab('apikey') }}
-                            className="text-[9px] text-forge-accent hover:underline"
+                            className="text-[9px] text-pi-accent hover:underline"
                           >
                             Add API Key to enable
                           </button>
@@ -1087,7 +1087,7 @@ export function GooglePanel({ fileContents, onFileChange }: GooglePanelProps) {
                     {status === 'partial' && service.authType === 'oauth' && !settings.hasGoogleAccount && (
                       <button
                         onClick={handleConnect}
-                        className="mt-1 text-[9px] text-forge-accent hover:underline"
+                        className="mt-1 text-[9px] text-pi-accent hover:underline"
                       >
                         Connect Google Account to activate
                       </button>
@@ -1095,7 +1095,7 @@ export function GooglePanel({ fileContents, onFileChange }: GooglePanelProps) {
 
                     {/* Docs link */}
                     <a href={service.docsUrl} target="_blank" rel="noopener noreferrer"
-                      className="flex items-center gap-1 text-[9px] text-forge-text-dim/50 hover:text-forge-accent mt-0.5">
+                      className="flex items-center gap-1 text-[9px] text-pi-text-dim/50 hover:text-pi-accent mt-0.5">
                       <ExternalLink className="w-2 h-2" /> API docs
                     </a>
                   </div>
@@ -1107,10 +1107,10 @@ export function GooglePanel({ fileContents, onFileChange }: GooglePanelProps) {
             {settings.hasGoogleAccount && GOOGLE_SERVICES.some(s =>
               s.authType === 'oauth' && s.scope && !settings.googleConnectedScopes.includes(s.scope)
             ) && (
-              <div className="px-2.5 py-2 border-t border-forge-border/30">
+              <div className="px-2.5 py-2 border-t border-pi-border/30">
                 <button
                   onClick={handleConnect}
-                  className="w-full flex items-center justify-center gap-1 px-2 py-1 text-[10px] rounded border border-forge-border text-forge-text-dim hover:text-forge-text hover:bg-forge-surface/50 transition-colors"
+                  className="w-full flex items-center justify-center gap-1 px-2 py-1 text-[10px] rounded border border-pi-border text-pi-text-dim hover:text-pi-text hover:bg-pi-surface/50 transition-colors"
                 >
                   <RefreshCw className="w-2.5 h-2.5" /> Re-connect with all scopes
                 </button>
@@ -1121,19 +1121,19 @@ export function GooglePanel({ fileContents, onFileChange }: GooglePanelProps) {
       </div>
 
       {/* Project Integration */}
-      <div className="rounded-md border border-forge-border">
+      <div className="rounded-md border border-pi-border">
         <button
           onClick={() => toggleSection('integration')}
-          className="w-full flex items-center gap-2 px-2.5 py-2 text-left hover:bg-forge-surface/50 transition-colors"
+          className="w-full flex items-center gap-2 px-2.5 py-2 text-left hover:bg-pi-surface/50 transition-colors"
         >
-          <ChevronDown className={`w-3 h-3 text-forge-text-dim transition-transform ${activeSection === 'integration' ? '' : '-rotate-90'}`} />
-          <Link2 className="w-3.5 h-3.5 text-forge-text-dim" />
-          <span className="text-[11px] font-medium text-forge-text flex-1">Project Integration</span>
+          <ChevronDown className={`w-3 h-3 text-pi-text-dim transition-transform ${activeSection === 'integration' ? '' : '-rotate-90'}`} />
+          <Link2 className="w-3.5 h-3.5 text-pi-text-dim" />
+          <span className="text-[11px] font-medium text-pi-text flex-1">Project Integration</span>
         </button>
 
         {activeSection === 'integration' && (
-          <div className="px-2.5 pb-2.5 space-y-2 border-t border-forge-border/50 pt-2">
-            <p className="text-[10px] text-forge-text-dim leading-relaxed">
+          <div className="px-2.5 pb-2.5 space-y-2 border-t border-pi-border/50 pt-2">
+            <p className="text-[10px] text-pi-text-dim leading-relaxed">
               Add Google env vars to your project so the AI and preview can use them.
             </p>
 
@@ -1141,7 +1141,7 @@ export function GooglePanel({ fileContents, onFileChange }: GooglePanelProps) {
             {settings.hasGoogleApiKey && !detectedMapsKey && (
               <button
                 onClick={() => handleInjectEnvVar('NEXT_PUBLIC_GOOGLE_MAPS_KEY', '${GOOGLE_API_KEY}')}
-                className="w-full flex items-center gap-1.5 px-2 py-1.5 text-[10px] rounded border border-forge-border hover:bg-forge-surface/50 text-forge-text-dim hover:text-forge-text transition-colors"
+                className="w-full flex items-center gap-1.5 px-2 py-1.5 text-[10px] rounded border border-pi-border hover:bg-pi-surface/50 text-pi-text-dim hover:text-pi-text transition-colors"
               >
                 <Plus className="w-3 h-3" />
                 Add NEXT_PUBLIC_GOOGLE_MAPS_KEY to .env.local
@@ -1151,24 +1151,24 @@ export function GooglePanel({ fileContents, onFileChange }: GooglePanelProps) {
             {/* Existing detected vars */}
             {detectedEnvVars.length > 0 && (
               <div className="space-y-0.5">
-                <p className="text-[10px] text-forge-text-dim font-medium">Current env vars:</p>
+                <p className="text-[10px] text-pi-text-dim font-medium">Current env vars:</p>
                 {detectedEnvVars.map(v => (
                   <div key={`${v.file}:${v.key}`} className="flex items-center gap-1.5">
-                    <CheckCircle2 className="w-2.5 h-2.5 text-forge-success shrink-0" />
-                    <code className="text-[9px] font-mono text-forge-text-dim truncate">{v.key}</code>
-                    <span className="text-[8px] text-forge-text-dim/50 ml-auto">{v.file}</span>
+                    <CheckCircle2 className="w-2.5 h-2.5 text-pi-success shrink-0" />
+                    <code className="text-[9px] font-mono text-pi-text-dim truncate">{v.key}</code>
+                    <span className="text-[8px] text-pi-text-dim/50 ml-auto">{v.file}</span>
                   </div>
                 ))}
               </div>
             )}
 
             {/* Preview compatibility note */}
-            <div className="rounded bg-forge-surface/50 p-2 mt-1">
+            <div className="rounded bg-pi-surface/50 p-2 mt-1">
               <div className="flex items-center gap-1.5 mb-1">
-                <Settings2 className="w-3 h-3 text-forge-text-dim" />
-                <span className="text-[10px] font-medium text-forge-text">Preview Support</span>
+                <Settings2 className="w-3 h-3 text-pi-text-dim" />
+                <span className="text-[10px] font-medium text-pi-text">Preview Support</span>
               </div>
-              <p className="text-[9px] text-forge-text-dim leading-relaxed">
+              <p className="text-[9px] text-pi-text-dim leading-relaxed">
                 Google Maps JS API and Google Fonts are auto-injected into the static preview when detected in your project files.
                 For full Google API integration, use the WebContainer preview (sandbox mode).
               </p>

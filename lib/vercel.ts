@@ -1,4 +1,4 @@
-export const VERCEL_TOKEN = (process.env.FORGE_DEPLOY_TOKEN || process.env.VERCEL_TOKEN || '').trim()
+export const VERCEL_TOKEN = (process.env.PI_DEPLOY_TOKEN || process.env.VERCEL_TOKEN || '').trim()
 export const VERCEL_TEAM = (process.env.VERCEL_TEAM_ID || '').trim()
 
 export function detectFramework(files: Record<string, string>): string | undefined {
@@ -18,9 +18,9 @@ export async function vercelDeploy(name: string, files: Record<string, string>, 
   const progress = onProgress || (async () => {})
   const fileEntries = Object.entries(files).map(([file, data]) => ({ file, data }))
   const fw = framework || detectFramework(files)
-  // Prefix with 'forge-' to prevent collisions with existing Vercel projects
+  // Prefix with 'pi-' to prevent collisions with existing Vercel projects
   const baseName = name.replace(/\s+/g, '-').toLowerCase().replace(/[^a-z0-9-]/g, '')
-  const deployName = (baseName.startsWith('forge-') ? baseName : `forge-${baseName}`).slice(0, 52)
+  const deployName = (baseName.startsWith('pi-') ? baseName : `pi-${baseName}`).slice(0, 52)
 
   // Payload size check — Vercel API rejects bodies > 4.5MB
   const totalSize = Object.values(files).reduce((sum, content) => sum + content.length, 0)
@@ -132,7 +132,7 @@ export async function vercelDeploy(name: string, files: Record<string, string>, 
   }
 
   if (['QUEUED', 'BUILDING', 'INITIALIZING'].includes(state)) {
-    return { url: deployUrl, id: deployId, readyState: state, note: 'Build still in progress. Use check_task_status or forge_deployment_status to check later.' }
+    return { url: deployUrl, id: deployId, readyState: state, note: 'Build still in progress. Use check_task_status or pi_deployment_status to check later.' }
   }
 
   // Fetch the stable project URL (alias) in addition to the unique deployment URL

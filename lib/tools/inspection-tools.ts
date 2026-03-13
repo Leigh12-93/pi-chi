@@ -46,7 +46,7 @@ export function createInspectionTools(ctx: ToolContext) {
 
           if (frameAncestors && !frameAncestors.includes('*')) {
             diagnosis.push(`CSP frame-ancestors: ${frameAncestors} — restricts iframe embedding`)
-            fixes.push('Update Content-Security-Policy frame-ancestors to allow Forge domain')
+            fixes.push('Update Content-Security-Policy frame-ancestors to allow Pi-Chi domain')
           }
 
           if (!res.ok) {

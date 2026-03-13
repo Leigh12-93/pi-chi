@@ -50,7 +50,7 @@ Returns key names and values. NEVER expose values in chat — only reference by 
           // Fetch from internal API — handles decryption of both credential columns and global_env_vars
           const columns = 'encrypted_supabase_url,encrypted_supabase_key,encrypted_api_key,encrypted_google_api_key,global_env_vars'
           const result = await supabaseFetch(
-            `/forge_user_settings?github_username=eq.${encodeURIComponent(ctx.githubUsername)}&select=${columns}`,
+            `/pi_user_settings?github_username=eq.${encodeURIComponent(ctx.githubUsername)}&select=${columns}`,
           )
 
           if (!result.ok || !Array.isArray(result.data) || result.data.length === 0) {
@@ -97,7 +97,7 @@ Returns key names and values. NEVER expose values in chat — only reference by 
       execute: async () => {
         if (!projectId) return { error: 'No project ID available' }
 
-        const result = await supabaseFetch(`/forge_chat_messages?project_id=eq.${projectId}&order=created_at.asc&limit=100`)
+        const result = await supabaseFetch(`/pi_chat_messages?project_id=eq.${projectId}&order=created_at.asc&limit=100`)
         if (!result.ok) return { error: `Failed to load chat history: ${JSON.stringify(result.data)}` }
 
         const messages = Array.isArray(result.data) ? result.data : []
@@ -123,7 +123,7 @@ Returns key names and values. NEVER expose values in chat — only reference by 
       execute: async ({ key, value }) => {
         if (!projectId) return { error: 'Cannot save memory without a project' }
 
-        const getResult = await supabaseFetch(`/forge_projects?id=eq.${projectId}&select=memory`)
+        const getResult = await supabaseFetch(`/pi_projects?id=eq.${projectId}&select=memory`)
         if (!getResult.ok) return { error: 'Failed to load project memory' }
         const existing = (Array.isArray(getResult.data) && getResult.data[0]?.memory) || {}
         const memory = typeof existing === 'object' ? { ...existing } : {}
@@ -134,7 +134,7 @@ Returns key names and values. NEVER expose values in chat — only reference by 
           return { error: `Memory would exceed 5KB limit (${serialized.length} bytes). Remove some entries first.` }
         }
 
-        const saveResult = await supabaseFetch(`/forge_projects?id=eq.${projectId}`, {
+        const saveResult = await supabaseFetch(`/pi_projects?id=eq.${projectId}`, {
           method: 'PATCH',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ memory }),
@@ -150,7 +150,7 @@ Returns key names and values. NEVER expose values in chat — only reference by 
       execute: async () => {
         if (!projectId) return { error: 'Cannot load memory without a project' }
 
-        const result = await supabaseFetch(`/forge_projects?id=eq.${projectId}&select=memory`)
+        const result = await supabaseFetch(`/pi_projects?id=eq.${projectId}&select=memory`)
         if (!result.ok) return { error: 'Failed to load project memory' }
         const memory = (Array.isArray(result.data) && result.data[0]?.memory) || {}
         const keys = typeof memory === 'object' ? Object.keys(memory) : []
@@ -207,7 +207,7 @@ You can also provide custom fields to collect any credentials not covered by the
       execute: async ({ key, value }) => {
         if (!ctx.projectId) return { error: 'Cannot save preferences without a session' }
 
-        const result = await supabaseFetch('/forge_user_preferences', {
+        const result = await supabaseFetch('/pi_user_preferences', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json', 'Prefer': 'resolution=merge-duplicates' },
           body: JSON.stringify({
@@ -226,7 +226,7 @@ You can also provide custom fields to collect any credentials not covered by the
       description: 'Load all saved user preferences.',
       inputSchema: z.object({}),
       execute: async () => {
-        const result = await supabaseFetch(`/forge_user_preferences?github_username=eq.${encodeURIComponent(ctx.githubUsername || 'unknown')}&order=updated_at.desc`)
+        const result = await supabaseFetch(`/pi_user_preferences?github_username=eq.${encodeURIComponent(ctx.githubUsername || 'unknown')}&order=updated_at.desc`)
         if (!result.ok) return { error: `Failed to load preferences: ${JSON.stringify(result.data)}` }
         const prefs = Array.isArray(result.data) ? result.data : []
         if (prefs.length === 0) return { preferences: [], message: 'No saved preferences yet. Learn and save them as you work.' }

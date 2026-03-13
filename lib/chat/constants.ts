@@ -28,9 +28,9 @@ export const TOOL_LABELS: Record<string, { label: string; Icon: LucideIcon; colo
   db_query: { label: 'Querying database', Icon: Database, color: 'green' },
   db_mutate: { label: 'Modifying database', Icon: Database, color: 'yellow' },
   save_project: { label: 'Saving project', Icon: Save, color: 'green' },
-  forge_read_own_source: { label: 'Reading own source', Icon: BookOpen, color: 'purple' },
-  forge_modify_own_source: { label: 'Self-modifying', Icon: Wrench, color: 'red' },
-  forge_redeploy: { label: 'Redeploying self', Icon: RefreshCw, color: 'orange' },
+  pi_read_own_source: { label: 'Reading own source', Icon: BookOpen, color: 'purple' },
+  pi_modify_own_source: { label: 'Self-modifying', Icon: Wrench, color: 'red' },
+  pi_redeploy: { label: 'Redeploying self', Icon: RefreshCw, color: 'orange' },
   github_read_file: { label: 'Reading repo file', Icon: Eye, color: 'blue' },
   github_list_repo_files: { label: 'Listing repo files', Icon: FolderPlus, color: 'blue' },
   github_modify_external_file: { label: 'Modifying repo file', Icon: Pencil, color: 'yellow' },
@@ -40,16 +40,16 @@ export const TOOL_LABELS: Record<string, { label: string; Icon: LucideIcon; colo
   mcp_list_servers: { label: 'Listing MCP servers', Icon: Plug, color: 'purple' },
   mcp_connect_server: { label: 'Connecting MCP server', Icon: Plug, color: 'green' },
   mcp_call_tool: { label: 'Calling MCP tool', Icon: Plug, color: 'blue' },
-  forge_check_npm_package: { label: 'Checking npm package', Icon: Search, color: 'blue' },
-  forge_revert_commit: { label: 'Reverting commit', Icon: RefreshCw, color: 'red' },
-  forge_create_branch: { label: 'Creating branch', Icon: GitBranch, color: 'green' },
-  forge_create_pr: { label: 'Creating pull request', Icon: GitBranch, color: 'purple' },
-  forge_merge_pr: { label: 'Merging pull request', Icon: GitBranch, color: 'green' },
-  forge_deployment_status: { label: 'Checking deployment', Icon: Rocket, color: 'blue' },
-  forge_check_build: { label: 'Running preview build', Icon: Rocket, color: 'yellow' },
-  forge_list_branches: { label: 'Listing branches', Icon: GitBranch, color: 'blue' },
-  forge_delete_branch: { label: 'Deleting branch', Icon: GitBranch, color: 'red' },
-  forge_read_deploy_log: { label: 'Reading build log', Icon: Terminal, color: 'yellow' },
+  pi_check_npm_package: { label: 'Checking npm package', Icon: Search, color: 'blue' },
+  pi_revert_commit: { label: 'Reverting commit', Icon: RefreshCw, color: 'red' },
+  pi_create_branch: { label: 'Creating branch', Icon: GitBranch, color: 'green' },
+  pi_create_pr: { label: 'Creating pull request', Icon: GitBranch, color: 'purple' },
+  pi_merge_pr: { label: 'Merging pull request', Icon: GitBranch, color: 'green' },
+  pi_deployment_status: { label: 'Checking deployment', Icon: Rocket, color: 'blue' },
+  pi_check_build: { label: 'Running preview build', Icon: Rocket, color: 'yellow' },
+  pi_list_branches: { label: 'Listing branches', Icon: GitBranch, color: 'blue' },
+  pi_delete_branch: { label: 'Deleting branch', Icon: GitBranch, color: 'red' },
+  pi_read_deploy_log: { label: 'Reading build log', Icon: Terminal, color: 'yellow' },
   db_introspect: { label: 'Inspecting table schema', Icon: Database, color: 'purple' },
   scaffold_component: { label: 'Scaffolding component', Icon: Sparkles, color: 'indigo' },
   generate_env_file: { label: 'Generating .env.example', Icon: FileText, color: 'green' },
@@ -123,7 +123,7 @@ export const MODEL_PRICING: Record<string, { input: number; output: number }> = 
 
 /** Calculate cost in USD from token counts and model ID */
 export function estimateCost(inputTokens: number, outputTokens: number, model: string): number {
-  const pricing = MODEL_PRICING[model] || (console.warn(`[forge] Unknown model for pricing: ${model}`), MODEL_PRICING['claude-sonnet-4-20250514'])
+  const pricing = MODEL_PRICING[model] || (console.warn(`[pi] Unknown model for pricing: ${model}`), MODEL_PRICING['claude-sonnet-4-20250514'])
   return (inputTokens / 1_000_000) * pricing.input + (outputTokens / 1_000_000) * pricing.output
 }
 
@@ -137,10 +137,10 @@ export function formatTokens(count: number): string {
 export const DESTRUCTIVE_TOOLS = new Set([
   'delete_file',
   'db_mutate',
-  'forge_modify_own_source',
-  'forge_redeploy',
-  'forge_revert_commit',
-  'forge_merge_pr',
+  'pi_modify_own_source',
+  'pi_redeploy',
+  'pi_revert_commit',
+  'pi_merge_pr',
   'github_modify_external_file',
   'google_gmail_send',
 ])
@@ -161,7 +161,7 @@ export const colorClasses: Record<string, string> = {
   purple: 'text-purple-600 bg-purple-50 dark:text-purple-400 dark:bg-purple-950/40',
   indigo: 'text-indigo-600 bg-indigo-50 dark:text-indigo-400 dark:bg-indigo-950/40',
   orange: 'text-orange-600 bg-orange-50 dark:text-orange-400 dark:bg-orange-950/40',
-  gray: 'text-forge-text-dim bg-forge-surface',
+  gray: 'text-pi-text-dim bg-pi-surface',
   cyan: 'text-cyan-600 bg-cyan-50 dark:text-cyan-400 dark:bg-cyan-950/40',
   amber: 'text-amber-600 bg-amber-50 dark:text-amber-400 dark:bg-amber-950/40',
 }
@@ -176,14 +176,14 @@ export const TOOL_VARIANTS: Record<string, ToolVariant> = {
   run_command: 'success', run_dev_server: 'success',
   edit_file: 'info', rename_file: 'info', github_push_update: 'info',
   github_push_files: 'info', github_pull_latest: 'info',
-  delete_file: 'destructive', forge_modify_own_source: 'destructive',
-  forge_revert_commit: 'destructive', forge_delete_branch: 'destructive',
-  run_build: 'warn', forge_check_build: 'warn', db_mutate: 'warn',
+  delete_file: 'destructive', pi_modify_own_source: 'destructive',
+  pi_revert_commit: 'destructive', pi_delete_branch: 'destructive',
+  run_build: 'warn', pi_check_build: 'warn', db_mutate: 'warn',
   check_types: 'warn', request_env_vars: 'warn', connect_service: 'warn',
 }
 
 export const variantCardClasses: Record<ToolVariant, { border: string; bg: string }> = {
-  default: { border: 'border-forge-border/50', bg: 'bg-forge-surface/20' },
+  default: { border: 'border-pi-border/50', bg: 'bg-pi-surface/20' },
   success: { border: 'border-emerald-500/20 dark:border-emerald-500/15', bg: 'bg-emerald-50/30 dark:bg-emerald-950/20' },
   info: { border: 'border-sky-500/20 dark:border-sky-500/15', bg: 'bg-sky-50/30 dark:bg-sky-950/20' },
   warn: { border: 'border-amber-500/20 dark:border-amber-500/15', bg: 'bg-amber-50/30 dark:bg-amber-950/20' },

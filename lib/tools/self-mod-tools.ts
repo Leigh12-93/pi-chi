@@ -6,10 +6,10 @@ import type { ToolContext } from './types'
 
 export function createSelfModTools(ctx: ToolContext) {
   return {
-    forge_read_own_source: tool({
-      description: 'Read a file from Forge\'s own source code on GitHub (repo: Leigh12-93/forge). Use this to understand your own implementation before modifying it.',
+    pi_read_own_source: tool({
+      description: 'Read a file from Pi-Chi\'s own source code on GitHub (repo: Leigh12-93/pi-chi). Use this to understand your own implementation before modifying it.',
       inputSchema: z.object({
-        path: z.string().describe('File path in the Forge repo, e.g. "app/api/chat/route.ts" or "components/chat-panel.tsx"'),
+        path: z.string().describe('File path in the Pi-Chi repo, e.g. "app/api/chat/route.ts" or "components/chat-panel.tsx"'),
         branch: z.string().optional().describe('Branch (default: master)'),
       }),
       execute: async ({ path, branch }) => {
@@ -18,7 +18,7 @@ export function createSelfModTools(ctx: ToolContext) {
 
         const branchName = branch || 'master'
         const result = await ctx.githubFetch(
-          `/repos/Leigh12-93/forge/contents/${path}?ref=${branchName}`,
+          `/repos/Leigh12-93/pi-chi/contents/${path}?ref=${branchName}`,
           token
         )
         if (result.error) return { error: result.error }
@@ -29,10 +29,10 @@ export function createSelfModTools(ctx: ToolContext) {
       },
     }),
 
-    forge_modify_own_source: tool({
-      description: 'Modify a file in Forge\'s own source code. This pushes a commit to the Forge repo on GitHub. Use with care — you are editing your own brain. ALWAYS use a feature branch, never master.',
+    pi_modify_own_source: tool({
+      description: 'Modify a file in Pi-Chi\'s own source code. This pushes a commit to the Pi-Chi repo on GitHub. Use with care — you are editing your own brain. ALWAYS use a feature branch, never master.',
       inputSchema: z.object({
-        path: z.string().describe('File path to modify in Forge repo'),
+        path: z.string().describe('File path to modify in Pi-Chi repo'),
         content: z.string().describe('New file content (complete file)'),
         message: z.string().describe('Commit message describing the change'),
         branch: z.string().describe('Branch name (must NOT be "master" or "main" — use a feature branch)'),
@@ -42,18 +42,18 @@ export function createSelfModTools(ctx: ToolContext) {
         if (!token) return { error: 'No GitHub token configured' }
 
         const owner = 'Leigh12-93'
-        const repo = 'forge'
+        const repo = 'pi'
         const branchName = branch || 'self-modify-' + Date.now()
 
         // Security: hard-reject pushes to protected branches
         const PROTECTED_BRANCHES = ['master', 'main', 'production']
         if (PROTECTED_BRANCHES.includes(branchName.toLowerCase())) {
-          return { error: `Direct pushes to "${branchName}" are blocked. Use a feature branch (e.g. "feat/my-change"), then forge_create_pr to merge.` }
+          return { error: `Direct pushes to "${branchName}" are blocked. Use a feature branch (e.g. "feat/my-change"), then pi_create_pr to merge.` }
         }
 
         // Security: block direct pushes to master — must use a branch
         if (branchName === 'master' || branchName === 'main') {
-          return { error: 'Direct pushes to master/main are blocked. Create a branch first with forge_create_branch, push to it, then create a PR with forge_create_pr.' }
+          return { error: 'Direct pushes to master/main are blocked. Create a branch first with pi_create_branch, push to it, then create a PR with pi_create_pr.' }
         }
 
         // Get current file SHA (needed for update)
@@ -76,13 +76,13 @@ export function createSelfModTools(ctx: ToolContext) {
           ok: true,
           path,
           commitSha: result.commit?.sha,
-          note: 'File updated on GitHub. Use forge_redeploy to deploy the change.',
+          note: 'File updated on GitHub. Use pi_redeploy to deploy the change.',
         }
       },
     }),
 
-    forge_redeploy: tool({
-      description: 'Trigger a redeployment of Forge itself on Vercel. Call this after using forge_modify_own_source to apply your changes.',
+    pi_redeploy: tool({
+      description: 'Trigger a redeployment of Pi-Chi itself on Vercel. Call this after using pi_modify_own_source to apply your changes.',
       inputSchema: z.object({
         reason: z.string().describe('Why are you redeploying? e.g. "Added new db_query tool"'),
       }),
@@ -101,11 +101,11 @@ export function createSelfModTools(ctx: ToolContext) {
           },
           signal: AbortSignal.timeout(ctx.defaultTimeout),
           body: JSON.stringify({
-            name: 'forge',
+            name: 'pi',
             gitSource: {
               type: 'github',
               org: 'Leigh12-93',
-              repo: 'forge',
+              repo: 'pi',
               ref: 'master',
             },
           }),
@@ -118,13 +118,13 @@ export function createSelfModTools(ctx: ToolContext) {
           url: `https://${data.url}`,
           deploymentId: data.id,
           reason,
-          note: 'Forge is redeploying. Changes will be live in ~60 seconds.',
+          note: 'Pi-Chi is redeploying. Changes will be live in ~60 seconds.',
         }
       },
     }),
 
-    forge_revert_commit: tool({
-      description: 'Revert the last commit on a Forge feature branch. Use this when a self-modification breaks the build. Cannot revert on master/main — use a feature branch.',
+    pi_revert_commit: tool({
+      description: 'Revert the last commit on a Pi-Chi feature branch. Use this when a self-modification breaks the build. Cannot revert on master/main — use a feature branch.',
       inputSchema: z.object({
         reason: z.string().describe('Why are you reverting?'),
         branch: z.string().describe('Branch to revert on (must be a feature branch, not master)'),
@@ -134,7 +134,7 @@ export function createSelfModTools(ctx: ToolContext) {
         if (!token) return { error: 'No GitHub token configured' }
 
         const owner = 'Leigh12-93'
-        const repo = 'forge'
+        const repo = 'pi'
 
         // Security: block reverts on protected branches
         const PROTECTED_BRANCHES = ['master', 'main', 'production']
@@ -178,13 +178,13 @@ export function createSelfModTools(ctx: ToolContext) {
           revertedMessage: headMessage,
           newCommit: newCommit.sha.slice(0, 7),
           reason,
-          note: 'Reverted successfully. Use forge_redeploy to deploy the revert.',
+          note: 'Reverted successfully. Use pi_redeploy to deploy the revert.',
         }
       },
     }),
 
-    forge_create_branch: tool({
-      description: 'Create a new branch on the Forge repo for safe development. Use this instead of pushing directly to master.',
+    pi_create_branch: tool({
+      description: 'Create a new branch on the Pi-Chi repo for safe development. Use this instead of pushing directly to master.',
       inputSchema: z.object({
         branch: z.string().describe('Branch name, e.g. "feat/add-testing-tools"'),
         fromBranch: z.string().default('master').describe('Base branch to create from'),
@@ -194,7 +194,7 @@ export function createSelfModTools(ctx: ToolContext) {
         if (!token) return { error: 'No GitHub token configured' }
 
         const owner = 'Leigh12-93'
-        const repo = 'forge'
+        const repo = 'pi'
 
         // Get SHA of the base branch
         const ref = await ctx.githubFetch(`/repos/${owner}/${repo}/git/ref/heads/${fromBranch}`, token)
@@ -215,13 +215,13 @@ export function createSelfModTools(ctx: ToolContext) {
           branch,
           basedOn: fromBranch,
           sha: ref.object.sha.slice(0, 7),
-          note: `Branch "${branch}" created. Use forge_modify_own_source with branch="${branch}" to push changes there instead of master.`,
+          note: `Branch "${branch}" created. Use pi_modify_own_source with branch="${branch}" to push changes there instead of master.`,
         }
       },
     }),
 
-    forge_create_pr: tool({
-      description: 'Create a pull request on the Forge repo. Use after pushing changes to a feature branch.',
+    pi_create_pr: tool({
+      description: 'Create a pull request on the Pi-Chi repo. Use after pushing changes to a feature branch.',
       inputSchema: z.object({
         title: z.string().describe('PR title'),
         body: z.string().describe('PR description'),
@@ -232,7 +232,7 @@ export function createSelfModTools(ctx: ToolContext) {
         const token = GITHUB_TOKEN
         if (!token) return { error: 'No GitHub token configured' }
 
-        const result = await ctx.githubFetch('/repos/Leigh12-93/forge/pulls', token, {
+        const result = await ctx.githubFetch('/repos/Leigh12-93/pi-chi/pulls', token, {
           method: 'POST',
           body: JSON.stringify({ title, body, head, base }),
         })
@@ -249,8 +249,8 @@ export function createSelfModTools(ctx: ToolContext) {
       },
     }),
 
-    forge_merge_pr: tool({
-      description: 'Merge a pull request on the Forge repo. Only merge after verifying the preview deploy succeeded.',
+    pi_merge_pr: tool({
+      description: 'Merge a pull request on the Pi-Chi repo. Only merge after verifying the preview deploy succeeded.',
       inputSchema: z.object({
         prNumber: z.number().describe('PR number to merge'),
         method: z.enum(['merge', 'squash', 'rebase']).default('squash').describe('Merge method'),
@@ -260,11 +260,11 @@ export function createSelfModTools(ctx: ToolContext) {
         if (!token) return { error: 'No GitHub token configured' }
 
         // Check CI/deploy status before merging
-        const pr = await ctx.githubFetch(`/repos/Leigh12-93/forge/pulls/${prNumber}`, token)
+        const pr = await ctx.githubFetch(`/repos/Leigh12-93/pi-chi/pulls/${prNumber}`, token)
         if (pr.error) return { error: `Failed to read PR: ${pr.error}` }
         const headSha = pr.head?.sha
         if (headSha) {
-          const checks = await ctx.githubFetch(`/repos/Leigh12-93/forge/commits/${headSha}/check-runs`, token)
+          const checks = await ctx.githubFetch(`/repos/Leigh12-93/pi-chi/commits/${headSha}/check-runs`, token)
           if (Array.isArray(checks.check_runs)) {
             const failing = checks.check_runs.filter((c: any) => c.conclusion === 'failure')
             const pending = checks.check_runs.filter((c: any) => c.status !== 'completed')
@@ -277,7 +277,7 @@ export function createSelfModTools(ctx: ToolContext) {
           }
         }
 
-        const result = await ctx.githubFetch(`/repos/Leigh12-93/forge/pulls/${prNumber}/merge`, token, {
+        const result = await ctx.githubFetch(`/repos/Leigh12-93/pi-chi/pulls/${prNumber}/merge`, token, {
           method: 'PUT',
           body: JSON.stringify({ merge_method: method }),
         })
@@ -287,12 +287,12 @@ export function createSelfModTools(ctx: ToolContext) {
           ok: true,
           merged: true,
           sha: result.sha?.slice(0, 7),
-          note: 'PR merged to master. Vercel will auto-deploy. Use forge_deployment_status to monitor.',
+          note: 'PR merged to master. Vercel will auto-deploy. Use pi_deployment_status to monitor.',
         }
       },
     }),
 
-    forge_check_npm_package: tool({
+    pi_check_npm_package: tool({
       description: 'Check if an npm package exists and get its latest version. ALWAYS call this before adding a new dependency to package.json.',
       inputSchema: z.object({
         name: z.string().describe('npm package name, e.g. "@modelcontextprotocol/sdk"'),
@@ -316,13 +316,13 @@ export function createSelfModTools(ctx: ToolContext) {
       },
     }),
 
-    forge_list_branches: tool({
-      description: 'List all branches on the Forge repo. Useful to see what feature branches exist.',
+    pi_list_branches: tool({
+      description: 'List all branches on the Pi-Chi repo. Useful to see what feature branches exist.',
       inputSchema: z.object({}),
       execute: async () => {
         const token = GITHUB_TOKEN
         if (!token) return { error: 'No GitHub token configured' }
-        const result = await ctx.githubFetch('/repos/Leigh12-93/forge/branches?per_page=30', token)
+        const result = await ctx.githubFetch('/repos/Leigh12-93/pi-chi/branches?per_page=30', token)
         if (!Array.isArray(result)) return { error: result.error || 'Failed to list branches' }
         return {
           branches: result.map((b: any) => ({
@@ -334,8 +334,8 @@ export function createSelfModTools(ctx: ToolContext) {
       },
     }),
 
-    forge_delete_branch: tool({
-      description: 'Delete a branch on the Forge repo after it has been merged.',
+    pi_delete_branch: tool({
+      description: 'Delete a branch on the Pi-Chi repo after it has been merged.',
       inputSchema: z.object({
         branch: z.string().describe('Branch name to delete (cannot be master)'),
       }),
@@ -344,7 +344,7 @@ export function createSelfModTools(ctx: ToolContext) {
         if (PROTECTED_BRANCHES.includes(branch.toLowerCase())) return { error: 'Cannot delete protected branches (master/main/production)' }
         const token = GITHUB_TOKEN
         if (!token) return { error: 'No GitHub token configured' }
-        const result = await ctx.githubFetch(`/repos/Leigh12-93/forge/git/refs/heads/${branch}`, token, {
+        const result = await ctx.githubFetch(`/repos/Leigh12-93/pi-chi/git/refs/heads/${branch}`, token, {
           method: 'DELETE',
         })
         if (result.error) return { error: `Failed to delete branch: ${result.error}` }

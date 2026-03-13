@@ -1,8 +1,8 @@
 {
   "id": "/",
-  "name": "Six-Chi — AI Website Builder",
-  "short_name": "Six-Chi",
-  "description": "Build websites with AI",
+  "name": "Pi-Chi — Autonomous AI Agent",
+  "short_name": "Pi-Chi",
+  "description": "Autonomous AI brain for Raspberry Pi",
   "start_url": "/",
   "display": "standalone",
   "background_color": "#0f1117",

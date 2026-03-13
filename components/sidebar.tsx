@@ -110,7 +110,7 @@ export function ActivityBar({ activeTab, onTabChange }: ActivityBarProps) {
   }
 
   return (
-    <div className="group/actbar w-11 hover:w-40 shrink-0 h-full bg-forge-panel border-r border-forge-border flex flex-col pt-2 gap-0.5 transition-[width] duration-200 ease-out overflow-hidden" role="tablist" aria-label="Sidebar panels" aria-orientation="vertical">
+    <div className="group/actbar w-11 hover:w-40 shrink-0 h-full bg-pi-panel border-r border-pi-border flex flex-col pt-2 gap-0.5 transition-[width] duration-200 ease-out overflow-hidden" role="tablist" aria-label="Sidebar panels" aria-orientation="vertical">
       {TABS.map(tab => (
         <button
           key={tab.id}
@@ -122,14 +122,14 @@ export function ActivityBar({ activeTab, onTabChange }: ActivityBarProps) {
           className={cn(
             'relative mx-1 h-9 flex items-center gap-2.5 px-2 rounded-lg transition-colors whitespace-nowrap',
             activeTab === tab.id
-              ? cn(tab.activeColor || 'text-forge-accent', tab.activeBg || 'bg-forge-accent/10')
-              : 'text-forge-text-dim hover:text-forge-text hover:bg-forge-surface',
+              ? cn(tab.activeColor || 'text-pi-accent', tab.activeBg || 'bg-pi-accent/10')
+              : 'text-pi-text-dim hover:text-pi-text hover:bg-pi-surface',
           )}
         >
           <tab.icon className="w-[18px] h-[18px] shrink-0" />
           <span className="text-xs font-medium opacity-0 group-hover/actbar:opacity-100 transition-opacity duration-200">{tab.label}</span>
           {activeTab === tab.id && (
-            <span className="absolute left-0 top-1.5 bottom-1.5 w-0.5 bg-forge-accent rounded-r-full transition-all duration-200 shadow-[2px_0_8px_-1px_rgba(99,102,241,0.3)]" />
+            <span className="absolute left-0 top-1.5 bottom-1.5 w-0.5 bg-pi-accent rounded-r-full transition-all duration-200 shadow-[2px_0_8px_-1px_rgba(99,102,241,0.3)]" />
           )}
         </button>
       ))}
@@ -179,7 +179,7 @@ export function SidebarContent({
   currentBranch, onBranchChange,
 }: SidebarContentProps) {
   return (
-    <div className="h-full overflow-y-auto bg-forge-panel animate-sidebar-in">
+    <div className="h-full overflow-y-auto bg-pi-panel animate-sidebar-in">
       {activeTab === 'anthropic' && (
         <AnthropicPanel onOpenSettings={onOpenSettings} onOpenMcpManager={onOpenMcpManager} sessionCost={sessionCost} fileContents={fileContents} />
       )}

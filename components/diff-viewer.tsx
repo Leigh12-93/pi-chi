@@ -76,22 +76,22 @@ export function DiffViewer({ open, onClose, path, oldContent, newContent, oldLab
 
   return (
     <div className="fixed inset-0 z-[100] flex items-center justify-center" onClick={onClose}>
-      <div className="absolute inset-0 bg-forge-overlay backdrop-blur-md animate-fade-in" />
+      <div className="absolute inset-0 bg-pi-overlay backdrop-blur-md animate-fade-in" />
       <div
-        className="relative w-full max-w-3xl mx-4 max-h-[80vh] bg-forge-bg rounded-2xl shadow-2xl border border-forge-border overflow-hidden animate-scale-in"
+        className="relative w-full max-w-3xl mx-4 max-h-[80vh] bg-pi-bg rounded-2xl shadow-2xl border border-pi-border overflow-hidden animate-scale-in"
         onClick={e => e.stopPropagation()}
       >
         {/* Header */}
-        <div className="flex items-center justify-between px-5 py-3 border-b border-forge-border">
+        <div className="flex items-center justify-between px-5 py-3 border-b border-pi-border">
           <div className="flex items-center gap-2">
-            <Diff className="w-4 h-4 text-forge-accent" />
-            <span className="text-xs font-medium text-forge-text font-mono">{path}</span>
+            <Diff className="w-4 h-4 text-pi-accent" />
+            <span className="text-xs font-medium text-pi-text font-mono">{path}</span>
             <span className="text-[10px] text-emerald-500">+{additions}</span>
             <span className="text-[10px] text-red-500">-{deletions}</span>
           </div>
           <button
             onClick={onClose}
-            className="p-1 rounded-lg text-forge-text-dim hover:text-forge-text hover:bg-forge-surface transition-colors"
+            className="p-1 rounded-lg text-pi-text-dim hover:text-pi-text hover:bg-pi-surface transition-colors"
           >
             <X className="w-4 h-4" />
           </button>
@@ -106,13 +106,13 @@ export function DiffViewer({ open, onClose, path, oldContent, newContent, oldLab
                 className={
                   line.type === 'add' ? 'bg-emerald-500/10 text-emerald-700 dark:text-emerald-300' :
                   line.type === 'remove' ? 'bg-red-500/10 text-red-700 dark:text-red-300' :
-                  'text-forge-text'
+                  'text-pi-text'
                 }
               >
-                <span className="inline-block w-10 text-right pr-2 text-forge-text-dim/50 select-none">
+                <span className="inline-block w-10 text-right pr-2 text-pi-text-dim/50 select-none">
                   {line.oldLine || ''}
                 </span>
-                <span className="inline-block w-10 text-right pr-2 text-forge-text-dim/50 select-none">
+                <span className="inline-block w-10 text-right pr-2 text-pi-text-dim/50 select-none">
                   {line.newLine || ''}
                 </span>
                 <span className="inline-block w-4 text-center select-none font-medium">

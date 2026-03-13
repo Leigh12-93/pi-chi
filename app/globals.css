@@ -5,52 +5,52 @@
 @theme {
   --font-sans: 'Geist', ui-sans-serif, system-ui, -apple-system, sans-serif;
   --font-mono: 'Geist Mono', ui-monospace, 'SF Mono', 'Cascadia Code', monospace;
-  --color-forge-bg: #ffffff;
-  --color-forge-surface: #f8f9fa;
-  --color-forge-surface-hover: #f1f3f5;
-  --color-forge-panel: #f1f3f4;
-  --color-forge-border: #e1e5e9;
-  --color-forge-border-bright: #d1d5db;
-  --color-forge-accent: #dc2626;
-  --color-forge-accent-hover: #b91c1c;
-  --color-forge-text: #1f2937;
-  --color-forge-text-dim: #6b7280;
-  --color-forge-success: #059669;
-  --color-forge-warning: #d97706;
-  --color-forge-danger: #dc2626;
-  --color-forge-ring: rgba(220, 38, 38, 0.15);
-  --color-forge-overlay: rgba(0, 0, 0, 0.5);
+  --color-pi-bg: #ffffff;
+  --color-pi-surface: #f8f9fa;
+  --color-pi-surface-hover: #f1f3f5;
+  --color-pi-panel: #f1f3f4;
+  --color-pi-border: #e1e5e9;
+  --color-pi-border-bright: #d1d5db;
+  --color-pi-accent: #dc2626;
+  --color-pi-accent-hover: #b91c1c;
+  --color-pi-text: #1f2937;
+  --color-pi-text-dim: #6b7280;
+  --color-pi-success: #059669;
+  --color-pi-warning: #d97706;
+  --color-pi-danger: #dc2626;
+  --color-pi-ring: rgba(220, 38, 38, 0.15);
+  --color-pi-overlay: rgba(0, 0, 0, 0.5);
 
   /* Code & terminal */
-  --color-forge-terminal: #1a1a2e;
-  --color-forge-terminal-dark: #0d0d1a;
-  --color-forge-diff-added: #10b981;
-  --color-forge-diff-removed: #ef4444;
+  --color-pi-terminal: #1a1a2e;
+  --color-pi-terminal-dark: #0d0d1a;
+  --color-pi-diff-added: #10b981;
+  --color-pi-diff-removed: #ef4444;
 }
 
 /* Dark mode overrides (class-based) */
 html.dark {
-  --color-forge-bg: #0f1117;
-  --color-forge-surface: #1a1d27;
-  --color-forge-surface-hover: #1e2130;
-  --color-forge-panel: #141620;
-  --color-forge-border: #2a2d3a;
-  --color-forge-border-bright: #3a3d4a;
-  --color-forge-accent: #f87171;
-  --color-forge-accent-hover: #dc2626;
-  --color-forge-text: #e5e7eb;
-  --color-forge-text-dim: #9ca3af;
-  --color-forge-success: #34d399;
-  --color-forge-warning: #fbbf24;
-  --color-forge-danger: #f87171;
-  --color-forge-ring: rgba(248, 113, 113, 0.2);
-  --color-forge-overlay: rgba(0, 0, 0, 0.65);
+  --color-pi-bg: #0f1117;
+  --color-pi-surface: #1a1d27;
+  --color-pi-surface-hover: #1e2130;
+  --color-pi-panel: #141620;
+  --color-pi-border: #2a2d3a;
+  --color-pi-border-bright: #3a3d4a;
+  --color-pi-accent: #f87171;
+  --color-pi-accent-hover: #dc2626;
+  --color-pi-text: #e5e7eb;
+  --color-pi-text-dim: #9ca3af;
+  --color-pi-success: #34d399;
+  --color-pi-warning: #fbbf24;
+  --color-pi-danger: #f87171;
+  --color-pi-ring: rgba(248, 113, 113, 0.2);
+  --color-pi-overlay: rgba(0, 0, 0, 0.65);
 
   /* Code & terminal */
-  --color-forge-terminal: #1a1a2e;
-  --color-forge-terminal-dark: #0d0d1a;
-  --color-forge-diff-added: #34d399;
-  --color-forge-diff-removed: #f87171;
+  --color-pi-terminal: #1a1a2e;
+  --color-pi-terminal-dark: #0d0d1a;
+  --color-pi-diff-added: #34d399;
+  --color-pi-diff-removed: #f87171;
 }
 
 html.dark ::-webkit-scrollbar-thumb { background: #3a3d4a; }
@@ -68,7 +68,7 @@ html.dark ::selection { background: rgba(248, 113, 113, 0.3); }
   ::-webkit-scrollbar { width: 14px; height: 14px; }
   button, [role="button"], a[href], summary { min-height: 44px; min-width: 44px; }
   button:focus-visible, [role="button"]:focus-visible, a[href]:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-visible {
-    box-shadow: 0 0 0 3px var(--color-forge-ring);
+    box-shadow: 0 0 0 3px var(--color-pi-ring);
   }
 }
 
@@ -96,7 +96,7 @@ button, [role="button"], a[href], summary {
 }
 button:focus-visible, [role="button"]:focus-visible, a[href]:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-visible {
   outline: none;
-  box-shadow: 0 0 0 2px var(--color-forge-ring);
+  box-shadow: 0 0 0 2px var(--color-pi-ring);
 }
 button:active:not(:disabled), [role="button"]:active:not(:disabled) {
   transform: scale(0.97);
@@ -112,20 +112,20 @@ button:active:not(:disabled), [role="button"]:active:not(:disabled) {
 /* Panel resize handle */
 [data-panel-group-direction="horizontal"] > [data-resize-handle] {
   width: 2px !important;
-  background: var(--color-forge-border);
+  background: var(--color-pi-border);
   transition: background 0.15s;
 }
 [data-panel-group-direction="horizontal"] > [data-resize-handle]:hover,
 [data-panel-group-direction="horizontal"] > [data-resize-handle][data-resize-handle-active] {
-  background: var(--color-forge-accent);
+  background: var(--color-pi-accent);
 }
 
 /* Monaco overrides */
 .monaco-editor, .monaco-editor .margin, .monaco-editor-background {
-  background-color: var(--color-forge-bg) !important;
+  background-color: var(--color-pi-bg) !important;
 }
 .monaco-editor .current-line {
-  background-color: var(--color-forge-surface) !important;
+  background-color: var(--color-pi-surface) !important;
 }
 
 /* AI diff decorations in Monaco editor — animated reveal */
@@ -164,7 +164,7 @@ html.dark [data-sonner-toast] [data-description] {
   display: inline-block;
   width: 2.5px;
   height: 1.15em;
-  background: var(--color-forge-accent);
+  background: var(--color-pi-accent);
   vertical-align: text-bottom;
   animation: cursorBlink 1.1s ease-in-out infinite;
   margin-left: 2px;
@@ -243,7 +243,7 @@ html.dark [data-sonner-toast] [data-description] {
   100% { background-position: 200% 0; }
 }
 .animate-skeleton {
-  background: linear-gradient(90deg, var(--color-forge-panel) 25%, var(--color-forge-surface-hover) 50%, var(--color-forge-panel) 75%);
+  background: linear-gradient(90deg, var(--color-pi-panel) 25%, var(--color-pi-surface-hover) 50%, var(--color-pi-panel) 75%);
   background-size: 200% 100%;
   animation: skeleton 2s ease-in-out infinite;
 }
@@ -265,7 +265,7 @@ html.dark [data-sonner-toast] [data-description] {
   width: 5px;
   height: 5px;
   border-radius: 50%;
-  background: var(--color-forge-accent);
+  background: var(--color-pi-accent);
   animation: dotBounceChat 1.4s cubic-bezier(0.45, 0, 0.55, 1) infinite;
 }
 .typing-dot:nth-child(2) { animation-delay: 0.16s; }
@@ -308,14 +308,14 @@ html.dark [data-sonner-toast] [data-description] {
   height: 2px;
   width: 30%;
   border-radius: 1px;
-  background: linear-gradient(90deg, transparent, var(--color-forge-accent), transparent);
+  background: linear-gradient(90deg, transparent, var(--color-pi-accent), transparent);
   animation: indeterminate 1.6s ease-in-out infinite;
 }
 
 /* ─── Input focus glow ────────────────────────────────────── */
 .input-focus-glow:focus-within {
-  box-shadow: 0 0 0 3px var(--color-forge-ring), 0 1px 3px 0 rgba(0,0,0,0.04);
-  border-color: var(--color-forge-accent) !important;
+  box-shadow: 0 0 0 3px var(--color-pi-ring), 0 1px 3px 0 rgba(0,0,0,0.04);
+  border-color: var(--color-pi-accent) !important;
 }
 
 /* ─── Stop button pulse ring ─────────────────────────────── */
@@ -369,12 +369,12 @@ html.dark [data-sonner-toast] [data-description] {
 
 /* Code block wrapper hover effect */
 .code-block-wrapper:hover > div:first-child {
-  background-color: var(--color-forge-surface-hover);
+  background-color: var(--color-pi-surface-hover);
 }
 
-/* ─── Six-Chi Branded Loading Animation ───────────────────────── */
+/* ─── Pi-Chi Branded Loading Animation ───────────────────────── */
 
-.sixchi-loader-scene {
+.pichi-loader-scene {
   position: absolute;
   inset: 0;
   overflow: hidden;
@@ -387,18 +387,18 @@ html.dark [data-sonner-toast] [data-description] {
 }
 
 /* Radial gradient mesh background */
-.sixchi-bg-mesh {
+.pichi-bg-mesh {
   position: absolute;
   inset: 0;
   background: radial-gradient(ellipse at center, #1a1040 0%, #0c0a1a 50%, #050510 100%);
 }
 
-:is(:not(.dark)) .sixchi-bg-mesh {
+:is(:not(.dark)) .pichi-bg-mesh {
   background: radial-gradient(ellipse at center, #eef0ff 0%, #f0f0f8 50%, #f8f9fb 100%);
 }
 
 /* Subtle animated dot grid */
-.sixchi-dot-grid {
+.pichi-dot-grid {
   position: absolute;
   inset: 0;
   background-image: radial-gradient(circle, rgba(248,113,113,0.08) 1px, transparent 1px);
@@ -406,7 +406,7 @@ html.dark [data-sonner-toast] [data-description] {
   animation: dotGridDrift 20s linear infinite;
 }
 
-:is(:not(.dark)) .sixchi-dot-grid {
+:is(:not(.dark)) .pichi-dot-grid {
   background-image: radial-gradient(circle, rgba(220,38,38,0.06) 1px, transparent 1px);
 }
 
@@ -416,7 +416,7 @@ html.dark [data-sonner-toast] [data-description] {
 }
 
 /* Logo container — positions logo + glow + orbits */
-.sixchi-logo-container {
+.pichi-logo-container {
   position: relative;
   display: flex;
   align-items: center;
@@ -427,7 +427,7 @@ html.dark [data-sonner-toast] [data-description] {
 }
 
 /* Ambient glow behind logo */
-.sixchi-logo-glow {
+.pichi-logo-glow {
   position: absolute;
   inset: -20px;
   border-radius: 50%;
@@ -436,7 +436,7 @@ html.dark [data-sonner-toast] [data-description] {
   animation: glowBreath 3s ease-in-out infinite;
 }
 
-:is(:not(.dark)) .sixchi-logo-glow {
+:is(:not(.dark)) .pichi-logo-glow {
   background: radial-gradient(circle, rgba(220,38,38,0.15) 0%, rgba(220,38,38,0.05) 40%, transparent 70%);
 }
 
@@ -446,13 +446,13 @@ html.dark [data-sonner-toast] [data-description] {
 }
 
 /* Logo reveal — blur to sharp + scale */
-.sixchi-logo-reveal {
+.pichi-logo-reveal {
   animation: logoReveal 0.8s cubic-bezier(0.16, 1, 0.3, 1) forwards;
   opacity: 0;
   z-index: 2;
 }
 
-.sixchi-logo-ready .sixchi-logo-glow {
+.pichi-logo-ready .pichi-logo-glow {
   background: radial-gradient(circle, rgba(16,185,129,0.3) 0%, rgba(16,185,129,0.1) 40%, transparent 70%);
 }
 
@@ -461,8 +461,8 @@ html.dark [data-sonner-toast] [data-description] {
   100% { opacity: 1; filter: blur(0); transform: scale(1); }
 }
 
-/* Shimmer sweep on the 6-χ logo in preview loader */
-.sixchi-shimmer {
+/* Shimmer sweep on the π-χ logo in preview loader */
+.pichi-shimmer {
   background: linear-gradient(
     90deg,
     #dc2626 0%,
@@ -474,17 +474,17 @@ html.dark [data-sonner-toast] [data-description] {
   background-size: 200% 100%;
   -webkit-background-clip: text;
   background-clip: text;
-  animation: sixchiShimmer 2.8s ease-in-out infinite;
+  animation: pichiShimmer 2.8s ease-in-out infinite;
 }
 
-@keyframes sixchiShimmer {
+@keyframes pichiShimmer {
   0% { background-position: 100% 0; }
   50% { background-position: -100% 0; }
   100% { background-position: 100% 0; }
 }
 
 /* Orbital rings */
-.sixchi-orbit {
+.pichi-orbit {
   position: absolute;
   border-radius: 50%;
   border: 1px dashed rgba(248,113,113,0.2);
@@ -492,11 +492,11 @@ html.dark [data-sonner-toast] [data-description] {
   pointer-events: none;
 }
 
-:is(:not(.dark)) .sixchi-orbit {
+:is(:not(.dark)) .pichi-orbit {
   border-color: rgba(220,38,38,0.15);
 }
 
-.sixchi-orbit-outer {
+.pichi-orbit-outer {
   width: 220px;
   height: 220px;
   top: 50%;
@@ -505,7 +505,7 @@ html.dark [data-sonner-toast] [data-description] {
   animation: ringOrbit 12s linear infinite;
 }
 
-.sixchi-orbit-inner {
+.pichi-orbit-inner {
   width: 140px;
   height: 140px;
   top: 50%;
@@ -525,7 +525,7 @@ html.dark [data-sonner-toast] [data-description] {
 }
 
 /* Status text below logo */
-.sixchi-status-text {
+.pichi-status-text {
   position: relative;
   margin-top: 32px;
   display: flex;
@@ -537,7 +537,7 @@ html.dark [data-sonner-toast] [data-description] {
 }
 
 /* Progress bar at bottom */
-.forge-progress-track {
+.pi-progress-track {
   position: absolute;
   bottom: 0;
   left: 0;
@@ -546,11 +546,11 @@ html.dark [data-sonner-toast] [data-description] {
   background: rgba(220,38,38,0.06);
 }
 
-:is(.dark) .forge-progress-track { background: rgba(220,38,38,0.12); }
+:is(.dark) .pi-progress-track { background: rgba(220,38,38,0.12); }
 
-.forge-progress-bar {
+.pi-progress-bar {
   height: 100%;
-  background: linear-gradient(90deg, var(--color-forge-accent), #f87171, #fca5a5);
+  background: linear-gradient(90deg, var(--color-pi-accent), #f87171, #fca5a5);
   border-radius: 0 2px 2px 0;
   animation: buildProgress 8s ease-out forwards;
 }
@@ -565,7 +565,7 @@ html.dark [data-sonner-toast] [data-description] {
 }
 
 /* Status text below browser */
-.forge-build-status {
+.pi-build-status {
   position: relative;
   margin-top: 20px;
   display: flex;
@@ -576,21 +576,21 @@ html.dark [data-sonner-toast] [data-description] {
   animation: fadeIn 0.4s 0.3s ease-out both;
 }
 
-.forge-build-dots {
+.pi-build-dots {
   display: flex;
   gap: 4px;
 }
 
-.forge-build-dots span {
+.pi-build-dots span {
   width: 5px;
   height: 5px;
   border-radius: 50%;
-  background: var(--color-forge-accent);
+  background: var(--color-pi-accent);
   animation: dotBounce 1.4s ease-in-out infinite;
 }
 
-.forge-build-dots span:nth-child(2) { animation-delay: 0.16s; }
-.forge-build-dots span:nth-child(3) { animation-delay: 0.32s; }
+.pi-build-dots span:nth-child(2) { animation-delay: 0.16s; }
+.pi-build-dots span:nth-child(3) { animation-delay: 0.32s; }
 
 @keyframes dotBounce {
   0%, 80%, 100% { transform: scale(0.6); opacity: 0.4; }
@@ -598,7 +598,7 @@ html.dark [data-sonner-toast] [data-description] {
 }
 
 /* ─── Phased Build Stepper ──────────────────────────────────── */
-.forge-build-phase {
+.pi-build-phase {
   display: flex;
   align-items: center;
   gap: 6px;
@@ -606,40 +606,40 @@ html.dark [data-sonner-toast] [data-description] {
   animation: fadeIn 0.3s ease-out forwards;
 }
 
-.forge-phase-step {
+.pi-phase-step {
   display: flex;
   align-items: center;
   gap: 4px;
   font-size: 10px;
   font-weight: 500;
-  color: var(--color-forge-text-dim);
+  color: var(--color-pi-text-dim);
   transition: color 0.3s, opacity 0.3s;
   opacity: 0.4;
 }
 
-.forge-phase-step.active {
-  color: var(--color-forge-accent);
+.pi-phase-step.active {
+  color: var(--color-pi-accent);
   opacity: 1;
 }
 
-.forge-phase-step.done {
+.pi-phase-step.done {
   color: #10b981;
   opacity: 0.7;
 }
 
-.forge-phase-connector {
+.pi-phase-connector {
   width: 12px;
   height: 1px;
-  background: var(--color-forge-border);
+  background: var(--color-pi-border);
   transition: background 0.3s;
 }
 
-.forge-phase-connector.done {
+.pi-phase-connector.done {
   background: #10b981;
 }
 
 /* Crossfade from building scene to live preview */
-.forge-ready-crossfade {
+.pi-ready-crossfade {
   animation: readyCrossfade 0.5s cubic-bezier(0.16, 1, 0.3, 1) forwards;
 }
 
@@ -655,12 +655,12 @@ html.dark [data-sonner-toast] [data-description] {
   100% { transform: scale(1); opacity: 1; }
 }
 
-.forge-ready-check {
+.pi-ready-check {
   animation: readyCheck 0.4s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
 }
 
 /* Check path draw animation */
-.forge-check-draw {
+.pi-check-draw {
   stroke-dasharray: 30;
   stroke-dashoffset: 30;
   animation: checkDraw 0.5s 0.15s ease-out forwards;
@@ -671,7 +671,7 @@ html.dark [data-sonner-toast] [data-description] {
 }
 
 /* Success glow transition */
-.sixchi-glow-success {
+.pichi-glow-success {
   background: radial-gradient(circle, rgba(16,185,129,0.3) 0%, rgba(16,185,129,0.1) 40%, transparent 70%) !important;
   transition: background 0.6s ease;
 }
@@ -681,7 +681,7 @@ html.dark [data-sonner-toast] [data-description] {
   width: 6px;
   height: 6px;
   border-radius: 50%;
-  background: var(--color-forge-accent);
+  background: var(--color-pi-accent);
   animation: buildingDotPulse 1.6s ease-in-out infinite;
 }
 
@@ -723,13 +723,13 @@ html.dark [data-sonner-toast] [data-description] {
   top: -3px;
   width: 1px;
   height: 6px;
-  background: var(--color-forge-border);
+  background: var(--color-pi-border);
   opacity: 0.3;
 }
 
 /* File path shown after filename */
 .tool-timeline-path {
-  color: var(--color-forge-text-dim);
+  color: var(--color-pi-text-dim);
   opacity: 0.35;
   font-size: 11px;
   font-family: var(--font-mono);
@@ -792,7 +792,7 @@ html.dark [data-sonner-toast] [data-description] {
   position: absolute;
   top: 0;
   height: 100%;
-  background: linear-gradient(90deg, transparent, var(--color-forge-accent), transparent);
+  background: linear-gradient(90deg, transparent, var(--color-pi-accent), transparent);
   opacity: 0.4;
   border-radius: 1px;
   animation: thinkingProgress 2.5s ease-in-out infinite;
@@ -810,11 +810,11 @@ html.dark [data-sonner-toast] [data-description] {
 .shimmer-text {
   background: linear-gradient(
     90deg,
-    var(--color-forge-text) 0%,
-    var(--color-forge-text) 35%,
-    var(--color-forge-accent) 50%,
-    var(--color-forge-text) 65%,
-    var(--color-forge-text) 100%
+    var(--color-pi-text) 0%,
+    var(--color-pi-text) 35%,
+    var(--color-pi-accent) 50%,
+    var(--color-pi-text) 65%,
+    var(--color-pi-text) 100%
   );
   background-size: 200% auto;
   -webkit-background-clip: text;
@@ -827,11 +827,11 @@ html.dark [data-sonner-toast] [data-description] {
 .shimmer-text-subtle {
   background: linear-gradient(
     90deg,
-    var(--color-forge-text-dim) 0%,
-    var(--color-forge-text-dim) 40%,
-    var(--color-forge-accent) 50%,
-    var(--color-forge-text-dim) 60%,
-    var(--color-forge-text-dim) 100%
+    var(--color-pi-text-dim) 0%,
+    var(--color-pi-text-dim) 40%,
+    var(--color-pi-accent) 50%,
+    var(--color-pi-text-dim) 60%,
+    var(--color-pi-text-dim) 100%
   );
   background-size: 200% auto;
   -webkit-background-clip: text;
@@ -864,11 +864,11 @@ html.dark [data-sonner-toast] [data-description] {
 .shimmer-task {
   background: linear-gradient(
     90deg,
-    var(--color-forge-text-dim) 0%,
-    var(--color-forge-text-dim) 30%,
-    var(--color-forge-accent) 50%,
-    var(--color-forge-text-dim) 70%,
-    var(--color-forge-text-dim) 100%
+    var(--color-pi-text-dim) 0%,
+    var(--color-pi-text-dim) 30%,
+    var(--color-pi-accent) 50%,
+    var(--color-pi-text-dim) 70%,
+    var(--color-pi-text-dim) 100%
   );
   background-size: 200% auto;
   -webkit-background-clip: text;
@@ -937,7 +937,7 @@ html.dark [data-sonner-toast] [data-description] {
   transform: translate(-50%, -50%) rotate(90deg);
   font-size: 8px;
   letter-spacing: 1px;
-  color: var(--color-forge-text-dim);
+  color: var(--color-pi-text-dim);
   opacity: 0;
   transition: opacity 0.15s;
   pointer-events: none;
@@ -1010,7 +1010,7 @@ html.dark [data-sonner-toast] [data-description] {
 
 /* Animated gradient progress bar at top */
 .deploy-progress-bar {
-  background: linear-gradient(90deg, var(--color-forge-accent), #f87171, #fca5a5, var(--color-forge-accent));
+  background: linear-gradient(90deg, var(--color-pi-accent), #f87171, #fca5a5, var(--color-pi-accent));
   background-size: 300% 100%;
   animation: deployProgressSweep 2s linear infinite;
 }
@@ -1065,7 +1065,7 @@ html.dark [data-sonner-toast] [data-description] {
   border-color: rgba(255, 255, 255, 0.04);
 }
 
-/* ─── Forge Polish: Device Frame Transition ──────────────── */
+/* ─── Pi-Chi Polish: Device Frame Transition ──────────────── */
 .preview-device-frame {
   transition: max-width 0.3s var(--ease-spring), height 0.3s var(--ease-spring), box-shadow 0.3s ease, border-radius 0.3s ease;
   position: relative;
@@ -1073,17 +1073,17 @@ html.dark [data-sonner-toast] [data-description] {
 .preview-device-frame.device-desktop,
 .preview-device-frame.device-tablet,
 .preview-device-frame.device-mobile {
-  box-shadow: 0 0 0 1px var(--color-forge-border), 0 4px 20px rgba(0,0,0,0.08);
+  box-shadow: 0 0 0 1px var(--color-pi-border), 0 4px 20px rgba(0,0,0,0.08);
   border-radius: 12px;
   overflow: hidden;
 }
 :is(.dark) .preview-device-frame.device-desktop,
 :is(.dark) .preview-device-frame.device-tablet,
 :is(.dark) .preview-device-frame.device-mobile {
-  box-shadow: 0 0 0 1px var(--color-forge-border), 0 4px 20px rgba(0,0,0,0.3);
+  box-shadow: 0 0 0 1px var(--color-pi-border), 0 4px 20px rgba(0,0,0,0.3);
 }
 
-/* ─── Forge Polish: Grip Dots on Resize Handle ───────────── */
+/* ─── Pi-Chi Polish: Grip Dots on Resize Handle ───────────── */
 .resize-grip-dots {
   display: flex;
   flex-direction: column;
@@ -1095,7 +1095,7 @@ html.dark [data-sonner-toast] [data-description] {
   width: 3px;
   height: 3px;
   border-radius: 50%;
-  background: var(--color-forge-text-dim);
+  background: var(--color-pi-text-dim);
 }
 [data-resize-handle]:hover .resize-grip-dots {
   opacity: 0.4;
@@ -1105,7 +1105,7 @@ html.dark [data-sonner-toast] [data-description] {
   transform: scaleY(1.15);
 }
 
-/* ─── Forge Polish: Console Entry Slide-In ───────────────── */
+/* ─── Pi-Chi Polish: Console Entry Slide-In ───────────────── */
 @keyframes consoleEntryIn {
   from { opacity: 0; transform: translateX(8px); }
   to { opacity: 1; transform: translateX(0); }
@@ -1114,7 +1114,7 @@ html.dark [data-sonner-toast] [data-description] {
   animation: consoleEntryIn 0.15s var(--ease-spring);
 }
 
-/* ─── Forge Polish: Error / Warn Glow ────────────────────── */
+/* ─── Pi-Chi Polish: Error / Warn Glow ────────────────────── */
 .console-entry-error {
   box-shadow: inset 3px 0 8px -4px rgba(239, 68, 68, 0.3);
 }
@@ -1122,13 +1122,13 @@ html.dark [data-sonner-toast] [data-description] {
   box-shadow: inset 3px 0 8px -4px rgba(245, 158, 11, 0.3);
 }
 
-/* ─── Forge Polish: Progress Bar Pulse at 95% ────────────── */
+/* ─── Pi-Chi Polish: Progress Bar Pulse at 95% ────────────── */
 @keyframes buildProgressPulse {
   0%, 100% { opacity: 0.8; }
   50% { opacity: 1; }
 }
 
-/* ─── Forge Polish: Fullscreen Exit Hint ─────────────────── */
+/* ─── Pi-Chi Polish: Fullscreen Exit Hint ─────────────────── */
 @keyframes hintFadeOut {
   0%, 60% { opacity: 1; }
   100% { opacity: 0; pointer-events: none; }
@@ -1137,7 +1137,7 @@ html.dark [data-sonner-toast] [data-description] {
   animation: hintFadeOut 2.5s ease-out forwards;
 }
 
-/* ─── Forge Polish: Capture Flash ────────────────────────── */
+/* ─── Pi-Chi Polish: Capture Flash ────────────────────────── */
 @keyframes captureFlash {
   0% { box-shadow: inset 0 0 0 2px rgba(16, 185, 129, 0.6); }
   100% { box-shadow: inset 0 0 0 2px rgba(16, 185, 129, 0); }
@@ -1146,16 +1146,16 @@ html.dark [data-sonner-toast] [data-description] {
   animation: captureFlash 0.8s ease-out;
 }
 
-/* ─── Forge Polish: Drag Overlay Pulse ───────────────────── */
+/* ─── Pi-Chi Polish: Drag Overlay Pulse ───────────────────── */
 @keyframes dragBorderPulse {
-  0%, 100% { border-color: var(--color-forge-accent); opacity: 0.8; }
-  50% { border-color: var(--color-forge-accent); opacity: 1; }
+  0%, 100% { border-color: var(--color-pi-accent); opacity: 0.8; }
+  50% { border-color: var(--color-pi-accent); opacity: 1; }
 }
 .drag-overlay-pulse {
   animation: dragBorderPulse 1.5s ease-in-out infinite;
 }
 
-/* ─── Forge Polish: Upload Icon Float ────────────────────── */
+/* ─── Pi-Chi Polish: Upload Icon Float ────────────────────── */
 @keyframes uploadFloat {
   0%, 100% { transform: translateY(0); }
   50% { transform: translateY(-4px); }
@@ -1164,9 +1164,9 @@ html.dark [data-sonner-toast] [data-description] {
   animation: uploadFloat 2s ease-in-out infinite;
 }
 
-/* (Building browser pulse removed — replaced by Six-Chi loader) */
+/* (Building browser pulse removed — replaced by Pi-Chi loader) */
 
-/* ─── Forge Polish: Console Breathing Icon ───────────────── */
+/* ─── Pi-Chi Polish: Console Breathing Icon ───────────────── */
 @keyframes consoleBreathe {
   0%, 100% { opacity: 0.3; }
   50% { opacity: 0.6; }
@@ -1175,7 +1175,7 @@ html.dark [data-sonner-toast] [data-description] {
   animation: consoleBreathe 2.5s ease-in-out infinite;
 }
 
-/* ─── Forge Polish: Voice Recording Bar ──────────────────── */
+/* ─── Pi-Chi Polish: Voice Recording Bar ──────────────────── */
 @keyframes recordingPulse {
   0%, 100% { opacity: 0.5; }
   50% { opacity: 1; }
@@ -1184,7 +1184,7 @@ html.dark [data-sonner-toast] [data-description] {
   animation: recordingPulse 1.8s ease-in-out infinite;
 }
 
-/* ─── Forge Polish: Textarea Smooth Height ───────────────── */
+/* ─── Pi-Chi Polish: Textarea Smooth Height ───────────────── */
 .chat-textarea-smooth {
   transition: height 0.1s ease-out;
   border: none !important;
@@ -1192,14 +1192,14 @@ html.dark [data-sonner-toast] [data-description] {
   box-shadow: none !important;
 }
 
-/* ─── Forge Polish: Composer Focus Ring ──────────────────── */
+/* ─── Pi-Chi Polish: Composer Focus Ring ──────────────────── */
 .composer-focus-glow:focus-within {
-  border-color: var(--color-forge-accent);
+  border-color: var(--color-pi-accent);
   outline: none;
-  box-shadow: 0 0 0 2px var(--color-forge-ring);
+  box-shadow: 0 0 0 2px var(--color-pi-ring);
 }
 
-/* ─── Forge Polish: Approval Card Pulse ──────────────────── */
+/* ─── Pi-Chi Polish: Approval Card Pulse ──────────────────── */
 @keyframes approvalPulse {
   0%, 100% { box-shadow: 0 0 0 0 rgba(217, 119, 6, 0); }
   50% { box-shadow: 0 0 8px 2px rgba(217, 119, 6, 0.08); }
@@ -1230,7 +1230,7 @@ html.dark [data-sonner-toast] [data-description] {
 /* ─── Focus Ring Utility ──────────────────────────────── */
 .focus-ring {
   outline: none;
-  box-shadow: 0 0 0 2px var(--color-forge-ring);
+  box-shadow: 0 0 0 2px var(--color-pi-ring);
 }
 
 /* ─── Dark Mode Glow Variants ──────────────────────────── */
@@ -1250,12 +1250,12 @@ html.dark [data-sonner-toast] [data-description] {
 
 /* ─── Focus-Visible for All Interactive Polish Elements ─── */
 [role="tab"]:focus-visible {
-  outline: 2px solid var(--color-forge-accent);
+  outline: 2px solid var(--color-pi-accent);
   outline-offset: -2px;
   border-radius: 2px;
 }
 [data-resize-handle]:focus-visible {
-  outline: 2px solid var(--color-forge-accent);
+  outline: 2px solid var(--color-pi-accent);
   outline-offset: -1px;
 }
 
@@ -1268,9 +1268,9 @@ html.dark [data-sonner-toast] [data-description] {
   .fullscreen-hint,
   .drag-overlay-pulse,
   .upload-float,
-  .sixchi-orbit,
-  .sixchi-logo-glow,
-  .sixchi-dot-grid,
+  .pichi-orbit,
+  .pichi-logo-glow,
+  .pichi-dot-grid,
   .deploy-dot,
   .deploy-rocket,
   .deploy-success-pop,
@@ -1395,7 +1395,7 @@ html.dark [data-sonner-toast] [data-description] {
   transform: translateY(0);
 }
 
-/* ─── Forge Polish: Approval Timeout Drain Bar ───────────── */
+/* ─── Pi-Chi Polish: Approval Timeout Drain Bar ───────────── */
 @keyframes approval-drain {
   from { width: 100%; }
   to { width: 0%; }
@@ -1414,17 +1414,17 @@ html.dark [data-sonner-toast] [data-description] {
 
 /* Grid dot background pattern */
 .landing-grid-bg {
-  background-image: radial-gradient(circle, var(--color-forge-border) 1px, transparent 1px);
+  background-image: radial-gradient(circle, var(--color-pi-border) 1px, transparent 1px);
   background-size: 24px 24px;
 }
 
 /* Typewriter cursor blink */
 @keyframes typewriterCursor {
-  0%, 100% { border-color: var(--color-forge-accent); }
+  0%, 100% { border-color: var(--color-pi-accent); }
   50% { border-color: transparent; }
 }
 .typewriter-cursor {
-  border-right: 2px solid var(--color-forge-accent);
+  border-right: 2px solid var(--color-pi-accent);
   animation: typewriterCursor 0.8s ease-in-out infinite;
 }
 
@@ -1434,7 +1434,7 @@ html.dark [data-sonner-toast] [data-description] {
   100% { background-position: 200% 50%; }
 }
 .text-shimmer {
-  background: linear-gradient(90deg, var(--color-forge-text), var(--color-forge-accent), var(--color-forge-text));
+  background: linear-gradient(90deg, var(--color-pi-text), var(--color-pi-accent), var(--color-pi-text));
   background-size: 200% 100%;
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;

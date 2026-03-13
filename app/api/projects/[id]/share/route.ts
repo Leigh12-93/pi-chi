@@ -11,7 +11,7 @@ export async function POST(_req: Request, { params }: { params: Promise<{ id: st
 
   // Verify ownership
   const check = await supabaseFetch(
-    `/forge_projects?id=eq.${projectId}&github_username=eq.${encodeURIComponent(session.githubUsername)}&select=id,share_token`,
+    `/pi_projects?id=eq.${projectId}&github_username=eq.${encodeURIComponent(session.githubUsername)}&select=id,share_token`,
   )
   if (!check.ok || !Array.isArray(check.data) || check.data.length === 0) {
     return NextResponse.json({ error: 'Not found' }, { status: 404 })
@@ -28,7 +28,7 @@ export async function POST(_req: Request, { params }: { params: Promise<{ id: st
   const token = Array.from(bytes, b => b.toString(16).padStart(2, '0')).join('')
 
   const { ok } = await supabaseFetch(
-    `/forge_projects?id=eq.${projectId}`,
+    `/pi_projects?id=eq.${projectId}`,
     {
       method: 'PATCH',
       body: JSON.stringify({ share_token: token }),

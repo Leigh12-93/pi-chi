@@ -5,3 +5,5 @@ node_modules/
 next-env.d.ts
 .vercel
 .env*.local
+.env.keys
+scripts/.env.keys

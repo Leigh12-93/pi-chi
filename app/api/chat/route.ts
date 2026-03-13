@@ -48,7 +48,7 @@ const editFailCache = new Map<string, { counts: Map<string, number>; ts: number 
 const memoryCache = new Map<string, { data: Record<string, string>; ts: number }>() // avoids DB round-trip on every message
 let lastCacheCleanup = 0
 
-// six-chi.md content cache — hash-based, avoids full injection on every message
+// pi-chi.md content cache — hash-based, avoids full injection on every message
 const sixChiCache = new Map<string, { hash: string; vision: string; taskList: string; full: string }>()
 /** Periodic cleanup of all in-memory caches — runs at most once per minute */
 function cleanupCaches() {
@@ -107,13 +107,13 @@ const COMPLEX_RE = /architect|refactor|redesign|migrate|optimize performance|sys
 const SIMPLE_RE = /fix typo|rename|change.*color|change.*text|update title|small change|quick fix|add.*comment|what is|what does|explain|how does|remove.*line|delete.*line|change.*to/i
 
 // Repo owner — only this GitHub user can use self-modification tools
-const FORGE_OWNER = 'leigh12-93'
+const PI_OWNER = 'leigh12-93'
 
 const TOOL_CATEGORY_PATTERNS: Record<string, RegExp> = {
   project: /scaffold|new project|template|create.*project|start.*project/i,
   github: /github|git\b|push|pull\b|commit|repo|branch|pr\b|merge/i,
   deploy: /deploy|vercel|env\b|domain|sandbox|preview|live/i,
-  selfMod: /yourself|self.*mod|upgrade.*self|improve.*self|forge_|your own|your source|your code/i,
+  selfMod: /yourself|self.*mod|upgrade.*self|improve.*self|pi_|your own|your source|your code/i,
   db: /database|table\b|schema|supabase|query|insert|select\b|row|column|db_/i,
   terminal: /run\b|command|terminal|install|server|npm|start.*dev/i,
   audit: /audit|code review|scan|review.*code/i,
@@ -128,7 +128,7 @@ const TOOL_CATEGORY_PATTERNS: Record<string, RegExp> = {
 function selectTools(
   lastUserText: string,
   ctx: ToolContext,
-  isForgeOwner: boolean,
+  isPiOwner: boolean,
   isFirstMessage: boolean,
   fileCount: number,
 ): Record<string, any> {
@@ -168,7 +168,7 @@ function selectTools(
   if (matches.has('project')) Object.assign(tools, createProjectTools(ctx))
   if (matches.has('github')) Object.assign(tools, createGithubTools(ctx))
   if (matches.has('deploy')) Object.assign(tools, createDeployTools(ctx))
-  if (matches.has('selfMod') && isForgeOwner) Object.assign(tools, createSelfModTools(ctx))
+  if (matches.has('selfMod') && isPiOwner) Object.assign(tools, createSelfModTools(ctx))
   if (matches.has('db')) Object.assign(tools, createDbTools(ctx))
   if (matches.has('terminal')) Object.assign(tools, createTerminalTools(ctx))
   if (matches.has('audit')) Object.assign(tools, createAuditTools(ctx))
@@ -176,7 +176,7 @@ function selectTools(
 
   const toolCount = Object.keys(tools).length
   const estimatedSchemaTokens = Math.round(toolCount * 220) // ~220 tokens per tool schema average
-  console.log(`[forge:tools] ${toolCount} tools included (est. ${estimatedSchemaTokens} schema tokens), categories: ${[...matches].join(', ') || 'core-only'}`)
+  console.log(`[pi:tools] ${toolCount} tools included (est. ${estimatedSchemaTokens} schema tokens), categories: ${[...matches].join(', ') || 'core-only'}`)
 
   return tools
 }
@@ -308,7 +308,7 @@ export async function POST(req: Request) {
 
   // Verify the user owns the project before proceeding
   if (projectId) {
-    const projCheck = await supabaseFetch(`/forge_projects?id=eq.${encodeURIComponent(projectId)}&github_username=eq.${encodeURIComponent(session.githubUsername)}&select=id&limit=1`)
+    const projCheck = await supabaseFetch(`/pi_projects?id=eq.${encodeURIComponent(projectId)}&github_username=eq.${encodeURIComponent(session.githubUsername)}&select=id&limit=1`)
     if (!projCheck.ok || !Array.isArray(projCheck.data) || projCheck.data.length === 0) {
       return new Response(JSON.stringify({ error: 'Project not found or access denied' }), { status: 403, headers: { 'Content-Type': 'application/json' } })
     }
@@ -318,7 +318,7 @@ export async function POST(req: Request) {
   let userVercelToken: string | null = null
   try {
     const { data: settingsData, ok: settingsOk } = await supabaseFetchDirect(
-      `/forge_user_settings?github_username=eq.${encodeURIComponent(session.githubUsername)}&select=encrypted_api_key,encrypted_vercel_token`,
+      `/pi_user_settings?github_username=eq.${encodeURIComponent(session.githubUsername)}&select=encrypted_api_key,encrypted_vercel_token`,
     )
     if (settingsOk && Array.isArray(settingsData) && settingsData.length > 0) {
       const row = settingsData[0] as any
@@ -425,7 +425,7 @@ export async function POST(req: Request) {
       projectMemory = cached.data
     } else {
       try {
-        const memResult = await supabaseFetch(`/forge_projects?id=eq.${encodeURIComponent(projectId)}&select=memory`)
+        const memResult = await supabaseFetch(`/pi_projects?id=eq.${encodeURIComponent(projectId)}&select=memory`)
         if (memResult.ok && Array.isArray(memResult.data) && memResult.data[0]?.memory) {
           const mem = memResult.data[0].memory
           if (typeof mem === 'object' && mem !== null) {
@@ -435,7 +435,7 @@ export async function POST(req: Request) {
         }
       } catch (e) {
         const msg = e instanceof Error ? e.message : String(e)
-        console.warn(`[forge] Memory load failed for project ${projectId}:`, msg)
+        console.warn(`[pi] Memory load failed for project ${projectId}:`, msg)
       }
     }
   }
@@ -499,10 +499,10 @@ export async function POST(req: Request) {
   }
 
   // Conditional tool selection — only include tools relevant to this message
-  const isForgeOwner = session.githubUsername.toLowerCase() === FORGE_OWNER
+  const isPiOwner = session.githubUsername.toLowerCase() === PI_OWNER
   const rawMessages0: UIMessage[] = body.messages || []
   const isFirstMessage = rawMessages0.length <= 1
-  const allTools = selectTools(lastUserText, ctx, isForgeOwner, isFirstMessage, Object.keys(safeFiles).length)
+  const allTools = selectTools(lastUserText, ctx, isPiOwner, isFirstMessage, Object.keys(safeFiles).length)
 
   // Trim conversation history to save tokens
   const rawMessages: UIMessage[] = body.messages || []
@@ -565,8 +565,8 @@ export async function POST(req: Request) {
   const memorySection = Object.keys(safeMemory).length > 0
     ? `\n\n## Project Memory (persisted across sessions)\n\`\`\`json\n${JSON.stringify(safeMemory)}\n\`\`\``
     : '\n\n(No project memory saved yet — use save_memory to persist insights.)'
-  // Inject six-chi.md blueprint — token-optimized with hash-based caching
-  const sixChiContent = vfs.read('six-chi.md')
+  // Inject pi-chi.md blueprint — token-optimized with hash-based caching
+  const sixChiContent = vfs.read('pi-chi.md')
   let sixChiSection = ''
   if (sixChiContent) {
     const hash = sixChiContent.length + ':' + sixChiContent.slice(0, 100)
@@ -576,7 +576,7 @@ export async function POST(req: Request) {
 
     if (isFirstMessage || contentChanged) {
       // Full injection — first message or content was updated
-      sixChiSection = `\n\n## Project Blueprint (six-chi.md)\n${sixChiContent.slice(0, 4096)}`
+      sixChiSection = `\n\n## Project Blueprint (pi-chi.md)\n${sixChiContent.slice(0, 4096)}`
       // Parse and cache the Vision + Task List sections for subsequent messages
       const visionMatch = sixChiContent.match(/## Vision\n([\s\S]*?)(?=\n## )/)?.[1]?.trim() || ''
       const taskMatch = sixChiContent.match(/## Task List\n([\s\S]*?)$/)?.[1]?.trim() || ''
@@ -586,7 +586,7 @@ export async function POST(req: Request) {
       // Escape triple backticks in cached vision/tasks to prevent markdown fence breakout
       const safeVision = cached.vision.replace(/```/g, '\\`\\`\\`')
       const safeTaskList = cached.taskList.replace(/```/g, '\\`\\`\\`')
-      sixChiSection = `\n\n## Project Blueprint (six-chi.md — condensed)\nVision: ${safeVision}\n\nTask List:\n${safeTaskList}\n\n(Full blueprint in six-chi.md — use read_file for architecture/design details)`
+      sixChiSection = `\n\n## Project Blueprint (pi-chi.md — condensed)\nVision: ${safeVision}\n\nTask List:\n${safeTaskList}\n\n(Full blueprint in pi-chi.md — use read_file for architecture/design details)`
     }
   }
 
@@ -659,7 +659,7 @@ export async function POST(req: Request) {
       messageTokens = JSON.stringify(trimmedMessages).length / 3
       estimatedInputTokens = messageTokens + systemTokens + TOOL_SCHEMA_OVERHEAD + SAFETY_BUFFER
       compactedTokensSaved = Math.round(preCompactionTokens - estimatedInputTokens)
-      console.log(`[forge] rid=${requestId} Compaction saved ~${compactedTokensSaved} tokens (${Math.round(preCompactionTokens)} → ${Math.round(estimatedInputTokens)})`)
+      console.log(`[pi] rid=${requestId} Compaction saved ~${compactedTokensSaved} tokens (${Math.round(preCompactionTokens)} → ${Math.round(estimatedInputTokens)})`)
     }
   }
 
@@ -681,7 +681,7 @@ export async function POST(req: Request) {
       else activeStreams.set(ip, { count: se.count - 1, ts: Date.now() })
     }
 
-    console.warn(`[forge] rid=${requestId} Context overflow: est_input=${Math.round(estimatedInputTokens)} available=${availableForOutput} limit=${contextLimit}`)
+    console.warn(`[pi] rid=${requestId} Context overflow: est_input=${Math.round(estimatedInputTokens)} available=${availableForOutput} limit=${contextLimit}`)
     return new Response(JSON.stringify({
       error: `Your conversation is too long for the ${contextLimit / 1000}K context window. `
         + `Estimated input: ~${Math.round(estimatedInputTokens / 1000)}K tokens, leaving no room for a response. `
@@ -751,7 +751,7 @@ export async function POST(req: Request) {
           : Array.isArray(lastMessage.content)
             ? lastMessage.content.filter((p: any) => p.type === 'text').map((p: any) => p.text || '').join('')
             : ''
-        await supabaseFetch('/forge_chat_messages', {
+        await supabaseFetch('/pi_chat_messages', {
           method: 'POST',
           body: JSON.stringify({
             project_id: projectId,
@@ -777,7 +777,7 @@ export async function POST(req: Request) {
         if (modelAutoRouted) {
           const classification = classifyModelComplexity(body.messages || [], Object.keys(safeFiles).length)
           writer.write({
-            type: 'data-forge-meta',
+            type: 'data-pi-meta',
             data: JSON.stringify({ type: 'model_suggestion', model: selectedModel, reason: classification.reason }),
           } as any)
         }
@@ -785,7 +785,7 @@ export async function POST(req: Request) {
         // Send context usage warning if approaching limit
         if (contextWarning) {
           writer.write({
-            type: 'data-forge-meta',
+            type: 'data-pi-meta',
             data: JSON.stringify({
               type: 'context_warning',
               level: contextWarning,
@@ -797,7 +797,7 @@ export async function POST(req: Request) {
         // Notify client if compaction occurred
         if (compactionOccurred) {
           writer.write({
-            type: 'data-forge-meta',
+            type: 'data-pi-meta',
             data: JSON.stringify({
               type: 'compaction_notice',
               tokensSaved: compactedTokensSaved,
@@ -850,7 +850,7 @@ export async function POST(req: Request) {
               else activeStreams.set(ip, { count: se.count - 1, ts: Date.now() })
             }
 
-            console.log(`[forge] rid=${requestId} ${event.totalUsage?.totalTokens || 0} tokens, ${event.steps?.length || 0} steps`)
+            console.log(`[pi] rid=${requestId} ${event.totalUsage?.totalTokens || 0} tokens, ${event.steps?.length || 0} steps`)
 
             // Server-side usage tracking per user
             if (event.totalUsage && session?.user) {
@@ -867,13 +867,13 @@ export async function POST(req: Request) {
                   usageTracker.delete(sorted.shift()![0])
                 }
               }
-              console.log(`[forge:usage] user=${userId} req_tokens=${event.totalUsage.totalTokens} cumulative=${prev.tokens} requests=${prev.requests}`)
+              console.log(`[pi:usage] user=${userId} req_tokens=${event.totalUsage.totalTokens} cumulative=${prev.tokens} requests=${prev.requests}`)
             }
 
             // Save assistant message to database
             if (projectId && event.text) {
               try {
-                await supabaseFetch('/forge_chat_messages', {
+                await supabaseFetch('/pi_chat_messages', {
                   method: 'POST',
                   body: JSON.stringify({
                     project_id: projectId,

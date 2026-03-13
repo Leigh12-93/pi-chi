@@ -4,15 +4,15 @@ import { useState, useCallback } from 'react'
 import { Database, Play, Table, Loader2, AlertCircle, Columns } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
-const FORGE_TABLES = [
-  'forge_projects',
-  'forge_project_files',
-  'forge_chat_messages',
-  'forge_deployments',
-  'forge_tasks',
-  'forge_user_settings',
-  'forge_user_preferences',
-  'forge_project_snapshots',
+const PI_TABLES = [
+  'pi_projects',
+  'pi_project_files',
+  'pi_chat_messages',
+  'pi_deployments',
+  'pi_tasks',
+  'pi_user_settings',
+  'pi_user_preferences',
+  'pi_project_snapshots',
 ]
 
 interface DbExplorerProps {
@@ -88,7 +88,7 @@ export function DbExplorer({ className }: DbExplorerProps) {
           return data as ColumnInfo[]
         }
       }
-    } catch (e) { console.warn('[forge:db] Failed to fetch table schema:', e) }
+    } catch (e) { console.warn('[pi:db] Failed to fetch table schema:', e) }
     return []
   }
 
@@ -126,28 +126,28 @@ export function DbExplorer({ className }: DbExplorerProps) {
   const schema = selectedTable ? tableSchemas[selectedTable] : null
 
   return (
-    <div className={cn('h-full flex flex-col bg-forge-bg', className)}>
+    <div className={cn('h-full flex flex-col bg-pi-bg', className)}>
       {/* Header */}
-      <div className="flex items-center gap-2 px-3 py-2 border-b border-forge-border bg-forge-panel">
-        <Database className="w-4 h-4 text-forge-accent" />
-        <span className="text-xs font-medium text-forge-text">Database Explorer</span>
+      <div className="flex items-center gap-2 px-3 py-2 border-b border-pi-border bg-pi-panel">
+        <Database className="w-4 h-4 text-pi-accent" />
+        <span className="text-xs font-medium text-pi-text">Database Explorer</span>
       </div>
 
       <div className="flex-1 flex overflow-hidden">
         {/* Table list */}
-        <div className="w-48 border-r border-forge-border bg-forge-panel p-2 space-y-0.5 overflow-y-auto shrink-0">
-          <p className="text-[10px] text-forge-text-dim/70 uppercase tracking-wider px-2 mb-1">Tables</p>
-          {FORGE_TABLES.map(table => (
+        <div className="w-48 border-r border-pi-border bg-pi-panel p-2 space-y-0.5 overflow-y-auto shrink-0">
+          <p className="text-[10px] text-pi-text-dim/70 uppercase tracking-wider px-2 mb-1">Tables</p>
+          {PI_TABLES.map(table => (
             <button
               key={table}
               onClick={() => handleTableClick(table)}
               className={cn(
                 'w-full flex items-center gap-1.5 px-2 py-1.5 text-xs rounded-lg transition-colors',
-                selectedTable === table ? 'bg-forge-surface text-forge-accent' : 'text-forge-text-dim hover:text-forge-text hover:bg-forge-surface/50',
+                selectedTable === table ? 'bg-pi-surface text-pi-accent' : 'text-pi-text-dim hover:text-pi-text hover:bg-pi-surface/50',
               )}
             >
               <Table className="w-3 h-3 shrink-0" />
-              <span className="truncate">{table.replace('forge_', '')}</span>
+              <span className="truncate">{table.replace('pi_', '')}</span>
             </button>
           ))}
         </div>
@@ -155,13 +155,13 @@ export function DbExplorer({ className }: DbExplorerProps) {
         {/* Query + Results */}
         <div className="flex-1 flex flex-col overflow-hidden">
           {/* SQL editor */}
-          <div className="border-b border-forge-border p-2">
+          <div className="border-b border-pi-border p-2">
             <div className="flex gap-2">
               <textarea
                 value={query}
                 onChange={e => setQuery(e.target.value)}
-                placeholder="SELECT * FROM forge_projects LIMIT 10"
-                className="flex-1 px-3 py-2 text-xs font-mono bg-forge-surface border border-forge-border rounded-lg text-forge-text placeholder:text-forge-text-dim/50 focus:outline-none focus:border-forge-accent resize-none h-16"
+                placeholder="SELECT * FROM pi_projects LIMIT 10"
+                className="flex-1 px-3 py-2 text-xs font-mono bg-pi-surface border border-pi-border rounded-lg text-pi-text placeholder:text-pi-text-dim/50 focus:outline-none focus:border-pi-accent resize-none h-16"
                 onKeyDown={e => {
                   if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') runQuery()
                 }}
@@ -170,7 +170,7 @@ export function DbExplorer({ className }: DbExplorerProps) {
                 <button
                   onClick={() => runQuery()}
                   disabled={loading || !query.trim()}
-                  className="px-3 py-2 bg-forge-accent text-white rounded-lg hover:bg-forge-accent-hover disabled:opacity-50 transition-colors"
+                  className="px-3 py-2 bg-pi-accent text-white rounded-lg hover:bg-pi-accent-hover disabled:opacity-50 transition-colors"
                   aria-label="Run query"
                 >
                   {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Play className="w-4 h-4" />}
@@ -180,7 +180,7 @@ export function DbExplorer({ className }: DbExplorerProps) {
                     onClick={() => setShowSchema(!showSchema)}
                     className={cn(
                       'px-3 py-2 rounded-lg transition-colors',
-                      showSchema ? 'bg-forge-accent/20 text-forge-accent' : 'bg-forge-surface text-forge-text-dim hover:text-forge-text',
+                      showSchema ? 'bg-pi-accent/20 text-pi-accent' : 'bg-pi-surface text-pi-text-dim hover:text-pi-text',
                     )}
                     aria-label="Toggle schema view"
                     title="Show column types"
@@ -194,16 +194,16 @@ export function DbExplorer({ className }: DbExplorerProps) {
 
           {/* Schema panel */}
           {showSchema && schema && schema.length > 0 && (
-            <div className="border-b border-forge-border bg-forge-panel/50 p-2 max-h-40 overflow-y-auto">
-              <p className="text-[10px] text-forge-text-dim/70 uppercase tracking-wider mb-1.5">
-                Schema: {selectedTable?.replace('forge_', '')}
+            <div className="border-b border-pi-border bg-pi-panel/50 p-2 max-h-40 overflow-y-auto">
+              <p className="text-[10px] text-pi-text-dim/70 uppercase tracking-wider mb-1.5">
+                Schema: {selectedTable?.replace('pi_', '')}
               </p>
               <div className="grid grid-cols-[1fr_auto_auto] gap-x-3 gap-y-0.5">
                 {schema.map(col => (
                   <div key={col.column_name} className="contents text-xs">
-                    <span className="font-mono text-forge-text">{col.column_name}</span>
-                    <span className="text-forge-accent font-mono">{col.data_type}</span>
-                    <span className="text-forge-text-dim/50">
+                    <span className="font-mono text-pi-text">{col.column_name}</span>
+                    <span className="text-pi-accent font-mono">{col.data_type}</span>
+                    <span className="text-pi-text-dim/50">
                       {col.is_nullable === 'YES' ? 'null' : 'not null'}
                     </span>
                   </div>
@@ -223,19 +223,19 @@ export function DbExplorer({ className }: DbExplorerProps) {
           {/* Results table */}
           <div className="flex-1 overflow-auto">
             {results === null ? (
-              <div className="flex items-center justify-center h-full text-xs text-forge-text-dim">
+              <div className="flex items-center justify-center h-full text-xs text-pi-text-dim">
                 Select a table or run a query
               </div>
             ) : results.length === 0 ? (
-              <div className="flex items-center justify-center h-full text-xs text-forge-text-dim">
+              <div className="flex items-center justify-center h-full text-xs text-pi-text-dim">
                 No results
               </div>
             ) : (
               <table className="w-full text-xs">
-                <thead className="sticky top-0 bg-forge-panel border-b border-forge-border">
+                <thead className="sticky top-0 bg-pi-panel border-b border-pi-border">
                   <tr>
                     {columns.map(col => (
-                      <th key={col} className="px-3 py-2 text-left text-forge-text-dim font-medium whitespace-nowrap">
+                      <th key={col} className="px-3 py-2 text-left text-pi-text-dim font-medium whitespace-nowrap">
                         {col}
                       </th>
                     ))}
@@ -243,13 +243,13 @@ export function DbExplorer({ className }: DbExplorerProps) {
                 </thead>
                 <tbody>
                   {results.map((row, i) => (
-                    <tr key={i} className="border-b border-forge-border/30 hover:bg-forge-surface/30">
+                    <tr key={i} className="border-b border-pi-border/30 hover:bg-pi-surface/30">
                       {columns.map(col => (
-                        <td key={col} className="px-3 py-1.5 text-forge-text max-w-[200px] truncate whitespace-nowrap">
+                        <td key={col} className="px-3 py-1.5 text-pi-text max-w-[200px] truncate whitespace-nowrap">
                           {row[col] === null ? (
-                            <span className="text-forge-text-dim/50 italic">null</span>
+                            <span className="text-pi-text-dim/50 italic">null</span>
                           ) : typeof row[col] === 'object' ? (
-                            <span className="text-forge-text-dim font-mono">{JSON.stringify(row[col]).slice(0, 50)}</span>
+                            <span className="text-pi-text-dim font-mono">{JSON.stringify(row[col]).slice(0, 50)}</span>
                           ) : (
                             String(row[col]).slice(0, 100)
                           )}
@@ -264,7 +264,7 @@ export function DbExplorer({ className }: DbExplorerProps) {
 
           {/* Footer */}
           {results && results.length > 0 && (
-            <div className="px-3 py-1 border-t border-forge-border bg-forge-panel text-[10px] text-forge-text-dim">
+            <div className="px-3 py-1 border-t border-pi-border bg-pi-panel text-[10px] text-pi-text-dim">
               {results.length} rows
               {schema && <span className="ml-2">{schema.length} columns</span>}
             </div>

@@ -41,14 +41,14 @@ export function LandingHowItWorks() {
           transition={{ duration: 0.5, ease }}
         >
           <h2 className="text-3xl sm:text-4xl font-bold tracking-tight mb-3">How It Works</h2>
-          <p className="text-forge-text-dim text-lg max-w-lg mx-auto">
+          <p className="text-pi-text-dim text-lg max-w-lg mx-auto">
             Three steps from idea to production. No boilerplate, no config files.
           </p>
         </motion.div>
 
         <div className="grid md:grid-cols-3 gap-8 relative">
           {/* Connecting line — desktop only */}
-          <div className="hidden md:block absolute top-16 left-[20%] right-[20%] h-px border-t-2 border-dashed border-forge-border/40" />
+          <div className="hidden md:block absolute top-16 left-[20%] right-[20%] h-px border-t-2 border-dashed border-pi-border/40" />
 
           {STEPS.map((step, i) => (
             <motion.div
@@ -59,17 +59,17 @@ export function LandingHowItWorks() {
               transition={{ duration: 0.5, delay: i * 0.15, ease }}
             >
               {/* Number badge */}
-              <div className="w-12 h-12 mx-auto mb-5 rounded-full bg-forge-accent/10 border border-forge-accent/20 flex items-center justify-center relative z-10">
-                <span className="text-sm font-bold text-forge-accent font-mono">{step.num}</span>
+              <div className="w-12 h-12 mx-auto mb-5 rounded-full bg-pi-accent/10 border border-pi-accent/20 flex items-center justify-center relative z-10">
+                <span className="text-sm font-bold text-pi-accent font-mono">{step.num}</span>
               </div>
 
               {/* Icon */}
-              <div className="w-14 h-14 mx-auto mb-4 rounded-2xl bg-forge-surface border border-forge-border flex items-center justify-center">
-                <step.icon className="w-6 h-6 text-forge-accent" />
+              <div className="w-14 h-14 mx-auto mb-4 rounded-2xl bg-pi-surface border border-pi-border flex items-center justify-center">
+                <step.icon className="w-6 h-6 text-pi-accent" />
               </div>
 
-              <h3 className="text-lg font-semibold text-forge-text mb-2">{step.title}</h3>
-              <p className="text-sm text-forge-text-dim max-w-xs mx-auto">{step.desc}</p>
+              <h3 className="text-lg font-semibold text-pi-text mb-2">{step.title}</h3>
+              <p className="text-sm text-pi-text-dim max-w-xs mx-auto">{step.desc}</p>
             </motion.div>
           ))}
         </div>

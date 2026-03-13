@@ -14,7 +14,7 @@ export async function GET(_req: Request, { params }: { params: Promise<{ token: 
 
   // Find project by share token
   const { data: projects, ok } = await supabaseFetch(
-    `/forge_projects?share_token=eq.${encodeURIComponent(token)}&select=id,name,description,framework,github_username`,
+    `/pi_projects?share_token=eq.${encodeURIComponent(token)}&select=id,name,description,framework,github_username`,
   )
 
   if (!ok || !Array.isArray(projects) || projects.length === 0) {
@@ -25,7 +25,7 @@ export async function GET(_req: Request, { params }: { params: Promise<{ token: 
 
   // Load project files
   const { data: files, ok: filesOk } = await supabaseFetch(
-    `/forge_project_files?project_id=eq.${project.id}&select=file_path,content`,
+    `/pi_project_files?project_id=eq.${project.id}&select=file_path,content`,
   )
 
   const fileMap: Record<string, string> = {}

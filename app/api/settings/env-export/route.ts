@@ -19,7 +19,7 @@ export async function GET() {
 
   const columns = [...Object.keys(CREDENTIAL_MAP), 'encrypted_google_service_account', 'global_env_vars'].join(',')
   const { data, ok } = await supabaseFetch(
-    `/forge_user_settings?github_username=eq.${encodeURIComponent(session.githubUsername)}&select=${columns}`,
+    `/pi_user_settings?github_username=eq.${encodeURIComponent(session.githubUsername)}&select=${columns}`,
   )
 
   if (!ok || !Array.isArray(data) || data.length === 0) {
@@ -97,9 +97,9 @@ export async function PUT(req: Request) {
   // Encrypt the JSON array before storing
   const encrypted = 'v1:' + await encryptToken(JSON.stringify(variables))
 
-  // Upsert into forge_user_settings
+  // Upsert into pi_user_settings
   const { ok } = await supabaseFetch(
-    `/forge_user_settings?github_username=eq.${encodeURIComponent(session.githubUsername)}`,
+    `/pi_user_settings?github_username=eq.${encodeURIComponent(session.githubUsername)}`,
     {
       method: 'PATCH',
       body: JSON.stringify({ global_env_vars: encrypted }),
@@ -109,7 +109,7 @@ export async function PUT(req: Request) {
 
   if (!ok) {
     // Try insert if row doesn't exist yet
-    const { ok: insertOk } = await supabaseFetch('/forge_user_settings', {
+    const { ok: insertOk } = await supabaseFetch('/pi_user_settings', {
       method: 'POST',
       body: JSON.stringify({
         github_username: session.githubUsername,

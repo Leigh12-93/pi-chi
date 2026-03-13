@@ -14,7 +14,7 @@ export async function POST(
 
   // Verify project ownership
   const check = await supabaseFetch(
-    `/forge_projects?id=eq.${projectId}&github_username=eq.${encodeURIComponent(session.githubUsername)}&select=id`,
+    `/pi_projects?id=eq.${projectId}&github_username=eq.${encodeURIComponent(session.githubUsername)}&select=id`,
   )
   if (!check.ok || !Array.isArray(check.data) || check.data.length === 0) {
     return NextResponse.json({ error: 'Not found' }, { status: 404 })
@@ -22,7 +22,7 @@ export async function POST(
 
   // Load snapshot
   const { data: snapData, ok: snapOk } = await supabaseFetch(
-    `/forge_project_snapshots?id=eq.${snapshotId}&project_id=eq.${projectId}&select=files`,
+    `/pi_project_snapshots?id=eq.${snapshotId}&project_id=eq.${projectId}&select=files`,
   )
   if (!snapOk || !Array.isArray(snapData) || snapData.length === 0) {
     return NextResponse.json({ error: 'Snapshot not found' }, { status: 404 })
@@ -34,7 +34,7 @@ export async function POST(
   }
 
   // Delete current project files
-  await supabaseFetch(`/forge_project_files?project_id=eq.${projectId}`, {
+  await supabaseFetch(`/pi_project_files?project_id=eq.${projectId}`, {
     method: 'DELETE',
   })
 
@@ -46,7 +46,7 @@ export async function POST(
   }))
 
   if (rows.length > 0) {
-    const { ok: insertOk } = await supabaseFetch('/forge_project_files', {
+    const { ok: insertOk } = await supabaseFetch('/pi_project_files', {
       method: 'POST',
       body: JSON.stringify(rows),
     })

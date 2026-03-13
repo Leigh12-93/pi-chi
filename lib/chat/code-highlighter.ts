@@ -104,7 +104,7 @@ export function highlightCode(code: string, lang: string): string {
 
   // Dark-bg color palette (v0 style)
   const colorMap: Record<Token['type'], string> = {
-    comment: 'text-forge-text-dim italic',
+    comment: 'text-pi-text-dim italic',
     string: 'text-emerald-400',
     keyword: 'text-violet-400 font-medium',
     builtin: 'text-sky-400',

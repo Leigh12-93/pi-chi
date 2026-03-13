@@ -4,9 +4,9 @@ import { supabaseFetch } from '@/lib/supabase-fetch'
 import { logger } from '@/lib/logger'
 import { dbQuerySchema, parseBody } from '@/lib/api-schemas'
 
-const ALLOWED_TABLE_PREFIX = 'forge_'
+const ALLOWED_TABLE_PREFIX = 'pi_'
 
-/** POST /api/db/query — run a read-only query on forge_* tables */
+/** POST /api/db/query — run a read-only query on pi_* tables */
 export async function POST(req: Request) {
   const session = await getSession()
   if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
@@ -15,7 +15,7 @@ export async function POST(req: Request) {
   if ('error' in parsed) return NextResponse.json({ error: parsed.error }, { status: 400 })
   const { query } = parsed.data
 
-  // Security: only allow SELECT on forge_* tables
+  // Security: only allow SELECT on pi_* tables
   const normalized = query.trim().toLowerCase()
   if (!normalized.startsWith('select')) {
     return NextResponse.json({ error: 'Only SELECT queries are allowed' }, { status: 403 })
@@ -32,7 +32,7 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: 'Subqueries are not allowed' }, { status: 403 })
   }
 
-  // Extract ALL table names referenced (FROM + JOIN clauses) and verify they're forge_* tables
+  // Extract ALL table names referenced (FROM + JOIN clauses) and verify they're pi_* tables
   const tableMatches = normalized.matchAll(/(?:from|join)\s+(\w+)/gi)
   const tables = [...tableMatches].map(m => m[1])
   if (tables.length === 0) {

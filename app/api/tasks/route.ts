@@ -11,7 +11,7 @@ const GITHUB_TOKEN = LIB_GITHUB_TOKEN
 const ANTHROPIC_API_KEY = (process.env.ANTHROPIC_API_KEY || '').trim()
 
 async function updateProgress(taskId: string, progress: string) {
-  await supabaseFetch(`/forge_tasks?id=eq.${taskId}`, {
+  await supabaseFetch(`/pi_tasks?id=eq.${taskId}`, {
     method: 'PATCH',
     body: JSON.stringify({ progress }),
   })
@@ -289,7 +289,7 @@ async function submitAndPollDeploy(
   const fw = framework || detectFramework(files) || 'static'
   const teamParam = VERCEL_TEAM ? `?teamId=${VERCEL_TEAM}` : ''
   const baseName = projectName.replace(/\s+/g, '-').toLowerCase().replace(/[^a-z0-9-]/g, '')
-  const deployName = (baseName.startsWith('forge-') ? baseName : `forge-${baseName}`).slice(0, 52)
+  const deployName = (baseName.startsWith('pi-') ? baseName : `pi-${baseName}`).slice(0, 52)
 
   await setProgress('upload', `Uploading ${fileCount} files...`, { fileCount, framework: fw })
 
@@ -596,7 +596,7 @@ async function executeGithubCreate(taskId: string, params: {
     method: 'POST',
     body: JSON.stringify({
       name: params.repoName,
-      description: params.description || 'Built with Forge',
+      description: params.description || 'Built with Pi-Chi',
       private: !params.isPublic,
       auto_init: true,
     }),
@@ -645,7 +645,7 @@ async function executeGithubCreate(taskId: string, params: {
   await updateProgress(taskId, 'Pushing initial commit...')
   const commit = await githubFetch(`/repos/${owner}/${params.repoName}/git/commits`, token, {
     method: 'POST',
-    body: JSON.stringify({ message: 'Initial commit from Forge', tree: tree.sha, parents: [parentSha] }),
+    body: JSON.stringify({ message: 'Initial commit from Pi-Chi', tree: tree.sha, parents: [parentSha] }),
   })
   if (commit.error) throw new Error(`Failed to create commit: ${commit.error}`)
 
@@ -750,14 +750,14 @@ export async function POST(req: Request) {
 
   if (projectId) {
     const projCheck = await supabaseFetch(
-      `/forge_projects?id=eq.${encodeURIComponent(projectId)}&github_username=eq.${encodeURIComponent(session.githubUsername)}&select=id&limit=1`
+      `/pi_projects?id=eq.${encodeURIComponent(projectId)}&github_username=eq.${encodeURIComponent(session.githubUsername)}&select=id&limit=1`
     )
     if (!projCheck.ok || !Array.isArray(projCheck.data) || projCheck.data.length === 0) {
       return NextResponse.json({ error: 'Project not found or access denied' }, { status: 403 })
     }
   }
 
-  const insertResult = await supabaseFetch('/forge_tasks', {
+  const insertResult = await supabaseFetch('/pi_tasks', {
     method: 'POST',
     body: JSON.stringify({
       project_id: projectId || null,
@@ -790,7 +790,7 @@ export async function POST(req: Request) {
           throw new Error(`Unknown task type: ${type}`)
       }
 
-      await supabaseFetch(`/forge_tasks?id=eq.${taskId}`, {
+      await supabaseFetch(`/pi_tasks?id=eq.${taskId}`, {
         method: 'PATCH',
         body: JSON.stringify({
           status: 'completed',
@@ -798,7 +798,7 @@ export async function POST(req: Request) {
         }),
       })
     } catch (err) {
-      await supabaseFetch(`/forge_tasks?id=eq.${taskId}`, {
+      await supabaseFetch(`/pi_tasks?id=eq.${taskId}`, {
         method: 'PATCH',
         body: JSON.stringify({
           status: 'failed',
@@ -826,7 +826,7 @@ export async function GET(req: Request) {
     return NextResponse.json({ error: 'Invalid ID format' }, { status: 400 })
   }
 
-  let path = `/forge_tasks?order=created_at.desc&limit=20`
+  let path = `/pi_tasks?order=created_at.desc&limit=20`
   if (projectId) {
     path += `&project_id=eq.${encodeURIComponent(projectId)}`
   }

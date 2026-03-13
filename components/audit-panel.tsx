@@ -68,12 +68,12 @@ export function AuditPanel({ plan, onApprove, onReplan, onDismiss }: AuditPanelP
   const progress = totalCount > 0 ? (fixedCount / totalCount) * 100 : 0
 
   return (
-    <div className="border border-forge-border rounded-lg bg-forge-surface/50 overflow-hidden">
+    <div className="border border-pi-border rounded-lg bg-pi-surface/50 overflow-hidden">
       {/* Header */}
-      <div className="flex items-center justify-between px-3 py-2 bg-forge-panel border-b border-forge-border">
+      <div className="flex items-center justify-between px-3 py-2 bg-pi-panel border-b border-pi-border">
         <div className="flex items-center gap-2">
-          <Shield className="w-4 h-4 text-forge-accent" />
-          <span className="text-xs font-medium text-forge-text">Audit Plan</span>
+          <Shield className="w-4 h-4 text-pi-accent" />
+          <span className="text-xs font-medium text-pi-text">Audit Plan</span>
           <span className={cn(
             'text-[10px] px-1.5 py-0.5 rounded-full font-medium',
             plan.status === 'pending_approval' && 'bg-yellow-500/10 text-yellow-400',
@@ -85,18 +85,18 @@ export function AuditPanel({ plan, onApprove, onReplan, onDismiss }: AuditPanelP
              'Completed'}
           </span>
         </div>
-        <button onClick={onDismiss} className="p-1 text-forge-text-dim hover:text-forge-text rounded transition-colors">
+        <button onClick={onDismiss} className="p-1 text-pi-text-dim hover:text-pi-text rounded transition-colors">
           <X className="w-3.5 h-3.5" />
         </button>
       </div>
 
       {/* Summary */}
-      <div className="px-3 py-2 text-xs text-forge-text-dim border-b border-forge-border">
+      <div className="px-3 py-2 text-xs text-pi-text-dim border-b border-pi-border">
         {plan.summary}
       </div>
 
       {/* Stats bar */}
-      <div className="flex items-center gap-3 px-3 py-1.5 text-[10px] text-forge-text-dim border-b border-forge-border bg-forge-bg/50">
+      <div className="flex items-center gap-3 px-3 py-1.5 text-[10px] text-pi-text-dim border-b border-pi-border bg-pi-bg/50">
         <span>{plan.stats.filesAnalyzed} files analyzed</span>
         <span>{plan.stats.issuesFound} issues</span>
         <span>{plan.stats.criticalCount} critical</span>
@@ -105,9 +105,9 @@ export function AuditPanel({ plan, onApprove, onReplan, onDismiss }: AuditPanelP
 
       {/* Progress bar */}
       {plan.status !== 'pending_approval' && (
-        <div className="h-1 bg-forge-bg">
+        <div className="h-1 bg-pi-bg">
           <div
-            className="h-full bg-forge-accent transition-all duration-500"
+            className="h-full bg-pi-accent transition-all duration-500"
             style={{ width: `${progress}%` }}
           />
         </div>
@@ -122,20 +122,20 @@ export function AuditPanel({ plan, onApprove, onReplan, onDismiss }: AuditPanelP
 
           return (
             <div key={finding.id} className={cn(
-              'border-b border-forge-border/50 last:border-b-0',
+              'border-b border-pi-border/50 last:border-b-0',
               finding.status === 'fixed' && 'opacity-60',
             )}>
               <button
                 onClick={() => toggleExpand(finding.id)}
-                className="w-full flex items-center gap-2 px-3 py-2 text-left hover:bg-forge-surface/80 transition-colors"
+                className="w-full flex items-center gap-2 px-3 py-2 text-left hover:bg-pi-surface/80 transition-colors"
               >
                 {isExpanded ? (
-                  <ChevronDown className="w-3 h-3 text-forge-text-dim shrink-0" />
+                  <ChevronDown className="w-3 h-3 text-pi-text-dim shrink-0" />
                 ) : (
-                  <ChevronRight className="w-3 h-3 text-forge-text-dim shrink-0" />
+                  <ChevronRight className="w-3 h-3 text-pi-text-dim shrink-0" />
                 )}
                 <Icon className={cn('w-3.5 h-3.5 shrink-0', config.color)} />
-                <span className="text-xs text-forge-text flex-1 truncate">{finding.id}: {finding.title}</span>
+                <span className="text-xs text-pi-text flex-1 truncate">{finding.id}: {finding.title}</span>
                 <span className={cn('text-[9px] px-1.5 py-0.5 rounded', config.bg, config.color)}>
                   {config.label}
                 </span>
@@ -145,12 +145,12 @@ export function AuditPanel({ plan, onApprove, onReplan, onDismiss }: AuditPanelP
               </button>
               {isExpanded && (
                 <div className="px-3 pb-2 pl-8 space-y-1">
-                  <p className="text-[11px] text-forge-text-dim">{finding.description}</p>
-                  <p className="text-[10px] text-forge-text-dim/70">
-                    <span className="text-forge-text-dim">File:</span> {finding.file}
-                    <span className="ml-2 text-forge-text-dim">Effort:</span> {finding.effort}
+                  <p className="text-[11px] text-pi-text-dim">{finding.description}</p>
+                  <p className="text-[10px] text-pi-text-dim/70">
+                    <span className="text-pi-text-dim">File:</span> {finding.file}
+                    <span className="ml-2 text-pi-text-dim">Effort:</span> {finding.effort}
                   </p>
-                  <p className="text-[10px] text-forge-accent/80">Fix: {finding.fix}</p>
+                  <p className="text-[10px] text-pi-accent/80">Fix: {finding.fix}</p>
                   {finding.changes && (
                     <p className="text-[10px] text-green-400/80">Changes: {finding.changes}</p>
                   )}
@@ -163,26 +163,26 @@ export function AuditPanel({ plan, onApprove, onReplan, onDismiss }: AuditPanelP
 
       {/* Actions */}
       {plan.status === 'pending_approval' && (
-        <div className="px-3 py-2 border-t border-forge-border bg-forge-panel space-y-2">
+        <div className="px-3 py-2 border-t border-pi-border bg-pi-panel space-y-2">
           {showReplanInput ? (
             <div className="space-y-2">
               <textarea
                 value={replanFeedback}
                 onChange={e => setReplanFeedback(e.target.value)}
                 placeholder="What should be changed in the plan?"
-                className="w-full px-2 py-1.5 text-xs bg-forge-bg border border-forge-border rounded resize-none h-16 text-forge-text placeholder:text-forge-text-dim/50 focus:outline-none focus:border-forge-accent"
+                className="w-full px-2 py-1.5 text-xs bg-pi-bg border border-pi-border rounded resize-none h-16 text-pi-text placeholder:text-pi-text-dim/50 focus:outline-none focus:border-pi-accent"
               />
               <div className="flex gap-2">
                 <button
                   onClick={() => { onReplan(replanFeedback); setShowReplanInput(false); setReplanFeedback('') }}
                   disabled={!replanFeedback.trim()}
-                  className="px-3 py-1.5 text-xs font-medium bg-forge-accent text-white rounded hover:bg-forge-accent-hover disabled:opacity-50 transition-colors"
+                  className="px-3 py-1.5 text-xs font-medium bg-pi-accent text-white rounded hover:bg-pi-accent-hover disabled:opacity-50 transition-colors"
                 >
                   Submit Feedback
                 </button>
                 <button
                   onClick={() => setShowReplanInput(false)}
-                  className="px-3 py-1.5 text-xs text-forge-text-dim hover:text-forge-text rounded transition-colors"
+                  className="px-3 py-1.5 text-xs text-pi-text-dim hover:text-pi-text rounded transition-colors"
                 >
                   Cancel
                 </button>
@@ -192,14 +192,14 @@ export function AuditPanel({ plan, onApprove, onReplan, onDismiss }: AuditPanelP
             <div className="flex gap-2">
               <button
                 onClick={onApprove}
-                className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium bg-forge-accent text-white rounded hover:bg-forge-accent-hover transition-colors"
+                className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium bg-pi-accent text-white rounded hover:bg-pi-accent-hover transition-colors"
               >
                 <Play className="w-3 h-3" />
                 Approve & Execute
               </button>
               <button
                 onClick={() => setShowReplanInput(true)}
-                className="flex items-center gap-1.5 px-3 py-1.5 text-xs text-forge-text-dim hover:text-forge-text border border-forge-border rounded hover:bg-forge-surface transition-colors"
+                className="flex items-center gap-1.5 px-3 py-1.5 text-xs text-pi-text-dim hover:text-pi-text border border-pi-border rounded hover:bg-pi-surface transition-colors"
               >
                 <RefreshCw className="w-3 h-3" />
                 Replan
@@ -210,7 +210,7 @@ export function AuditPanel({ plan, onApprove, onReplan, onDismiss }: AuditPanelP
       )}
 
       {plan.status === 'completed' && (
-        <div className="px-3 py-2 border-t border-forge-border bg-green-500/5 text-center">
+        <div className="px-3 py-2 border-t border-pi-border bg-green-500/5 text-center">
           <p className="text-xs text-green-400 font-medium">
             Audit complete — {fixedCount} of {totalCount} issues fixed
           </p>

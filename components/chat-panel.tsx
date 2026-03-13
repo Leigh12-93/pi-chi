@@ -17,22 +17,22 @@ import { ApprovalCard } from '@/components/approval-card'
 import { ActivityBlock } from '@/components/chat/activity-block'
 import { TaskListPanel } from '@/components/chat/task-list-panel'
 import { ChangeSummary } from '@/components/chat/change-summary'
-import { useForgeChat, type UseForgeChatProps } from '@/hooks/use-forge-chat'
+import { usePiChat, type UsePiChatProps } from '@/hooks/use-pi-chat'
 import { useVoiceInput } from '@/hooks/use-voice-input'
 import { toast } from 'sonner'
 
-export type ChatPanelProps = UseForgeChatProps & {
+export type ChatPanelProps = UsePiChatProps & {
   onLoadingChange?: (isLoading: boolean) => void
   onSessionCostChange?: (cost: { cost: number; inputTokens: number; outputTokens: number }) => void
   onFileSelect?: (path: string) => void
 }
 
 export const ChatPanel = memo(function ChatPanel({ onLoadingChange, onSessionCostChange, onFileSelect, ...props }: ChatPanelProps) {
-  const chat = useForgeChat(props)
+  const chat = usePiChat(props)
   const [isDraggingChat, setIsDraggingChat] = useState(false)
   const [dismissedError, setDismissedError] = useState<string | null>(null)
   const [hintsDismissed, setHintsDismissed] = useState(() => {
-    try { return localStorage.getItem('forge-hints-dismissed') === '1' } catch { return false }
+    try { return localStorage.getItem('pi-hints-dismissed') === '1' } catch { return false }
   })
   const fileInputRef = useRef<HTMLInputElement>(null)
   const composerRef = useRef<HTMLDivElement>(null)
@@ -123,7 +123,7 @@ export const ChatPanel = memo(function ChatPanel({ onLoadingChange, onSessionCos
 
   return (
     <ErrorBoundary>
-    <div className="h-full flex flex-col bg-forge-bg">
+    <div className="h-full flex flex-col bg-pi-bg">
       {/* Search bar */}
       <AnimatePresence>
         {chat.searchOpen && (
@@ -132,10 +132,10 @@ export const ChatPanel = memo(function ChatPanel({ onLoadingChange, onSessionCos
             animate={{ opacity: 1, height: 'auto' }}
             exit={{ opacity: 0, height: 0 }}
             transition={{ duration: 0.15, ease: [0.16, 1, 0.3, 1] }}
-            className="shrink-0 bg-forge-surface border-b border-forge-border"
+            className="shrink-0 bg-pi-surface border-b border-pi-border"
           >
             <div className="flex items-center gap-1.5 px-3 py-1.5">
-              <Search className="w-3.5 h-3.5 text-forge-text-dim shrink-0" />
+              <Search className="w-3.5 h-3.5 text-pi-text-dim shrink-0" />
               <input
                 ref={chat.searchInputRef}
                 type="text"
@@ -154,11 +154,11 @@ export const ChatPanel = memo(function ChatPanel({ onLoadingChange, onSessionCos
                   }
                 }}
                 placeholder="Search messages..."
-                className="flex-1 h-8 bg-transparent text-[13px] text-forge-text placeholder:text-forge-text-dim/40 outline-none border-none"
+                className="flex-1 h-8 bg-transparent text-[13px] text-pi-text placeholder:text-pi-text-dim/40 outline-none border-none"
                 aria-label="Search chat messages"
               />
               {chat.searchQuery && (
-                <span className="text-[10px] text-forge-text-dim tabular-nums shrink-0">
+                <span className="text-[10px] text-pi-text-dim tabular-nums shrink-0">
                   {chat.searchResults.length > 0
                     ? `${chat.highlightedResultIdx + 1} of ${chat.searchResults.length}`
                     : 'No results'}
@@ -167,7 +167,7 @@ export const ChatPanel = memo(function ChatPanel({ onLoadingChange, onSessionCos
               <button
                 onClick={chat.prevSearchResult}
                 disabled={chat.searchResults.length === 0}
-                className="p-1 text-forge-text-dim hover:text-forge-text rounded disabled:opacity-30 transition-colors"
+                className="p-1 text-pi-text-dim hover:text-pi-text rounded disabled:opacity-30 transition-colors"
                 aria-label="Previous result"
                 title="Previous result (Shift+Enter)"
               >
@@ -176,7 +176,7 @@ export const ChatPanel = memo(function ChatPanel({ onLoadingChange, onSessionCos
               <button
                 onClick={chat.nextSearchResult}
                 disabled={chat.searchResults.length === 0}
-                className="p-1 text-forge-text-dim hover:text-forge-text rounded disabled:opacity-30 transition-colors"
+                className="p-1 text-pi-text-dim hover:text-pi-text rounded disabled:opacity-30 transition-colors"
                 aria-label="Next result"
                 title="Next result (Enter)"
               >
@@ -184,7 +184,7 @@ export const ChatPanel = memo(function ChatPanel({ onLoadingChange, onSessionCos
               </button>
               <button
                 onClick={chat.closeSearch}
-                className="p-1 text-forge-text-dim hover:text-forge-text rounded transition-colors"
+                className="p-1 text-pi-text-dim hover:text-pi-text rounded transition-colors"
                 aria-label="Close search"
                 title="Close search (Esc)"
               >
@@ -211,7 +211,7 @@ export const ChatPanel = memo(function ChatPanel({ onLoadingChange, onSessionCos
                 <div key={i} className={cn('flex', i % 2 === 0 ? 'justify-end' : 'justify-start')}>
                   <div className={cn(
                     'rounded-2xl p-3.5 space-y-2',
-                    i % 2 === 0 ? 'bg-forge-surface w-2/3' : 'bg-forge-surface w-3/4',
+                    i % 2 === 0 ? 'bg-pi-surface w-2/3' : 'bg-pi-surface w-3/4',
                   )}>
                     <div className="h-3 rounded animate-skeleton w-full" />
                     <div className="h-3 rounded animate-skeleton w-4/5" />
@@ -229,11 +229,11 @@ export const ChatPanel = memo(function ChatPanel({ onLoadingChange, onSessionCos
               transition={{ duration: 0.2 }}
               className="flex flex-col items-center justify-center h-full px-6"
             >
-              <div className="w-14 h-14 rounded-2xl bg-forge-surface border border-forge-border flex items-center justify-center mb-5 animate-breathe">
-                <Sparkles className="w-7 h-7 text-forge-accent/70" />
+              <div className="w-14 h-14 rounded-2xl bg-pi-surface border border-pi-border flex items-center justify-center mb-5 animate-breathe">
+                <Sparkles className="w-7 h-7 text-pi-accent/70" />
               </div>
-              <h2 className="text-xl font-semibold text-forge-text mb-1.5 text-balance text-center tracking-tight">What shall we build?</h2>
-              <p className="text-[13px] text-forge-text-dim text-center mb-8 text-pretty">Describe what you want to create, analyze, or improve</p>
+              <h2 className="text-xl font-semibold text-pi-text mb-1.5 text-balance text-center tracking-tight">What shall we build?</h2>
+              <p className="text-[13px] text-pi-text-dim text-center mb-8 text-pretty">Describe what you want to create, analyze, or improve</p>
               <div className="grid grid-cols-2 gap-2.5 w-full max-w-sm">
                 {QUICK_ACTIONS.map((action, i) => (
                   <motion.button
@@ -244,12 +244,12 @@ export const ChatPanel = memo(function ChatPanel({ onLoadingChange, onSessionCos
                     whileHover={{ scale: 1.02, y: -1 }}
                     whileTap={{ scale: 0.98 }}
                     onClick={() => chat.handleSend(action.query)}
-                    className="flex flex-col items-center gap-2 p-4 text-center text-[12.5px] rounded-xl border border-forge-border bg-forge-bg hover:border-forge-accent/25 hover:bg-forge-surface/50 hover:shadow-sm transition-all group"
+                    className="flex flex-col items-center gap-2 p-4 text-center text-[12.5px] rounded-xl border border-pi-border bg-pi-bg hover:border-pi-accent/25 hover:bg-pi-surface/50 hover:shadow-sm transition-all group"
                   >
-                    <div className="w-9 h-9 rounded-xl bg-forge-surface border border-forge-border flex items-center justify-center group-hover:border-forge-accent/25 group-hover:shadow-sm group-hover:shadow-forge-accent/10 transition-all duration-200">
-                      <action.icon className="w-4 h-4 text-forge-text-dim group-hover:text-forge-accent transition-colors" />
+                    <div className="w-9 h-9 rounded-xl bg-pi-surface border border-pi-border flex items-center justify-center group-hover:border-pi-accent/25 group-hover:shadow-sm group-hover:shadow-pi-accent/10 transition-all duration-200">
+                      <action.icon className="w-4 h-4 text-pi-text-dim group-hover:text-pi-accent transition-colors" />
                     </div>
-                    <span className="text-forge-text-dim group-hover:text-forge-text font-medium transition-colors">{action.label}</span>
+                    <span className="text-pi-text-dim group-hover:text-pi-text font-medium transition-colors">{action.label}</span>
                   </motion.button>
                 ))}
               </div>
@@ -261,7 +261,7 @@ export const ChatPanel = memo(function ChatPanel({ onLoadingChange, onSessionCos
                 transition={{ duration: 0.3, delay: 0.25 }}
                 className="flex flex-col items-center gap-1.5 mt-5 w-full max-w-sm"
               >
-                <span className="text-[10px] text-forge-text-dim/40 uppercase tracking-widest mb-1">or try</span>
+                <span className="text-[10px] text-pi-text-dim/40 uppercase tracking-widest mb-1">or try</span>
                 {[
                   'Build a todo app with drag-and-drop and local storage',
                   'Create a weather dashboard that fetches real API data',
@@ -273,7 +273,7 @@ export const ChatPanel = memo(function ChatPanel({ onLoadingChange, onSessionCos
                     animate={{ opacity: 1, x: 0 }}
                     transition={{ duration: 0.25, delay: 0.3 + i * 0.05 }}
                     onClick={() => chat.setInput(prompt)}
-                    className="text-[11.5px] text-forge-text-dim/60 hover:text-forge-accent hover:bg-forge-surface/50 px-3 py-1.5 rounded-lg transition-all text-left w-full truncate"
+                    className="text-[11.5px] text-pi-text-dim/60 hover:text-pi-accent hover:bg-pi-surface/50 px-3 py-1.5 rounded-lg transition-all text-left w-full truncate"
                   >
                     &ldquo;{prompt}&rdquo;
                   </motion.button>
@@ -298,18 +298,18 @@ export const ChatPanel = memo(function ChatPanel({ onLoadingChange, onSessionCos
                       initial={{ opacity: 0, y: 4 }}
                       animate={{ opacity: 1, y: 0 }}
                       transition={{ duration: 0.2, delay: 0.35 + i * 0.05 }}
-                      className="text-[10px] text-forge-text-dim/50"
+                      className="text-[10px] text-pi-text-dim/50"
                     >
-                      <kbd className="px-1.5 py-0.5 rounded bg-forge-surface border border-forge-border font-mono text-[9px]">{hint.key}</kbd>
+                      <kbd className="px-1.5 py-0.5 rounded bg-pi-surface border border-pi-border font-mono text-[9px]">{hint.key}</kbd>
                       {' '}{hint.label}
                     </motion.span>
                   ))}
                   <button
                     onClick={() => {
                       setHintsDismissed(true)
-                      try { localStorage.setItem('forge-hints-dismissed', '1') } catch (e) { console.warn('[forge:localStorage] Failed to save hints preference:', e) }
+                      try { localStorage.setItem('pi-hints-dismissed', '1') } catch (e) { console.warn('[pi:localStorage] Failed to save hints preference:', e) }
                     }}
-                    className="ml-1 p-0.5 text-forge-text-dim/30 hover:text-forge-text-dim transition-colors rounded"
+                    className="ml-1 p-0.5 text-pi-text-dim/30 hover:text-pi-text-dim transition-colors rounded"
                     aria-label="Dismiss keyboard hints"
                   >
                     <X className="w-3 h-3" />
@@ -334,8 +334,8 @@ export const ChatPanel = memo(function ChatPanel({ onLoadingChange, onSessionCos
                 data-message-id={message.id}
                 className={cn(
                   idx === chat.messages.length - 1 ? 'message-enter' : undefined,
-                  isSearchMatch && !isActiveResult && 'ring-1 ring-forge-accent/30 rounded-xl',
-                  isActiveResult && 'ring-2 ring-forge-accent/50 rounded-xl',
+                  isSearchMatch && !isActiveResult && 'ring-1 ring-pi-accent/30 rounded-xl',
+                  isActiveResult && 'ring-2 ring-pi-accent/50 rounded-xl',
                 )}
               >
                 <MessageItem
@@ -384,7 +384,7 @@ export const ChatPanel = memo(function ChatPanel({ onLoadingChange, onSessionCos
                   transition={{ duration: 0.2, ease: [0.16, 1, 0.3, 1] }}
                   className="flex justify-start"
                 >
-                  <div className="rounded-2xl p-3.5 space-y-2.5 bg-forge-surface w-3/4 max-w-lg">
+                  <div className="rounded-2xl p-3.5 space-y-2.5 bg-pi-surface w-3/4 max-w-lg">
                     <div className="h-3 rounded animate-skeleton w-full" />
                     <div className="h-3 rounded animate-skeleton w-4/5" style={{ animationDelay: '80ms' }} />
                     <div className="h-3 rounded animate-skeleton w-3/5" style={{ animationDelay: '160ms' }} />
@@ -419,7 +419,7 @@ export const ChatPanel = memo(function ChatPanel({ onLoadingChange, onSessionCos
                   changes={chat.lastChanges}
                   onFileClick={(path) => {
                     // Dispatch event for workspace to open the file
-                    window.dispatchEvent(new CustomEvent('forge:open-file', { detail: { path } }))
+                    window.dispatchEvent(new CustomEvent('pi:open-file', { detail: { path } }))
                   }}
                 />
               )}
@@ -482,7 +482,7 @@ export const ChatPanel = memo(function ChatPanel({ onLoadingChange, onSessionCos
           >
             <button
               onClick={chat.scrollToBottom}
-              className="flex items-center gap-1 px-3 py-1.5 text-[11px] font-medium text-forge-text bg-forge-surface/95 backdrop-blur-sm border border-forge-border rounded-full shadow-lg hover:bg-forge-surface-hover transition-colors"
+              className="flex items-center gap-1 px-3 py-1.5 text-[11px] font-medium text-pi-text bg-pi-surface/95 backdrop-blur-sm border border-pi-border rounded-full shadow-lg hover:bg-pi-surface-hover transition-colors"
             >
               <ChevronDown className="w-3 h-3" />
               {chat.isLoading ? 'New messages' : 'Scroll to bottom'}
@@ -519,7 +519,7 @@ export const ChatPanel = memo(function ChatPanel({ onLoadingChange, onSessionCos
             >
               <div className="h-0.5 bg-red-100 dark:bg-red-900/30 animate-recording-sweep" />
               {voice.interimText && (
-                <div className="px-4 pt-2 text-[12px] text-forge-text-dim/60 italic truncate">
+                <div className="px-4 pt-2 text-[12px] text-pi-text-dim/60 italic truncate">
                   {voice.interimText}...
                 </div>
               )}
@@ -542,7 +542,7 @@ export const ChatPanel = memo(function ChatPanel({ onLoadingChange, onSessionCos
             }
           }}
         >
-          <div className="relative bg-forge-surface border border-forge-border rounded-xl shadow-[inset_0_1px_2px_rgba(0,0,0,0.04),0_1px_2px_rgba(0,0,0,0.02)] composer-focus-glow transition-all">
+          <div className="relative bg-pi-surface border border-pi-border rounded-xl shadow-[inset_0_1px_2px_rgba(0,0,0,0.04),0_1px_2px_rgba(0,0,0,0.02)] composer-focus-glow transition-all">
             {/* Drag overlay */}
             <AnimatePresence>
               {isDraggingChat && (
@@ -551,9 +551,9 @@ export const ChatPanel = memo(function ChatPanel({ onLoadingChange, onSessionCos
                   animate={{ opacity: 1 }}
                   exit={{ opacity: 0 }}
                   transition={{ duration: 0.15 }}
-                  className="absolute inset-0 z-10 rounded-xl border-2 border-dashed border-forge-accent bg-forge-accent/10 flex items-center justify-center pointer-events-none"
+                  className="absolute inset-0 z-10 rounded-xl border-2 border-dashed border-pi-accent bg-pi-accent/10 flex items-center justify-center pointer-events-none"
                 >
-                  <span className="text-[12px] font-medium text-forge-accent">Drop files here</span>
+                  <span className="text-[12px] font-medium text-pi-accent">Drop files here</span>
                 </motion.div>
               )}
             </AnimatePresence>
@@ -570,11 +570,11 @@ export const ChatPanel = memo(function ChatPanel({ onLoadingChange, onSessionCos
                       animate={{ opacity: 1, scale: 1 }}
                       exit={{ opacity: 0, scale: 0.8 }}
                       transition={{ duration: 0.15, ease: [0.16, 1, 0.3, 1] }}
-                      className="flex items-center gap-1 px-2 py-1 bg-forge-bg/60 border border-forge-border rounded-md text-[11px]"
+                      className="flex items-center gap-1 px-2 py-1 bg-pi-bg/60 border border-pi-border rounded-md text-[11px]"
                     >
-                      {att.mediaType?.startsWith('image/') ? <ImageIcon className="w-3 h-3 text-forge-text-dim" /> : <Paperclip className="w-3 h-3 text-forge-text-dim" />}
-                      <span className="max-w-[120px] truncate text-forge-text-dim">{att.filename || 'file'}</span>
-                      <button onClick={() => chat.handleRemoveAttachment(i)} className="p-0.5 text-forge-text-dim hover:text-red-500 transition-colors" aria-label="Remove attachment">
+                      {att.mediaType?.startsWith('image/') ? <ImageIcon className="w-3 h-3 text-pi-text-dim" /> : <Paperclip className="w-3 h-3 text-pi-text-dim" />}
+                      <span className="max-w-[120px] truncate text-pi-text-dim">{att.filename || 'file'}</span>
+                      <button onClick={() => chat.handleRemoveAttachment(i)} className="p-0.5 text-pi-text-dim hover:text-red-500 transition-colors" aria-label="Remove attachment">
                         <X className="w-2.5 h-2.5" />
                       </button>
                     </motion.div>
@@ -612,7 +612,7 @@ export const ChatPanel = memo(function ChatPanel({ onLoadingChange, onSessionCos
               autoCorrect="off"
               autoCapitalize="off"
               spellCheck={false}
-              className="w-full bg-transparent px-3 py-3 text-base sm:text-[13.5px] text-forge-text placeholder:text-forge-text-dim/40 outline-none border-none shadow-none focus:shadow-none focus-visible:shadow-none resize-none chat-textarea-smooth"
+              className="w-full bg-transparent px-3 py-3 text-base sm:text-[13.5px] text-pi-text placeholder:text-pi-text-dim/40 outline-none border-none shadow-none focus:shadow-none focus-visible:shadow-none resize-none chat-textarea-smooth"
             />
 
             {/* Action bar */}
@@ -631,7 +631,7 @@ export const ChatPanel = memo(function ChatPanel({ onLoadingChange, onSessionCos
                 />
                 <button
                   onClick={() => fileInputRef.current?.click()}
-                  className="p-2 sm:p-1.5 text-forge-text-dim hover:text-forge-text rounded-lg hover:bg-forge-bg/60 transition-colors"
+                  className="p-2 sm:p-1.5 text-pi-text-dim hover:text-pi-text rounded-lg hover:bg-pi-bg/60 transition-colors"
                   title="Attach files"
                   aria-label="Attach files"
                 >
@@ -646,7 +646,7 @@ export const ChatPanel = memo(function ChatPanel({ onLoadingChange, onSessionCos
                       'p-2 sm:p-1.5 rounded-lg transition-all',
                       voice.isListening
                         ? 'bg-red-100 dark:bg-red-900/40 text-red-500 hover:bg-red-200 dark:hover:bg-red-800/60 animate-pulse'
-                        : 'text-forge-text-dim hover:text-forge-text hover:bg-forge-bg/60',
+                        : 'text-pi-text-dim hover:text-pi-text hover:bg-pi-bg/60',
                     )}
                     title={voice.isListening ? 'Stop recording' : 'Voice input'}
                     aria-label={voice.isListening ? 'Stop recording' : 'Voice input'}
@@ -662,7 +662,7 @@ export const ChatPanel = memo(function ChatPanel({ onLoadingChange, onSessionCos
                     aria-label="Select AI model"
                     aria-haspopup="listbox"
                     aria-expanded={chat.showModelPicker}
-                    className="flex items-center gap-1 px-2 py-1 text-[11px] text-forge-text-dim hover:text-forge-text rounded-lg hover:bg-forge-bg/60 transition-all"
+                    className="flex items-center gap-1 px-2 py-1 text-[11px] text-pi-text-dim hover:text-pi-text rounded-lg hover:bg-pi-bg/60 transition-all"
                   >
                     {MODEL_OPTIONS.find(m => m.id === chat.selectedModel)?.label || 'Sonnet 4'}
                     <ChevronDown className="w-2.5 h-2.5" />
@@ -676,7 +676,7 @@ export const ChatPanel = memo(function ChatPanel({ onLoadingChange, onSessionCos
                           animate={{ opacity: 1, y: 0, scale: 1 }}
                           exit={{ opacity: 0, y: 4, scale: 0.95 }}
                           transition={{ duration: 0.15, ease: [0.16, 1, 0.3, 1] }}
-                          className="absolute left-0 bottom-full mb-1 z-50 w-44 bg-forge-bg/95 backdrop-blur-lg border border-forge-border rounded-xl shadow-lg overflow-hidden"
+                          className="absolute left-0 bottom-full mb-1 z-50 w-44 bg-pi-bg/95 backdrop-blur-lg border border-pi-border rounded-xl shadow-lg overflow-hidden"
                           role="listbox"
                           aria-label="AI model options"
                         >
@@ -701,13 +701,13 @@ export const ChatPanel = memo(function ChatPanel({ onLoadingChange, onSessionCos
                               }}
                               autoFocus={chat.selectedModel === model.id}
                               className={cn(
-                                'flex items-center gap-2 w-full px-3 py-2 text-[12px] hover:bg-forge-surface-hover transition-colors focus:bg-forge-surface-hover outline-none',
-                                chat.selectedModel === model.id && 'bg-forge-surface text-forge-text font-medium',
+                                'flex items-center gap-2 w-full px-3 py-2 text-[12px] hover:bg-pi-surface-hover transition-colors focus:bg-pi-surface-hover outline-none',
+                                chat.selectedModel === model.id && 'bg-pi-surface text-pi-text font-medium',
                               )}
                             >
-                              <Check className={cn('w-3 h-3 shrink-0', chat.selectedModel === model.id ? 'text-forge-accent' : 'invisible')} />
+                              <Check className={cn('w-3 h-3 shrink-0', chat.selectedModel === model.id ? 'text-pi-accent' : 'invisible')} />
                               <span className="flex-1 text-left">{model.label}</span>
-                              <span className="text-[10px] text-forge-text-dim">{model.description}</span>
+                              <span className="text-[10px] text-pi-text-dim">{model.description}</span>
                             </button>
                           ))}
                         </motion.div>
@@ -728,7 +728,7 @@ export const ChatPanel = memo(function ChatPanel({ onLoadingChange, onSessionCos
                     exit={{ scale: 0.9, opacity: 0 }}
                     transition={{ duration: 0.12 }}
                     onClick={() => { chat.stoppedByUserRef.current = true; chat.stop() }}
-                    className="p-2 sm:p-1.5 rounded-lg bg-red-100 dark:bg-red-900/40 text-forge-danger hover:bg-red-200 dark:hover:bg-red-800/60 transition-colors animate-stop-pulse stop-ring-pulse"
+                    className="p-2 sm:p-1.5 rounded-lg bg-red-100 dark:bg-red-900/40 text-pi-danger hover:bg-red-200 dark:hover:bg-red-800/60 transition-colors animate-stop-pulse stop-ring-pulse"
                     title="Stop generating (Esc)"
                     aria-label="Stop generating"
                   >
@@ -743,7 +743,7 @@ export const ChatPanel = memo(function ChatPanel({ onLoadingChange, onSessionCos
                     animate={{ scale: 1, opacity: 1 }}
                     exit={{ scale: 0.9, opacity: 0 }}
                     transition={{ duration: 0.12 }}
-                    className="p-2 sm:p-1.5 rounded-lg bg-forge-accent hover:bg-forge-accent-hover text-white shadow-sm disabled:opacity-40 disabled:cursor-not-allowed focus-visible:ring-2 focus-visible:ring-forge-ring transition-opacity"
+                    className="p-2 sm:p-1.5 rounded-lg bg-pi-accent hover:bg-pi-accent-hover text-white shadow-sm disabled:opacity-40 disabled:cursor-not-allowed focus-visible:ring-2 focus-visible:ring-pi-ring transition-opacity"
                     title="Send message"
                     aria-label="Send message"
                   >
@@ -761,13 +761,13 @@ export const ChatPanel = memo(function ChatPanel({ onLoadingChange, onSessionCos
           <div className="flex items-center gap-1.5 tabular-nums">
             <AnimatePresence>
               {chat.autoRoutedModel && (
-                <motion.span key="auto-route" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.12 }} className="text-[10px] text-forge-text-dim/60 flex items-center gap-0.5" title={chat.autoRoutedModel.reason}>
+                <motion.span key="auto-route" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.12 }} className="text-[10px] text-pi-text-dim/60 flex items-center gap-0.5" title={chat.autoRoutedModel.reason}>
                   <Sparkles className="w-2.5 h-2.5" />
                   {chat.autoRoutedModel.model.includes('haiku') ? 'Haiku' : chat.autoRoutedModel.model.includes('opus') ? 'Opus' : 'Sonnet'}
                 </motion.span>
               )}
               {chat.isLoading && chat.stepCount > 0 && (
-                <motion.span key="step-count" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.18 }} className="text-[10px] text-forge-accent/60 font-medium tabular-nums">
+                <motion.span key="step-count" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.18 }} className="text-[10px] text-pi-accent/60 font-medium tabular-nums">
                   {chat.stepCount} action{chat.stepCount !== 1 ? 's' : ''}
                 </motion.span>
               )}
@@ -777,24 +777,24 @@ export const ChatPanel = memo(function ChatPanel({ onLoadingChange, onSessionCos
                 const isReal = sessionTotal > 0
                 if (tokenCount <= 0) return null
                 return (
-                  <motion.span key="tokens" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.14 }} className="text-[10px] text-forge-text-dim/50" title={isReal ? `${chat.sessionCost.inputTokens.toLocaleString()} in + ${chat.sessionCost.outputTokens.toLocaleString()} out` : 'Estimated token usage'}>
+                  <motion.span key="tokens" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.14 }} className="text-[10px] text-pi-text-dim/50" title={isReal ? `${chat.sessionCost.inputTokens.toLocaleString()} in + ${chat.sessionCost.outputTokens.toLocaleString()} out` : 'Estimated token usage'}>
                     {isReal ? '' : '~'}{tokenCount > 1000 ? `${(tokenCount / 1000).toFixed(1)}k` : tokenCount} tok
                   </motion.span>
                 )
               })()}
               {chat.sessionCost.cost > 0 && !chat.isLoading && (
-                <motion.span key="cost" initial={{ opacity: 0, y: 4 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} transition={{ duration: 0.2 }} className="text-[10px] text-forge-text-dim/50 cost-chip-enter" title={`Session: ${chat.sessionCost.inputTokens.toLocaleString()} in + ${chat.sessionCost.outputTokens.toLocaleString()} out`}>
+                <motion.span key="cost" initial={{ opacity: 0, y: 4 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} transition={{ duration: 0.2 }} className="text-[10px] text-pi-text-dim/50 cost-chip-enter" title={`Session: ${chat.sessionCost.inputTokens.toLocaleString()} in + ${chat.sessionCost.outputTokens.toLocaleString()} out`}>
                   ${chat.sessionCost.cost < 0.01 ? chat.sessionCost.cost.toFixed(4) : chat.sessionCost.cost.toFixed(2)}
                 </motion.span>
               )}
               {chat.isLoading && chat.elapsed > 0 && (
-                <motion.span key="elapsed" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.16 }} className="text-[10px] text-forge-text-dim/50 flex items-center gap-0.5 tabular-nums">
+                <motion.span key="elapsed" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.16 }} className="text-[10px] text-pi-text-dim/50 flex items-center gap-0.5 tabular-nums">
                   <Clock className="w-2.5 h-2.5" />
                   {chat.formatElapsed(chat.elapsed)}
                 </motion.span>
               )}
             </AnimatePresence>
-            <span className="text-[10px] text-forge-text-dim/30 hidden sm:inline">
+            <span className="text-[10px] text-pi-text-dim/30 hidden sm:inline">
               Enter to send{chat.isLoading ? ' · Esc to stop' : ''}
             </span>
           </div>
@@ -804,7 +804,7 @@ export const ChatPanel = memo(function ChatPanel({ onLoadingChange, onSessionCos
               onMouseLeave={() => { if (chat.clearConfirm) { chat.setClearConfirm(false); if (chat.clearConfirmTimer.current) clearTimeout(chat.clearConfirmTimer.current) } }}
               className={cn(
                 'p-1 rounded transition-colors text-[10px] flex items-center gap-0.5',
-                chat.clearConfirm ? 'text-forge-danger' : 'text-forge-text-dim/40 hover:text-forge-danger',
+                chat.clearConfirm ? 'text-pi-danger' : 'text-pi-text-dim/40 hover:text-pi-danger',
               )}
               title={chat.clearConfirm ? 'Click again to confirm' : 'Clear chat'}
               aria-label={chat.clearConfirm ? 'Confirm clear chat' : 'Clear chat'}

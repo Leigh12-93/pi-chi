@@ -86,20 +86,20 @@ export function KeyboardShortcutsOverlay({ open, onClose }: KeyboardShortcutsOve
 
   return (
     <div className="fixed inset-0 z-[100] flex items-center justify-center" onClick={onClose} onKeyDown={handleKeyDown} role="dialog" aria-modal="true" aria-label="Keyboard shortcuts">
-      <div className="absolute inset-0 bg-forge-overlay backdrop-blur-md animate-fade-in" />
+      <div className="absolute inset-0 bg-pi-overlay backdrop-blur-md animate-fade-in" />
       <div
-        className="relative w-full max-w-md mx-4 bg-forge-bg rounded-2xl shadow-2xl border border-forge-border overflow-hidden animate-scale-in"
+        className="relative w-full max-w-md mx-4 bg-pi-bg rounded-2xl shadow-2xl border border-pi-border overflow-hidden animate-scale-in"
         onClick={e => e.stopPropagation()}
       >
         {/* Header */}
-        <div className="flex items-center justify-between px-5 py-4 border-b border-forge-border">
+        <div className="flex items-center justify-between px-5 py-4 border-b border-pi-border">
           <div className="flex items-center gap-2">
-            <Keyboard className="w-4 h-4 text-forge-accent" />
-            <h2 className="text-sm font-semibold text-forge-text">Keyboard Shortcuts</h2>
+            <Keyboard className="w-4 h-4 text-pi-accent" />
+            <h2 className="text-sm font-semibold text-pi-text">Keyboard Shortcuts</h2>
           </div>
           <button
             onClick={onClose}
-            className="p-1 rounded-lg text-forge-text-dim hover:text-forge-text hover:bg-forge-surface transition-colors"
+            className="p-1 rounded-lg text-pi-text-dim hover:text-pi-text hover:bg-pi-surface transition-colors"
           >
             <X className="w-4 h-4" />
           </button>
@@ -109,20 +109,20 @@ export function KeyboardShortcutsOverlay({ open, onClose }: KeyboardShortcutsOve
         <div className="p-4 max-h-[60vh] overflow-y-auto space-y-4">
           {SHORTCUTS.map(group => (
             <div key={group.category}>
-              <h3 className="text-[10px] font-semibold uppercase tracking-wider text-forge-text-dim/70 mb-2">
+              <h3 className="text-[10px] font-semibold uppercase tracking-wider text-pi-text-dim/70 mb-2">
                 {group.category}
               </h3>
               <div className="space-y-0.5">
                 {group.items.map((item: { keys: string; description: string; essential?: boolean }) => (
                   <div
                     key={item.keys}
-                    className="flex items-center justify-between py-1.5 px-2 rounded-lg hover:bg-forge-surface/50"
+                    className="flex items-center justify-between py-1.5 px-2 rounded-lg hover:bg-pi-surface/50"
                   >
-                    <span className="text-xs text-forge-text flex items-center gap-1.5">
-                      {item.essential && <span className="w-1 h-1 rounded-full bg-forge-accent shrink-0" />}
+                    <span className="text-xs text-pi-text flex items-center gap-1.5">
+                      {item.essential && <span className="w-1 h-1 rounded-full bg-pi-accent shrink-0" />}
                       {item.description}
                     </span>
-                    <kbd className="px-2 py-0.5 text-[10px] font-mono text-forge-text-dim bg-forge-surface border border-forge-border rounded-md shrink-0 ml-3">
+                    <kbd className="px-2 py-0.5 text-[10px] font-mono text-pi-text-dim bg-pi-surface border border-pi-border rounded-md shrink-0 ml-3">
                       {item.keys}
                     </kbd>
                   </div>
@@ -133,10 +133,10 @@ export function KeyboardShortcutsOverlay({ open, onClose }: KeyboardShortcutsOve
         </div>
 
         {/* Footer */}
-        <div className="px-5 py-3 border-t border-forge-border bg-forge-surface/30">
-          <p className="text-[10px] text-forge-text-dim text-center">
+        <div className="px-5 py-3 border-t border-pi-border bg-pi-surface/30">
+          <p className="text-[10px] text-pi-text-dim text-center">
             Press{' '}
-            <kbd className="px-1 py-0.5 text-[9px] font-mono bg-forge-surface border border-forge-border rounded">
+            <kbd className="px-1 py-0.5 text-[9px] font-mono bg-pi-surface border border-pi-border rounded">
               Esc
             </kbd>{' '}
             to close

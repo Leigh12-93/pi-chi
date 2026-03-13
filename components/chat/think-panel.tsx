@@ -51,7 +51,7 @@ function ConfidenceRing({ value }: { value: number }) {
   return (
     <div className="relative w-7 h-7 shrink-0" title={`${value}% confidence`}>
       <svg className="w-7 h-7 -rotate-90" viewBox="0 0 28 28">
-        <circle cx="14" cy="14" r={radius} fill="none" stroke="currentColor" strokeWidth="2" className="text-forge-border/30" />
+        <circle cx="14" cy="14" r={radius} fill="none" stroke="currentColor" strokeWidth="2" className="text-pi-border/30" />
         <circle cx="14" cy="14" r={radius} fill="none" stroke="currentColor" strokeWidth="2" strokeDasharray={circumference} strokeDashoffset={offset} strokeLinecap="round" className={color} />
       </svg>
       <span className={cn('absolute inset-0 flex items-center justify-center text-[9px] font-bold tabular-nums', color)}>
@@ -94,25 +94,25 @@ export function ThinkPanel({ plan, files, completedFiles, isStreaming, architect
         )}>
           {allDone ? <CheckCircle className="w-3 h-3" /> : <Brain className="w-3 h-3" />}
         </div>
-        <span className="flex-1 text-left text-forge-text-dim font-medium">
+        <span className="flex-1 text-left text-pi-text-dim font-medium">
           {allDone ? 'Plan complete' : isStreaming && total > 0 ? `Building... ${done}/${total}` : hasArchitecture ? 'Architecture planned' : `Thought for ${duration}`}
         </span>
         {confidence != null && confidence > 0 && (
           <ConfidenceRing value={confidence} />
         )}
         {total > 0 && (
-          <span className="text-[11px] text-forge-text-dim/40 font-mono tabular-nums mr-1">
+          <span className="text-[11px] text-pi-text-dim/40 font-mono tabular-nums mr-1">
             {done}/{total}
           </span>
         )}
-        <ChevronRight className={cn('w-3.5 h-3.5 text-forge-text-dim/40 transition-transform duration-200', expanded && 'rotate-90')} />
+        <ChevronRight className={cn('w-3.5 h-3.5 text-pi-text-dim/40 transition-transform duration-200', expanded && 'rotate-90')} />
       </button>
 
       {/* Progress bar (always visible when files exist) */}
       {total > 0 && (
-        <div className="h-[2px] bg-forge-border/20 rounded-full mx-0.5 mt-0.5 overflow-hidden">
+        <div className="h-[2px] bg-pi-border/20 rounded-full mx-0.5 mt-0.5 overflow-hidden">
           <motion.div
-            className={cn('h-full rounded-full', allDone ? 'bg-emerald-500' : 'bg-forge-accent')}
+            className={cn('h-full rounded-full', allDone ? 'bg-emerald-500' : 'bg-pi-accent')}
             initial={{ width: 0 }}
             animate={{ width: `${pct}%` }}
             transition={{ duration: 0.4, ease: [0.16, 1, 0.3, 1] }}
@@ -129,20 +129,20 @@ export function ThinkPanel({ plan, files, completedFiles, isStreaming, architect
             transition={{ duration: 0.25 }}
             className="overflow-hidden"
           >
-            <div className="ml-2.5 border-l border-forge-border/40 pl-4 py-2 space-y-2">
+            <div className="ml-2.5 border-l border-pi-border/40 pl-4 py-2 space-y-2">
               {/* Architecture sections */}
               {hasArchitecture && (
-                <div className="space-y-1.5 pb-1.5 border-b border-forge-border/20">
+                <div className="space-y-1.5 pb-1.5 border-b border-pi-border/20">
                   {ARCH_SECTIONS.map(({ key, label, Icon }) => {
                     const value = architecture[key]
                     if (!value) return null
                     return (
                       <div key={key}>
                         <div className="flex items-center gap-1.5 mb-0.5">
-                          <Icon className="w-3 h-3 text-forge-text-dim/50" />
-                          <span className="text-[11px] font-medium text-forge-text-dim/60 uppercase tracking-wide">{label}</span>
+                          <Icon className="w-3 h-3 text-pi-text-dim/50" />
+                          <span className="text-[11px] font-medium text-pi-text-dim/60 uppercase tracking-wide">{label}</span>
                         </div>
-                        <p className="text-[12px] text-forge-text-dim/70 leading-relaxed whitespace-pre-wrap pl-[18px]">{value}</p>
+                        <p className="text-[12px] text-pi-text-dim/70 leading-relaxed whitespace-pre-wrap pl-[18px]">{value}</p>
                       </div>
                     )
                   })}
@@ -181,9 +181,9 @@ export function ThinkPanel({ plan, files, completedFiles, isStreaming, architect
                 </div>
               )}
 
-              <p className="text-[12.5px] text-forge-text-dim/70 leading-relaxed whitespace-pre-wrap">
+              <p className="text-[12.5px] text-pi-text-dim/70 leading-relaxed whitespace-pre-wrap">
                 {planText}
-                {isTruncated && <span className="text-forge-text-dim/40">{'...'} (truncated)</span>}
+                {isTruncated && <span className="text-pi-text-dim/40">{'...'} (truncated)</span>}
               </p>
               {files.length > 0 && (
                 <div className="space-y-0.5">
@@ -194,13 +194,13 @@ export function ThinkPanel({ plan, files, completedFiles, isStreaming, architect
                         {isDone ? (
                           <CheckCircle className="w-3 h-3 text-emerald-500 shrink-0" />
                         ) : isStreaming ? (
-                          <Circle className="w-3 h-3 text-forge-text-dim/30 shrink-0" />
+                          <Circle className="w-3 h-3 text-pi-text-dim/30 shrink-0" />
                         ) : (
-                          <Circle className="w-3 h-3 text-forge-text-dim/20 shrink-0" />
+                          <Circle className="w-3 h-3 text-pi-text-dim/20 shrink-0" />
                         )}
                         <span className={cn(
                           'text-[11px] font-mono',
-                          isDone ? 'text-forge-text-dim/50 line-through' : 'text-forge-text-dim/70',
+                          isDone ? 'text-pi-text-dim/50 line-through' : 'text-pi-text-dim/70',
                         )}>
                           {f}
                         </span>

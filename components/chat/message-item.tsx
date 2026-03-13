@@ -108,13 +108,13 @@ export const MessageItem = memo(function MessageItem({
             <textarea
               value={editingContent}
               onChange={e => onSetEditingContent(e.target.value)}
-              className="w-full bg-forge-bg border border-forge-border rounded-xl px-3.5 py-2.5 text-[13.5px] text-forge-text outline-none resize-none focus:border-forge-accent/40 focus:shadow-[0_0_0_3px_var(--color-forge-ring)] transition-all"
+              className="w-full bg-pi-bg border border-pi-border rounded-xl px-3.5 py-2.5 text-[13.5px] text-pi-text outline-none resize-none focus:border-pi-accent/40 focus:shadow-[0_0_0_3px_var(--color-pi-ring)] transition-all"
               rows={3}
               autoFocus
             />
             <div className="flex justify-end gap-1.5 mt-1.5">
-              <button onClick={onCancelEdit} className="px-2.5 py-1 text-[11px] text-forge-text-dim hover:text-forge-text rounded-md transition-colors">Cancel</button>
-              <button onClick={onSaveEdit} className="px-2.5 py-1 text-[11px] font-medium text-white bg-forge-accent rounded-md hover:bg-forge-accent-hover transition-colors">Resend</button>
+              <button onClick={onCancelEdit} className="px-2.5 py-1 text-[11px] text-pi-text-dim hover:text-pi-text rounded-md transition-colors">Cancel</button>
+              <button onClick={onSaveEdit} className="px-2.5 py-1 text-[11px] font-medium text-white bg-pi-accent rounded-md hover:bg-pi-accent-hover transition-colors">Resend</button>
             </div>
           </div>
         ) : (
@@ -123,7 +123,7 @@ export const MessageItem = memo(function MessageItem({
               <button
                 onClick={() => onCopy(message.id, textContent)}
                 className={cn(
-                  'p-1 rounded-md text-forge-text-dim hover:text-forge-text hover:bg-forge-surface active:scale-90 transition-all',
+                  'p-1 rounded-md text-pi-text-dim hover:text-pi-text hover:bg-pi-surface active:scale-90 transition-all',
                   copiedId === message.id && 'scale-110'
                 )}
                 title="Copy"
@@ -132,13 +132,13 @@ export const MessageItem = memo(function MessageItem({
               </button>
               <button
                 onClick={() => onEditMessage(message.id, textContent)}
-                className="p-1 rounded-md text-forge-text-dim hover:text-forge-text hover:bg-forge-surface transition-colors"
+                className="p-1 rounded-md text-pi-text-dim hover:text-pi-text hover:bg-pi-surface transition-colors"
                 title="Edit message"
               >
                 <Pencil className="w-3 h-3" />
               </button>
             </div>
-            <div className="px-4 py-2.5 rounded-xl rounded-br-md bg-forge-surface border border-forge-border text-[13.5px] text-forge-text leading-relaxed transition-colors">
+            <div className="px-4 py-2.5 rounded-xl rounded-br-md bg-pi-surface border border-pi-border text-[13.5px] text-pi-text leading-relaxed transition-colors">
               {textContent}
               {parts?.filter(p => p.type === 'file').map((filePart, fi) => {
                 const mType = filePart.mediaType as string | undefined
@@ -147,9 +147,9 @@ export const MessageItem = memo(function MessageItem({
                 return (
                   <div key={fi} className="mt-1.5">
                     {mType?.startsWith('image/') ? (
-                      <img src={fUrl} alt={fName || 'image'} className="max-w-[200px] max-h-[150px] rounded-lg border border-forge-border" />
+                      <img src={fUrl} alt={fName || 'image'} className="max-w-[200px] max-h-[150px] rounded-lg border border-pi-border" />
                     ) : (
-                      <div className="inline-flex items-center gap-1 px-2 py-1 bg-forge-bg/50 border border-forge-border rounded-md text-[11px] text-forge-text-dim font-mono">
+                      <div className="inline-flex items-center gap-1 px-2 py-1 bg-pi-bg/50 border border-pi-border rounded-md text-[11px] text-pi-text-dim font-mono">
                         <Paperclip className="w-3 h-3" />
                         {fName || 'Attached file'}
                       </div>
@@ -231,7 +231,7 @@ export const MessageItem = memo(function MessageItem({
                 <div key={partIdx} className={cn('relative group', isAfterTool && 'mt-3', isBeforeTool && 'mb-1.5')}>
                   <div
                     className={cn(
-                      'text-[13.5px] leading-[1.7] text-forge-text [&_pre]:my-3 [&_code]:text-[12.5px] selection:bg-forge-accent/20',
+                      'text-[13.5px] leading-[1.7] text-pi-text [&_pre]:my-3 [&_code]:text-[12.5px] selection:bg-pi-accent/20',
                       showStreamingCursor && isLastText && 'streaming-cursor'
                     )}
                     dangerouslySetInnerHTML={{ __html: cachedRenderMarkdown(part.text) }}
@@ -239,13 +239,13 @@ export const MessageItem = memo(function MessageItem({
                   <button
                     onClick={() => onCopy(`${message.id}-${partIdx}`, part.text!)}
                     className={cn(
-                      'absolute top-0 right-0 sm:opacity-0 sm:group-hover:opacity-100 sm:focus-visible:opacity-100 sm:transition-all p-1.5 rounded-lg hover:bg-forge-surface active:scale-90',
+                      'absolute top-0 right-0 sm:opacity-0 sm:group-hover:opacity-100 sm:focus-visible:opacity-100 sm:transition-all p-1.5 rounded-lg hover:bg-pi-surface active:scale-90',
                       copiedId === `${message.id}-${partIdx}` && 'opacity-100 scale-110'
                     )}
                     aria-label="Copy message"
                     title="Copy"
                   >
-                    {copiedId === `${message.id}-${partIdx}` ? <Check className="w-3.5 h-3.5 text-emerald-500 transition-colors" /> : <Copy className="w-3.5 h-3.5 text-forge-text-dim transition-colors" />}
+                    {copiedId === `${message.id}-${partIdx}` ? <Check className="w-3.5 h-3.5 text-emerald-500 transition-colors" /> : <Copy className="w-3.5 h-3.5 text-pi-text-dim transition-colors" />}
                   </button>
                 </div>
               )
@@ -492,11 +492,11 @@ export const MessageItem = memo(function MessageItem({
                     {/* Icon node */}
                     <div className={cn(
                       'w-5 h-5 rounded-md flex items-center justify-center shrink-0 z-[1]',
-                      isRunning ? 'bg-forge-accent/10 border border-forge-accent/30 icon-glow-pulse'
+                      isRunning ? 'bg-pi-accent/10 border border-pi-accent/30 icon-glow-pulse'
                         : hasError ? 'bg-red-50 dark:bg-red-950/40 border border-red-200 dark:border-red-800'
                         : colorClasses[info.color] || colorClasses.gray
                     )}>
-                      {isRunning ? <Loader2 className="w-3 h-3 text-forge-accent animate-spin" />
+                      {isRunning ? <Loader2 className="w-3 h-3 text-pi-accent animate-spin" />
                         : hasError ? <XCircle className="w-3 h-3 text-red-500" />
                         : <info.Icon className="w-3 h-3" />}
                     </div>
@@ -512,7 +512,7 @@ export const MessageItem = memo(function MessageItem({
                         <>
                           <span className={cn(
                             'text-[12px] shrink-0',
-                            isRunning ? 'text-forge-text/70 font-medium shimmer-text' : 'text-forge-text-dim/70'
+                            isRunning ? 'text-pi-text/70 font-medium shimmer-text' : 'text-pi-text-dim/70'
                           )}>
                             {isRunning ? info.label : completeLabel}
                           </span>
@@ -523,7 +523,7 @@ export const MessageItem = memo(function MessageItem({
                                 title={filePath}
                                 className={cn(
                                   'font-mono text-[11.5px] shrink-0 hover:underline cursor-pointer',
-                                  isRunning ? 'text-forge-accent/80 shimmer-text-subtle' : 'text-forge-text-dim/50 hover:text-forge-accent/70'
+                                  isRunning ? 'text-pi-accent/80 shimmer-text-subtle' : 'text-pi-text-dim/50 hover:text-pi-accent/70'
                                 )}
                               >
                                 {fileName}
@@ -534,7 +534,7 @@ export const MessageItem = memo(function MessageItem({
                             </span>
                           )}
                           {inlineSummary && (
-                            <span className="text-[10.5px] text-forge-text-dim/35 font-mono shrink-0 hidden sm:inline truncate sm:max-w-[150px] md:max-w-[200px]" title={inlineSummary}>
+                            <span className="text-[10.5px] text-pi-text-dim/35 font-mono shrink-0 hidden sm:inline truncate sm:max-w-[150px] md:max-w-[200px]" title={inlineSummary}>
                               {inlineSummary.length > 40 ? inlineSummary.slice(0, 37) + '...' : inlineSummary}
                             </span>
                           )}
@@ -544,14 +544,14 @@ export const MessageItem = memo(function MessageItem({
 
                     {/* Status indicators */}
                     {isRunning ? (
-                      <span className="text-[11px] text-forge-text-dim/30 font-mono shrink-0 tabular-nums">
+                      <span className="text-[11px] text-pi-text-dim/30 font-mono shrink-0 tabular-nums">
                         ...
                       </span>
                     ) : hasError ? null : (
                       <div className="flex items-center gap-1.5 shrink-0">
                         <CheckCircle className="w-3 h-3 text-emerald-500/50" />
                         {canExpand && (
-                          <ChevronRight className="w-3 h-3 text-forge-text-dim/20 transition-transform duration-200 expand-chevron" />
+                          <ChevronRight className="w-3 h-3 text-pi-text-dim/20 transition-transform duration-200 expand-chevron" />
                         )}
                       </div>
                     )}
@@ -577,7 +577,7 @@ export const MessageItem = memo(function MessageItem({
               onClick={() => onRegenerate(message.id)}
               whileHover={{ scale: 1.02 }}
               whileTap={{ scale: 0.95 }}
-              className="flex items-center gap-1 mt-0.5 px-2 py-1 text-[11px] text-forge-text-dim hover:text-forge-accent opacity-40 group-hover/assistant:opacity-100 transition-all rounded-lg hover:bg-forge-surface"
+              className="flex items-center gap-1 mt-0.5 px-2 py-1 text-[11px] text-pi-text-dim hover:text-pi-accent opacity-40 group-hover/assistant:opacity-100 transition-all rounded-lg hover:bg-pi-surface"
               title="Regenerate response"
             >
               <RefreshCw className="w-3 h-3" />
@@ -591,7 +591,7 @@ export const MessageItem = memo(function MessageItem({
             <div className="relative group">
               <div
                 className={cn(
-                  'text-[13.5px] leading-[1.7] text-forge-text [&_pre]:my-3 [&_code]:text-[12.5px] selection:bg-forge-accent/20',
+                  'text-[13.5px] leading-[1.7] text-pi-text [&_pre]:my-3 [&_code]:text-[12.5px] selection:bg-pi-accent/20',
                   showStreamingCursor && 'streaming-cursor'
                 )}
                 dangerouslySetInnerHTML={{ __html: cachedRenderMarkdown(textContent) }}
@@ -599,13 +599,13 @@ export const MessageItem = memo(function MessageItem({
               <button
                 onClick={() => onCopy(message.id, textContent)}
                 className={cn(
-                  'absolute top-0 right-0 opacity-0 group-hover:opacity-100 focus-visible:opacity-100 sm:transition-all p-1.5 rounded-lg hover:bg-forge-surface active:scale-90',
+                  'absolute top-0 right-0 opacity-0 group-hover:opacity-100 focus-visible:opacity-100 sm:transition-all p-1.5 rounded-lg hover:bg-pi-surface active:scale-90',
                   copiedId === message.id && 'opacity-100 scale-110'
                 )}
                 aria-label="Copy message"
                 title="Copy"
               >
-                {copiedId === message.id ? <Check className="w-3.5 h-3.5 text-emerald-500" /> : <Copy className="w-3.5 h-3.5 text-forge-text-dim" />}
+                {copiedId === message.id ? <Check className="w-3.5 h-3.5 text-emerald-500" /> : <Copy className="w-3.5 h-3.5 text-pi-text-dim" />}
               </button>
             </div>
           )}
@@ -623,7 +623,7 @@ export const MessageItem = memo(function MessageItem({
               onClick={() => onRegenerate(message.id)}
               whileHover={{ scale: 1.02 }}
               whileTap={{ scale: 0.95 }}
-              className="flex items-center gap-1 mt-0.5 px-2 py-1 text-[11px] text-forge-text-dim hover:text-forge-accent opacity-40 group-hover/assistant:opacity-100 transition-all rounded-lg hover:bg-forge-surface"
+              className="flex items-center gap-1 mt-0.5 px-2 py-1 text-[11px] text-pi-text-dim hover:text-pi-accent opacity-40 group-hover/assistant:opacity-100 transition-all rounded-lg hover:bg-pi-surface"
               title="Regenerate response"
             >
               <RefreshCw className="w-3 h-3" />

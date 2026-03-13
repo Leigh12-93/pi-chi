@@ -57,12 +57,12 @@ function renderMarkdown(text: string): string {
     const safeId = id.replace(/[^a-zA-Z0-9_-]/g, '')
     const label = LANG_LABELS[lang] || lang || 'Code'
     const highlighted = lang ? highlightCode(code.trimEnd(), lang) : code.trimEnd().replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
-    const html = `<div class="code-block-wrapper relative group/code my-3 rounded-xl overflow-hidden border border-forge-border">
-      <div class="flex items-center justify-between px-3.5 py-2 bg-forge-surface border-b border-forge-border">
-        <span class="text-[11px] font-medium text-forge-text-dim tracking-wide">${label}</span>
-        <button data-copy-target="${safeId}" class="text-[11px] text-forge-text-dim hover:text-forge-text transition-colors px-2 py-0.5 rounded-md hover:bg-forge-surface-hover">Copy</button>
+    const html = `<div class="code-block-wrapper relative group/code my-3 rounded-xl overflow-hidden border border-pi-border">
+      <div class="flex items-center justify-between px-3.5 py-2 bg-pi-surface border-b border-pi-border">
+        <span class="text-[11px] font-medium text-pi-text-dim tracking-wide">${label}</span>
+        <button data-copy-target="${safeId}" class="text-[11px] text-pi-text-dim hover:text-pi-text transition-colors px-2 py-0.5 rounded-md hover:bg-pi-surface-hover">Copy</button>
       </div>
-      <pre class="bg-forge-panel text-forge-text p-4 overflow-x-auto text-[12.5px] font-mono leading-relaxed"><code id="${safeId}">${highlighted}</code></pre>
+      <pre class="bg-pi-panel text-pi-text p-4 overflow-x-auto text-[12.5px] font-mono leading-relaxed"><code id="${safeId}">${highlighted}</code></pre>
     </div>`
     codeBlocks.push(html)
     return `%%CODEBLOCK_${codeBlocks.length - 1}%%`
@@ -73,28 +73,28 @@ function renderMarkdown(text: string): string {
     (_match, headerRow: string, _separator: string, bodyRows: string) => {
       const headers = headerRow.split('|').slice(1, -1).map((h: string) => h.trim())
       const rows = bodyRows.trim().split('\n').map((row: string) => row.split('|').slice(1, -1).map((c: string) => c.trim()))
-      return `<table class="w-full text-[12.5px] my-3 border-collapse border border-forge-border rounded-xl overflow-hidden">
-        <thead><tr>${headers.map((h: string) => `<th class="px-3 py-1.5 text-left bg-forge-surface border border-forge-border font-semibold text-forge-text">${h}</th>`).join('')}</tr></thead>
-        <tbody>${rows.map((cells: string[]) => `<tr>${cells.map((c: string) => `<td class="px-3 py-1.5 border border-forge-border text-forge-text-dim">${c}</td>`).join('')}</tr>`).join('')}</tbody>
+      return `<table class="w-full text-[12.5px] my-3 border-collapse border border-pi-border rounded-xl overflow-hidden">
+        <thead><tr>${headers.map((h: string) => `<th class="px-3 py-1.5 text-left bg-pi-surface border border-pi-border font-semibold text-pi-text">${h}</th>`).join('')}</tr></thead>
+        <tbody>${rows.map((cells: string[]) => `<tr>${cells.map((c: string) => `<td class="px-3 py-1.5 border border-pi-border text-pi-text-dim">${c}</td>`).join('')}</tr>`).join('')}</tbody>
       </table>`
     })
 
   // Blockquotes
-  processed = processed.replace(/^(?:&gt;|>)\s*(.+)$/gm, '<blockquote class="border-l-2 border-forge-border-bright pl-3 my-1.5 text-forge-text-dim italic text-[13px]">$1</blockquote>')
+  processed = processed.replace(/^(?:&gt;|>)\s*(.+)$/gm, '<blockquote class="border-l-2 border-pi-border-bright pl-3 my-1.5 text-pi-text-dim italic text-[13px]">$1</blockquote>')
   processed = processed.replace(/<\/blockquote>\n<blockquote[^>]*>/g, '<br/>')
 
   // Horizontal rules
-  processed = processed.replace(/^(?:---|\*\*\*|___)\s*$/gm, '<hr class="my-4 border-forge-border" />')
+  processed = processed.replace(/^(?:---|\*\*\*|___)\s*$/gm, '<hr class="my-4 border-pi-border" />')
 
   // Inline formatting
   processed = processed
     .replace(/`([^`]+)`/g, (_m, c: string) => {
       const escaped = c.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
-      return `<code class="bg-forge-surface px-1.5 py-0.5 rounded text-[12.5px] font-mono text-forge-text border border-forge-border">${escaped}</code>`
+      return `<code class="bg-pi-surface px-1.5 py-0.5 rounded text-[12.5px] font-mono text-pi-text border border-pi-border">${escaped}</code>`
     })
-    .replace(/^### (.+)$/gm, '<h3 class="text-[13.5px] font-semibold mt-4 mb-1.5 text-forge-text">$1</h3>')
-    .replace(/^## (.+)$/gm, '<h2 class="text-sm font-bold mt-4 mb-2 text-forge-text">$1</h2>')
-    .replace(/\*\*(.+?)\*\*/g, '<strong class="font-semibold text-forge-text">$1</strong>')
+    .replace(/^### (.+)$/gm, '<h3 class="text-[13.5px] font-semibold mt-4 mb-1.5 text-pi-text">$1</h3>')
+    .replace(/^## (.+)$/gm, '<h2 class="text-sm font-bold mt-4 mb-2 text-pi-text">$1</h2>')
+    .replace(/\*\*(.+?)\*\*/g, '<strong class="font-semibold text-pi-text">$1</strong>')
     .replace(/\*(.+?)\*/g, '<em>$1</em>')
     .replace(/^\d+\. (.+)$/gm, '<li class="ml-5 pl-1 list-decimal text-[13.5px] leading-[1.7]">$1</li>')
     .replace(/^- (.+)$/gm, '<li class="ml-5 pl-1 list-disc text-[13.5px] leading-[1.7]">$1</li>')

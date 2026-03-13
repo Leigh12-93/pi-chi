@@ -14,7 +14,7 @@ export async function POST(_req: Request, { params }: { params: Promise<{ id: st
 
   // Verify ownership and fetch project metadata
   const { data: project, error: projErr } = await supabase
-    .from('forge_projects')
+    .from('pi_projects')
     .select('name, description, framework')
     .eq('id', id)
     .eq('github_username', username)
@@ -29,7 +29,7 @@ export async function POST(_req: Request, { params }: { params: Promise<{ id: st
   let copyName = baseCopyName
 
   const { data: existing } = await supabase
-    .from('forge_projects')
+    .from('pi_projects')
     .select('name')
     .eq('github_username', username)
     .like('name', `${project.name} (Copy%`)
@@ -47,7 +47,7 @@ export async function POST(_req: Request, { params }: { params: Promise<{ id: st
 
   // Create the new project
   const { data: newProject, error: insertErr } = await supabase
-    .from('forge_projects')
+    .from('pi_projects')
     .insert({
       name: copyName,
       github_username: username,
@@ -64,7 +64,7 @@ export async function POST(_req: Request, { params }: { params: Promise<{ id: st
 
   // Copy all files from the original project
   const { data: files, error: filesErr } = await supabase
-    .from('forge_project_files')
+    .from('pi_project_files')
     .select('path, content')
     .eq('project_id', id)
 
@@ -82,7 +82,7 @@ export async function POST(_req: Request, { params }: { params: Promise<{ id: st
     }))
 
     const { error: copyErr } = await supabase
-      .from('forge_project_files')
+      .from('pi_project_files')
       .insert(newFiles)
 
     if (copyErr) {

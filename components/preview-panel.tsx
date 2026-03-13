@@ -143,21 +143,21 @@ export const PreviewPanel = memo(function PreviewPanel({ files, projectId, onFix
 
   const handleGoBack = useCallback(() => {
     try {
-      const iframe = document.getElementById('forge-preview-iframe') as HTMLIFrameElement
+      const iframe = document.getElementById('pi-preview-iframe') as HTMLIFrameElement
       iframe?.contentWindow?.history.back()
     } catch { /* cross-origin safety */ }
   }, [])
 
   const handleGoForward = useCallback(() => {
     try {
-      const iframe = document.getElementById('forge-preview-iframe') as HTMLIFrameElement
+      const iframe = document.getElementById('pi-preview-iframe') as HTMLIFrameElement
       iframe?.contentWindow?.history.forward()
     } catch { /* cross-origin safety */ }
   }, [])
 
   const handleGoHome = useCallback(() => {
     try {
-      const iframe = document.getElementById('forge-preview-iframe') as HTMLIFrameElement
+      const iframe = document.getElementById('pi-preview-iframe') as HTMLIFrameElement
       if (iframe?.contentWindow) {
         const baseUrl = wcPreviewUrl || sandboxUrl
         if (baseUrl) {
@@ -171,7 +171,7 @@ export const PreviewPanel = memo(function PreviewPanel({ files, projectId, onFix
 
   const handleNavigateTo = useCallback((path: string) => {
     try {
-      const iframe = document.getElementById('forge-preview-iframe') as HTMLIFrameElement
+      const iframe = document.getElementById('pi-preview-iframe') as HTMLIFrameElement
       if (iframe?.contentWindow) {
         const baseUrl = wcPreviewUrl || sandboxUrl
         if (baseUrl) {
@@ -209,7 +209,7 @@ export const PreviewPanel = memo(function PreviewPanel({ files, projectId, onFix
     setSandboxLoadFailed(false)
   }, [projectId])
 
-  const addLog = useCallback((msg: string, level: ConsoleEntry['level'] = 'system', source: ConsoleEntry['source'] = 'forge') => {
+  const addLog = useCallback((msg: string, level: ConsoleEntry['level'] = 'system', source: ConsoleEntry['source'] = 'pi') => {
     const ts = new Date().toLocaleTimeString('en-AU', { hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit' })
     setConsoleLogs(prev => {
       const next = [...prev.slice(-199), { timestamp: ts, level, message: msg, source }]
@@ -229,7 +229,7 @@ export const PreviewPanel = memo(function PreviewPanel({ files, projectId, onFix
     if (wcPreviewUrl && !wcIframeReady) {
       wcIframeTimeoutRef.current = setTimeout(() => {
         setWcIframeReady(true)
-        addLog('WebContainer preview loading slowly — showing as-is', 'warn', 'forge')
+        addLog('WebContainer preview loading slowly — showing as-is', 'warn', 'pi')
       }, 20_000)
     }
     return () => {
@@ -266,7 +266,7 @@ export const PreviewPanel = memo(function PreviewPanel({ files, projectId, onFix
     if (sandboxUrl && sandboxStatus === 'running') {
       setCachedSandboxUrl(sandboxUrl)
       if (projectId) {
-        try { sessionStorage.setItem(`forge-sandbox-${projectId}`, sandboxUrl) } catch (e) { console.warn('[forge:sessionStorage] Failed to cache sandbox URL:', e) }
+        try { sessionStorage.setItem(`pi-sandbox-${projectId}`, sandboxUrl) } catch (e) { console.warn('[pi:sessionStorage] Failed to cache sandbox URL:', e) }
       }
     }
   }, [sandboxUrl, sandboxStatus, projectId])
@@ -275,9 +275,9 @@ export const PreviewPanel = memo(function PreviewPanel({ files, projectId, onFix
   useEffect(() => {
     if (projectId && !cachedSandboxUrl) {
       try {
-        const cached = sessionStorage.getItem(`forge-sandbox-${projectId}`)
+        const cached = sessionStorage.getItem(`pi-sandbox-${projectId}`)
         if (cached) setCachedSandboxUrl(cached)
-      } catch (e) { console.warn('[forge:sessionStorage] Failed to restore sandbox URL:', e) }
+      } catch (e) { console.warn('[pi:sessionStorage] Failed to restore sandbox URL:', e) }
     }
   }, [projectId]) // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -639,7 +639,7 @@ export const PreviewPanel = memo(function PreviewPanel({ files, projectId, onFix
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ projectId }),
       })
-    } catch (e) { console.warn('[forge:sandbox] Cleanup error (non-fatal):', e) }
+    } catch (e) { console.warn('[pi:sandbox] Cleanup error (non-fatal):', e) }
 
     setSandboxStatus('idle')
     setSandboxUrl(null)
@@ -806,7 +806,7 @@ export const PreviewPanel = memo(function PreviewPanel({ files, projectId, onFix
       if (!d || typeof d !== 'object') return
 
       // Navigation events from injected script (pushState, popstate, link click)
-      if (d.type === 'forge-navigate') {
+      if (d.type === 'pi-navigate') {
         const pathname = typeof d.pathname === 'string' ? d.pathname : '/'
         setCurrentPath(pathname)
         setNavCount(prev => prev + 1)
@@ -818,7 +818,7 @@ export const PreviewPanel = memo(function PreviewPanel({ files, projectId, onFix
       let source: ConsoleEntry['source'] = 'preview'
 
       // Format 1: Our injected PREVIEW_ERROR_SCRIPT (static preview)
-      if (d.type === 'forge-preview') {
+      if (d.type === 'pi-preview') {
         level = (['log', 'warn', 'error', 'info'].includes(d.level) ? d.level : 'log') as ConsoleEntry['level']
         message = typeof d.message === 'string' ? d.message : String(d.message)
       }
@@ -880,7 +880,7 @@ export const PreviewPanel = memo(function PreviewPanel({ files, projectId, onFix
     try {
       // Try static preview iframe first (same-origin srcdoc)
       const staticIframe = document.querySelector('iframe[title="Static Preview"]') as HTMLIFrameElement | null
-      const sandboxIframe = document.getElementById('forge-preview-iframe') as HTMLIFrameElement | null
+      const sandboxIframe = document.getElementById('pi-preview-iframe') as HTMLIFrameElement | null
       const sandboxActive = sandboxStatus === 'running' && !!sandboxUrl
       const iframe = (sandboxActive && sandboxIframe) ? sandboxIframe : staticIframe
 
@@ -925,10 +925,10 @@ export const PreviewPanel = memo(function PreviewPanel({ files, projectId, onFix
   useEffect(() => {
     const handler = () => {
       const result = capturePreviewContent()
-      window.dispatchEvent(new CustomEvent('forge:preview-captured', { detail: result }))
+      window.dispatchEvent(new CustomEvent('pi:preview-captured', { detail: result }))
     }
-    window.addEventListener('forge:capture-preview', handler)
-    return () => window.removeEventListener('forge:capture-preview', handler)
+    window.addEventListener('pi:capture-preview', handler)
+    return () => window.removeEventListener('pi:capture-preview', handler)
   }, [capturePreviewContent])
 
   // Manual capture button handler
@@ -950,10 +950,10 @@ export const PreviewPanel = memo(function PreviewPanel({ files, projectId, onFix
       }
       onCapturePreview(parts.join('\n'))
     } else {
-      // Fallback: dispatch event for use-forge-chat to pick up
-      window.dispatchEvent(new CustomEvent('forge:preview-captured', { detail: result }))
+      // Fallback: dispatch event for use-pi-chat to pick up
+      window.dispatchEvent(new CustomEvent('pi:preview-captured', { detail: result }))
     }
-    addLog('Preview captured for AI review', 'info', 'forge')
+    addLog('Preview captured for AI review', 'info', 'pi')
     setCaptureFlash(true)
     setTimeout(() => setCaptureFlash(false), 800)
   }, [capturePreviewContent, onCapturePreview, addLog])
@@ -1030,10 +1030,10 @@ export const PreviewPanel = memo(function PreviewPanel({ files, projectId, onFix
 
   const content = (
     <div className={cn(
-      'h-full flex flex-col bg-forge-surface',
+      'h-full flex flex-col bg-pi-surface',
       isFullscreen && 'fixed inset-0 z-50',
     )}>
-      <div className="shrink-0 border-b border-forge-border bg-forge-panel">
+      <div className="shrink-0 border-b border-pi-border bg-pi-panel">
         {/* Top bar with traffic lights + URL bar */}
         <div className="flex items-center gap-2 px-3 py-2">
           {/* Left: device mode buttons */}
@@ -1047,7 +1047,7 @@ export const PreviewPanel = memo(function PreviewPanel({ files, projectId, onFix
                 disabled={navCount === 0}
                 title="Back"
                 aria-label="Navigate back"
-                className="p-2.5 sm:p-1.5 rounded-md text-forge-text-dim hover:text-forge-text hover:bg-forge-surface transition-colors disabled:opacity-30 disabled:pointer-events-none"
+                className="p-2.5 sm:p-1.5 rounded-md text-pi-text-dim hover:text-pi-text hover:bg-pi-surface transition-colors disabled:opacity-30 disabled:pointer-events-none"
               >
                 <ChevronLeft className="w-4 h-4 sm:w-3.5 sm:h-3.5" />
               </button>
@@ -1055,7 +1055,7 @@ export const PreviewPanel = memo(function PreviewPanel({ files, projectId, onFix
                 onClick={handleGoForward}
                 title="Forward"
                 aria-label="Navigate forward"
-                className="p-2.5 sm:p-1.5 rounded-md text-forge-text-dim hover:text-forge-text hover:bg-forge-surface transition-colors"
+                className="p-2.5 sm:p-1.5 rounded-md text-pi-text-dim hover:text-pi-text hover:bg-pi-surface transition-colors"
               >
                 <ChevronRight className="w-4 h-4 sm:w-3.5 sm:h-3.5" />
               </button>
@@ -1063,7 +1063,7 @@ export const PreviewPanel = memo(function PreviewPanel({ files, projectId, onFix
                 onClick={handleGoHome}
                 title="Home (/)"
                 aria-label="Navigate home"
-                className="p-2.5 sm:p-1.5 rounded-md text-forge-text-dim hover:text-forge-text hover:bg-forge-surface transition-colors"
+                className="p-2.5 sm:p-1.5 rounded-md text-pi-text-dim hover:text-pi-text hover:bg-pi-surface transition-colors"
               >
                 <Home className="w-4 h-4 sm:w-3.5 sm:h-3.5" />
               </button>
@@ -1074,12 +1074,12 @@ export const PreviewPanel = memo(function PreviewPanel({ files, projectId, onFix
           <div className="flex-1 flex items-center min-w-0">
             <div className={cn(
               'flex items-center gap-2 w-full px-3 py-1.5 rounded-lg text-xs font-mono',
-              'bg-forge-surface border border-forge-border transition-all duration-200',
+              'bg-pi-surface border border-pi-border transition-all duration-200',
               'hover:shadow-[inset_0_1px_4px_rgba(0,0,0,0.06)]',
               isSandboxActive && 'border-green-300 dark:border-green-700 bg-green-50/50 dark:bg-green-950/30',
               isSandboxLoading && 'border-amber-300 dark:border-amber-700 bg-amber-50/50 dark:bg-amber-950/30',
               sandboxStatus === 'error' && 'border-red-300 dark:border-red-700 bg-red-50/50 dark:bg-red-950/30',
-              showCachedPreview && 'border-forge-border bg-forge-surface/50',
+              showCachedPreview && 'border-pi-border bg-pi-surface/50',
             )}>
               {/* Status indicator — AnimatePresence crossfade */}
               <AnimatePresence mode="wait">
@@ -1115,12 +1115,12 @@ export const PreviewPanel = memo(function PreviewPanel({ files, projectId, onFix
                 )}
                 {showCachedPreview && (
                   <motion.div key="cached" initial={{ opacity: 0, scale: 0.8 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.8 }} transition={{ duration: 0.15 }}>
-                    <Globe className="w-3 h-3 shrink-0 text-forge-text-dim/50" />
+                    <Globe className="w-3 h-3 shrink-0 text-pi-text-dim/50" />
                   </motion.div>
                 )}
                 {sandboxStatus === 'idle' && !showCachedPreview && !previewError && (
                   <motion.div key="idle" initial={{ opacity: 0, scale: 0.8 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.8 }} transition={{ duration: 0.15 }}>
-                    <Globe className={cn('w-3 h-3 shrink-0', sandboxUnavailable ? 'text-amber-500' : 'text-forge-text-dim')} />
+                    <Globe className={cn('w-3 h-3 shrink-0', sandboxUnavailable ? 'text-amber-500' : 'text-pi-text-dim')} />
                   </motion.div>
                 )}
                 {sandboxStatus === 'idle' && !showCachedPreview && previewError && (
@@ -1158,10 +1158,10 @@ export const PreviewPanel = memo(function PreviewPanel({ files, projectId, onFix
                   className={cn(
                     'truncate',
                     isLivePreview ? 'cursor-text select-all' : 'cursor-default select-none',
-                    isLivePreview ? 'text-emerald-600 dark:text-emerald-400' : 'text-forge-text-dim',
+                    isLivePreview ? 'text-emerald-600 dark:text-emerald-400' : 'text-pi-text-dim',
                     isSandboxLoading && 'text-amber-600 dark:text-amber-400',
-                    sandboxStatus === 'error' && 'text-forge-danger',
-                    showCachedPreview && 'text-forge-text-dim/50',
+                    sandboxStatus === 'error' && 'text-pi-danger',
+                    showCachedPreview && 'text-pi-text-dim/50',
                   )}
                 >
                   {displayUrl}
@@ -1178,7 +1178,7 @@ export const PreviewPanel = memo(function PreviewPanel({ files, projectId, onFix
 
               {/* Offline badge */}
               {showCachedPreview && (
-                <span className="shrink-0 px-1.5 py-0.5 text-[9px] font-medium bg-forge-surface text-forge-text-dim rounded">
+                <span className="shrink-0 px-1.5 py-0.5 text-[9px] font-medium bg-pi-surface text-pi-text-dim rounded">
                   CACHED
                 </span>
               )}
@@ -1197,7 +1197,7 @@ export const PreviewPanel = memo(function PreviewPanel({ files, projectId, onFix
             {/* Scan for issues */}
             <button
               onClick={() => setShowScanPrompt(true)}
-              className="p-2.5 sm:p-1.5 rounded-md text-forge-text-dim hover:text-forge-text hover:bg-forge-surface transition-colors"
+              className="p-2.5 sm:p-1.5 rounded-md text-pi-text-dim hover:text-pi-text hover:bg-pi-surface transition-colors"
               title="Scan for missing imports"
               aria-label="Scan for missing imports"
             >
@@ -1207,7 +1207,7 @@ export const PreviewPanel = memo(function PreviewPanel({ files, projectId, onFix
             {/* Capture preview for AI */}
             <button
               onClick={handleCaptureClick}
-              className="p-2.5 sm:p-1.5 rounded-md text-forge-text-dim hover:text-forge-text hover:bg-forge-surface transition-colors"
+              className="p-2.5 sm:p-1.5 rounded-md text-pi-text-dim hover:text-pi-text hover:bg-pi-surface transition-colors"
               title="Capture preview for AI review"
               aria-label="Capture preview for AI review"
             >
@@ -1223,7 +1223,7 @@ export const PreviewPanel = memo(function PreviewPanel({ files, projectId, onFix
                 setPreviewHtml(computedPreviewHtml)
                 if (isSandboxActive) addLog('Refreshed', 'system', 'sandbox')
               }}
-              className="p-2.5 sm:p-1.5 rounded-md text-forge-text-dim hover:text-forge-text hover:bg-forge-surface transition-colors"
+              className="p-2.5 sm:p-1.5 rounded-md text-pi-text-dim hover:text-pi-text hover:bg-pi-surface transition-colors"
               title="Refresh preview"
               aria-label="Refresh preview"
             >
@@ -1236,7 +1236,7 @@ export const PreviewPanel = memo(function PreviewPanel({ files, projectId, onFix
                 href={sandboxUrl}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="p-2.5 sm:p-1.5 rounded-md text-forge-text-dim hover:text-forge-text hover:bg-forge-surface transition-colors"
+                className="p-2.5 sm:p-1.5 rounded-md text-pi-text-dim hover:text-pi-text hover:bg-pi-surface transition-colors"
                 title="Open in new tab"
                 aria-label="Open in new tab"
               >
@@ -1250,8 +1250,8 @@ export const PreviewPanel = memo(function PreviewPanel({ files, projectId, onFix
               className={cn(
                 'p-2.5 sm:p-1.5 rounded-md transition-colors relative',
                 showConsole
-                  ? 'bg-forge-accent/15 text-forge-accent'
-                  : 'text-forge-text-dim hover:text-forge-text hover:bg-forge-surface',
+                  ? 'bg-pi-accent/15 text-pi-accent'
+                  : 'text-pi-text-dim hover:text-pi-text hover:bg-pi-surface',
               )}
               title="Toggle console"
               aria-label={showConsole ? 'Hide console' : 'Show console'}
@@ -1272,7 +1272,7 @@ export const PreviewPanel = memo(function PreviewPanel({ files, projectId, onFix
                   return !prev
                 })
               }}
-              className="p-2.5 sm:p-1.5 rounded-md text-forge-text-dim hover:text-forge-text hover:bg-forge-surface transition-colors"
+              className="p-2.5 sm:p-1.5 rounded-md text-pi-text-dim hover:text-pi-text hover:bg-pi-surface transition-colors"
               title={isFullscreen ? 'Exit fullscreen' : 'Fullscreen'}
               aria-label={isFullscreen ? 'Exit fullscreen' : 'Enter fullscreen'}
             >
@@ -1303,13 +1303,13 @@ export const PreviewPanel = memo(function PreviewPanel({ files, projectId, onFix
       {/* Fullscreen exit hint */}
       {isFullscreen && showFullscreenHint && (
         <div className="absolute top-4 left-1/2 -translate-x-1/2 z-[60] fullscreen-hint">
-          <div className="px-3 py-1.5 rounded-lg bg-forge-bg/80 backdrop-blur border border-forge-border text-[11px] text-forge-text-dim shadow-lg">
-            Press <kbd className="px-1 py-0.5 rounded bg-forge-surface border border-forge-border text-[10px] font-mono">Esc</kbd> to exit fullscreen
+          <div className="px-3 py-1.5 rounded-lg bg-pi-bg/80 backdrop-blur border border-pi-border text-[11px] text-pi-text-dim shadow-lg">
+            Press <kbd className="px-1 py-0.5 rounded bg-pi-surface border border-pi-border text-[10px] font-mono">Esc</kbd> to exit fullscreen
           </div>
         </div>
       )}
 
-          <div className={cn('flex-1 overflow-hidden bg-forge-bg relative flex items-start justify-center', captureFlash && 'capture-flash')}>
+          <div className={cn('flex-1 overflow-hidden bg-pi-bg relative flex items-start justify-center', captureFlash && 'capture-flash')}>
         <div
           className={cn(
             'preview-device-frame',
@@ -1351,18 +1351,18 @@ export const PreviewPanel = memo(function PreviewPanel({ files, projectId, onFix
                 allow="cross-origin-isolated"
               />
               {/* Offline overlay */}
-            <div className="absolute inset-0 flex items-center justify-center bg-forge-bg/30 backdrop-blur-[1px]">
-              <div className="flex flex-col items-center gap-3 px-6 py-4 bg-forge-bg/95 backdrop-blur border border-forge-border rounded-xl shadow-lg">
-                  <div className="w-10 h-10 rounded-full bg-forge-surface flex items-center justify-center">
-                    <Globe className="w-5 h-5 text-forge-text-dim" />
+            <div className="absolute inset-0 flex items-center justify-center bg-pi-bg/30 backdrop-blur-[1px]">
+              <div className="flex flex-col items-center gap-3 px-6 py-4 bg-pi-bg/95 backdrop-blur border border-pi-border rounded-xl shadow-lg">
+                  <div className="w-10 h-10 rounded-full bg-pi-surface flex items-center justify-center">
+                    <Globe className="w-5 h-5 text-pi-text-dim" />
                   </div>
                   <div className="text-center">
-                    <p className="text-xs font-medium text-forge-text">Sandbox offline</p>
-                    <p className="text-[10px] text-forge-text-dim mt-0.5">Showing cached preview</p>
+                    <p className="text-xs font-medium text-pi-text">Sandbox offline</p>
+                    <p className="text-[10px] text-pi-text-dim mt-0.5">Showing cached preview</p>
                   </div>
                   <button
                     onClick={() => { hasAutoStartedRef.current = false; sandboxAvailableRef.current = null; retryCountRef.current = 0; startSandbox() }}
-                    className="px-4 py-2.5 sm:px-3 sm:py-1.5 text-xs sm:text-[11px] font-medium bg-forge-accent text-white rounded-lg hover:bg-forge-accent-hover transition-colors"
+                    className="px-4 py-2.5 sm:px-3 sm:py-1.5 text-xs sm:text-[11px] font-medium bg-pi-accent text-white rounded-lg hover:bg-pi-accent-hover transition-colors"
                   >
                     Restart Sandbox
                   </button>
@@ -1374,24 +1374,24 @@ export const PreviewPanel = memo(function PreviewPanel({ files, projectId, onFix
           {/* Building animation — shows a miniature page being painted with phase stepper */}
           {/* Visible during: initializing, any active build phase, crossfade-out, OR iframe still loading */}
           {(isSandboxLoading || !!buildPhase || isCrossfading || iframeLoading) && (
-            <div className={cn('sixchi-loader-scene', isCrossfading && 'forge-ready-crossfade')}>
+            <div className={cn('pichi-loader-scene', isCrossfading && 'pi-ready-crossfade')}>
               {/* Radial gradient background */}
-              <div className="sixchi-bg-mesh" />
-              <div className="sixchi-dot-grid" />
+              <div className="pichi-bg-mesh" />
+              <div className="pichi-dot-grid" />
 
               {/* Orbital rings */}
-              <div className="sixchi-orbit sixchi-orbit-outer" />
-              <div className="sixchi-orbit sixchi-orbit-inner" />
+              <div className="pichi-orbit pichi-orbit-outer" />
+              <div className="pichi-orbit pichi-orbit-inner" />
 
               {/* Logo reveal */}
-              <div className="sixchi-logo-container">
-                <div className={cn('sixchi-logo-glow', buildPhase === 'ready' && 'sixchi-glow-success')} />
-                <div className={cn('sixchi-logo-reveal', buildPhase === 'ready' && 'sixchi-logo-ready')}>
+              <div className="pichi-logo-container">
+                <div className={cn('pichi-logo-glow', buildPhase === 'ready' && 'pichi-glow-success')} />
+                <div className={cn('pichi-logo-reveal', buildPhase === 'ready' && 'pichi-logo-ready')}>
                   <span className={cn(
                     'text-5xl sm:text-6xl font-bold bg-clip-text text-transparent select-none',
                     buildPhase === 'ready'
                       ? 'bg-gradient-to-r from-emerald-400 to-emerald-600'
-                      : 'sixchi-shimmer',
+                      : 'pichi-shimmer',
                   )}>
                     6-&#x03C7;
                   </span>
@@ -1400,10 +1400,10 @@ export const PreviewPanel = memo(function PreviewPanel({ files, projectId, onFix
                 {/* Ready overlay — green check on top of logo */}
                 {buildPhase === 'ready' && (
                   <div className="absolute inset-0 flex items-center justify-center z-10">
-                    <div className="forge-ready-check">
+                    <div className="pi-ready-check">
                       <svg className="w-12 h-12 text-emerald-500 drop-shadow-lg" viewBox="0 0 48 48" fill="none">
                         <circle cx="24" cy="24" r="22" stroke="currentColor" strokeWidth="2" fill="currentColor" fillOpacity="0.15" />
-                        <path d="M14 24l7 7 13-13" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" className="forge-check-draw" />
+                        <path d="M14 24l7 7 13-13" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" className="pi-check-draw" />
                       </svg>
                     </div>
                   </div>
@@ -1411,7 +1411,7 @@ export const PreviewPanel = memo(function PreviewPanel({ files, projectId, onFix
               </div>
 
               {/* Phase text + file count */}
-              <div className="sixchi-status-text">
+              <div className="pichi-status-text">
                 <span className={cn(
                   'text-sm font-medium tracking-wide transition-colors duration-500',
                   buildPhase === 'ready' ? 'text-emerald-500' : 'shimmer-text',
@@ -1419,7 +1419,7 @@ export const PreviewPanel = memo(function PreviewPanel({ files, projectId, onFix
                   {buildPhase ? PHASE_LABELS[buildPhase] : 'Building your preview'}
                 </span>
                 {Object.keys(files).length > 0 && buildPhase !== 'ready' && (
-                  <span className="text-[10px] text-forge-text-dim/40 mt-1.5 tabular-nums">
+                  <span className="text-[10px] text-pi-text-dim/40 mt-1.5 tabular-nums">
                     {Object.keys(files).length} files
                   </span>
                 )}
@@ -1430,27 +1430,27 @@ export const PreviewPanel = memo(function PreviewPanel({ files, projectId, onFix
               </div>
 
               {/* Progress track */}
-              <div className="forge-progress-track">
-                <div className="forge-progress-bar" style={buildPhase === 'starting' ? { animation: 'buildProgress 8s ease-out forwards, buildProgressPulse 1s ease-in-out infinite' } : undefined} />
+              <div className="pi-progress-track">
+                <div className="pi-progress-bar" style={buildPhase === 'starting' ? { animation: 'buildProgress 8s ease-out forwards, buildProgressPulse 1s ease-in-out infinite' } : undefined} />
               </div>
             </div>
           )}
 
           {/* Auto-starting status — shown while sandbox is idle and files exist, hidden if sandbox unavailable or timed out */}
           {sandboxStatus === 'idle' && !showCachedPreview && !sandboxUnavailable && !idleOverlayExpired && Object.keys(files).length > 0 && (
-            <div className="absolute inset-0 z-10 flex items-center justify-center bg-forge-bg/80 backdrop-blur-sm">
+            <div className="absolute inset-0 z-10 flex items-center justify-center bg-pi-bg/80 backdrop-blur-sm">
               <div className="flex flex-col items-center gap-4 animate-fade-in px-6">
                 <div className="relative">
-                  <div className="absolute inset-0 rounded-2xl bg-forge-accent/10 blur-lg building-placeholder-glow" />
-                  <div className="relative w-14 h-14 rounded-2xl bg-forge-surface border border-forge-border flex items-center justify-center">
-                    <Zap className="w-6 h-6 text-forge-accent" />
+                  <div className="absolute inset-0 rounded-2xl bg-pi-accent/10 blur-lg building-placeholder-glow" />
+                  <div className="relative w-14 h-14 rounded-2xl bg-pi-surface border border-pi-border flex items-center justify-center">
+                    <Zap className="w-6 h-6 text-pi-accent" />
                   </div>
                 </div>
                 <div className="text-center">
-                  <p className="text-sm text-forge-text font-medium mb-1">
+                  <p className="text-sm text-pi-text font-medium mb-1">
                     Preparing preview
                   </p>
-                  <p className="text-xs text-forge-text-dim/60">
+                  <p className="text-xs text-pi-text-dim/60">
                     {Object.keys(files).length} files detected
                   </p>
                 </div>
@@ -1473,15 +1473,15 @@ export const PreviewPanel = memo(function PreviewPanel({ files, projectId, onFix
               transition={{ type: 'spring', stiffness: 400, damping: 30 }}
               className="absolute bottom-3 left-3 z-20 max-w-xs"
             >
-              <div className="bg-forge-bg/95 backdrop-blur border border-forge-border rounded-xl p-3 shadow-2xl space-y-2">
+              <div className="bg-pi-bg/95 backdrop-blur border border-pi-border rounded-xl p-3 shadow-2xl space-y-2">
                 <div className="flex items-center gap-2">
-                  <div className="w-6 h-6 rounded-lg bg-forge-accent/10 flex items-center justify-center shrink-0">
-                    <Search className="w-3 h-3 text-forge-accent" />
+                  <div className="w-6 h-6 rounded-lg bg-pi-accent/10 flex items-center justify-center shrink-0">
+                    <Search className="w-3 h-3 text-pi-accent" />
                   </div>
-                  <p className="text-xs font-medium text-forge-text">Scan for missing imports?</p>
+                  <p className="text-xs font-medium text-pi-text">Scan for missing imports?</p>
                   <button
                     onClick={() => setShowScanPrompt(false)}
-                    className="p-0.5 text-forge-text-dim hover:text-forge-text transition-colors shrink-0 ml-auto"
+                    className="p-0.5 text-pi-text-dim hover:text-pi-text transition-colors shrink-0 ml-auto"
                   >
                     <X className="w-3 h-3" />
                   </button>
@@ -1489,13 +1489,13 @@ export const PreviewPanel = memo(function PreviewPanel({ files, projectId, onFix
                 <div className="flex gap-1.5">
                   <button
                     onClick={handleRunScan}
-                    className="flex-1 flex items-center justify-center gap-1.5 px-2.5 py-1.5 bg-forge-accent hover:bg-forge-accent-hover text-white text-[10px] font-medium rounded-lg transition-colors"
+                    className="flex-1 flex items-center justify-center gap-1.5 px-2.5 py-1.5 bg-pi-accent hover:bg-pi-accent-hover text-white text-[10px] font-medium rounded-lg transition-colors"
                   >
                     Scan
                   </button>
                   <button
                     onClick={() => setShowScanPrompt(false)}
-                    className="px-2.5 py-1.5 text-[10px] font-medium text-forge-text-dim hover:text-forge-text bg-forge-surface hover:bg-forge-surface-hover rounded-lg transition-colors"
+                    className="px-2.5 py-1.5 text-[10px] font-medium text-pi-text-dim hover:text-pi-text bg-pi-surface hover:bg-pi-surface-hover rounded-lg transition-colors"
                   >
                     No thanks
                   </button>
@@ -1515,18 +1515,18 @@ export const PreviewPanel = memo(function PreviewPanel({ files, projectId, onFix
               transition={{ type: 'spring', stiffness: 400, damping: 30 }}
               className="absolute bottom-3 left-3 z-20 max-w-xs"
             >
-              <div className="bg-forge-bg/95 backdrop-blur border border-amber-500/30 rounded-xl p-3 shadow-2xl space-y-2">
+              <div className="bg-pi-bg/95 backdrop-blur border border-amber-500/30 rounded-xl p-3 shadow-2xl space-y-2">
                 <div className="flex items-start gap-2">
                   <div className="w-7 h-7 rounded-lg bg-amber-500/10 flex items-center justify-center shrink-0">
                     <AlertTriangle className="w-3.5 h-3.5 text-amber-500" />
                   </div>
                   <div className="flex-1 min-w-0">
-                    <p className="text-xs font-medium text-forge-text">Missing Imports ({missingImports.length})</p>
-                    <p className="text-[10px] text-forge-text-dim mt-0.5">Some imported files don&apos;t exist yet</p>
+                    <p className="text-xs font-medium text-pi-text">Missing Imports ({missingImports.length})</p>
+                    <p className="text-[10px] text-pi-text-dim mt-0.5">Some imported files don&apos;t exist yet</p>
                   </div>
                   <button
                     onClick={() => { missingImportsFedRef.current = true; setMissingImports([]) }}
-                    className="p-0.5 text-forge-text-dim hover:text-forge-text transition-colors shrink-0"
+                    className="p-0.5 text-pi-text-dim hover:text-pi-text transition-colors shrink-0"
                   >
                     <X className="w-3 h-3" />
                   </button>
@@ -1536,7 +1536,7 @@ export const PreviewPanel = memo(function PreviewPanel({ files, projectId, onFix
                     <p key={i} className="text-[10px] font-mono text-amber-600 dark:text-amber-400 truncate">{err.replace(/^Missing module: /, '')}</p>
                   ))}
                   {missingImports.length > 4 && (
-                    <p className="text-[9px] text-forge-text-dim">+{missingImports.length - 4} more</p>
+                    <p className="text-[9px] text-pi-text-dim">+{missingImports.length - 4} more</p>
                   )}
                 </div>
                 <div className="flex gap-1.5">
@@ -1546,7 +1546,7 @@ export const PreviewPanel = memo(function PreviewPanel({ files, projectId, onFix
                         onFixErrors(`The preview detected missing imports. Please create the missing files:\n\n${missingImports.join('\n')}`)
                         missingImportsFedRef.current = true
                       }}
-                      className="flex-1 flex items-center justify-center gap-1.5 px-2.5 py-1.5 bg-forge-accent hover:bg-forge-accent-hover text-white text-[10px] font-medium rounded-lg transition-colors"
+                      className="flex-1 flex items-center justify-center gap-1.5 px-2.5 py-1.5 bg-pi-accent hover:bg-pi-accent-hover text-white text-[10px] font-medium rounded-lg transition-colors"
                     >
                       <Zap className="w-3 h-3" />
                       Fix with AI
@@ -1554,7 +1554,7 @@ export const PreviewPanel = memo(function PreviewPanel({ files, projectId, onFix
                   )}
                   <button
                     onClick={() => { missingImportsFedRef.current = true; setMissingImports([]) }}
-                    className="px-2.5 py-1.5 text-[10px] font-medium text-forge-text-dim hover:text-forge-text bg-forge-surface hover:bg-forge-surface-hover rounded-lg transition-colors"
+                    className="px-2.5 py-1.5 text-[10px] font-medium text-pi-text-dim hover:text-pi-text bg-pi-surface hover:bg-pi-surface-hover rounded-lg transition-colors"
                   >
                     Dismiss
                   </button>
@@ -1574,18 +1574,18 @@ export const PreviewPanel = memo(function PreviewPanel({ files, projectId, onFix
               transition={{ type: 'spring', stiffness: 400, damping: 30 }}
               className="absolute bottom-3 left-3 z-20 max-w-xs"
             >
-              <div className="bg-forge-bg/95 backdrop-blur border border-red-500/30 rounded-xl p-3 shadow-2xl space-y-2">
+              <div className="bg-pi-bg/95 backdrop-blur border border-red-500/30 rounded-xl p-3 shadow-2xl space-y-2">
                 <div className="flex items-start gap-2">
                   <div className="w-7 h-7 rounded-lg bg-red-500/10 flex items-center justify-center shrink-0">
                     <AlertTriangle className="w-3.5 h-3.5 text-red-500" />
                   </div>
                   <div className="flex-1 min-w-0">
-                    <p className="text-xs font-medium text-forge-text">Preview Error</p>
+                    <p className="text-xs font-medium text-pi-text">Preview Error</p>
                     <p className="text-[10px] text-red-400 font-mono mt-0.5 line-clamp-3" title={sandboxError}>{sandboxError}</p>
                   </div>
                   <button
                     onClick={() => { setSandboxStatus('idle'); setSandboxError(null); hasAutoStartedRef.current = false }}
-                    className="p-0.5 text-forge-text-dim hover:text-forge-text transition-colors shrink-0"
+                    className="p-0.5 text-pi-text-dim hover:text-pi-text transition-colors shrink-0"
                   >
                     <X className="w-3 h-3" />
                   </button>
@@ -1600,7 +1600,7 @@ export const PreviewPanel = memo(function PreviewPanel({ files, projectId, onFix
                         setSandboxStatus('idle')
                         setSandboxError(null)
                       }}
-                      className="flex-1 flex items-center justify-center gap-1.5 px-2.5 py-1.5 bg-forge-accent hover:bg-forge-accent-hover text-white text-[10px] font-medium rounded-lg transition-colors"
+                      className="flex-1 flex items-center justify-center gap-1.5 px-2.5 py-1.5 bg-pi-accent hover:bg-pi-accent-hover text-white text-[10px] font-medium rounded-lg transition-colors"
                     >
                       <Zap className="w-3 h-3" />
                       Fix with AI
@@ -1611,7 +1611,7 @@ export const PreviewPanel = memo(function PreviewPanel({ files, projectId, onFix
                       href={sandboxUrl}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="flex-1 flex items-center justify-center gap-1.5 px-2.5 py-1.5 bg-forge-accent hover:bg-forge-accent-hover text-white text-[10px] font-medium rounded-lg transition-colors"
+                      className="flex-1 flex items-center justify-center gap-1.5 px-2.5 py-1.5 bg-pi-accent hover:bg-pi-accent-hover text-white text-[10px] font-medium rounded-lg transition-colors"
                     >
                       <ExternalLink className="w-3 h-3" />
                       Open in new tab
@@ -1620,7 +1620,7 @@ export const PreviewPanel = memo(function PreviewPanel({ files, projectId, onFix
                   <CopyErrorButton text={(() => { const allErrors = consoleLogs.filter(e => e.level === 'error').map(e => e.message).join('\n'); return allErrors || sandboxError || '' })() } />
                   <button
                     onClick={() => { hasAutoStartedRef.current = false; sandboxAvailableRef.current = null; retryCountRef.current = 0; startSandbox() }}
-                    className="px-2.5 py-1.5 text-[10px] font-medium text-forge-text-dim hover:text-forge-text bg-forge-surface hover:bg-forge-surface-hover rounded-lg transition-colors"
+                    className="px-2.5 py-1.5 text-[10px] font-medium text-pi-text-dim hover:text-pi-text bg-pi-surface hover:bg-pi-surface-hover rounded-lg transition-colors"
                   >
                     Retry
                   </button>
@@ -1640,18 +1640,18 @@ export const PreviewPanel = memo(function PreviewPanel({ files, projectId, onFix
               transition={{ type: 'spring', stiffness: 400, damping: 30 }}
               className="absolute bottom-3 left-3 z-20 max-w-xs"
             >
-              <div className="bg-forge-bg/95 backdrop-blur border border-red-500/30 rounded-xl p-3 shadow-2xl space-y-2">
+              <div className="bg-pi-bg/95 backdrop-blur border border-red-500/30 rounded-xl p-3 shadow-2xl space-y-2">
                 <div className="flex items-start gap-2">
                   <div className="w-7 h-7 rounded-lg bg-red-500/10 flex items-center justify-center shrink-0">
                     <AlertTriangle className="w-3.5 h-3.5 text-red-500" />
                   </div>
                   <div className="flex-1 min-w-0">
-                    <p className="text-xs font-medium text-forge-text">Runtime Error</p>
-                    <p className="text-[10px] text-forge-text-dim">{errorCount} error{errorCount !== 1 ? 's' : ''} detected</p>
+                    <p className="text-xs font-medium text-pi-text">Runtime Error</p>
+                    <p className="text-[10px] text-pi-text-dim">{errorCount} error{errorCount !== 1 ? 's' : ''} detected</p>
                   </div>
                   <button
                     onClick={() => setErrorPopupDismissed(true)}
-                    className="p-0.5 text-forge-text-dim hover:text-forge-text transition-colors shrink-0"
+                    className="p-0.5 text-pi-text-dim hover:text-pi-text transition-colors shrink-0"
                   >
                     <X className="w-3 h-3" />
                   </button>
@@ -1673,7 +1673,7 @@ export const PreviewPanel = memo(function PreviewPanel({ files, projectId, onFix
                       onFixErrors(`The preview has runtime errors. Please fix them:\n\n\`\`\`\n${errors}\n\`\`\``)
                       setErrorPopupDismissed(true)
                     }}
-                    className="flex-1 flex items-center justify-center gap-1.5 px-2.5 py-1.5 bg-forge-accent hover:bg-forge-accent-hover text-white text-[10px] font-medium rounded-lg transition-colors"
+                    className="flex-1 flex items-center justify-center gap-1.5 px-2.5 py-1.5 bg-pi-accent hover:bg-pi-accent-hover text-white text-[10px] font-medium rounded-lg transition-colors"
                   >
                     <Zap className="w-3 h-3" />
                     Fix with AI
@@ -1681,7 +1681,7 @@ export const PreviewPanel = memo(function PreviewPanel({ files, projectId, onFix
                   <CopyErrorButton text={consoleLogs.filter(e => e.level === 'error').map(e => e.message).join('\n')} />
                   <button
                     onClick={() => { setErrorPopupDismissed(true); setShowConsole(true) }}
-                    className="px-2.5 py-1.5 text-[10px] font-medium text-forge-text-dim hover:text-forge-text bg-forge-surface hover:bg-forge-surface-hover rounded-lg transition-colors"
+                    className="px-2.5 py-1.5 text-[10px] font-medium text-pi-text-dim hover:text-pi-text bg-pi-surface hover:bg-pi-surface-hover rounded-lg transition-colors"
                   >
                     Console
                   </button>
@@ -1713,7 +1713,7 @@ export const PreviewPanel = memo(function PreviewPanel({ files, projectId, onFix
           {/* Iframe error overlay with diagnose button — hidden when sandbox error card is already showing */}
           {iframeError && sandboxStatus !== 'error' && (
             <div className="absolute top-3 left-3 right-3 z-10 animate-fade-in">
-              <div className="bg-forge-bg/95 backdrop-blur border border-red-200 dark:border-red-500/30 rounded-lg p-3 shadow-lg max-w-sm mx-auto">
+              <div className="bg-pi-bg/95 backdrop-blur border border-red-200 dark:border-red-500/30 rounded-lg p-3 shadow-lg max-w-sm mx-auto">
                 <div className="flex items-center gap-2">
                   <AlertTriangle className="w-4 h-4 text-red-500 shrink-0" />
                   <p className="text-xs text-red-700 dark:text-red-400 flex-1">{iframeError}</p>
@@ -1727,7 +1727,7 @@ export const PreviewPanel = memo(function PreviewPanel({ files, projectId, onFix
                 <button
                   onClick={() => {
                     // Dispatch preview error event for AI to auto-diagnose
-                    window.dispatchEvent(new CustomEvent('forge:preview-error', {
+                    window.dispatchEvent(new CustomEvent('pi:preview-error', {
                       detail: { url: wcPreviewUrl || 'unknown', errorType: 'refused_to_connect' }
                     }))
                     setIframeError(null)
@@ -1752,7 +1752,7 @@ export const PreviewPanel = memo(function PreviewPanel({ files, projectId, onFix
                 </div>
               )}
               <iframe
-                id="forge-preview-iframe"
+                id="pi-preview-iframe"
                 key={`sandbox-${refreshKey}`}
                 src={sandboxUrl}
                 className={cn(
@@ -1858,11 +1858,11 @@ export const PreviewPanel = memo(function PreviewPanel({ files, projectId, onFix
             <>
               {!wcIframeReady && (
                 <div className="absolute top-3 right-3 z-20">
-                  <Loader2 className="w-4 h-4 animate-spin text-forge-accent" />
+                  <Loader2 className="w-4 h-4 animate-spin text-pi-accent" />
                 </div>
               )}
               <iframe
-                id="forge-preview-iframe"
+                id="pi-preview-iframe"
                 key={`wc-${wcPreviewUrl}`}
                 src={wcPreviewUrl}
                 className={cn(
@@ -1896,14 +1896,14 @@ export const PreviewPanel = memo(function PreviewPanel({ files, projectId, onFix
       </div>
 
       {showConsole && (
-        <div className="shrink-0 border-t border-forge-border bg-forge-panel max-h-[40vh] sm:max-h-[200px] flex flex-col">
+        <div className="shrink-0 border-t border-pi-border bg-pi-panel max-h-[40vh] sm:max-h-[200px] flex flex-col">
           {/* Console header */}
-          <div className="flex items-center justify-between px-3 py-1.5 border-b border-forge-border">
+          <div className="flex items-center justify-between px-3 py-1.5 border-b border-pi-border">
             <div className="flex items-center gap-2">
-              <Terminal className="w-3 h-3 text-forge-text-dim" />
-              <span className="text-[10px] font-medium text-forge-text-dim uppercase tracking-wider">Console</span>
+              <Terminal className="w-3 h-3 text-pi-text-dim" />
+              <span className="text-[10px] font-medium text-pi-text-dim uppercase tracking-wider">Console</span>
               {consoleLogs.length > 0 && (
-                <span className="text-[10px] text-forge-text-dim/70">({consoleLogs.length})</span>
+                <span className="text-[10px] text-pi-text-dim/70">({consoleLogs.length})</span>
               )}
             </div>
             <div className="flex items-center gap-1">
@@ -1923,13 +1923,13 @@ export const PreviewPanel = memo(function PreviewPanel({ files, projectId, onFix
               )}
               <button
                 onClick={() => setConsoleLogs([])}
-                className="text-[10px] text-forge-text-dim hover:text-forge-text px-1.5 py-0.5 rounded hover:bg-forge-surface transition-colors"
+                className="text-[10px] text-pi-text-dim hover:text-pi-text px-1.5 py-0.5 rounded hover:bg-pi-surface transition-colors"
               >
                 Clear
               </button>
               <button
                 onClick={() => setShowConsole(false)}
-                className="p-0.5 text-forge-text-dim hover:text-forge-text rounded hover:bg-forge-surface transition-colors"
+                className="p-0.5 text-pi-text-dim hover:text-pi-text rounded hover:bg-pi-surface transition-colors"
               >
                 <X className="w-3 h-3" />
               </button>
@@ -1938,7 +1938,7 @@ export const PreviewPanel = memo(function PreviewPanel({ files, projectId, onFix
           {/* Console body */}
           <div className="flex-1 overflow-y-auto p-2 font-mono text-xs sm:text-[11px] leading-relaxed">
             {consoleLogs.length === 0 ? (
-              <div className="flex flex-col items-center justify-center h-full gap-1.5 text-forge-text-dim/50 text-[10px] py-4">
+              <div className="flex flex-col items-center justify-center h-full gap-1.5 text-pi-text-dim/50 text-[10px] py-4">
                 <Terminal className="w-4 h-4 console-breathe" />
                 <span>Waiting for output...</span>
               </div>
@@ -1953,16 +1953,16 @@ export const PreviewPanel = memo(function PreviewPanel({ files, projectId, onFix
                       : entry.level === 'warn' ? 'text-amber-600 dark:text-yellow-400 bg-amber-500/5 console-entry-warn'
                       : entry.level === 'info' ? 'text-blue-600 dark:text-blue-400'
                       : entry.source === 'sandbox' ? 'text-emerald-600 dark:text-green-400'
-                      : 'text-forge-text',
+                      : 'text-pi-text',
                     isLast && 'console-entry-new',
                   )}>
-                    <span className="w-7 shrink-0 text-right pr-2 text-forge-text-dim/30 select-none tabular-nums">{i + 1}</span>
-                    <span className="text-forge-text-dim/50 select-none">[{entry.timestamp}]</span>
+                    <span className="w-7 shrink-0 text-right pr-2 text-pi-text-dim/30 select-none tabular-nums">{i + 1}</span>
+                    <span className="text-pi-text-dim/50 select-none">[{entry.timestamp}]</span>
                     {entry.level !== 'system' && (
                       <span className={cn('ml-1 text-[9px] uppercase font-medium shrink-0',
                         entry.level === 'error' ? 'text-red-500'
                         : entry.level === 'warn' ? 'text-amber-500'
-                        : 'text-forge-text-dim/50'
+                        : 'text-pi-text-dim/50'
                       )}>{entry.level}</span>
                     )}
                     <span className="ml-1 break-all flex-1">{entry.message}</span>
@@ -1972,10 +1972,10 @@ export const PreviewPanel = memo(function PreviewPanel({ files, projectId, onFix
                         setCopiedConsoleIdx(i)
                         setTimeout(() => setCopiedConsoleIdx(prev => prev === i ? null : prev), 1500)
                       }}
-                      className="shrink-0 ml-1 p-0.5 rounded opacity-0 group-hover/entry:opacity-60 hover:!opacity-100 text-forge-text-dim hover:text-forge-text transition-opacity"
+                      className="shrink-0 ml-1 p-0.5 rounded opacity-0 group-hover/entry:opacity-60 hover:!opacity-100 text-pi-text-dim hover:text-pi-text transition-opacity"
                       title="Copy to clipboard"
                     >
-                      {copiedConsoleIdx === i ? <Check className="w-2.5 h-2.5 text-forge-success" /> : <Copy className="w-2.5 h-2.5" />}
+                      {copiedConsoleIdx === i ? <Check className="w-2.5 h-2.5 text-pi-success" /> : <Copy className="w-2.5 h-2.5" />}
                     </button>
                   </div>
                   )

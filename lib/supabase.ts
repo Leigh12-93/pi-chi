@@ -4,13 +4,13 @@ const SUPABASE_URL = (process.env.NEXT_PUBLIC_SUPABASE_URL || '').trim()
 const SUPABASE_SERVICE_KEY = (process.env.SUPABASE_SERVICE_ROLE_KEY || '').trim()
 
 if (!SUPABASE_URL || !SUPABASE_SERVICE_KEY) {
-  console.warn('[forge] Missing Supabase credentials — project persistence disabled')
+  console.warn('[pi] Missing Supabase credentials — project persistence disabled')
 }
 
 export const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_KEY)
 
 // Type definitions for our tables
-export interface ForgeProject {
+export interface PiProject {
   id: string
   name: string
   github_username: string
@@ -25,7 +25,7 @@ export interface ForgeProject {
   updated_at: string
 }
 
-export interface ForgeProjectFile {
+export interface PiProjectFile {
   id: string
   project_id: string
   path: string
@@ -34,7 +34,7 @@ export interface ForgeProjectFile {
   updated_at: string
 }
 
-export interface ForgeChatMessage {
+export interface PiChatMessage {
   id: string
   project_id: string
   role: 'user' | 'assistant' | 'system'
@@ -43,7 +43,7 @@ export interface ForgeChatMessage {
   created_at: string
 }
 
-export interface ForgeDeployment {
+export interface PiDeployment {
   id: string
   project_id: string
   provider: 'vercel' | 'github'

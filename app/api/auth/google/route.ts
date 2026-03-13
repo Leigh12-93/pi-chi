@@ -12,7 +12,7 @@ export async function GET(req: Request) {
 
   // Fetch user's encrypted Client ID
   const { data, ok } = await supabaseFetch(
-    `/forge_user_settings?github_username=eq.${encodeURIComponent(session.githubUsername)}&select=encrypted_google_client_id`,
+    `/pi_user_settings?github_username=eq.${encodeURIComponent(session.githubUsername)}&select=encrypted_google_client_id`,
   )
 
   if (!ok || !Array.isArray(data) || data.length === 0 || !data[0].encrypted_google_client_id) {

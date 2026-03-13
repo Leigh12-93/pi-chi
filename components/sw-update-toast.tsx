@@ -5,13 +5,13 @@ import { toast } from 'sonner'
 
 declare global {
   interface Window {
-    __sixchiShowUpdateToast?: () => void
+    __pichiShowUpdateToast?: () => void
   }
 }
 
 export function SWUpdateToast() {
   useEffect(() => {
-    window.__sixchiShowUpdateToast = () => {
+    window.__pichiShowUpdateToast = () => {
       toast('New version available', {
         description: 'Refresh to get the latest updates.',
         action: {
@@ -21,7 +21,7 @@ export function SWUpdateToast() {
         duration: Infinity,
       })
     }
-    return () => { delete window.__sixchiShowUpdateToast }
+    return () => { delete window.__pichiShowUpdateToast }
   }, [])
 
   return null

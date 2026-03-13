@@ -155,7 +155,7 @@ function statusColor(status: string): string {
     case 'succeeded': case 'paid': return 'text-green-400'
     case 'pending': case 'in_transit': return 'text-amber-400'
     case 'failed': case 'canceled': return 'text-red-400'
-    default: return 'text-forge-text-dim'
+    default: return 'text-pi-text-dim'
   }
 }
 
@@ -203,7 +203,7 @@ export function StripePanel({ fileContents, onFileChange }: StripePanelProps) {
         hasStripePublishableKey: data.hasStripePublishableKey ?? false,
         hasStripeWebhookSecret: data.hasStripeWebhookSecret ?? false,
       })
-    } catch (e) { console.warn('[forge:stripe] Failed to load Stripe settings:', e) } finally {
+    } catch (e) { console.warn('[pi:stripe] Failed to load Stripe settings:', e) } finally {
       setLoading(false)
     }
   }, [])
@@ -238,7 +238,7 @@ export function StripePanel({ fileContents, onFileChange }: StripePanelProps) {
         setPayouts(data.payouts || [])
         setActiveSubscriptions(data.activeSubscriptions || 0)
       }
-    } catch (e) { console.warn('[forge:stripe] Failed to load recent Stripe data:', e) } finally {
+    } catch (e) { console.warn('[pi:stripe] Failed to load recent Stripe data:', e) } finally {
       setLoadingRecent(false)
     }
   }, [])
@@ -328,7 +328,7 @@ export function StripePanel({ fileContents, onFileChange }: StripePanelProps) {
   if (loading) {
     return (
       <div className="p-3 flex items-center justify-center">
-        <Loader2 className="w-4 h-4 animate-spin text-forge-text-dim" />
+        <Loader2 className="w-4 h-4 animate-spin text-pi-text-dim" />
       </div>
     )
   }
@@ -336,13 +336,13 @@ export function StripePanel({ fileContents, onFileChange }: StripePanelProps) {
   if (!settings.hasStripeSecretKey) {
     return (
       <div className="p-3 space-y-3">
-        <p className="text-[10px] uppercase tracking-wider text-forge-text-dim font-medium">Stripe</p>
+        <p className="text-[10px] uppercase tracking-wider text-pi-text-dim font-medium">Stripe</p>
 
-        <div className="flex items-center gap-2 p-3 bg-forge-surface border border-forge-border rounded-lg">
-          <CreditCard className="w-4 h-4 text-forge-text-dim shrink-0" />
+        <div className="flex items-center gap-2 p-3 bg-pi-surface border border-pi-border rounded-lg">
+          <CreditCard className="w-4 h-4 text-pi-text-dim shrink-0" />
           <div className="min-w-0">
-            <p className="text-xs font-medium text-forge-text">No Stripe account connected</p>
-            <p className="text-[10px] text-forge-text-dim mt-0.5">
+            <p className="text-xs font-medium text-pi-text">No Stripe account connected</p>
+            <p className="text-[10px] text-pi-text-dim mt-0.5">
               Connect your Stripe account to manage payments, subscriptions, and customers.
             </p>
           </div>
@@ -362,19 +362,19 @@ export function StripePanel({ fileContents, onFileChange }: StripePanelProps) {
               {envDetected.secretKey && (
                 <div className="flex items-center gap-1.5">
                   <code className="text-[9px] font-mono text-blue-300/80">STRIPE_SECRET_KEY</code>
-                  <span className="text-[9px] text-forge-text-dim ml-auto">{envDetected.secretKey.file}</span>
+                  <span className="text-[9px] text-pi-text-dim ml-auto">{envDetected.secretKey.file}</span>
                 </div>
               )}
               {envDetected.publishableKey && (
                 <div className="flex items-center gap-1.5">
                   <code className="text-[9px] font-mono text-blue-300/80">STRIPE_PUBLISHABLE_KEY</code>
-                  <span className="text-[9px] text-forge-text-dim ml-auto">{envDetected.publishableKey.file}</span>
+                  <span className="text-[9px] text-pi-text-dim ml-auto">{envDetected.publishableKey.file}</span>
                 </div>
               )}
               {envDetected.webhookSecret && (
                 <div className="flex items-center gap-1.5">
                   <code className="text-[9px] font-mono text-blue-300/80">STRIPE_WEBHOOK_SECRET</code>
-                  <span className="text-[9px] text-forge-text-dim ml-auto">{envDetected.webhookSecret.file}</span>
+                  <span className="text-[9px] text-pi-text-dim ml-auto">{envDetected.webhookSecret.file}</span>
                 </div>
               )}
             </div>
@@ -389,11 +389,11 @@ export function StripePanel({ fileContents, onFileChange }: StripePanelProps) {
               placeholder="Secret Key (sk_live_... or sk_test_...)"
               value={secretKey}
               onChange={e => setSecretKey(e.target.value)}
-              className="w-full px-2 py-1.5 pr-7 text-xs font-mono bg-forge-bg border border-forge-border rounded-md focus:outline-none focus:border-[#635BFF]"
+              className="w-full px-2 py-1.5 pr-7 text-xs font-mono bg-pi-bg border border-pi-border rounded-md focus:outline-none focus:border-[#635BFF]"
             />
             <button
               onClick={() => setShowSecretKey(!showSecretKey)}
-              className="absolute right-1.5 top-1/2 -translate-y-1/2 text-forge-text-dim hover:text-forge-text"
+              className="absolute right-1.5 top-1/2 -translate-y-1/2 text-pi-text-dim hover:text-pi-text"
             >
               {showSecretKey ? <EyeOff className="w-3 h-3" /> : <Eye className="w-3 h-3" />}
             </button>
@@ -404,7 +404,7 @@ export function StripePanel({ fileContents, onFileChange }: StripePanelProps) {
             placeholder="Publishable Key (pk_live_... or pk_test_...) — optional"
             value={publishableKey}
             onChange={e => setPublishableKey(e.target.value)}
-            className="w-full px-2 py-1.5 text-xs font-mono bg-forge-bg border border-forge-border rounded-md focus:outline-none focus:border-[#635BFF]"
+            className="w-full px-2 py-1.5 text-xs font-mono bg-pi-bg border border-pi-border rounded-md focus:outline-none focus:border-[#635BFF]"
           />
 
           <div className="relative">
@@ -413,11 +413,11 @@ export function StripePanel({ fileContents, onFileChange }: StripePanelProps) {
               placeholder="Webhook Secret (whsec_...) — optional"
               value={webhookSecret}
               onChange={e => setWebhookSecret(e.target.value)}
-              className="w-full px-2 py-1.5 pr-7 text-xs font-mono bg-forge-bg border border-forge-border rounded-md focus:outline-none focus:border-[#635BFF]"
+              className="w-full px-2 py-1.5 pr-7 text-xs font-mono bg-pi-bg border border-pi-border rounded-md focus:outline-none focus:border-[#635BFF]"
             />
             <button
               onClick={() => setShowWebhookSecret(!showWebhookSecret)}
-              className="absolute right-1.5 top-1/2 -translate-y-1/2 text-forge-text-dim hover:text-forge-text"
+              className="absolute right-1.5 top-1/2 -translate-y-1/2 text-pi-text-dim hover:text-pi-text"
             >
               {showWebhookSecret ? <EyeOff className="w-3 h-3" /> : <Eye className="w-3 h-3" />}
             </button>
@@ -434,13 +434,13 @@ export function StripePanel({ fileContents, onFileChange }: StripePanelProps) {
         </div>
 
         <div className="flex items-center gap-2 px-1">
-          <span className="flex-1 h-px bg-forge-border" />
-          <span className="text-[9px] text-forge-text-dim">or</span>
-          <span className="flex-1 h-px bg-forge-border" />
+          <span className="flex-1 h-px bg-pi-border" />
+          <span className="text-[9px] text-pi-text-dim">or</span>
+          <span className="flex-1 h-px bg-pi-border" />
         </div>
 
-        <div className="p-2.5 rounded-lg border border-dashed border-forge-border">
-          <p className="text-[9px] text-forge-text-dim leading-relaxed">
+        <div className="p-2.5 rounded-lg border border-dashed border-pi-border">
+          <p className="text-[9px] text-pi-text-dim leading-relaxed">
             Add <code className="text-[#635BFF] px-0.5 bg-[#635BFF]/10 rounded">STRIPE_SECRET_KEY</code> to your{' '}
             <code className="text-[#635BFF] px-0.5 bg-[#635BFF]/10 rounded">.env.local</code> — auto-connects instantly.
           </p>
@@ -460,22 +460,22 @@ export function StripePanel({ fileContents, onFileChange }: StripePanelProps) {
 
   return (
     <div className="p-3 space-y-2.5">
-      <p className="text-[10px] uppercase tracking-wider text-forge-text-dim font-medium">Stripe</p>
+      <p className="text-[10px] uppercase tracking-wider text-pi-text-dim font-medium">Stripe</p>
 
       <div className={`rounded-md border p-2.5 ${
-        account ? 'border-green-500/20 bg-green-500/5' : accountError ? 'border-red-500/20 bg-red-500/5' : 'border-forge-border bg-forge-surface/30'
+        account ? 'border-green-500/20 bg-green-500/5' : accountError ? 'border-red-500/20 bg-red-500/5' : 'border-pi-border bg-pi-surface/30'
       }`}>
         {loadingAccount ? (
           <div className="flex items-center gap-2 justify-center py-1">
-            <Loader2 className="w-3.5 h-3.5 animate-spin text-forge-text-dim" />
-            <span className="text-[10px] text-forge-text-dim">Connecting to Stripe...</span>
+            <Loader2 className="w-3.5 h-3.5 animate-spin text-pi-text-dim" />
+            <span className="text-[10px] text-pi-text-dim">Connecting to Stripe...</span>
           </div>
         ) : account ? (
           <div className="space-y-1.5">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-1.5">
                 <CheckCircle2 className="w-3.5 h-3.5 text-green-400" />
-                <span className="text-[11px] font-medium text-forge-text">{account.name}</span>
+                <span className="text-[11px] font-medium text-pi-text">{account.name}</span>
               </div>
               <div className="flex items-center gap-1">
                 <span className={`text-[8px] px-1.5 py-0.5 rounded-full font-medium ${
@@ -485,15 +485,15 @@ export function StripePanel({ fileContents, onFileChange }: StripePanelProps) {
                 </span>
                 <button
                   onClick={() => { loadAccount(); loadRecent() }}
-                  className="p-0.5 text-forge-text-dim hover:text-forge-text transition-colors"
+                  className="p-0.5 text-pi-text-dim hover:text-pi-text transition-colors"
                   title="Refresh"
                 >
                   <RefreshCw className="w-3 h-3" />
                 </button>
               </div>
             </div>
-            {account.email && <p className="text-[10px] text-forge-text-dim">{account.email}</p>}
-            <div className="flex items-center gap-2 text-[9px] text-forge-text-dim">
+            {account.email && <p className="text-[10px] text-pi-text-dim">{account.email}</p>}
+            <div className="flex items-center gap-2 text-[9px] text-pi-text-dim">
               {account.country && <span>{account.country}</span>}
               {account.defaultCurrency && <span>{account.defaultCurrency.toUpperCase()}</span>}
               {account.chargesEnabled && <span className="text-green-400">Charges OK</span>}
@@ -513,55 +513,55 @@ export function StripePanel({ fileContents, onFileChange }: StripePanelProps) {
             <AlertCircle className="w-3.5 h-3.5 text-red-400 shrink-0 mt-0.5" />
             <div className="flex-1">
               <p className="text-[10px] text-red-400">{accountError}</p>
-              <button onClick={loadAccount} className="text-[9px] text-forge-accent hover:underline mt-1">Retry</button>
+              <button onClick={loadAccount} className="text-[9px] text-pi-accent hover:underline mt-1">Retry</button>
             </div>
           </div>
         ) : (
           <div className="flex items-center gap-2">
-            <Loader2 className="w-3.5 h-3.5 animate-spin text-forge-text-dim" />
-            <span className="text-[10px] text-forge-text-dim">Loading account...</span>
+            <Loader2 className="w-3.5 h-3.5 animate-spin text-pi-text-dim" />
+            <span className="text-[10px] text-pi-text-dim">Loading account...</span>
           </div>
         )}
       </div>
 
       {balance && (
-        <div className="rounded-md border border-forge-border bg-forge-surface/30 p-2.5">
+        <div className="rounded-md border border-pi-border bg-pi-surface/30 p-2.5">
           <div className="flex items-center gap-1.5 mb-2">
-            <DollarSign className="w-3.5 h-3.5 text-forge-text-dim" />
-            <span className="text-[11px] font-medium text-forge-text">Balance</span>
+            <DollarSign className="w-3.5 h-3.5 text-pi-text-dim" />
+            <span className="text-[11px] font-medium text-pi-text">Balance</span>
           </div>
           <div className="grid grid-cols-2 gap-2">
             <div>
-              <p className="text-[9px] text-forge-text-dim uppercase tracking-wider mb-0.5">Available</p>
+              <p className="text-[9px] text-pi-text-dim uppercase tracking-wider mb-0.5">Available</p>
               {balance.available.map(b => (
                 <p key={b.currency} className="text-[12px] font-medium text-green-400 font-mono">
                   {formatCurrency(b.amount, b.currency)}
                 </p>
               ))}
-              {balance.available.length === 0 && <p className="text-[10px] text-forge-text-dim">—</p>}
+              {balance.available.length === 0 && <p className="text-[10px] text-pi-text-dim">—</p>}
             </div>
             <div>
-              <p className="text-[9px] text-forge-text-dim uppercase tracking-wider mb-0.5">Pending</p>
+              <p className="text-[9px] text-pi-text-dim uppercase tracking-wider mb-0.5">Pending</p>
               {balance.pending.map(b => (
                 <p key={b.currency} className="text-[12px] font-medium text-amber-400 font-mono">
                   {formatCurrency(b.amount, b.currency)}
                 </p>
               ))}
-              {balance.pending.length === 0 && <p className="text-[10px] text-forge-text-dim">—</p>}
+              {balance.pending.length === 0 && <p className="text-[10px] text-pi-text-dim">—</p>}
             </div>
           </div>
         </div>
       )}
 
-      <div className="rounded-md border border-forge-border">
+      <div className="rounded-md border border-pi-border">
         <button
           onClick={() => toggleSection('recent')}
-          className="w-full flex items-center gap-2 px-2.5 py-2 text-left hover:bg-forge-surface/50 transition-colors"
+          className="w-full flex items-center gap-2 px-2.5 py-2 text-left hover:bg-pi-surface/50 transition-colors"
         >
-          <ChevronDown className={`w-3 h-3 text-forge-text-dim transition-transform ${activeSection === 'recent' ? '' : '-rotate-90'}`} />
-          <TrendingUp className="w-3.5 h-3.5 text-forge-text-dim" />
-          <span className="text-[11px] font-medium text-forge-text flex-1">Recent Activity</span>
-          {loadingRecent && <Loader2 className="w-3 h-3 animate-spin text-forge-text-dim" />}
+          <ChevronDown className={`w-3 h-3 text-pi-text-dim transition-transform ${activeSection === 'recent' ? '' : '-rotate-90'}`} />
+          <TrendingUp className="w-3.5 h-3.5 text-pi-text-dim" />
+          <span className="text-[11px] font-medium text-pi-text flex-1">Recent Activity</span>
+          {loadingRecent && <Loader2 className="w-3 h-3 animate-spin text-pi-text-dim" />}
           {activeSubscriptions > 0 && (
             <span className="text-[9px] px-1.5 py-0.5 rounded-full bg-[#635BFF]/10 text-[#635BFF]">
               {activeSubscriptions} sub{activeSubscriptions !== 1 ? 's' : ''}
@@ -570,22 +570,22 @@ export function StripePanel({ fileContents, onFileChange }: StripePanelProps) {
         </button>
 
         {activeSection === 'recent' && (
-          <div className="border-t border-forge-border/50 px-2.5 py-2 space-y-2">
+          <div className="border-t border-pi-border/50 px-2.5 py-2 space-y-2">
             {/* Charges */}
             {charges.length > 0 && (
               <div>
-                <p className="text-[9px] uppercase tracking-wider text-forge-text-dim font-medium mb-1">
+                <p className="text-[9px] uppercase tracking-wider text-pi-text-dim font-medium mb-1">
                   Recent Charges ({charges.length})
                 </p>
                 <div className="space-y-1 max-h-[200px] overflow-y-auto">
                   {charges.map(c => (
                     <div key={c.id} className="flex items-center gap-1.5 py-0.5">
                       <ArrowUpRight className={`w-3 h-3 shrink-0 ${statusColor(c.status)}`} />
-                      <span className="text-[10px] font-mono text-forge-text flex-1 truncate">
+                      <span className="text-[10px] font-mono text-pi-text flex-1 truncate">
                         {formatCurrency(c.amount, c.currency)}
                       </span>
                       <span className={`text-[9px] ${statusColor(c.status)}`}>{c.status}</span>
-                      <span className="text-[8px] text-forge-text-dim">{timeAgo(c.created)}</span>
+                      <span className="text-[8px] text-pi-text-dim">{timeAgo(c.created)}</span>
                     </div>
                   ))}
                 </div>
@@ -595,18 +595,18 @@ export function StripePanel({ fileContents, onFileChange }: StripePanelProps) {
             {/* Payouts */}
             {payouts.length > 0 && (
               <div>
-                <p className="text-[9px] uppercase tracking-wider text-forge-text-dim font-medium mb-1">
+                <p className="text-[9px] uppercase tracking-wider text-pi-text-dim font-medium mb-1">
                   Recent Payouts ({payouts.length})
                 </p>
                 <div className="space-y-1">
                   {payouts.map(p => (
                     <div key={p.id} className="flex items-center gap-1.5 py-0.5">
                       <ArrowDownRight className={`w-3 h-3 shrink-0 ${statusColor(p.status)}`} />
-                      <span className="text-[10px] font-mono text-forge-text flex-1">
+                      <span className="text-[10px] font-mono text-pi-text flex-1">
                         {formatCurrency(p.amount, p.currency)}
                       </span>
                       <span className={`text-[9px] ${statusColor(p.status)}`}>{p.status}</span>
-                      <span className="text-[8px] text-forge-text-dim">{timeAgo(p.created)}</span>
+                      <span className="text-[8px] text-pi-text-dim">{timeAgo(p.created)}</span>
                     </div>
                   ))}
                 </div>
@@ -614,13 +614,13 @@ export function StripePanel({ fileContents, onFileChange }: StripePanelProps) {
             )}
 
             {charges.length === 0 && payouts.length === 0 && !loadingRecent && (
-              <p className="text-[10px] text-forge-text-dim text-center py-2">No recent activity</p>
+              <p className="text-[10px] text-pi-text-dim text-center py-2">No recent activity</p>
             )}
 
             <button
               onClick={loadRecent}
               disabled={loadingRecent}
-              className="w-full flex items-center justify-center gap-1 px-2 py-1 text-[10px] rounded border border-forge-border hover:bg-forge-surface/50 text-forge-text-dim hover:text-forge-text transition-colors"
+              className="w-full flex items-center justify-center gap-1 px-2 py-1 text-[10px] rounded border border-pi-border hover:bg-pi-surface/50 text-pi-text-dim hover:text-pi-text transition-colors"
             >
               <RefreshCw className={`w-2.5 h-2.5 ${loadingRecent ? 'animate-spin' : ''}`} /> Refresh
             </button>
@@ -628,27 +628,27 @@ export function StripePanel({ fileContents, onFileChange }: StripePanelProps) {
         )}
       </div>
 
-      <div className="rounded-md border border-forge-border">
+      <div className="rounded-md border border-pi-border">
         <button
           onClick={() => toggleSection('webhooks')}
-          className="w-full flex items-center gap-2 px-2.5 py-2 text-left hover:bg-forge-surface/50 transition-colors"
+          className="w-full flex items-center gap-2 px-2.5 py-2 text-left hover:bg-pi-surface/50 transition-colors"
         >
-          <ChevronDown className={`w-3 h-3 text-forge-text-dim transition-transform ${activeSection === 'webhooks' ? '' : '-rotate-90'}`} />
-          <Shield className="w-3.5 h-3.5 text-forge-text-dim" />
-          <span className="text-[11px] font-medium text-forge-text flex-1">Webhooks</span>
+          <ChevronDown className={`w-3 h-3 text-pi-text-dim transition-transform ${activeSection === 'webhooks' ? '' : '-rotate-90'}`} />
+          <Shield className="w-3.5 h-3.5 text-pi-text-dim" />
+          <span className="text-[11px] font-medium text-pi-text flex-1">Webhooks</span>
           {settings.hasStripeWebhookSecret && <CheckCircle2 className="w-3 h-3 text-green-400" />}
         </button>
 
         {activeSection === 'webhooks' && (
-          <div className="border-t border-forge-border/50 px-2.5 py-2 space-y-2">
+          <div className="border-t border-pi-border/50 px-2.5 py-2 space-y-2">
             {settings.hasStripeWebhookSecret ? (
               <div className="flex items-center gap-1.5">
                 <CheckCircle2 className="w-3 h-3 text-green-400" />
-                <span className="text-[10px] text-forge-text">Webhook secret configured</span>
+                <span className="text-[10px] text-pi-text">Webhook secret configured</span>
               </div>
             ) : (
               <>
-                <p className="text-[10px] text-forge-text-dim">
+                <p className="text-[10px] text-pi-text-dim">
                   Add your webhook signing secret to verify webhook events.
                 </p>
                 <div className="relative">
@@ -657,11 +657,11 @@ export function StripePanel({ fileContents, onFileChange }: StripePanelProps) {
                     placeholder="whsec_..."
                     value={webhookSecret}
                     onChange={e => setWebhookSecret(e.target.value)}
-                    className="w-full px-2 py-1.5 pr-7 text-xs font-mono bg-forge-bg border border-forge-border rounded-md focus:outline-none focus:border-[#635BFF]"
+                    className="w-full px-2 py-1.5 pr-7 text-xs font-mono bg-pi-bg border border-pi-border rounded-md focus:outline-none focus:border-[#635BFF]"
                   />
                   <button
                     onClick={() => setShowWebhookSecret(!showWebhookSecret)}
-                    className="absolute right-1.5 top-1/2 -translate-y-1/2 text-forge-text-dim hover:text-forge-text"
+                    className="absolute right-1.5 top-1/2 -translate-y-1/2 text-pi-text-dim hover:text-pi-text"
                   >
                     {showWebhookSecret ? <EyeOff className="w-3 h-3" /> : <Eye className="w-3 h-3" />}
                   </button>
@@ -691,14 +691,14 @@ export function StripePanel({ fileContents, onFileChange }: StripePanelProps) {
             )}
 
             <div className="space-y-1 pt-1">
-              <p className="text-[10px] text-forge-text-dim font-medium">Recommended webhook URL:</p>
+              <p className="text-[10px] text-pi-text-dim font-medium">Recommended webhook URL:</p>
               <div className="flex items-center gap-1">
-                <code className="flex-1 text-[9px] font-mono text-forge-text bg-forge-bg px-1.5 py-1 rounded border border-forge-border truncate">
+                <code className="flex-1 text-[9px] font-mono text-pi-text bg-pi-bg px-1.5 py-1 rounded border border-pi-border truncate">
                   {typeof window !== 'undefined' ? `${window.location.origin}/api/webhooks/stripe` : '/api/webhooks/stripe'}
                 </code>
                 <button
                   onClick={() => handleCopy(`${window.location.origin}/api/webhooks/stripe`, 'Webhook URL')}
-                  className="p-1 text-forge-text-dim hover:text-forge-text"
+                  className="p-1 text-pi-text-dim hover:text-pi-text"
                 >
                   <Copy className="w-3 h-3" />
                 </button>
@@ -717,41 +717,41 @@ export function StripePanel({ fileContents, onFileChange }: StripePanelProps) {
         )}
       </div>
 
-      <div className="rounded-md border border-forge-border">
+      <div className="rounded-md border border-pi-border">
         <button
           onClick={() => toggleSection('env')}
-          className="w-full flex items-center gap-2 px-2.5 py-2 text-left hover:bg-forge-surface/50 transition-colors"
+          className="w-full flex items-center gap-2 px-2.5 py-2 text-left hover:bg-pi-surface/50 transition-colors"
         >
-          <ChevronDown className={`w-3 h-3 text-forge-text-dim transition-transform ${activeSection === 'env' ? '' : '-rotate-90'}`} />
-          <Link2 className="w-3.5 h-3.5 text-forge-text-dim" />
-          <span className="text-[11px] font-medium text-forge-text flex-1">Environment</span>
+          <ChevronDown className={`w-3 h-3 text-pi-text-dim transition-transform ${activeSection === 'env' ? '' : '-rotate-90'}`} />
+          <Link2 className="w-3.5 h-3.5 text-pi-text-dim" />
+          <span className="text-[11px] font-medium text-pi-text flex-1">Environment</span>
         </button>
 
         {activeSection === 'env' && (
-          <div className="border-t border-forge-border/50 px-2.5 py-2 space-y-2">
+          <div className="border-t border-pi-border/50 px-2.5 py-2 space-y-2">
             {/* Detected env vars */}
             {(envDetected.secretKey || envDetected.publishableKey || envDetected.webhookSecret) && (
               <div className="space-y-0.5">
-                <p className="text-[10px] text-forge-text-dim font-medium">Detected in project:</p>
+                <p className="text-[10px] text-pi-text-dim font-medium">Detected in project:</p>
                 {envDetected.secretKey && (
                   <div className="flex items-center gap-1.5">
                     <CheckCircle2 className="w-2.5 h-2.5 text-green-400 shrink-0" />
-                    <code className="text-[9px] font-mono text-forge-text-dim truncate">STRIPE_SECRET_KEY</code>
-                    <span className="text-[8px] text-forge-text-dim/50 ml-auto">{envDetected.secretKey.file}</span>
+                    <code className="text-[9px] font-mono text-pi-text-dim truncate">STRIPE_SECRET_KEY</code>
+                    <span className="text-[8px] text-pi-text-dim/50 ml-auto">{envDetected.secretKey.file}</span>
                   </div>
                 )}
                 {envDetected.publishableKey && (
                   <div className="flex items-center gap-1.5">
                     <CheckCircle2 className="w-2.5 h-2.5 text-green-400 shrink-0" />
-                    <code className="text-[9px] font-mono text-forge-text-dim truncate">STRIPE_PUBLISHABLE_KEY</code>
-                    <span className="text-[8px] text-forge-text-dim/50 ml-auto">{envDetected.publishableKey.file}</span>
+                    <code className="text-[9px] font-mono text-pi-text-dim truncate">STRIPE_PUBLISHABLE_KEY</code>
+                    <span className="text-[8px] text-pi-text-dim/50 ml-auto">{envDetected.publishableKey.file}</span>
                   </div>
                 )}
                 {envDetected.webhookSecret && (
                   <div className="flex items-center gap-1.5">
                     <CheckCircle2 className="w-2.5 h-2.5 text-green-400 shrink-0" />
-                    <code className="text-[9px] font-mono text-forge-text-dim truncate">STRIPE_WEBHOOK_SECRET</code>
-                    <span className="text-[8px] text-forge-text-dim/50 ml-auto">{envDetected.webhookSecret.file}</span>
+                    <code className="text-[9px] font-mono text-pi-text-dim truncate">STRIPE_WEBHOOK_SECRET</code>
+                    <span className="text-[8px] text-pi-text-dim/50 ml-auto">{envDetected.webhookSecret.file}</span>
                   </div>
                 )}
               </div>
@@ -761,40 +761,40 @@ export function StripePanel({ fileContents, onFileChange }: StripePanelProps) {
             {settings.hasStripePublishableKey && !envDetected.publishableKey && (
               <button
                 onClick={() => handleInjectEnvVar('NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY', '${STRIPE_PUBLISHABLE_KEY}')}
-                className="w-full flex items-center gap-1.5 px-2 py-1.5 text-[10px] rounded border border-forge-border hover:bg-forge-surface/50 text-forge-text-dim hover:text-forge-text transition-colors"
+                className="w-full flex items-center gap-1.5 px-2 py-1.5 text-[10px] rounded border border-pi-border hover:bg-pi-surface/50 text-pi-text-dim hover:text-pi-text transition-colors"
               >
                 <Zap className="w-3 h-3" />
                 Add NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY to .env.local
               </button>
             )}
 
-            <p className="text-[9px] text-forge-text-dim leading-relaxed">
+            <p className="text-[9px] text-pi-text-dim leading-relaxed">
               The AI can use your Stripe keys to build payment flows, create checkout pages, manage subscriptions, and handle webhooks.
             </p>
           </div>
         )}
       </div>
 
-      <div className="rounded-md border border-forge-border">
+      <div className="rounded-md border border-pi-border">
         <button
           onClick={() => toggleSection('tools')}
-          className="w-full flex items-center gap-2 px-2.5 py-2 text-left hover:bg-forge-surface/50 transition-colors"
+          className="w-full flex items-center gap-2 px-2.5 py-2 text-left hover:bg-pi-surface/50 transition-colors"
         >
-          <ChevronDown className={`w-3 h-3 text-forge-text-dim transition-transform ${activeSection === 'tools' ? '' : '-rotate-90'}`} />
-          <Zap className="w-3.5 h-3.5 text-forge-text-dim" />
-          <span className="text-[11px] font-medium text-forge-text flex-1">AI Tools</span>
-          <span className="text-[9px] text-forge-text-dim">{STRIPE_TOOLS.length} available</span>
+          <ChevronDown className={`w-3 h-3 text-pi-text-dim transition-transform ${activeSection === 'tools' ? '' : '-rotate-90'}`} />
+          <Zap className="w-3.5 h-3.5 text-pi-text-dim" />
+          <span className="text-[11px] font-medium text-pi-text flex-1">AI Tools</span>
+          <span className="text-[9px] text-pi-text-dim">{STRIPE_TOOLS.length} available</span>
         </button>
 
         {activeSection === 'tools' && (
-          <div className="border-t border-forge-border/50 px-2.5 py-2 max-h-[300px] overflow-y-auto">
+          <div className="border-t border-pi-border/50 px-2.5 py-2 max-h-[300px] overflow-y-auto">
             <div className="space-y-0.5">
               {STRIPE_TOOLS.map(t => (
                 <div key={t.name} className="flex items-start gap-1.5 py-0.5">
                   <Zap className="w-2.5 h-2.5 shrink-0 mt-0.5 text-[#635BFF]" />
                   <div className="min-w-0">
-                    <span className="text-[9px] font-mono text-forge-text block">{t.name}</span>
-                    <span className="text-[8px] text-forge-text-dim">{t.description}</span>
+                    <span className="text-[9px] font-mono text-pi-text block">{t.name}</span>
+                    <span className="text-[8px] text-pi-text-dim">{t.description}</span>
                   </div>
                 </div>
               ))}
@@ -803,25 +803,25 @@ export function StripePanel({ fileContents, onFileChange }: StripePanelProps) {
         )}
       </div>
 
-      <div className="rounded-md border border-forge-border">
+      <div className="rounded-md border border-pi-border">
         <button
           onClick={() => toggleSection('links')}
-          className="w-full flex items-center gap-2 px-2.5 py-2 text-left hover:bg-forge-surface/50 transition-colors"
+          className="w-full flex items-center gap-2 px-2.5 py-2 text-left hover:bg-pi-surface/50 transition-colors"
         >
-          <ChevronDown className={`w-3 h-3 text-forge-text-dim transition-transform ${activeSection === 'links' ? '' : '-rotate-90'}`} />
-          <ExternalLink className="w-3.5 h-3.5 text-forge-text-dim" />
-          <span className="text-[11px] font-medium text-forge-text flex-1">Quick Links</span>
+          <ChevronDown className={`w-3 h-3 text-pi-text-dim transition-transform ${activeSection === 'links' ? '' : '-rotate-90'}`} />
+          <ExternalLink className="w-3.5 h-3.5 text-pi-text-dim" />
+          <span className="text-[11px] font-medium text-pi-text flex-1">Quick Links</span>
         </button>
 
         {activeSection === 'links' && (
-          <div className="border-t border-forge-border/50 px-2.5 py-2 space-y-1">
+          <div className="border-t border-pi-border/50 px-2.5 py-2 space-y-1">
             {QUICK_LINKS.map(link => (
               <a
                 key={link.label}
                 href={account?.livemode === false ? link.url.replace('dashboard.stripe.com/', 'dashboard.stripe.com/test/') : link.url}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="flex items-center gap-1.5 py-0.5 text-[10px] text-forge-text-dim hover:text-[#635BFF] transition-colors"
+                className="flex items-center gap-1.5 py-0.5 text-[10px] text-pi-text-dim hover:text-[#635BFF] transition-colors"
               >
                 <link.icon className="w-3 h-3" />
                 {link.label}
@@ -831,9 +831,9 @@ export function StripePanel({ fileContents, onFileChange }: StripePanelProps) {
         )}
       </div>
 
-      <div className="rounded-md border border-forge-border bg-forge-surface/30 p-2.5">
+      <div className="rounded-md border border-pi-border bg-pi-surface/30 p-2.5">
         <div className="flex items-center justify-between mb-1.5">
-          <span className="text-[10px] text-forge-text-dim font-medium">Saved Credentials</span>
+          <span className="text-[10px] text-pi-text-dim font-medium">Saved Credentials</span>
         </div>
         <div className="flex flex-wrap gap-1.5 mb-2">
           {settings.hasStripeSecretKey && (
@@ -852,7 +852,7 @@ export function StripePanel({ fileContents, onFileChange }: StripePanelProps) {
             </span>
           )}
           {!settings.hasStripePublishableKey && (
-            <span className="flex items-center gap-1 text-[9px] text-forge-text-dim">
+            <span className="flex items-center gap-1 text-[9px] text-pi-text-dim">
               <XCircle className="w-2.5 h-2.5" /> No publishable key
             </span>
           )}

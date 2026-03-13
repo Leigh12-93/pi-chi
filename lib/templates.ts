@@ -3,7 +3,7 @@ function esc(s: string): string { return s.replace(/'/g, "\\'") }
 
 export function scaffoldNextJS(name: string, description?: string): Record<string, string> {
   const safeName = esc(name)
-  const safeDesc = esc(description || 'Built with Forge')
+  const safeDesc = esc(description || 'Built with Pi-Chi')
   return {
     'package.json': JSON.stringify({
       name, version: '0.1.0', private: true,

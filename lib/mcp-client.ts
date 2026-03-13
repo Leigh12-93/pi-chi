@@ -1,5 +1,5 @@
 /**
- * Lightweight MCP Client for Forge
+ * Lightweight MCP Client for Pi-Chi
  *
  * Speaks MCP protocol over HTTP (Streamable HTTP transport) using fetch().
  * No external SDK needed — works on Vercel serverless.
@@ -141,7 +141,7 @@ export class MCPClient {
       await this.rpc(state.config, 'initialize', {
         protocolVersion: '2025-03-26',
         capabilities: {},
-        clientInfo: { name: 'forge', version: '1.0.0' },
+        clientInfo: { name: 'pi', version: '1.0.0' },
       })
 
       // 2. Send initialized notification (no response expected, but we send via RPC)

@@ -70,21 +70,21 @@ export function PreviewToolbar({ preset, onPresetChange }: PreviewToolbarProps) 
           className={cn(
             'relative p-2.5 sm:p-1.5 rounded-md transition-colors',
             preset === p
-              ? 'bg-forge-accent/15 text-forge-accent'
-              : 'text-forge-text-dim hover:text-forge-text hover:bg-forge-surface',
+              ? 'bg-pi-accent/15 text-pi-accent'
+              : 'text-pi-text-dim hover:text-pi-text hover:bg-pi-surface',
           )}
         >
           <Icon className="w-4 h-4 sm:w-3.5 sm:h-3.5" />
           {preset === p && (
             <motion.div
               layoutId="device-indicator"
-              className="absolute bottom-0 left-1 right-1 h-0.5 bg-forge-accent rounded-full"
+              className="absolute bottom-0 left-1 right-1 h-0.5 bg-pi-accent rounded-full"
               transition={{ type: 'spring', stiffness: 400, damping: 30 }}
             />
           )}
         </button>
       ))}
-      <span className="ml-1 text-[10px] text-forge-text-dim font-mono tabular-nums select-none hidden sm:inline">
+      <span className="ml-1 text-[10px] text-pi-text-dim font-mono tabular-nums select-none hidden sm:inline">
         {dimensionLabel}
       </span>
     </div>

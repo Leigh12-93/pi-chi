@@ -76,7 +76,7 @@ export function createAuditTools(ctx: ToolContext) {
       }),
       execute: async ({ summary, overallHealth, findings, stats }) => {
         const planData = { summary, overallHealth, findings, stats, createdAt: new Date().toISOString(), status: 'pending_review' }
-        ctx.vfs.write('.forge/audit-plan.json', JSON.stringify(planData, null, 2))
+        ctx.vfs.write('.pi/audit-plan.json', JSON.stringify(planData, null, 2))
 
         return {
           __audit_gate: true,
@@ -101,7 +101,7 @@ export function createAuditTools(ctx: ToolContext) {
       }),
       execute: async ({ findingId, status, changes }) => {
         // Update the audit plan status
-        const planFile = ctx.vfs.read('.forge/audit-plan.json')
+        const planFile = ctx.vfs.read('.pi/audit-plan.json')
         if (!planFile) return { ok: false, error: 'No audit plan found. Run create_audit_plan first.' }
 
         try {
@@ -119,7 +119,7 @@ export function createAuditTools(ctx: ToolContext) {
             plan.status = 'completed'
           }
 
-          ctx.vfs.write('.forge/audit-plan.json', JSON.stringify(plan, null, 2))
+          ctx.vfs.write('.pi/audit-plan.json', JSON.stringify(plan, null, 2))
 
           return {
             ok: true,

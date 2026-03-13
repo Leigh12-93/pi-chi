@@ -123,7 +123,7 @@ export function SettingsDialog({ open, onClose, defaultTab }: SettingsDialogProp
       await fetch('/api/settings?target=apiKey', { method: 'DELETE' })
       setHasKey(false)
       refresh()
-    } catch (e) { console.warn('[forge:settings] Failed to delete API key:', e) }
+    } catch (e) { console.warn('[pi:settings] Failed to delete API key:', e) }
     setDeleting(false)
   }, [refresh])
 
@@ -156,7 +156,7 @@ export function SettingsDialog({ open, onClose, defaultTab }: SettingsDialogProp
     try {
       await fetch('/api/settings?target=vercelToken', { method: 'DELETE' })
       setHasVercel(false)
-    } catch (e) { console.warn('[forge:settings] Failed to delete Vercel token:', e) }
+    } catch (e) { console.warn('[pi:settings] Failed to delete Vercel token:', e) }
     setDeletingVercel(false)
   }, [])
 
@@ -193,7 +193,7 @@ export function SettingsDialog({ open, onClose, defaultTab }: SettingsDialogProp
       await fetch('/api/settings?target=supabase', { method: 'DELETE' })
       setHasSupabase(false)
       setSbProjectRef(null)
-    } catch (e) { console.warn('[forge:settings] Failed to delete Supabase creds:', e) }
+    } catch (e) { console.warn('[pi:settings] Failed to delete Supabase creds:', e) }
     setDeletingSupabase(false)
   }, [])
 
@@ -232,7 +232,7 @@ export function SettingsDialog({ open, onClose, defaultTab }: SettingsDialogProp
       if (Array.isArray(data)) {
         setSbProjects(data)
       }
-    } catch (e) { console.warn('[forge:settings] Failed to load Supabase projects:', e) }
+    } catch (e) { console.warn('[pi:settings] Failed to load Supabase projects:', e) }
     setLoadingSbProjects(false)
   }, [])
 
@@ -289,25 +289,25 @@ export function SettingsDialog({ open, onClose, defaultTab }: SettingsDialogProp
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm" onClick={onClose} role="dialog" aria-modal="true" aria-labelledby="settings-dialog-title">
-      <div className="w-full max-w-lg bg-forge-bg border border-forge-border rounded-xl shadow-2xl overflow-hidden" onClick={e => e.stopPropagation()}>
+      <div className="w-full max-w-lg bg-pi-bg border border-pi-border rounded-xl shadow-2xl overflow-hidden" onClick={e => e.stopPropagation()}>
         {/* Header */}
-        <div className="flex items-center justify-between px-4 py-3 border-b border-forge-border">
-          <h2 id="settings-dialog-title" className="text-sm font-medium text-forge-text">Settings</h2>
-          <button onClick={onClose} className="p-1 text-forge-text-dim hover:text-forge-text rounded transition-colors">
+        <div className="flex items-center justify-between px-4 py-3 border-b border-pi-border">
+          <h2 id="settings-dialog-title" className="text-sm font-medium text-pi-text">Settings</h2>
+          <button onClick={onClose} className="p-1 text-pi-text-dim hover:text-pi-text rounded transition-colors">
             <X className="w-4 h-4" />
           </button>
         </div>
 
         <div className="flex min-h-[300px]">
           {/* Sidebar */}
-          <div className="w-40 border-r border-forge-border bg-forge-panel p-2 space-y-0.5">
+          <div className="w-40 border-r border-pi-border bg-pi-panel p-2 space-y-0.5">
             {TABS.map(t => (
               <button
                 key={t.id}
                 onClick={() => setTab(t.id)}
                 className={cn(
                   'w-full flex items-center gap-2 px-3 py-2 text-xs rounded-lg transition-colors',
-                  tab === t.id ? 'bg-forge-surface text-forge-text' : 'text-forge-text-dim hover:text-forge-text hover:bg-forge-surface/50',
+                  tab === t.id ? 'bg-pi-surface text-pi-text' : 'text-pi-text-dim hover:text-pi-text hover:bg-pi-surface/50',
                 )}
               >
                 <t.icon className="w-3.5 h-3.5" />
@@ -321,7 +321,7 @@ export function SettingsDialog({ open, onClose, defaultTab }: SettingsDialogProp
             {tab === 'general' && (
               <>
                 <SettingRow label="Theme" description="Color scheme">
-                  <select className="px-2 py-1 text-xs bg-forge-surface border border-forge-border rounded text-forge-text">
+                  <select className="px-2 py-1 text-xs bg-pi-surface border border-pi-border rounded text-pi-text">
                     <option value="dark">Dark</option>
                     <option value="light" disabled>Light (coming soon)</option>
                   </select>
@@ -333,7 +333,7 @@ export function SettingsDialog({ open, onClose, defaultTab }: SettingsDialogProp
                     onChange={e => savePreferences({ ...settings, terminalFontSize: Number(e.target.value) })}
                     min={10}
                     max={24}
-                    className="w-16 px-2 py-1 text-xs bg-forge-surface border border-forge-border rounded text-forge-text text-center"
+                    className="w-16 px-2 py-1 text-xs bg-pi-surface border border-pi-border rounded text-pi-text text-center"
                   />
                 </SettingRow>
               </>
@@ -348,14 +348,14 @@ export function SettingsDialog({ open, onClose, defaultTab }: SettingsDialogProp
                     onChange={e => savePreferences({ ...settings, editorFontSize: Number(e.target.value) })}
                     min={10}
                     max={24}
-                    className="w-16 px-2 py-1 text-xs bg-forge-surface border border-forge-border rounded text-forge-text text-center"
+                    className="w-16 px-2 py-1 text-xs bg-pi-surface border border-pi-border rounded text-pi-text text-center"
                   />
                 </SettingRow>
                 <SettingRow label="Tab Size" description="Number of spaces per tab">
                   <select
                     value={settings.editorTabSize}
                     onChange={e => savePreferences({ ...settings, editorTabSize: Number(e.target.value) })}
-                    className="px-2 py-1 text-xs bg-forge-surface border border-forge-border rounded text-forge-text"
+                    className="px-2 py-1 text-xs bg-pi-surface border border-pi-border rounded text-pi-text"
                   >
                     <option value={2}>2</option>
                     <option value={4}>4</option>
@@ -378,10 +378,10 @@ export function SettingsDialog({ open, onClose, defaultTab }: SettingsDialogProp
 
             {tab === 'api-key' && (
               <div className="space-y-4">
-                <div className="text-xs text-forge-text-dim">
+                <div className="text-xs text-pi-text-dim">
                   {hasKey
                     ? 'Your API key is stored and encrypted. You can update or remove it below.'
-                    : 'Enter your Anthropic API key to use Forge.'}
+                    : 'Enter your Anthropic API key to use Pi-Chi.'}
                 </div>
 
                 {hasKey && (
@@ -404,7 +404,7 @@ export function SettingsDialog({ open, onClose, defaultTab }: SettingsDialogProp
                   value={apiKeyInput}
                   onChange={e => { setApiKeyInput(e.target.value); setApiKeyStatus('idle') }}
                   placeholder={hasKey ? 'Enter new key to update...' : 'sk-ant-api03-...'}
-                  className="w-full px-3 py-2 text-xs bg-forge-surface border border-forge-border rounded-lg text-forge-text font-mono placeholder:text-forge-text-dim/50 focus:outline-none focus:border-forge-accent"
+                  className="w-full px-3 py-2 text-xs bg-pi-surface border border-pi-border rounded-lg text-pi-text font-mono placeholder:text-pi-text-dim/50 focus:outline-none focus:border-pi-accent"
                 />
 
                 {apiKeyError && (
@@ -414,14 +414,14 @@ export function SettingsDialog({ open, onClose, defaultTab }: SettingsDialogProp
                 <button
                   onClick={saveApiKey}
                   disabled={!apiKeyInput.trim() || apiKeyStatus === 'saving'}
-                  className="px-4 py-2 text-xs font-medium bg-forge-accent text-white rounded-lg hover:bg-forge-accent-hover disabled:opacity-50 transition-colors"
+                  className="px-4 py-2 text-xs font-medium bg-pi-accent text-white rounded-lg hover:bg-pi-accent-hover disabled:opacity-50 transition-colors"
                 >
                   {apiKeyStatus === 'saving' ? 'Validating...' : hasKey ? 'Update Key' : 'Save Key'}
                 </button>
 
-                <p className="text-[10px] text-forge-text-dim">
+                <p className="text-[10px] text-pi-text-dim">
                   Get your key at{' '}
-                  <a href="https://console.anthropic.com/settings/keys" target="_blank" rel="noopener" className="text-forge-accent hover:underline">
+                  <a href="https://console.anthropic.com/settings/keys" target="_blank" rel="noopener" className="text-pi-accent hover:underline">
                     console.anthropic.com
                   </a>
                 </p>
@@ -430,7 +430,7 @@ export function SettingsDialog({ open, onClose, defaultTab }: SettingsDialogProp
 
             {tab === 'vercel' && (
               <div className="space-y-4">
-                <div className="text-xs text-forge-text-dim">
+                <div className="text-xs text-pi-text-dim">
                   {hasVercel
                     ? 'Your Vercel account is connected. Projects deploy under your account.'
                     : 'Connect your Vercel account to deploy projects.'}
@@ -466,9 +466,9 @@ export function SettingsDialog({ open, onClose, defaultTab }: SettingsDialogProp
                         </a>
 
                         <div className="flex items-center gap-2">
-                          <span className="flex-1 h-px bg-forge-border" />
-                          <span className="text-[9px] text-forge-text-dim">or</span>
-                          <span className="flex-1 h-px bg-forge-border" />
+                          <span className="flex-1 h-px bg-pi-border" />
+                          <span className="text-[9px] text-pi-text-dim">or</span>
+                          <span className="flex-1 h-px bg-pi-border" />
                         </div>
                       </>
                     )}
@@ -478,7 +478,7 @@ export function SettingsDialog({ open, onClose, defaultTab }: SettingsDialogProp
                       <div>
                         <button
                           onClick={() => setShowManualVercel(!showManualVercel)}
-                          className="flex items-center gap-1 text-[11px] text-forge-text-dim hover:text-forge-text transition-colors"
+                          className="flex items-center gap-1 text-[11px] text-pi-text-dim hover:text-pi-text transition-colors"
                         >
                           <ChevronDown className={cn('w-3 h-3 transition-transform', showManualVercel && 'rotate-180')} />
                           Enter token manually
@@ -490,19 +490,19 @@ export function SettingsDialog({ open, onClose, defaultTab }: SettingsDialogProp
                               value={vercelInput}
                               onChange={e => { setVercelInput(e.target.value); setVercelStatus('idle') }}
                               placeholder="Vercel personal access token..."
-                              className="w-full px-3 py-2 text-xs bg-forge-surface border border-forge-border rounded-lg text-forge-text font-mono placeholder:text-forge-text-dim/50 focus:outline-none focus:border-forge-accent"
+                              className="w-full px-3 py-2 text-xs bg-pi-surface border border-pi-border rounded-lg text-pi-text font-mono placeholder:text-pi-text-dim/50 focus:outline-none focus:border-pi-accent"
                             />
                             {vercelError && <p className="text-[10px] text-red-400">{vercelError}</p>}
                             <button
                               onClick={saveVercelToken}
                               disabled={!vercelInput.trim() || vercelStatus === 'saving'}
-                              className="px-4 py-1.5 text-xs font-medium bg-forge-accent text-white rounded-lg hover:bg-forge-accent-hover disabled:opacity-50 transition-colors"
+                              className="px-4 py-1.5 text-xs font-medium bg-pi-accent text-white rounded-lg hover:bg-pi-accent-hover disabled:opacity-50 transition-colors"
                             >
                               {vercelStatus === 'saving' ? 'Validating...' : 'Save Token'}
                             </button>
-                            <p className="text-[10px] text-forge-text-dim">
+                            <p className="text-[10px] text-pi-text-dim">
                               Create at{' '}
-                              <a href="https://vercel.com/account/tokens" target="_blank" rel="noopener" className="text-forge-accent hover:underline">
+                              <a href="https://vercel.com/account/tokens" target="_blank" rel="noopener" className="text-pi-accent hover:underline">
                                 vercel.com/account/tokens
                               </a>
                             </p>
@@ -517,19 +517,19 @@ export function SettingsDialog({ open, onClose, defaultTab }: SettingsDialogProp
                           value={vercelInput}
                           onChange={e => { setVercelInput(e.target.value); setVercelStatus('idle') }}
                           placeholder="Vercel personal access token..."
-                          className="w-full px-3 py-2 text-xs bg-forge-surface border border-forge-border rounded-lg text-forge-text font-mono placeholder:text-forge-text-dim/50 focus:outline-none focus:border-forge-accent"
+                          className="w-full px-3 py-2 text-xs bg-pi-surface border border-pi-border rounded-lg text-pi-text font-mono placeholder:text-pi-text-dim/50 focus:outline-none focus:border-pi-accent"
                         />
                         {vercelError && <p className="text-xs text-red-400">{vercelError}</p>}
                         <button
                           onClick={saveVercelToken}
                           disabled={!vercelInput.trim() || vercelStatus === 'saving'}
-                          className="px-4 py-2 text-xs font-medium bg-forge-accent text-white rounded-lg hover:bg-forge-accent-hover disabled:opacity-50 transition-colors"
+                          className="px-4 py-2 text-xs font-medium bg-pi-accent text-white rounded-lg hover:bg-pi-accent-hover disabled:opacity-50 transition-colors"
                         >
                           {vercelStatus === 'saving' ? 'Validating...' : 'Connect Vercel'}
                         </button>
-                        <p className="text-[10px] text-forge-text-dim">
+                        <p className="text-[10px] text-pi-text-dim">
                           Create a token at{' '}
-                          <a href="https://vercel.com/account/tokens" target="_blank" rel="noopener" className="text-forge-accent hover:underline">
+                          <a href="https://vercel.com/account/tokens" target="_blank" rel="noopener" className="text-pi-accent hover:underline">
                             vercel.com/account/tokens
                           </a>
                           {' '}with full access scope.
@@ -550,7 +550,7 @@ export function SettingsDialog({ open, onClose, defaultTab }: SettingsDialogProp
                     <div className="flex-1 min-w-0">
                       <span className="text-xs text-green-400">Project connected</span>
                       {sbProjectRef && (
-                        <p className="text-[10px] text-forge-text-dim font-mono truncate">{sbProjectRef}</p>
+                        <p className="text-[10px] text-pi-text-dim font-mono truncate">{sbProjectRef}</p>
                       )}
                     </div>
                     <button
@@ -591,9 +591,9 @@ export function SettingsDialog({ open, onClose, defaultTab }: SettingsDialogProp
                         </a>
 
                         <div className="flex items-center gap-2">
-                          <span className="flex-1 h-px bg-forge-border" />
-                          <span className="text-[9px] text-forge-text-dim">or</span>
-                          <span className="flex-1 h-px bg-forge-border" />
+                          <span className="flex-1 h-px bg-pi-border" />
+                          <span className="text-[9px] text-pi-text-dim">or</span>
+                          <span className="flex-1 h-px bg-pi-border" />
                         </div>
                       </>
                     )}
@@ -603,7 +603,7 @@ export function SettingsDialog({ open, onClose, defaultTab }: SettingsDialogProp
                       <div>
                         <button
                           onClick={() => setShowManualSupabase(!showManualSupabase)}
-                          className="flex items-center gap-1 text-[11px] text-forge-text-dim hover:text-forge-text transition-colors"
+                          className="flex items-center gap-1 text-[11px] text-pi-text-dim hover:text-pi-text transition-colors"
                         >
                           <ChevronDown className={cn('w-3 h-3 transition-transform', showManualSupabase && 'rotate-180')} />
                           Connect manually
@@ -709,13 +709,13 @@ function SupabaseManualFlow({
     <div className="space-y-4">
       {/* Access token */}
       <div className="space-y-2">
-        <p className="text-[10px] uppercase tracking-wider text-forge-text-dim font-medium">
+        <p className="text-[10px] uppercase tracking-wider text-pi-text-dim font-medium">
           {hasSbToken ? 'Supabase Account' : 'Option 1 — Access Token'}
         </p>
         {hasSbToken ? (
-          <div className="flex items-center gap-2 p-2 bg-forge-surface rounded-lg">
+          <div className="flex items-center gap-2 p-2 bg-pi-surface rounded-lg">
             <CheckCircle2 className="w-3.5 h-3.5 text-green-400" />
-            <span className="text-[11px] text-forge-text flex-1">Access token saved</span>
+            <span className="text-[11px] text-pi-text flex-1">Access token saved</span>
             <button
               onClick={async () => {
                 await fetch('/api/settings?target=supabaseAccessToken', { method: 'DELETE' })
@@ -729,7 +729,7 @@ function SupabaseManualFlow({
           </div>
         ) : (
           <>
-            <div className="text-[11px] text-forge-text-dim">
+            <div className="text-[11px] text-pi-text-dim">
               Paste a Supabase access token to auto-discover your projects.
             </div>
             <input
@@ -737,19 +737,19 @@ function SupabaseManualFlow({
               value={sbTokenInput}
               onChange={e => { setSbTokenInput(e.target.value); setSbTokenStatus('idle') }}
               placeholder="sbp_xxxxxxxxxxxxxxxxxxxxxxxx..."
-              className="w-full px-3 py-2 text-xs bg-forge-surface border border-forge-border rounded-lg text-forge-text font-mono placeholder:text-forge-text-dim/50 focus:outline-none focus:border-forge-accent"
+              className="w-full px-3 py-2 text-xs bg-pi-surface border border-pi-border rounded-lg text-pi-text font-mono placeholder:text-pi-text-dim/50 focus:outline-none focus:border-pi-accent"
             />
             {sbTokenError && <p className="text-[10px] text-red-400">{sbTokenError}</p>}
             <button
               onClick={saveSbToken}
               disabled={!sbTokenInput.trim() || sbTokenStatus === 'saving'}
-              className="px-4 py-1.5 text-xs font-medium bg-forge-accent text-white rounded-lg hover:bg-forge-accent-hover disabled:opacity-50 transition-colors"
+              className="px-4 py-1.5 text-xs font-medium bg-pi-accent text-white rounded-lg hover:bg-pi-accent-hover disabled:opacity-50 transition-colors"
             >
               {sbTokenStatus === 'saving' ? 'Validating...' : 'Save Token'}
             </button>
-            <p className="text-[10px] text-forge-text-dim">
+            <p className="text-[10px] text-pi-text-dim">
               Create at{' '}
-              <a href="https://supabase.com/dashboard/account/tokens" target="_blank" rel="noopener" className="text-forge-accent hover:underline">
+              <a href="https://supabase.com/dashboard/account/tokens" target="_blank" rel="noopener" className="text-pi-accent hover:underline">
                 supabase.com/dashboard/account/tokens
               </a>
             </p>
@@ -760,34 +760,34 @@ function SupabaseManualFlow({
       {/* Project picker */}
       {hasSbToken && !hasSupabase && (
         <div className="space-y-2">
-          <p className="text-[10px] uppercase tracking-wider text-forge-text-dim font-medium">Select Project</p>
+          <p className="text-[10px] uppercase tracking-wider text-pi-text-dim font-medium">Select Project</p>
           {loadingSbProjects ? (
             <div className="flex items-center gap-2 py-3 justify-center">
-              <Loader2 className="w-3.5 h-3.5 animate-spin text-forge-text-dim" />
-              <span className="text-[11px] text-forge-text-dim">Loading projects...</span>
+              <Loader2 className="w-3.5 h-3.5 animate-spin text-pi-text-dim" />
+              <span className="text-[11px] text-pi-text-dim">Loading projects...</span>
             </div>
           ) : sbProjects.length > 0 ? (
-            <div className="max-h-48 overflow-y-auto rounded-lg border border-forge-border divide-y divide-forge-border">
+            <div className="max-h-48 overflow-y-auto rounded-lg border border-pi-border divide-y divide-pi-border">
               {sbProjects.map(p => (
                 <button
                   key={p.ref}
                   onClick={() => connectSbProject(p.ref)}
                   disabled={connectingProject !== null}
-                  className="w-full flex items-center gap-2 px-3 py-2 text-left hover:bg-forge-surface transition-colors disabled:opacity-50"
+                  className="w-full flex items-center gap-2 px-3 py-2 text-left hover:bg-pi-surface transition-colors disabled:opacity-50"
                 >
-                  <Database className="w-3.5 h-3.5 text-forge-text-dim shrink-0" />
+                  <Database className="w-3.5 h-3.5 text-pi-text-dim shrink-0" />
                   <div className="flex-1 min-w-0">
-                    <p className="text-xs text-forge-text truncate">{p.name}</p>
-                    <p className="text-[9px] text-forge-text-dim font-mono truncate">{p.ref}</p>
+                    <p className="text-xs text-pi-text truncate">{p.name}</p>
+                    <p className="text-[9px] text-pi-text-dim font-mono truncate">{p.ref}</p>
                   </div>
                   {connectingProject === p.ref && (
-                    <Loader2 className="w-3 h-3 animate-spin text-forge-accent shrink-0" />
+                    <Loader2 className="w-3 h-3 animate-spin text-pi-accent shrink-0" />
                   )}
                 </button>
               ))}
             </div>
           ) : (
-            <p className="text-[11px] text-forge-text-dim py-2">No projects found.</p>
+            <p className="text-[11px] text-pi-text-dim py-2">No projects found.</p>
           )}
           {sbError && <p className="text-[10px] text-red-400">{sbError}</p>}
         </div>
@@ -795,14 +795,14 @@ function SupabaseManualFlow({
 
       {/* Manual entry fallback */}
       {!hasSbToken && (
-        <div className="space-y-2 border-t border-forge-border pt-3">
-          <p className="text-[10px] uppercase tracking-wider text-forge-text-dim font-medium">Option 2 — Enter Manually</p>
+        <div className="space-y-2 border-t border-pi-border pt-3">
+          <p className="text-[10px] uppercase tracking-wider text-pi-text-dim font-medium">Option 2 — Enter Manually</p>
           <input
             type="text"
             value={sbUrlInput}
             onChange={e => { setSbUrlInput(e.target.value); setSbStatus('idle') }}
             placeholder="https://xxxxx.supabase.co"
-            className="w-full px-3 py-2 text-xs bg-forge-surface border border-forge-border rounded-lg text-forge-text font-mono placeholder:text-forge-text-dim/50 focus:outline-none focus:border-forge-accent"
+            className="w-full px-3 py-2 text-xs bg-pi-surface border border-pi-border rounded-lg text-pi-text font-mono placeholder:text-pi-text-dim/50 focus:outline-none focus:border-pi-accent"
           />
           <input
             type="password"
@@ -810,13 +810,13 @@ function SupabaseManualFlow({
             onChange={e => { setSbKeyInput(e.target.value); setSbStatus('idle') }}
             placeholder="Service role key (eyJ...)"
             onKeyDown={e => e.key === 'Enter' && sbUrlInput.trim() && sbKeyInput.trim() && saveSupabase()}
-            className="w-full px-3 py-2 text-xs bg-forge-surface border border-forge-border rounded-lg text-forge-text font-mono placeholder:text-forge-text-dim/50 focus:outline-none focus:border-forge-accent"
+            className="w-full px-3 py-2 text-xs bg-pi-surface border border-pi-border rounded-lg text-pi-text font-mono placeholder:text-pi-text-dim/50 focus:outline-none focus:border-pi-accent"
           />
           {sbError && !hasSbToken && <p className="text-[10px] text-red-400">{sbError}</p>}
           <button
             onClick={saveSupabase}
             disabled={!sbUrlInput.trim() || !sbKeyInput.trim() || sbStatus === 'saving'}
-            className="px-4 py-1.5 text-xs font-medium bg-forge-accent text-white rounded-lg hover:bg-forge-accent-hover disabled:opacity-50 transition-colors"
+            className="px-4 py-1.5 text-xs font-medium bg-pi-accent text-white rounded-lg hover:bg-pi-accent-hover disabled:opacity-50 transition-colors"
           >
             {sbStatus === 'saving' ? 'Validating...' : 'Connect'}
           </button>
@@ -830,8 +830,8 @@ function SettingRow({ label, description, children }: { label: string; descripti
   return (
     <div className="flex items-center justify-between">
       <div>
-        <p className="text-xs font-medium text-forge-text">{label}</p>
-        <p className="text-[10px] text-forge-text-dim">{description}</p>
+        <p className="text-xs font-medium text-pi-text">{label}</p>
+        <p className="text-[10px] text-pi-text-dim">{description}</p>
       </div>
       {children}
     </div>
@@ -844,7 +844,7 @@ function Toggle({ value, onChange }: { value: boolean; onChange: (v: boolean) =>
       onClick={() => onChange(!value)}
       className={cn(
         'w-8 h-4.5 rounded-full transition-colors relative',
-        value ? 'bg-forge-accent' : 'bg-forge-border',
+        value ? 'bg-pi-accent' : 'bg-pi-border',
       )}
     >
       <span className={cn(

@@ -48,7 +48,7 @@ export function useVoiceInput({ onTranscript, onError, lang = 'en-AU' }: UseVoic
 
   const stop = useCallback(() => {
     if (recognitionRef.current) {
-      try { recognitionRef.current.stop() } catch (e) { console.warn('[forge:voice] Error stopping recognition:', e) }
+      try { recognitionRef.current.stop() } catch (e) { console.warn('[pi:voice] Error stopping recognition:', e) }
       recognitionRef.current = null
     }
     setIsListening(false)
@@ -71,7 +71,7 @@ export function useVoiceInput({ onTranscript, onError, lang = 'en-AU' }: UseVoic
 
     // Stop any existing session
     if (recognitionRef.current) {
-      try { recognitionRef.current.stop() } catch (e) { console.warn('[forge:voice] Error stopping recognition:', e) }
+      try { recognitionRef.current.stop() } catch (e) { console.warn('[pi:voice] Error stopping recognition:', e) }
     }
 
     const Ctor = window.SpeechRecognition || window.webkitSpeechRecognition
@@ -144,7 +144,7 @@ export function useVoiceInput({ onTranscript, onError, lang = 'en-AU' }: UseVoic
   useEffect(() => {
     return () => {
       if (recognitionRef.current) {
-        try { recognitionRef.current.stop() } catch (e) { console.warn('[forge:voice] Error stopping recognition:', e) }
+        try { recognitionRef.current.stop() } catch (e) { console.warn('[pi:voice] Error stopping recognition:', e) }
       }
     }
   }, [])

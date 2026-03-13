@@ -13,7 +13,7 @@ export async function POST(req: Request) {
   }
 
   const { data, ok } = await supabaseFetch(
-    `/forge_user_settings?github_username=eq.${encodeURIComponent(session.githubUsername)}&select=encrypted_aussiesms_api_key`,
+    `/pi_user_settings?github_username=eq.${encodeURIComponent(session.githubUsername)}&select=encrypted_aussiesms_api_key`,
   )
 
   if (!ok || !Array.isArray(data) || data.length === 0 || !data[0].encrypted_aussiesms_api_key) {

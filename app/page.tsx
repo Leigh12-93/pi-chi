@@ -22,7 +22,7 @@ interface SavedProject {
   created_at: string
 }
 
-export default function ForgePage() {
+export default function PiChiPage() {
   const { session, status, refresh } = useSession()
   const [projectId, setProjectId] = useState<string | null>(null)
   const [projectName, setProjectName] = useState<string | null>(null)
@@ -54,13 +54,13 @@ export default function ForgePage() {
   const [vercelUrl, setVercelUrl] = useState<string | null>(null)
   const [currentBranch, setCurrentBranch] = useState<string>('main')
   const [onboardingDismissed, setOnboardingDismissed] = useState(() => {
-    try { return sessionStorage.getItem('forge_onboarding_done') === '1' } catch { return false }
+    try { return sessionStorage.getItem('pi_onboarding_done') === '1' } catch { return false }
   })
   // pendingAuditMessage removed — auto-scan disabled, user triggers manually
 
   useEffect(() => {
     if (typeof BroadcastChannel === 'undefined') return
-    const bc = new BroadcastChannel('forge_project_edit')
+    const bc = new BroadcastChannel('pi_project_edit')
     // Announce when we start editing a project
     if (projectId) {
       bc.postMessage({ type: 'editing', projectId })
@@ -101,7 +101,7 @@ export default function ForgePage() {
     if (restoredRef.current) return
     restoredRef.current = true
     try {
-      const raw = sessionStorage.getItem('forge_active_project')
+      const raw = sessionStorage.getItem('pi_active_project')
       if (!raw) return
       const stored: { id?: string; name?: string; activeFile?: string } = JSON.parse(raw)
       const { id, name } = stored
@@ -126,10 +126,10 @@ export default function ForgePage() {
               // Previous behavior silently fired scans on load, spamming the chat
             } else {
               // Project was deleted — clear storage
-              sessionStorage.removeItem('forge_active_project')
+              sessionStorage.removeItem('pi_active_project')
             }
           })
-          .catch(() => sessionStorage.removeItem('forge_active_project'))
+          .catch(() => sessionStorage.removeItem('pi_active_project'))
           .finally(() => setRestoringProject(false))
       } else if (name) {
         // Unsaved project — just restore the name (files are lost on refresh)
@@ -151,13 +151,13 @@ export default function ForgePage() {
   useEffect(() => {
     try {
       if (projectName) {
-        sessionStorage.setItem('forge_active_project', JSON.stringify({ id: projectId, name: projectName, activeFile }))
+        sessionStorage.setItem('pi_active_project', JSON.stringify({ id: projectId, name: projectName, activeFile }))
         // Push a history entry so browser back goes to project picker, not off-site
-        if (!window.history.state?.forgeProject) {
-          window.history.pushState({ forgeProject: true }, '', window.location.href)
+        if (!window.history.state?.piProject) {
+          window.history.pushState({ piProject: true }, '', window.location.href)
         }
       } else {
-        sessionStorage.removeItem('forge_active_project')
+        sessionStorage.removeItem('pi_active_project')
       }
     } catch { /* sessionStorage unavailable (private browsing) — non-fatal */ }
   }, [projectId, projectName, activeFile])
@@ -273,7 +273,7 @@ export default function ForgePage() {
         setAutoSaveError(true)
         setSaveStatus('error')
         // Backup to localStorage as safety net
-        try { localStorage.setItem(`forge-unsaved-${projectId}`, JSON.stringify(files)) } catch (e) { console.warn('[forge:localStorage] Failed to backup unsaved files:', e) }
+        try { localStorage.setItem(`pi-unsaved-${projectId}`, JSON.stringify(files)) } catch (e) { console.warn('[pi:localStorage] Failed to backup unsaved files:', e) }
       } finally {
         savingRef.current = false
       }
@@ -366,25 +366,25 @@ export default function ForgePage() {
       }
     }
     if (sbUrl && sbKey) {
-      try { await fetch('/api/settings', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ supabaseUrl: sbUrl, supabaseKey: sbKey, skipValidation: true }) }) } catch (e) { console.warn('[forge:env-detect] Failed to auto-save Supabase creds:', e) }
+      try { await fetch('/api/settings', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ supabaseUrl: sbUrl, supabaseKey: sbKey, skipValidation: true }) }) } catch (e) { console.warn('[pi:env-detect] Failed to auto-save Supabase creds:', e) }
     }
 
     // 2. Auto-detect Anthropic API key
     const anthropicKey = envVars['ANTHROPIC_API_KEY']
     if (anthropicKey?.startsWith('sk-ant-')) {
-      try { await fetch('/api/settings', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ apiKey: anthropicKey, skipValidation: true }) }) } catch (e) { console.warn('[forge:env-detect] Failed to auto-save Anthropic key:', e) }
+      try { await fetch('/api/settings', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ apiKey: anthropicKey, skipValidation: true }) }) } catch (e) { console.warn('[pi:env-detect] Failed to auto-save Anthropic key:', e) }
     }
 
     // 3. Auto-detect Vercel/deploy token
-    const vercelToken = envVars['FORGE_DEPLOY_TOKEN'] || envVars['VERCEL_TOKEN']
+    const vercelToken = envVars['PI_DEPLOY_TOKEN'] || envVars['VERCEL_TOKEN']
     if (vercelToken) {
-      try { await fetch('/api/settings', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ vercelToken, skipValidation: true }) }) } catch (e) { console.warn('[forge:env-detect] Failed to auto-save Vercel token:', e) }
+      try { await fetch('/api/settings', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ vercelToken, skipValidation: true }) }) } catch (e) { console.warn('[pi:env-detect] Failed to auto-save Vercel token:', e) }
     }
 
     // 4. Auto-detect Google API key
     const googleKey = envVars['GOOGLE_API_KEY'] || envVars['NEXT_PUBLIC_GOOGLE_API_KEY']
     if (googleKey?.startsWith('AIza')) {
-      try { await fetch('/api/settings', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ googleApiKey: googleKey }) }) } catch (e) { console.warn('[forge:env-detect] Failed to auto-save Google key:', e) }
+      try { await fetch('/api/settings', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ googleApiKey: googleKey }) }) } catch (e) { console.warn('[pi:env-detect] Failed to auto-save Google key:', e) }
     }
 
     // 5b. Auto-detect Stripe credentials
@@ -395,7 +395,7 @@ export default function ForgePage() {
       const stripeBody: Record<string, string> = { stripeSecretKey, skipValidation: 'true' } as any
       if (stripePublishableKey?.startsWith('pk_')) stripeBody.stripePublishableKey = stripePublishableKey
       if (stripeWebhookSecret?.startsWith('whsec_')) stripeBody.stripeWebhookSecret = stripeWebhookSecret
-      try { await fetch('/api/settings', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(stripeBody) }) } catch (e) { console.warn('[forge:env-detect] Failed to auto-save Stripe creds:', e) }
+      try { await fetch('/api/settings', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(stripeBody) }) } catch (e) { console.warn('[pi:env-detect] Failed to auto-save Stripe creds:', e) }
     }
 
     // 6. Auto-save all env vars to global env var store (merge, don't overwrite)
@@ -416,7 +416,7 @@ export default function ForgePage() {
             body: JSON.stringify({ variables: merged }),
           })
         }
-      } catch (e) { console.warn('[forge:env-detect] Failed to save global env vars:', e) }
+      } catch (e) { console.warn('[pi:env-detect] Failed to save global env vars:', e) }
     }
 
     // 5. Auto-detect Vercel project linked to this GitHub repo + import its env vars
@@ -455,10 +455,10 @@ export default function ForgePage() {
                 }
               }
             }
-          } catch (e) { console.warn('[forge:env-detect] Failed to import Vercel env vars:', e) }
+          } catch (e) { console.warn('[pi:env-detect] Failed to import Vercel env vars:', e) }
         }
       }
-    } catch (e) { console.warn('[forge:env-detect] Failed to detect Vercel project:', e) }
+    } catch (e) { console.warn('[pi:env-detect] Failed to detect Vercel project:', e) }
 
     // 7. Auto-inject saved global env vars into .env.local for vars the project needs but are empty/missing
     try {
@@ -498,7 +498,7 @@ export default function ForgePage() {
           }
         }
       }
-    } catch (e) { console.warn('[forge:env-detect] Failed to inject global env vars:', e) }
+    } catch (e) { console.warn('[pi:env-detect] Failed to inject global env vars:', e) }
   }, [])
 
   const handleSelectProject = useCallback(async (name: string, id?: string, initialFiles?: Record<string, string>, query?: string, meta?: { githubRepoUrl?: string }) => {
@@ -633,8 +633,8 @@ export default function ForgePage() {
   // Auth gate: show sign-in page if not authenticated
   if (status === 'loading') {
     return (
-      <div className="flex items-center justify-center h-screen bg-forge-bg">
-        <div className="h-5 w-5 border-2 border-forge-border border-t-forge-accent rounded-full animate-spin" />
+      <div className="flex items-center justify-center h-screen bg-pi-bg">
+        <div className="h-5 w-5 border-2 border-pi-border border-t-pi-accent rounded-full animate-spin" />
       </div>
     )
   }
@@ -669,7 +669,7 @@ export default function ForgePage() {
           <Onboarding
             onComplete={({ template, description }) => {
               setOnboardingDismissed(true)
-              try { sessionStorage.setItem('forge_onboarding_done', '1') } catch (e) { console.warn('[forge:sessionStorage] Failed to persist onboarding state:', e) }
+              try { sessionStorage.setItem('pi_onboarding_done', '1') } catch (e) { console.warn('[pi:sessionStorage] Failed to persist onboarding state:', e) }
               const projectName = template || 'my-project'
               const query = description
                 ? `Create a ${template} project: ${description}`

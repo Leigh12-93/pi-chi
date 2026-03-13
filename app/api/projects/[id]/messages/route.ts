@@ -21,7 +21,7 @@ export async function GET(
 
     // Verify project ownership before returning messages
     const { data: project, error: projectError } = await supabase
-      .from('forge_projects')
+      .from('pi_projects')
       .select('id, github_username')
       .eq('id', projectId)
       .single()
@@ -41,7 +41,7 @@ export async function GET(
 
     // Fetch chat messages for this project with cursor-based pagination
     let query = supabase
-      .from('forge_chat_messages')
+      .from('pi_chat_messages')
       .select('id, role, content, tool_invocations, created_at')
       .eq('project_id', projectId)
       .order('created_at', { ascending: true })

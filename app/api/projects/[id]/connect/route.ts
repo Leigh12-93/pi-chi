@@ -15,7 +15,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
 
   // Verify ownership
   const { data: project } = await supabase
-    .from('forge_projects')
+    .from('pi_projects')
     .select('id')
     .eq('id', id)
     .eq('github_username', session.githubUsername)
@@ -50,7 +50,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
   }
 
   const { error } = await supabase
-    .from('forge_projects')
+    .from('pi_projects')
     .update(updates)
     .eq('id', id)
 
@@ -68,7 +68,7 @@ export async function DELETE(_req: Request, { params }: { params: Promise<{ id: 
 
   // Verify ownership
   const { data: project } = await supabase
-    .from('forge_projects')
+    .from('pi_projects')
     .select('id')
     .eq('id', id)
     .eq('github_username', session.githubUsername)
@@ -77,7 +77,7 @@ export async function DELETE(_req: Request, { params }: { params: Promise<{ id: 
   if (!project) return NextResponse.json({ error: 'Not found' }, { status: 404 })
 
   const { error } = await supabase
-    .from('forge_projects')
+    .from('pi_projects')
     .update({ github_repo_url: null })
     .eq('id', id)
 

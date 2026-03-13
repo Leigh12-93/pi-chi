@@ -6,7 +6,7 @@ export interface ConsoleEntry {
   timestamp: string
   level: 'log' | 'warn' | 'error' | 'info' | 'system'
   message: string
-  source?: 'preview' | 'sandbox' | 'forge'
+  source?: 'preview' | 'sandbox' | 'pi'
 }
 
 export type ViewMode = 'desktop' | 'tablet' | 'mobile' | 'full'
@@ -36,12 +36,12 @@ export const PHASE_ORDER: Exclude<BuildPhase, null>[] = ['analyzing', 'uploading
 export const PREVIEW_ERROR_SCRIPT = `<script>
 (function(){
   window.onerror=function(msg,url,line,col,err){
-    window.parent.postMessage({type:'forge-preview',level:'error',
+    window.parent.postMessage({type:'pi-preview',level:'error',
       message:String(msg),line:line,col:col,stack:err&&err.stack||''},'*');
     return false;
   };
   window.addEventListener('unhandledrejection',function(e){
-    window.parent.postMessage({type:'forge-preview',level:'error',
+    window.parent.postMessage({type:'pi-preview',level:'error',
       message:'Unhandled Promise: '+(e.reason&&e.reason.message||String(e.reason))},'*');
   });
   ['log','warn','error','info'].forEach(function(m){
@@ -50,7 +50,7 @@ export const PREVIEW_ERROR_SCRIPT = `<script>
       var a=[].slice.call(arguments).map(function(v){
         try{return typeof v==='object'?JSON.stringify(v):String(v)}catch(e){return String(v)}
       });
-      window.parent.postMessage({type:'forge-preview',level:m,message:a.join(' ')},'*');
+      window.parent.postMessage({type:'pi-preview',level:m,message:a.join(' ')},'*');
       o.apply(console,arguments);
     };
   });
@@ -64,32 +64,32 @@ export const PREVIEW_ERROR_SCRIPT = `<script>
       if(h.startsWith('#')){var el=document.querySelector(h);if(el)el.scrollIntoView({behavior:'smooth'});return;}
       // Handle relative paths — navigate within the iframe
       if(h.startsWith('/')&&window.location.protocol==='about:'){
-        window.parent.postMessage({type:'forge-navigate',href:h,pathname:h},'*');
+        window.parent.postMessage({type:'pi-navigate',href:h,pathname:h},'*');
         return;
       }
       // For other relative links, try to navigate within iframe
       if(!h.startsWith('http')){
         try{window.location.href=h;}catch(ex){}
-        window.parent.postMessage({type:'forge-navigate',href:h,pathname:h},'*');
+        window.parent.postMessage({type:'pi-navigate',href:h,pathname:h},'*');
         return;
       }
       // External links — just notify parent, don't navigate
-      window.parent.postMessage({type:'forge-navigate',href:h,pathname:h},'*');
+      window.parent.postMessage({type:'pi-navigate',href:h,pathname:h},'*');
     }
   });
   var _ps=history.pushState;history.pushState=function(){
     _ps.apply(this,arguments);
-    window.parent.postMessage({type:'forge-navigate',pathname:location.pathname+location.search+location.hash},'*');
+    window.parent.postMessage({type:'pi-navigate',pathname:location.pathname+location.search+location.hash},'*');
   };
   var _rs=history.replaceState;history.replaceState=function(){
     _rs.apply(this,arguments);
-    window.parent.postMessage({type:'forge-navigate',pathname:location.pathname+location.search+location.hash},'*');
+    window.parent.postMessage({type:'pi-navigate',pathname:location.pathname+location.search+location.hash},'*');
   };
   window.addEventListener('popstate',function(){
-    window.parent.postMessage({type:'forge-navigate',pathname:location.pathname+location.search+location.hash},'*');
+    window.parent.postMessage({type:'pi-navigate',pathname:location.pathname+location.search+location.hash},'*');
   });
   window.addEventListener('hashchange',function(){
-    window.parent.postMessage({type:'forge-navigate',pathname:location.pathname+location.search+location.hash},'*');
+    window.parent.postMessage({type:'pi-navigate',pathname:location.pathname+location.search+location.hash},'*');
   });
 })();
 </script>`
@@ -185,16 +185,16 @@ export function isSandboxNoise(msg: string): boolean {
 export function PhaseStepIcon({ state }: { state: 'done' | 'active' | 'pending' }) {
   if (state === 'done') {
     return (
-      <svg className="w-3 h-3 text-emerald-500 forge-ready-check" viewBox="0 0 16 16" fill="none">
+      <svg className="w-3 h-3 text-emerald-500 pi-ready-check" viewBox="0 0 16 16" fill="none">
         <circle cx="8" cy="8" r="7" stroke="currentColor" strokeWidth="1.5" fill="currentColor" fillOpacity="0.1" />
         <path d="M5 8l2 2 4-4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
       </svg>
     )
   }
   if (state === 'active') {
-    return <Loader2 className="w-3 h-3 text-forge-accent animate-spin" />
+    return <Loader2 className="w-3 h-3 text-pi-accent animate-spin" />
   }
-  return <div className="w-2 h-2 rounded-full bg-forge-border" />
+  return <div className="w-2 h-2 rounded-full bg-pi-border" />
 }
 
 /** Phased build lifecycle stepper */
@@ -203,13 +203,13 @@ export function BuildPhaseIndicator({ phase }: { phase: BuildPhase }) {
   const currentIdx = PHASE_ORDER.indexOf(phase as Exclude<BuildPhase, null>)
 
   return (
-    <div className="forge-build-phase">
+    <div className="pi-build-phase">
       {PHASE_ORDER.filter(p => p !== 'ready').map((p, i) => {
         const state = i < currentIdx ? 'done' : i === currentIdx ? 'active' : 'pending'
         return (
           <div key={p} className="flex items-center gap-1.5">
-            {i > 0 && <div className={cn('forge-phase-connector transition-colors duration-300', state === 'done' && 'done')} />}
-            <div className={cn('forge-phase-step', state === 'active' && 'active', state === 'done' && 'done')}>
+            {i > 0 && <div className={cn('pi-phase-connector transition-colors duration-300', state === 'done' && 'done')} />}
+            <div className={cn('pi-phase-step', state === 'active' && 'active', state === 'done' && 'done')}>
               <PhaseStepIcon state={state} />
               <span className="hidden sm:inline">{PHASE_LABELS[p]}</span>
             </div>
@@ -231,7 +231,7 @@ export function CopyErrorButton({ text }: { text: string }) {
           setTimeout(() => setCopied(false), 2000)
         })
       }}
-      className="flex items-center justify-center gap-1 px-2.5 py-1.5 text-[10px] font-medium text-forge-text-dim hover:text-forge-text bg-forge-surface hover:bg-forge-surface-hover rounded-lg transition-colors"
+      className="flex items-center justify-center gap-1 px-2.5 py-1.5 text-[10px] font-medium text-pi-text-dim hover:text-pi-text bg-pi-surface hover:bg-pi-surface-hover rounded-lg transition-colors"
       title="Copy error to clipboard"
     >
       {copied ? <Check className="w-3 h-3 text-emerald-500" /> : <Copy className="w-3 h-3" />}
@@ -255,34 +255,34 @@ export function BuildingPlaceholder({ files, sandboxUnavailable }: { files: Reco
   }
 
   return (
-    <div className="flex items-center justify-center h-full bg-forge-bg text-forge-text-dim">
+    <div className="flex items-center justify-center h-full bg-pi-bg text-pi-text-dim">
       <div className="text-center max-w-xs px-6">
         <div className="relative inline-flex items-center justify-center mb-6">
-          <div className="absolute inset-0 rounded-full bg-forge-accent/10 blur-xl building-placeholder-glow" />
-          <div className="sixchi-logo-reveal">
-            <span className="text-4xl font-bold bg-clip-text text-transparent select-none sixchi-shimmer">
+          <div className="absolute inset-0 rounded-full bg-pi-accent/10 blur-xl building-placeholder-glow" />
+          <div className="pichi-logo-reveal">
+            <span className="text-4xl font-bold bg-clip-text text-transparent select-none pichi-shimmer">
               6-&#x03C7;
             </span>
           </div>
         </div>
-        <p className="text-sm font-medium text-forge-text mb-1.5">{framework} project detected</p>
+        <p className="text-sm font-medium text-pi-text mb-1.5">{framework} project detected</p>
         {sandboxUnavailable ? (
           <>
             <p className="text-xs text-amber-400/80 mb-2">
               Live preview sandbox is not available
             </p>
-            <p className="text-[11px] text-forge-text-dim/50 mb-4 leading-relaxed">
+            <p className="text-[11px] text-pi-text-dim/50 mb-4 leading-relaxed">
               {framework} projects need the sandbox for a full preview.
               Static HTML preview is shown for non-JSX files.
             </p>
-            <div className="flex items-center justify-center gap-1.5 text-[10px] text-forge-text-dim/40">
+            <div className="flex items-center justify-center gap-1.5 text-[10px] text-pi-text-dim/40">
               <AlertTriangle className="w-3 h-3" />
               <span>Configure V0_API_KEY in Settings to enable</span>
             </div>
           </>
         ) : (
           <>
-            <p className="text-xs text-forge-text-dim/60 mb-4">
+            <p className="text-xs text-pi-text-dim/60 mb-4">
               Setting up your preview environment
             </p>
             <div className="flex justify-center gap-1.5">

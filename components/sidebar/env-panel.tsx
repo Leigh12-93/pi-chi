@@ -67,10 +67,10 @@ export function EnvPanel({ fileContents, onFileChange, vercelProjectId }: EnvPan
   const [visibleKeys, setVisibleKeys] = useState<Set<string>>(new Set())
   const [newKey, setNewKey] = useState('')
   const [newValue, setNewValue] = useState('')
-  const [syncing, setSyncing] = useState<'pull' | 'push' | 'forge' | null>(null)
+  const [syncing, setSyncing] = useState<'pull' | 'push' | 'pi' | null>(null)
   const [confirmDelete, setConfirmDelete] = useState<string | null>(null)
-  const [forgeVars, setForgeVars] = useState<Record<string, string> | null>(null)
-  const [_forgeAvailable, setForgeAvailable] = useState(false)
+  const [piVars, setPiVars] = useState<Record<string, string> | null>(null)
+  const [_piAvailable, setPiAvailable] = useState(false)
   const [showSuggestions, setShowSuggestions] = useState(false)
   const [showMissingDetails, setShowMissingDetails] = useState(false)
   const suggestionsRef = useRef<HTMLDivElement>(null)
@@ -86,23 +86,23 @@ export function EnvPanel({ fileContents, onFileChange, vercelProjectId }: EnvPan
     [referencedVars, existingKeys]
   )
 
-  // Fetch Forge vars on mount (for suggestions and fill)
+  // Fetch Pi-Chi vars on mount (for suggestions and fill)
   useEffect(() => {
     let cancelled = false
-    const fetchForgeVars = async () => {
+    const fetchPiVars = async () => {
       try {
         const res = await fetch('/api/settings/env-export')
         if (!res.ok) return
         const data = await res.json()
         if (!cancelled && data.vars) {
-          setForgeVars(data.vars)
-          setForgeAvailable(data.available === true)
+          setPiVars(data.vars)
+          setPiAvailable(data.available === true)
         }
       } catch {
-        // Silent fail — Forge vars are optional
+        // Silent fail — Pi-Chi vars are optional
       }
     }
-    fetchForgeVars()
+    fetchPiVars()
     return () => { cancelled = true }
   }, [])
 
@@ -206,19 +206,19 @@ export function EnvPanel({ fileContents, onFileChange, vercelProjectId }: EnvPan
     }
   }
 
-  // Feature 1: Fill from Forge
-  const handleFillFromForge = async () => {
-    setSyncing('forge')
+  // Feature 1: Fill from Pi-Chi
+  const handleFillFromPi = async () => {
+    setSyncing('pi')
     try {
       const res = await fetch('/api/settings/env-export')
       if (!res.ok) {
         const data = await res.json().catch(() => ({ error: 'Unknown error' }))
-        toast.error('Failed to fetch Forge settings', { description: data.error })
+        toast.error('Failed to fetch Pi-Chi settings', { description: data.error })
         return
       }
       const data = await res.json()
       if (!data.vars || Object.keys(data.vars).length === 0) {
-        toast.info('No credentials saved in Forge settings')
+        toast.info('No credentials saved in Pi-Chi settings')
         return
       }
 
@@ -233,7 +233,7 @@ export function EnvPanel({ fileContents, onFileChange, vercelProjectId }: EnvPan
       }
 
       if (addedCount === 0) {
-        toast.info('All Forge variables already present in .env.local')
+        toast.info('All Pi-Chi variables already present in .env.local')
         return
       }
 
@@ -241,12 +241,12 @@ export function EnvPanel({ fileContents, onFileChange, vercelProjectId }: EnvPan
       onFileChange('.env.local', serializeEnv(merged))
 
       // Update local cache
-      setForgeVars(data.vars)
-      setForgeAvailable(true)
+      setPiVars(data.vars)
+      setPiAvailable(true)
 
-      toast.success(`Added ${addedCount} variable${addedCount !== 1 ? 's' : ''} from Forge settings`)
+      toast.success(`Added ${addedCount} variable${addedCount !== 1 ? 's' : ''} from Pi-Chi settings`)
     } catch {
-      toast.error('Network error fetching Forge settings')
+      toast.error('Network error fetching Pi-Chi settings')
     } finally {
       setSyncing(null)
     }
@@ -260,16 +260,16 @@ export function EnvPanel({ fileContents, onFileChange, vercelProjectId }: EnvPan
       .filter(name => !filter || name.includes(filter))
       .map(name => ({
         name,
-        availableFromForge: !!(forgeVars && forgeVars[name]),
+        availableFromPi: !!(piVars && piVars[name]),
       }))
-  }, [newKey, existingKeys, forgeVars])
+  }, [newKey, existingKeys, piVars])
 
   const handleSelectSuggestion = (name: string) => {
     setNewKey(name)
     setShowSuggestions(false)
-    // If available from Forge, pre-fill value
-    if (forgeVars && forgeVars[name]) {
-      setNewValue(forgeVars[name])
+    // If available from Pi-Chi, pre-fill value
+    if (piVars && piVars[name]) {
+      setNewValue(piVars[name])
     }
     // Focus the value input after selecting a suggestion
     setTimeout(() => {
@@ -281,10 +281,10 @@ export function EnvPanel({ fileContents, onFileChange, vercelProjectId }: EnvPan
   return (
     <div className="p-3 space-y-3">
       <div className="flex items-center justify-between">
-        <p className="text-[10px] uppercase tracking-wider text-forge-text-dim font-medium">.env.local</p>
+        <p className="text-[10px] uppercase tracking-wider text-pi-text-dim font-medium">.env.local</p>
         <div className="flex items-center gap-1.5">
           {vercelProjectId && (
-            <span className="text-[9px] text-forge-success flex items-center gap-0.5">
+            <span className="text-[9px] text-pi-success flex items-center gap-0.5">
               <Check className="w-2.5 h-2.5" />
               Vercel
             </span>
@@ -292,14 +292,14 @@ export function EnvPanel({ fileContents, onFileChange, vercelProjectId }: EnvPan
         </div>
       </div>
 
-      {/* Sync buttons row: Vercel + Forge */}
+      {/* Sync buttons row: Vercel + Pi-Chi */}
       <div className="flex gap-1.5">
         {vercelProjectId && (
           <>
             <button
               onClick={handlePullFromVercel}
               disabled={syncing !== null}
-              className="flex-1 flex items-center justify-center gap-1.5 px-2 py-1.5 text-[11px] rounded-md border border-forge-border hover:bg-forge-surface disabled:opacity-40 transition-colors"
+              className="flex-1 flex items-center justify-center gap-1.5 px-2 py-1.5 text-[11px] rounded-md border border-pi-border hover:bg-pi-surface disabled:opacity-40 transition-colors"
             >
               {syncing === 'pull' ? <Loader2 className="w-3 h-3 animate-spin" /> : <CloudDownload className="w-3 h-3" />}
               Pull
@@ -307,7 +307,7 @@ export function EnvPanel({ fileContents, onFileChange, vercelProjectId }: EnvPan
             <button
               onClick={handlePushToVercel}
               disabled={syncing !== null || entries.length === 0}
-              className="flex-1 flex items-center justify-center gap-1.5 px-2 py-1.5 text-[11px] rounded-md border border-forge-border hover:bg-forge-surface disabled:opacity-40 transition-colors"
+              className="flex-1 flex items-center justify-center gap-1.5 px-2 py-1.5 text-[11px] rounded-md border border-pi-border hover:bg-pi-surface disabled:opacity-40 transition-colors"
             >
               {syncing === 'push' ? <Loader2 className="w-3 h-3 animate-spin" /> : <CloudUpload className="w-3 h-3" />}
               Push
@@ -315,12 +315,12 @@ export function EnvPanel({ fileContents, onFileChange, vercelProjectId }: EnvPan
           </>
         )}
         <button
-          onClick={handleFillFromForge}
+          onClick={handleFillFromPi}
           disabled={syncing !== null}
-          className="flex-1 flex items-center justify-center gap-1.5 px-2 py-1.5 text-[11px] rounded-md border border-forge-border hover:bg-forge-surface disabled:opacity-40 transition-colors text-forge-accent border-forge-accent/30 hover:border-forge-accent/50"
+          className="flex-1 flex items-center justify-center gap-1.5 px-2 py-1.5 text-[11px] rounded-md border border-pi-border hover:bg-pi-surface disabled:opacity-40 transition-colors text-pi-accent border-pi-accent/30 hover:border-pi-accent/50"
         >
-          {syncing === 'forge' ? <Loader2 className="w-3 h-3 animate-spin" /> : <Sparkles className="w-3 h-3" />}
-          Fill from Forge
+          {syncing === 'pi' ? <Loader2 className="w-3 h-3 animate-spin" /> : <Sparkles className="w-3 h-3" />}
+          Fill from Pi-Chi
         </button>
       </div>
 
@@ -340,21 +340,21 @@ export function EnvPanel({ fileContents, onFileChange, vercelProjectId }: EnvPan
           {showMissingDetails && (
             <div className="px-2.5 pb-2 space-y-1 border-t border-amber-500/20 pt-1.5">
               {missingVars.map(varName => {
-                const availableFromForge = !!(forgeVars && forgeVars[varName])
+                const availableFromPi = !!(piVars && piVars[varName])
                 return (
                   <div key={varName} className="flex items-center gap-1.5">
                     <span className="text-[10px] font-mono text-amber-200/80 truncate flex-1 min-w-0">
                       {varName}
                     </span>
-                    {availableFromForge ? (
+                    {availableFromPi ? (
                       <button
-                        onClick={() => handleAddSpecific(varName, forgeVars![varName])}
-                        className="shrink-0 px-1.5 py-0.5 text-[9px] rounded bg-forge-accent/20 text-forge-accent hover:bg-forge-accent/30 transition-colors"
+                        onClick={() => handleAddSpecific(varName, piVars![varName])}
+                        className="shrink-0 px-1.5 py-0.5 text-[9px] rounded bg-pi-accent/20 text-pi-accent hover:bg-pi-accent/30 transition-colors"
                       >
-                        Add from Forge
+                        Add from Pi-Chi
                       </button>
                     ) : (
-                      <span className="shrink-0 text-[9px] text-forge-text-dim">not in Forge</span>
+                      <span className="shrink-0 text-[9px] text-pi-text-dim">not in Pi-Chi</span>
                     )}
                   </div>
                 )
@@ -365,19 +365,19 @@ export function EnvPanel({ fileContents, onFileChange, vercelProjectId }: EnvPan
       )}
 
       {entries.length === 0 && (
-        <p className="text-xs text-forge-text-dim">No environment variables</p>
+        <p className="text-xs text-pi-text-dim">No environment variables</p>
       )}
 
       <div className="space-y-1.5">
         {entries.map(({ key, value }) => (
           <div key={key} className="flex items-center gap-1.5 group">
-            <span className="text-[11px] font-mono text-forge-text truncate flex-1 min-w-0">{key}</span>
-            <span className="text-[11px] font-mono text-forge-text-dim truncate max-w-[80px]">
+            <span className="text-[11px] font-mono text-pi-text truncate flex-1 min-w-0">{key}</span>
+            <span className="text-[11px] font-mono text-pi-text-dim truncate max-w-[80px]">
               {visibleKeys.has(key) ? value : '\u2022\u2022\u2022\u2022\u2022'}
             </span>
             <button
               onClick={() => toggleVisibility(key)}
-              className="p-0.5 text-forge-text-dim hover:text-forge-text opacity-0 group-hover:opacity-100 transition-opacity"
+              className="p-0.5 text-pi-text-dim hover:text-pi-text opacity-0 group-hover:opacity-100 transition-opacity"
             >
               {visibleKeys.has(key) ? <EyeOff className="w-3 h-3" /> : <Eye className="w-3 h-3" />}
             </button>
@@ -391,7 +391,7 @@ export function EnvPanel({ fileContents, onFileChange, vercelProjectId }: EnvPan
             ) : (
               <button
                 onClick={() => setConfirmDelete(key)}
-                className="p-0.5 text-forge-text-dim hover:text-red-400 opacity-0 group-hover:opacity-100 transition-opacity"
+                className="p-0.5 text-pi-text-dim hover:text-red-400 opacity-0 group-hover:opacity-100 transition-opacity"
               >
                 <Trash2 className="w-3 h-3" />
               </button>
@@ -401,7 +401,7 @@ export function EnvPanel({ fileContents, onFileChange, vercelProjectId }: EnvPan
       </div>
 
       {/* Add variable form with smart suggestions */}
-      <div className="border-t border-forge-border pt-2 space-y-1.5">
+      <div className="border-t border-pi-border pt-2 space-y-1.5">
         <div className="relative" ref={suggestionsRef}>
           <input
             ref={keyInputRef}
@@ -416,26 +416,26 @@ export function EnvPanel({ fileContents, onFileChange, vercelProjectId }: EnvPan
             onKeyDown={e => {
               if (e.key === 'Escape') setShowSuggestions(false)
             }}
-            className="w-full px-2 py-1.5 text-xs font-mono bg-forge-bg border border-forge-border rounded-md focus:outline-none focus:border-forge-accent"
+            className="w-full px-2 py-1.5 text-xs font-mono bg-pi-bg border border-pi-border rounded-md focus:outline-none focus:border-pi-accent"
           />
           {/* Feature 3: Smart suggestions dropdown */}
           {showSuggestions && filteredSuggestions.length > 0 && (
-            <div className="absolute z-50 left-0 right-0 top-full mt-1 max-h-[200px] overflow-y-auto rounded-md border border-forge-border bg-forge-panel shadow-lg">
-              {filteredSuggestions.map(({ name, availableFromForge }) => (
+            <div className="absolute z-50 left-0 right-0 top-full mt-1 max-h-[200px] overflow-y-auto rounded-md border border-pi-border bg-pi-panel shadow-lg">
+              {filteredSuggestions.map(({ name, availableFromPi }) => (
                 <button
                   key={name}
                   onMouseDown={e => {
                     e.preventDefault() // Prevent blur before click
                     handleSelectSuggestion(name)
                   }}
-                  className="w-full flex items-center gap-2 px-2.5 py-1.5 text-left hover:bg-forge-surface transition-colors"
+                  className="w-full flex items-center gap-2 px-2.5 py-1.5 text-left hover:bg-pi-surface transition-colors"
                 >
-                  <span className="text-[11px] font-mono text-forge-text truncate flex-1 min-w-0">
+                  <span className="text-[11px] font-mono text-pi-text truncate flex-1 min-w-0">
                     {name}
                   </span>
-                  {availableFromForge && (
-                    <span className="shrink-0 text-[9px] px-1.5 py-0.5 rounded-full bg-forge-accent/15 text-forge-accent">
-                      Forge
+                  {availableFromPi && (
+                    <span className="shrink-0 text-[9px] px-1.5 py-0.5 rounded-full bg-pi-accent/15 text-pi-accent">
+                      Pi-Chi
                     </span>
                   )}
                 </button>
@@ -449,12 +449,12 @@ export function EnvPanel({ fileContents, onFileChange, vercelProjectId }: EnvPan
           value={newValue}
           onChange={e => setNewValue(e.target.value)}
           onKeyDown={e => e.key === 'Enter' && handleAdd()}
-          className="w-full px-2 py-1.5 text-xs font-mono bg-forge-bg border border-forge-border rounded-md focus:outline-none focus:border-forge-accent"
+          className="w-full px-2 py-1.5 text-xs font-mono bg-pi-bg border border-pi-border rounded-md focus:outline-none focus:border-pi-accent"
         />
         <button
           onClick={handleAdd}
           disabled={!newKey.trim()}
-          className="w-full flex items-center justify-center gap-1.5 px-3 py-1.5 text-xs rounded-md bg-forge-accent text-white hover:bg-forge-accent/90 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+          className="w-full flex items-center justify-center gap-1.5 px-3 py-1.5 text-xs rounded-md bg-pi-accent text-white hover:bg-pi-accent/90 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
         >
           <Plus className="w-3 h-3" />
           Add Variable

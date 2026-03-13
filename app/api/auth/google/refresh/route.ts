@@ -9,7 +9,7 @@ export async function POST() {
 
   // Fetch encrypted credentials
   const { data, ok } = await supabaseFetch(
-    `/forge_user_settings?github_username=eq.${encodeURIComponent(session.githubUsername)}&select=encrypted_google_client_id,encrypted_google_client_secret,encrypted_google_refresh_token`,
+    `/pi_user_settings?github_username=eq.${encodeURIComponent(session.githubUsername)}&select=encrypted_google_client_id,encrypted_google_client_secret,encrypted_google_refresh_token`,
   )
 
   if (!ok || !Array.isArray(data) || data.length === 0) {
@@ -63,7 +63,7 @@ export async function POST() {
     }
 
     // Store new access token
-    await supabaseFetch('/forge_user_settings', {
+    await supabaseFetch('/pi_user_settings', {
       method: 'POST',
       headers: { 'Prefer': 'resolution=merge-duplicates,return=representation' },
       body: JSON.stringify({

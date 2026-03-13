@@ -101,7 +101,7 @@ export function getInlineSummary(toolName: string, args: ToolArgs, result: ToolR
     case 'deploy_to_vercel': {
       return result.url ? 'live' : null
     }
-    case 'forge_check_build': {
+    case 'pi_check_build': {
       return result.ok ? 'passed' : (result.error ? 'failed' : null)
     }
     default:
@@ -135,7 +135,7 @@ export function ToolResultDetail({ toolName, args, result }: {
       transition={{ type: 'spring', stiffness: 500, damping: 32 }}
       className="overflow-hidden"
     >
-      <div className="ml-2.5 border-l border-forge-border/30 pl-4 py-1.5">
+      <div className="ml-2.5 border-l border-pi-border/30 pl-4 py-1.5">
         {detail}
       </div>
     </motion.div>
@@ -190,7 +190,7 @@ function getToolDetail(
       return <CreateProjectDetail result={result} />
     case 'add_dependency':
       return <DependencyDetail args={args} result={result} />
-    case 'forge_check_build':
+    case 'pi_check_build':
       return <BuildDetail result={result} />
     default:
       return <GenericDetail args={args} result={result} />
@@ -211,21 +211,21 @@ function CodeSnippet({ code, maxLines = 8, onCopy, copied, label }: {
 
   return (
     <div className="relative group/snippet">
-      {label && <span className="text-[10px] text-forge-text-dim/40 uppercase tracking-wider font-medium">{label}</span>}
-      <pre className="text-[11px] font-mono text-forge-text-dim/70 bg-forge-surface/60 rounded-md px-2.5 py-2 mt-0.5 leading-relaxed whitespace-pre-wrap break-all max-h-[160px] overflow-y-auto border border-forge-border/20">
+      {label && <span className="text-[10px] text-pi-text-dim/40 uppercase tracking-wider font-medium">{label}</span>}
+      <pre className="text-[11px] font-mono text-pi-text-dim/70 bg-pi-surface/60 rounded-md px-2.5 py-2 mt-0.5 leading-relaxed whitespace-pre-wrap break-all max-h-[160px] overflow-y-auto border border-pi-border/20">
         {display}
       </pre>
       {onCopy && (
         <button
           onClick={() => onCopy(code)}
-          className="absolute top-1 right-1 p-1 rounded-md opacity-0 group-hover/snippet:opacity-100 transition-opacity bg-forge-surface hover:bg-forge-surface-hover"
+          className="absolute top-1 right-1 p-1 rounded-md opacity-0 group-hover/snippet:opacity-100 transition-opacity bg-pi-surface hover:bg-pi-surface-hover"
           title="Copy"
         >
-          {copied ? <Check className="w-3 h-3 text-emerald-500" /> : <Copy className="w-3 h-3 text-forge-text-dim/50" />}
+          {copied ? <Check className="w-3 h-3 text-emerald-500" /> : <Copy className="w-3 h-3 text-pi-text-dim/50" />}
         </button>
       )}
       {truncated && (
-        <span className="text-[10px] text-forge-text-dim/30 mt-0.5 block">
+        <span className="text-[10px] text-pi-text-dim/30 mt-0.5 block">
           {lines.length} lines total
         </span>
       )}
@@ -238,8 +238,8 @@ function DetailRow({ label, value, mono }: { label: string; value: string; mono?
   if (!value) return null
   return (
     <div className="flex items-baseline gap-2 text-[11px]">
-      <span className="text-forge-text-dim/40 shrink-0">{label}</span>
-      <span className={cn('text-forge-text-dim/70 truncate', mono && 'font-mono text-[10.5px]')}>{value}</span>
+      <span className="text-pi-text-dim/40 shrink-0">{label}</span>
+      <span className={cn('text-pi-text-dim/70 truncate', mono && 'font-mono text-[10.5px]')}>{value}</span>
     </div>
   )
 }
@@ -253,7 +253,7 @@ function WriteFileDetail({ args, onCopy, copiedSnippet }: { args: ToolArgs; onCo
   return (
     <div className="space-y-1">
       <div className="flex items-center gap-3 text-[11px]">
-        <span className="text-forge-text-dim/40">{lineCount} lines written</span>
+        <span className="text-pi-text-dim/40">{lineCount} lines written</span>
       </div>
       <CodeSnippet code={content} maxLines={6} onCopy={onCopy} copied={copiedSnippet} />
     </div>
@@ -298,7 +298,7 @@ function SearchDetail({ args, result }: { args: ToolArgs; result: ToolResult }) 
   const pattern = args.pattern as string | undefined
 
   if (!matches || matches.length === 0) {
-    return <span className="text-[11px] text-forge-text-dim/40">No matches found{pattern ? ` for /${pattern}/` : ''}</span>
+    return <span className="text-[11px] text-pi-text-dim/40">No matches found{pattern ? ` for /${pattern}/` : ''}</span>
   }
 
   const displayMatches = matches.slice(0, 8)
@@ -306,17 +306,17 @@ function SearchDetail({ args, result }: { args: ToolArgs; result: ToolResult }) 
     <div className="space-y-0.5">
       {displayMatches.map((m, i) => (
         <div key={i} className="flex items-baseline gap-2 text-[11px] py-0.5">
-          <span className="font-mono text-forge-text-dim/50 shrink-0 text-[10.5px]">
+          <span className="font-mono text-pi-text-dim/50 shrink-0 text-[10.5px]">
             {(m.path || m.file || '').split('/').pop()}
             {m.line ? `:${m.line}` : ''}
           </span>
           {m.text && (
-            <span className="text-forge-text-dim/40 truncate font-mono text-[10px]">{m.text.trim().slice(0, 60)}</span>
+            <span className="text-pi-text-dim/40 truncate font-mono text-[10px]">{m.text.trim().slice(0, 60)}</span>
           )}
         </div>
       ))}
       {matches.length > 8 && (
-        <span className="text-[10px] text-forge-text-dim/30">+{matches.length - 8} more</span>
+        <span className="text-[10px] text-pi-text-dim/30">+{matches.length - 8} more</span>
       )}
     </div>
   )
@@ -329,12 +329,12 @@ function FileListDetail({ result }: { result: ToolResult }) {
   return (
     <div className="space-y-0.5">
       {display.map((f, i) => (
-        <div key={i} className="text-[10.5px] font-mono text-forge-text-dim/50 py-0.5 truncate">
+        <div key={i} className="text-[10.5px] font-mono text-pi-text-dim/50 py-0.5 truncate">
           {f}
         </div>
       ))}
       {files.length > 12 && (
-        <span className="text-[10px] text-forge-text-dim/30">+{files.length - 12} more</span>
+        <span className="text-[10px] text-pi-text-dim/30">+{files.length - 12} more</span>
       )}
     </div>
   )
@@ -345,7 +345,7 @@ function DbQueryDetail({ args, result }: { args: ToolArgs; result: ToolResult })
   const table = args.table as string | undefined
 
   if (!data || data.length === 0) {
-    return <span className="text-[11px] text-forge-text-dim/40">{table ? `No rows from ${table}` : 'No results'}</span>
+    return <span className="text-[11px] text-pi-text-dim/40">{table ? `No rows from ${table}` : 'No results'}</span>
   }
 
   const cols = Object.keys(data[0]).slice(0, 5)
@@ -354,18 +354,18 @@ function DbQueryDetail({ args, result }: { args: ToolArgs; result: ToolResult })
     <div className="overflow-x-auto">
       <table className="text-[10.5px] font-mono w-full">
         <thead>
-          <tr className="border-b border-forge-border/20">
+          <tr className="border-b border-pi-border/20">
             {cols.map(c => (
-              <th key={c} className="text-left text-forge-text-dim/40 py-0.5 pr-3 font-medium">{c}</th>
+              <th key={c} className="text-left text-pi-text-dim/40 py-0.5 pr-3 font-medium">{c}</th>
             ))}
           </tr>
         </thead>
         <tbody>
           {rows.map((row, ri) => (
-            <tr key={ri} className="border-b border-forge-border/10">
+            <tr key={ri} className="border-b border-pi-border/10">
               {cols.map(c => (
-                <td key={c} className="text-forge-text-dim/60 py-0.5 pr-3 truncate max-w-[120px]">
-                  {row[c] === null ? <span className="text-forge-text-dim/20">null</span> : String(row[c]).slice(0, 30)}
+                <td key={c} className="text-pi-text-dim/60 py-0.5 pr-3 truncate max-w-[120px]">
+                  {row[c] === null ? <span className="text-pi-text-dim/20">null</span> : String(row[c]).slice(0, 30)}
                 </td>
               ))}
             </tr>
@@ -373,10 +373,10 @@ function DbQueryDetail({ args, result }: { args: ToolArgs; result: ToolResult })
         </tbody>
       </table>
       {data.length > 4 && (
-        <span className="text-[10px] text-forge-text-dim/30 mt-0.5 block">+{data.length - 4} more rows</span>
+        <span className="text-[10px] text-pi-text-dim/30 mt-0.5 block">+{data.length - 4} more rows</span>
       )}
       {cols.length < Object.keys(data[0]).length && (
-        <span className="text-[10px] text-forge-text-dim/30">+{Object.keys(data[0]).length - cols.length} more columns</span>
+        <span className="text-[10px] text-pi-text-dim/30">+{Object.keys(data[0]).length - cols.length} more columns</span>
       )}
     </div>
   )
@@ -398,11 +398,11 @@ function DbIntrospectDetail({ result }: { result: ToolResult }) {
     <div className="space-y-0.5">
       {display.map((c, i) => (
         <div key={i} className="flex items-baseline gap-2 text-[10.5px] font-mono">
-          <span className="text-forge-text-dim/60">{c.name}</span>
-          <span className="text-forge-text-dim/30">{c.type}</span>
+          <span className="text-pi-text-dim/60">{c.name}</span>
+          <span className="text-pi-text-dim/30">{c.type}</span>
         </div>
       ))}
-      {columns.length > 10 && <span className="text-[10px] text-forge-text-dim/30">+{columns.length - 10} more</span>}
+      {columns.length > 10 && <span className="text-[10px] text-pi-text-dim/30">+{columns.length - 10} more</span>}
     </div>
   )
 }
@@ -437,12 +437,12 @@ function CreateProjectDetail({ result }: { result: ToolResult }) {
   const fileNames = Object.keys(allFiles).slice(0, 10)
   return (
     <div className="space-y-0.5">
-      <span className="text-[10px] text-forge-text-dim/40">{Object.keys(allFiles).length} files created</span>
+      <span className="text-[10px] text-pi-text-dim/40">{Object.keys(allFiles).length} files created</span>
       {fileNames.map(f => (
-        <div key={f} className="text-[10.5px] font-mono text-forge-text-dim/50 truncate">{f}</div>
+        <div key={f} className="text-[10.5px] font-mono text-pi-text-dim/50 truncate">{f}</div>
       ))}
       {Object.keys(allFiles).length > 10 && (
-        <span className="text-[10px] text-forge-text-dim/30">+{Object.keys(allFiles).length - 10} more</span>
+        <span className="text-[10px] text-pi-text-dim/30">+{Object.keys(allFiles).length - 10} more</span>
       )}
     </div>
   )
@@ -456,7 +456,7 @@ function DependencyDetail({ args, result }: { args: ToolArgs; result: ToolResult
     <div className="space-y-0.5">
       <DetailRow label="package" value={name || ''} mono />
       {version && <DetailRow label="version" value={version} mono />}
-      {skipped && <span className="text-[10.5px] text-forge-text-dim/40">Already installed</span>}
+      {skipped && <span className="text-[10.5px] text-pi-text-dim/40">Already installed</span>}
     </div>
   )
 }

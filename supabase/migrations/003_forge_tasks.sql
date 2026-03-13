@@ -1,7 +1,7 @@
 -- Background task tracking for long-running operations
 -- (deploy, GitHub create/push, build checks, npm install)
 
-CREATE TABLE IF NOT EXISTS forge_tasks (
+CREATE TABLE IF NOT EXISTS pi_tasks (
   id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
   project_id TEXT,
   type TEXT NOT NULL,
@@ -13,13 +13,13 @@ CREATE TABLE IF NOT EXISTS forge_tasks (
   updated_at TIMESTAMPTZ DEFAULT now()
 );
 
-CREATE INDEX IF NOT EXISTS idx_forge_tasks_project ON forge_tasks(project_id);
-CREATE INDEX IF NOT EXISTS idx_forge_tasks_status ON forge_tasks(status, created_at);
+CREATE INDEX IF NOT EXISTS idx_pi_tasks_project ON pi_tasks(project_id);
+CREATE INDEX IF NOT EXISTS idx_pi_tasks_status ON pi_tasks(status, created_at);
 
-ALTER TABLE forge_tasks DISABLE ROW LEVEL SECURITY;
-GRANT ALL ON forge_tasks TO service_role;
+ALTER TABLE pi_tasks DISABLE ROW LEVEL SECURITY;
+GRANT ALL ON pi_tasks TO service_role;
 
-DROP TRIGGER IF EXISTS forge_tasks_updated_at ON forge_tasks;
-CREATE TRIGGER forge_tasks_updated_at
-  BEFORE UPDATE ON forge_tasks
-  FOR EACH ROW EXECUTE FUNCTION forge_update_updated_at();
+DROP TRIGGER IF EXISTS pi_tasks_updated_at ON pi_tasks;
+CREATE TRIGGER pi_tasks_updated_at
+  BEFORE UPDATE ON pi_tasks
+  FOR EACH ROW EXECUTE FUNCTION pi_update_updated_at();
