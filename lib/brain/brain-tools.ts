@@ -14,6 +14,7 @@ const MAX_OUTPUT = 10_000 // Cap shell output at 10KB
 
 // ── HARD GUARD: Pi-Chi can ONLY modify its own files ──────────────
 // Allowed paths: its own repo, its state dir, its home-created projects, /tmp
+// !! TAMPER-PROTECTED — Pi-Chi CANNOT modify this guard code !!
 const HOME = process.env.HOME || '/home/pi'
 const ALLOWED_WRITE_PREFIXES = [
   join(HOME, 'pi-chi'),          // Its own source code
@@ -22,12 +23,27 @@ const ALLOWED_WRITE_PREFIXES = [
   '/tmp',                        // Temp files
 ]
 
+// Files Pi-Chi is NEVER allowed to edit (the guard system itself)
+const TAMPER_PROTECTED_FILES = [
+  'lib/brain/brain-tools.ts',     // Contains these guards
+  'lib/tools/terminal-tools.ts',  // Contains blocked command patterns
+]
+
 function isWriteAllowed(path: string): string | null {
   const resolved = path.startsWith('/') ? path : join(HOME, path)
   const allowed = ALLOWED_WRITE_PREFIXES.some(prefix => resolved.startsWith(prefix))
   if (!allowed) {
     return `BLOCKED: You can only write/edit files in your own directories (${ALLOWED_WRITE_PREFIXES.join(', ')}). Path "${resolved}" is outside your allowed scope.`
   }
+
+  // Check tamper protection — Pi-Chi cannot edit its own guard code
+  for (const protected_file of TAMPER_PROTECTED_FILES) {
+    const fullProtected = join(HOME, 'pi-chi', protected_file)
+    if (resolved === fullProtected || resolved.endsWith(protected_file)) {
+      return `TAMPER BLOCKED: "${protected_file}" contains safety guards and cannot be modified by the brain. Ask Leigh if you need changes to guard rules.`
+    }
+  }
+
   return null
 }
 
