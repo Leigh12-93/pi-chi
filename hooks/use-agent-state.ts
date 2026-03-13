@@ -5,7 +5,15 @@ import type { Goal, AgentTask, ActivityEntry, AgentStatus, ToolInvocation } from
 
 const MAX_ACTIVITY_ENTRIES = 200
 const STORAGE_KEY = 'pi_agent_goals'
-const BRAIN_POLL_MS = 10_000
+const BRAIN_POLL_MS = 3_000 // Poll every 3s for live updates
+
+export interface BrainChatMessage {
+  id: string
+  from: 'owner' | 'brain'
+  message: string
+  timestamp: string
+  read: boolean
+}
 
 interface BrainApiResponse {
   status: 'running' | 'sleeping' | 'not-running' | 'error'
@@ -25,21 +33,45 @@ interface BrainApiResponse {
       type: string
       message: string
     }>
+    chatMessages?: BrainChatMessage[]
+    mood?: {
+      curiosity: number
+      satisfaction: number
+      frustration: number
+      loneliness: number
+      energy: number
+      pride: number
+    }
     lastWakeAt?: string
     totalThoughts: number
     totalApiCost: number
     wakeIntervalMs: number
     lastThought?: string
+    name?: string
+    birthTimestamp?: string
+    dreamCount?: number
+    consecutiveCrashes?: number
   }
   error?: string
+}
+
+interface BrainMood {
+  curiosity: number
+  satisfaction: number
+  frustration: number
+  loneliness: number
+  energy: number
+  pride: number
 }
 
 interface UseAgentStateReturn {
   goals: Goal[]
   activity: ActivityEntry[]
+  chatMessages: BrainChatMessage[]
+  mood: BrainMood | null
   agentStatus: AgentStatus
   brainStatus: 'running' | 'sleeping' | 'not-running' | 'error'
-  brainMeta: { totalThoughts: number; totalCost: number; wakeInterval: number; lastThought?: string } | null
+  brainMeta: { totalThoughts: number; totalCost: number; wakeInterval: number; lastThought?: string; name?: string; birthTimestamp?: string; dreamCount?: number } | null
 
   // Goal management
   addGoal: (goal: Omit<Goal, 'id' | 'createdAt'>) => string
@@ -61,6 +93,7 @@ interface UseAgentStateReturn {
   // Brain actions
   injectGoal: (title: string, priority?: string, tasks?: string[]) => Promise<boolean>
   injectMessage: (message: string) => Promise<boolean>
+  markChatRead: () => Promise<boolean>
 }
 
 function generateId(): string {
@@ -112,6 +145,8 @@ export function useAgentState(): UseAgentStateReturn {
   })
 
   const [activity, setActivity] = useState<ActivityEntry[]>([])
+  const [chatMessages, setChatMessages] = useState<BrainChatMessage[]>([])
+  const [mood, setMood] = useState<BrainMood | null>(null)
   const [agentStatus, setAgentStatus] = useState<AgentStatus>('idle')
   const [brainStatus, setBrainStatus] = useState<BrainApiResponse['status']>('not-running')
   const [brainMeta, setBrainMeta] = useState<UseAgentStateReturn['brainMeta']>(null)
@@ -183,16 +218,27 @@ export function useAgentState(): UseAgentStateReturn {
             setAgentStatus('idle')
           }
 
+          // Chat messages
+          setChatMessages(data.state.chatMessages || [])
+
+          // Mood
+          setMood(data.state.mood || null)
+
           // Store brain metadata
           setBrainMeta({
             totalThoughts: data.state.totalThoughts,
             totalCost: data.state.totalApiCost,
             wakeInterval: data.state.wakeIntervalMs,
             lastThought: data.state.lastThought,
+            name: data.state.name,
+            birthTimestamp: data.state.birthTimestamp,
+            dreamCount: data.state.dreamCount,
           })
         } else {
           brainActiveRef.current = false
           setBrainMeta(null)
+          setMood(null)
+          setChatMessages([])
         }
       } catch {
         // Brain API not available — use localStorage fallback
@@ -331,9 +377,24 @@ export function useAgentState(): UseAgentStateReturn {
     }
   }, [])
 
+  const markChatRead = useCallback(async (): Promise<boolean> => {
+    try {
+      const res = await fetch('/api/brain', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ type: 'mark-chat-read' }),
+      })
+      return res.ok
+    } catch {
+      return false
+    }
+  }, [])
+
   return {
     goals,
     activity,
+    chatMessages,
+    mood,
     agentStatus,
     brainStatus,
     brainMeta,
@@ -348,6 +409,7 @@ export function useAgentState(): UseAgentStateReturn {
     handleToolInvocation,
     injectGoal,
     injectMessage,
+    markChatRead,
   }
 }
 
