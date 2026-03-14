@@ -188,3 +188,39 @@ Custom JWT auth (AES-GCM encrypted PAT) with PKCE S256 GitHub OAuth:
 4. Client reads session from `/api/auth/session` → passes to chat API as `body.githubToken`
 5. API uses user's token for GitHub ops (repos created under their account)
 6. Projects filtered by `github_username` (from GitHub user profile)
+
+## Pi-Chi Brain — Rules for claude_code Tool
+
+When the brain (`scripts/pi-brain.ts`) invokes `claude_code` to modify this codebase, these rules are MANDATORY:
+
+### File Writing Rules
+1. **NEVER write file content as a single line with literal `\n` characters.** Files must have real newlines. If using the Write tool or any file-writing mechanism, ensure the content has actual line breaks, not escaped `\n` strings.
+2. **Always run `npm run build` after creating or modifying `.tsx`/`.ts` files.** If the build fails, fix the errors before committing. If you cannot fix them, revert your changes with `git checkout -- <file>`.
+3. **Never create duplicate components.** Before creating a new component, check if one with similar functionality already exists in `components/agent/`. Read existing files first.
+4. **Never import components that don't exist.** Before adding an import, verify the file exists with `ls` or read it.
+
+### Build Safety
+5. **NEVER run `npm run build` while the dashboard is serving.** The build clears `.next/` which crashes the running dashboard. The brain script handles this automatically — do NOT run builds yourself outside the brain's build verification step.
+6. **Always use `NODE_OPTIONS="--max-old-space-size=1536"` for builds** on this Raspberry Pi (2GB RAM).
+
+### Git Rules
+7. **Never commit files that don't compile.** Run `npx tsc --noEmit` before committing.
+8. **Never commit log files** (`dashboard.log`, `*.log`). They are in `.gitignore`.
+9. **Never force push.** Always use regular `git push`.
+
+### Component Architecture
+10. **All dashboard UI components go in `components/agent/`.** Do not create components in the root `components/` directory for agent/brain features.
+11. **The dashboard layout is `components/agent-dashboard.tsx`.** To add a new panel/tab, modify the existing dashboard — do not create a separate dashboard component.
+12. **Use the existing design system:** `pi-*` CSS custom properties (pi-bg, pi-text, pi-accent, pi-surface, pi-border, pi-panel). Do NOT use hardcoded slate/zinc colors outside of special cases.
+13. **Use lucide-react for icons, framer-motion for animations, cn() from @/lib/utils for class merging.** These are already installed — do not add new icon or animation libraries.
+
+### UI Components That Already Exist (do NOT recreate)
+- `brain-chat.tsx` — Owner chat (streaming via /api/brain/chat)
+- `brain-header.tsx` — Top identity bar with status, stats, countdown timer
+- `brain-stats.tsx` — Compact brain statistics card
+- `mood-panel.tsx` — Mood visualization with bars
+- `live-log-panel.tsx` — Claude Code live output viewer
+- `vitals-panel.tsx` — System vitals with SVG gauges
+- `activity-feed.tsx` — Activity log
+- `goals-panel.tsx` — Goals with injection
+- `vital-bar.tsx` — Animated progress bar
