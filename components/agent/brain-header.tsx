@@ -4,8 +4,9 @@ import { useMemo, useState, useEffect } from 'react'
 import {
   Brain, Clock, DollarSign, Timer, Sparkles,
   Moon, AlertTriangle, Play, MessageSquare, Wrench,
-  RefreshCw, Settings,
+  RefreshCw, Settings, Thermometer, Cpu,
 } from 'lucide-react'
+import type { SystemVitals } from '@/lib/agent-types'
 import { motion, AnimatePresence } from 'framer-motion'
 import { cn } from '@/lib/utils'
 import type { BrainMetaExtended } from '@/hooks/use-agent-state'
@@ -15,6 +16,7 @@ import type { BrainMetaExtended } from '@/hooks/use-agent-state'
 interface BrainHeaderProps {
   brainStatus: 'running' | 'sleeping' | 'not-running' | 'error'
   brainMeta: BrainMetaExtended | null
+  vitals?: SystemVitals | null
   lastFetchedAt?: number | null
   onRefresh?: () => void
   onSettingsOpen?: () => void
@@ -75,7 +77,7 @@ function StatChip({ icon: Icon, iconColor, value, label, warn }: {
 
 /* ─── Component ─────────────────────────────────── */
 
-export function BrainHeader({ brainStatus, brainMeta, lastFetchedAt, onRefresh, onSettingsOpen, className }: BrainHeaderProps) {
+export function BrainHeader({ brainStatus, brainMeta, vitals, lastFetchedAt, onRefresh, onSettingsOpen, className }: BrainHeaderProps) {
   const name = brainMeta?.name || 'Pi-Chi'
   const [thoughtExpanded, setThoughtExpanded] = useState(false)
 
@@ -197,6 +199,12 @@ export function BrainHeader({ brainStatus, brainMeta, lastFetchedAt, onRefresh, 
       {/* Stats — responsive */}
       <div className="hidden sm:flex items-center gap-1.5 ml-auto shrink-0 flex-wrap justify-end">
         <AnimatePresence>
+          {vitals && (
+            <>
+              <StatChip icon={Thermometer} iconColor={vitals.cpuTemp > 70 ? 'text-red-400' : vitals.cpuTemp > 55 ? 'text-amber-400' : 'text-emerald-400'} value={`${vitals.cpuTemp}°C`} label="CPU Temperature" warn={vitals.cpuTemp > 70} />
+              <StatChip icon={Cpu} iconColor={vitals.cpuPercent > 80 ? 'text-red-400' : 'text-amber-400'} value={`${vitals.cpuPercent}%`} label="CPU Usage" warn={vitals.cpuPercent > 80} />
+            </>
+          )}
           {brainMeta && (
             <>
               <StatChip icon={Sparkles} iconColor="text-purple-400" value={brainMeta.totalThoughts.toLocaleString()} label="Total thoughts" />
@@ -233,6 +241,12 @@ export function BrainHeader({ brainStatus, brainMeta, lastFetchedAt, onRefresh, 
 
       {/* Mobile: compact stats */}
       <div className="flex sm:hidden items-center gap-2 ml-auto shrink-0">
+        {vitals && (
+          <div className={cn('flex items-center gap-1 text-[9px]', vitals.cpuTemp > 70 ? 'text-red-400' : 'text-pi-text-dim')} title="CPU Temp">
+            <Thermometer className="w-2.5 h-2.5" />
+            <span className="font-mono font-semibold">{vitals.cpuTemp}°</span>
+          </div>
+        )}
         {brainMeta && (
           <>
             {countdown && countdown.remaining > 0 ? (

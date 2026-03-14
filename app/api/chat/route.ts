@@ -291,6 +291,8 @@ export async function POST(req: Request) {
     envVars?: Record<string, string>
     activeFile?: string
     activeFileContent?: string
+    brainName?: string
+    brainStatus?: string
   }
 
   let body: ChatRequestBody
@@ -395,6 +397,10 @@ export async function POST(req: Request) {
   // Active file context
   const activeFile: string | undefined = body.activeFile
   const activeFileContent: string | undefined = body.activeFileContent
+
+  // Brain identity — when set, system prompt uses Pi-Chi management personality
+  const brainName: string | undefined = typeof body.brainName === 'string' ? body.brainName : undefined
+  const brainStatus: string | undefined = typeof body.brainStatus === 'string' ? body.brainStatus : undefined
 
   // Initialize virtual FS from client state
   let safeFiles: Record<string, string> = {}
@@ -605,7 +611,7 @@ export async function POST(req: Request) {
     }
   }
 
-  const systemPromptStr = buildSystemPrompt(lastUserText).replace(MEMORY_MARKER, memorySection)
+  const systemPromptStr = buildSystemPrompt(lastUserText, { brainName, brainStatus }).replace(MEMORY_MARKER, memorySection)
     + activeFileSection
     + sixChiSection
     + `\n\n---\nProject: "${projectName.replace(/["\\`]/g, '_')}"${projectId ? ` (id: ${projectId})` : ''}\nFile manifest:\n${manifestStr}`

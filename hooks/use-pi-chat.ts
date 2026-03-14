@@ -48,6 +48,9 @@ export interface UsePiChatProps {
   pendingMessage?: string | null
   onPendingMessageSent?: () => void
   activeFile?: string | null
+  /** Brain identity — when set, system prompt uses Pi-Chi management personality */
+  brainName?: string
+  brainStatus?: string
 }
 
 
@@ -56,6 +59,7 @@ export function usePiChat(props: UsePiChatProps) {
     projectName, projectId, files,
     onFileChange, onFileDelete, onBulkFileUpdate,
     onRegisterSend, pendingMessage, onPendingMessageSent, activeFile,
+    brainName, brainStatus,
   } = props
 
   const [selectedModel, setSelectedModel] = useState<string>(MODEL_OPTIONS[0].id)
@@ -69,12 +73,16 @@ export function usePiChat(props: UsePiChatProps) {
   const selectedModelRef = useRef(selectedModel)
   const envVarsRef = useRef(envVars)
   const activeFileRef = useRef(activeFile)
+  const brainNameRef = useRef(brainName)
+  const brainStatusRef = useRef(brainStatus)
   useEffect(() => { projectNameRef.current = projectName }, [projectName])
   useEffect(() => { projectIdRef.current = projectId }, [projectId])
   useEffect(() => { filesRef.current = files }, [files])
   useEffect(() => { selectedModelRef.current = selectedModel }, [selectedModel])
   useEffect(() => { envVarsRef.current = envVars }, [envVars])
   useEffect(() => { activeFileRef.current = activeFile }, [activeFile])
+  useEffect(() => { brainNameRef.current = brainName }, [brainName])
+  useEffect(() => { brainStatusRef.current = brainStatus }, [brainStatus])
 
   // Declared early — needed by onError for timeout detection
   const streamStartRef = useRef<number>(0)
@@ -165,6 +173,8 @@ export function usePiChat(props: UsePiChatProps) {
         activeFileContent: activeFileRef.current && filesRef.current[activeFileRef.current]
           ? filesRef.current[activeFileRef.current].split('\n').slice(0, 500).join('\n')
           : undefined,
+        brainName: brainNameRef.current || undefined,
+        brainStatus: brainStatusRef.current || undefined,
       },
     }),
   }), []) // eslint-disable-line react-hooks/exhaustive-deps

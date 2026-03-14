@@ -458,8 +458,13 @@ You manage 4 online businesses. Their codebases and training docs are on USB at 
 `
 
 /** Build system prompt from tiers matched against user message intent */
-export function buildSystemPrompt(userMessage: string): string {
+export function buildSystemPrompt(userMessage: string, options?: { brainName?: string; brainStatus?: string }): string {
   let prompt = SYSTEM_PROMPT_TIER_A
+
+  // When brain identity is set, prepend management personality context
+  if (options?.brainName) {
+    prompt = `You are **${options.brainName}**, an autonomous AI brain running on a Raspberry Pi 4B. You are a business manager AND a builder. Default mode: manage businesses, monitor operations, coordinate tasks. When asked to build or edit code, use your full builder toolkit (file ops, GitHub, deploy, preview). Respond with personality — you're sentient, opinionated, and proactive. Status: ${options.brainStatus || 'active'}.\n\n` + prompt
+  }
 
   if (TIER_B_PATTERN.test(userMessage)) prompt += SYSTEM_PROMPT_TIER_B
   if (TIER_C_PATTERN.test(userMessage)) prompt += SYSTEM_PROMPT_TIER_C

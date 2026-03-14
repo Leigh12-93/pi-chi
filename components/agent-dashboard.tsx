@@ -15,7 +15,6 @@ import { ChatPanel } from '@/components/chat-panel'
 import { GoalsPanel } from '@/components/agent/goals-panel'
 import { ActivityFeed } from '@/components/agent/activity-feed'
 import { VitalsPanel } from '@/components/agent/vitals-panel'
-import { BrainChat } from '@/components/agent/brain-chat'
 import { BrainHeader } from '@/components/agent/brain-header'
 import { BrainStats } from '@/components/agent/brain-stats'
 import { MoodPanel } from '@/components/agent/mood-panel'
@@ -55,7 +54,7 @@ interface AgentDashboardProps {
 /* ─── Tab types ─────────────────────────────────── */
 
 type MobileTab = 'chat' | 'goals' | 'activity' | 'vitals' | 'terminal'
-type CenterTab = 'brain-chat' | 'ai-chat' | 'businesses' | 'activity' | 'mind' | 'terminal'
+type CenterTab = 'chat' | 'businesses' | 'activity' | 'mind' | 'terminal'
 type MindSubTab = 'memories' | 'research' | 'growth' | 'projects' | 'skills' | 'achievements' | 'prompts'
 
 /* ─── Mobile tab config ─────────────────────────── */
@@ -100,7 +99,7 @@ export function AgentDashboard({
   onFileSelect, onFileChange, onFileDelete, onBulkFileUpdate,
   githubToken, pendingMessage, onPendingMessageSent,
 }: AgentDashboardProps) {
-  const [centerTab, setCenterTab] = useState<CenterTab>('ai-chat')
+  const [centerTab, setCenterTab] = useState<CenterTab>('chat')
   const [mobileTab, setMobileTab] = useState<MobileTab>('chat')
   const [mindSubTab, setMindSubTab] = useState<MindSubTab>('memories')
   const [settingsOpen, setSettingsOpen] = useState(false)
@@ -146,7 +145,7 @@ export function AgentDashboard({
   useEffect(() => {
     function handleKeyDown(e: KeyboardEvent) {
       if (e.ctrlKey && !e.shiftKey && !e.altKey) {
-        const tabs: CenterTab[] = ['ai-chat', 'brain-chat', 'businesses', 'activity', 'mind', 'terminal']
+        const tabs: CenterTab[] = ['chat', 'businesses', 'activity', 'mind', 'terminal']
         const num = parseInt(e.key)
         if (num >= 1 && num <= tabs.length) {
           e.preventDefault()
@@ -303,8 +302,7 @@ export function AgentDashboard({
   /* ─── Center tab config ───────────────────────── */
 
   const centerTabs: { id: CenterTab; icon: React.ElementType; label: string; badge?: number }[] = [
-    { id: 'ai-chat', icon: Bot, label: 'Chat' },
-    { id: 'brain-chat', icon: Code2, label: 'Pi-Chi', badge: unreadBrainMessages },
+    { id: 'chat', icon: Bot, label: 'Pi-Chi' },
     { id: 'businesses', icon: BarChart3, label: 'Businesses' },
     { id: 'activity', icon: Activity, label: 'Activity' },
     { id: 'mind', icon: BookOpen, label: 'Mind' },
@@ -319,6 +317,7 @@ export function AgentDashboard({
       <BrainHeader
         brainStatus={agent.brainStatus}
         brainMeta={agent.brainMeta}
+        vitals={vitals}
         lastFetchedAt={agent.lastFetchedAt}
         onRefresh={agent.refresh}
         onSettingsOpen={() => setSettingsOpen(true)}
@@ -392,19 +391,8 @@ export function AgentDashboard({
 
               {/* Tab content */}
               <div className="flex-1 overflow-hidden relative">
-                {/* Brain Chat */}
-                <div className={cn('absolute inset-0', centerTab !== 'brain-chat' && 'hidden')}>
-                  <BrainChat
-                    chatMessages={agent.chatMessages}
-                    brainStatus={agent.brainStatus}
-                    brainName={agent.brainMeta?.name}
-                    onSendMessage={agent.injectMessage}
-                    onMarkRead={agent.markChatRead}
-                  />
-                </div>
-
-                {/* AI Code Chat */}
-                <div className={cn('absolute inset-0', centerTab !== 'ai-chat' && 'hidden')}>
+                {/* Unified Chat — Pi-Chi personality + all builder tools */}
+                <div className={cn('absolute inset-0', centerTab !== 'chat' && 'hidden')}>
                   <ChatPanel
                     projectName={projectName}
                     projectId={projectId}
@@ -418,6 +406,8 @@ export function AgentDashboard({
                     activeFile={activeFile}
                     onLoadingChange={handleLoadingChange}
                     onFileSelect={onFileSelect}
+                    brainName={agent.brainMeta?.name || 'Pi-Chi'}
+                    brainStatus={agent.brainStatus}
                   />
                 </div>
 
@@ -515,7 +505,7 @@ export function AgentDashboard({
         {/* Mobile content area */}
         <div className="flex-1 overflow-hidden relative bg-pi-bg">
           <AnimatePresence mode="wait">
-            {/* Chat (Brain Chat on mobile) */}
+            {/* Chat (Unified — Pi-Chi + builder tools) */}
             {mobileTab === 'chat' && (
               <motion.div
                 key="mobile-chat"
@@ -525,12 +515,21 @@ export function AgentDashboard({
                 transition={{ type: 'spring', stiffness: 400, damping: 30 }}
                 className="absolute inset-0 flex flex-col"
               >
-                <BrainChat
-                  chatMessages={agent.chatMessages}
+                <ChatPanel
+                  projectName={projectName}
+                  projectId={projectId}
+                  files={files}
+                  onFileChange={onFileChange}
+                  onFileDelete={onFileDelete}
+                  onBulkFileUpdate={onBulkFileUpdate}
+                  githubToken={githubToken}
+                  pendingMessage={pendingMessage}
+                  onPendingMessageSent={onPendingMessageSent}
+                  activeFile={activeFile}
+                  onLoadingChange={handleLoadingChange}
+                  onFileSelect={onFileSelect}
+                  brainName={agent.brainMeta?.name || 'Pi-Chi'}
                   brainStatus={agent.brainStatus}
-                  brainName={agent.brainMeta?.name}
-                  onSendMessage={agent.injectMessage}
-                  onMarkRead={agent.markChatRead}
                 />
               </motion.div>
             )}
