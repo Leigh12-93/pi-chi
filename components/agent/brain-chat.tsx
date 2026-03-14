@@ -15,7 +15,7 @@ interface BrainChatProps {
   chatMessages: BrainChatMessage[]
   brainStatus: 'running' | 'sleeping' | 'not-running' | 'error'
   brainName?: string
-  onSendMessage: (message: string) => Promise<boolean>
+  onSendMessage?: (message: string) => Promise<boolean>
   onMarkRead: () => Promise<boolean>
   className?: string
 }
@@ -266,7 +266,7 @@ async function streamBrainChat(
 
 export function BrainChat({
   chatMessages, brainStatus, brainName,
-  onSendMessage, onMarkRead, className,
+  onMarkRead, className,
 }: BrainChatProps) {
   const [input, setInput] = useState('')
   const [sending, setSending] = useState(false)
@@ -347,7 +347,7 @@ export function BrainChat({
 
     inputRef.current?.focus()
     requestAnimationFrame(() => scrollToBottom())
-  }, [input, sending, onSendMessage, scrollToBottom])
+  }, [input, sending, scrollToBottom])
 
   const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
     if (e.key === 'Enter' && !e.shiftKey) {
