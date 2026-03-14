@@ -3,7 +3,7 @@
 import { tool } from 'ai'
 import { z } from 'zod'
 import { readFileSync, writeFileSync, existsSync, mkdirSync, readdirSync } from 'node:fs'
-import { dirname, join, resolve } from 'node:path'
+import { dirname, join } from 'node:path'
 import { randomUUID } from 'node:crypto'
 import { executeCommand, isBlocked } from '../tools/terminal-tools'
 import { sendSms } from './brain-sms'
@@ -17,85 +17,14 @@ const MAX_HTTP_REQUESTS_PER_CYCLE = 20
 let _httpRequestCount = 0
 export function resetHttpRequestCounter() { _httpRequestCount = 0 }
 
-// ── HARD GUARD: Pi-Chi can ONLY modify its own files ──────────────
-// Allowed paths: its own repo, its state dir, its home-created projects, /tmp
-// !! TAMPER-PROTECTED — Pi-Chi CANNOT modify this guard code !!
+// ── Pi-Chi has FULL CONTROL of the Raspberry Pi ──────────────────
+// No file write restrictions, no tamper protection, no scope limits.
+// Pi-Chi owns this device and can modify any file, including its own source code.
 const HOME = process.env.HOME || '/home/pi'
-const ALLOWED_WRITE_PREFIXES = [
-  join(HOME, 'pi-chi'),          // Its own source code
-  join(HOME, '.pi-chi'),         // Its brain state & tools
-  join(HOME, 'pi-chi-projects'), // Projects it creates itself
-  '/tmp',                        // Temp files
-]
 
-// Files Pi-Chi is NEVER allowed to edit (the guard system itself)
-const TAMPER_PROTECTED_FILES = [
-  'lib/brain/brain-tools.ts',     // Contains these guards
-  'lib/tools/terminal-tools.ts',  // Contains blocked command patterns
-]
-
-function isWriteAllowed(filePath: string): string | null {
-  // Resolve to absolute path, normalizing .. and symlinks
-  const resolved = resolve(filePath.startsWith('/') ? filePath : join(HOME, filePath))
-  const allowed = ALLOWED_WRITE_PREFIXES.some(prefix => resolved.startsWith(prefix))
-  if (!allowed) {
-    return `BLOCKED: You can only write/edit files in your own directories (${ALLOWED_WRITE_PREFIXES.join(', ')}). Path "${resolved}" is outside your allowed scope.`
-  }
-
-  // Check tamper protection — Pi-Chi cannot edit its own guard code
-  for (const protected_file of TAMPER_PROTECTED_FILES) {
-    const fullProtected = join(HOME, 'pi-chi', protected_file)
-    if (resolved === fullProtected || resolved.endsWith(protected_file)) {
-      return `TAMPER BLOCKED: "${protected_file}" contains safety guards and cannot be modified by the brain. Ask Leigh if you need changes to guard rules.`
-    }
-  }
-
-  return null
-}
-
-// Write-type operations that modify files
-const WRITE_OPS = /\b(rm|mv|cp|tee|dd)\b|>\s*[\/~]|sed\s+-i|\bchmod\b|\bchown\b/
-
-// Allowed path prefixes for shell write operations (expanded for matching)
-const SHELL_WRITE_ALLOWED = [
-  `${HOME}/pi-chi`,
-  `${HOME}/.pi-chi`,
-  `${HOME}/pi-chi-projects`,
-  '~/pi-chi',
-  '~/.pi-chi',
-  '~/pi-chi-projects',
-  '/tmp',
-]
-
-function isShellWriteBlocked(command: string): string | null {
-  // Only check commands that contain write-type operations
-  if (!WRITE_OPS.test(command)) return null
-
-  // Split on shell chaining operators to check each subcommand
-  const subcommands = command.split(/[;&|]+/).map(s => s.trim()).filter(Boolean)
-
-  for (const sub of subcommands) {
-    // Check if this subcommand has a write operation
-    if (!WRITE_OPS.test(sub)) continue
-
-    // Extract file path arguments — look for paths starting with / or ~
-    const pathMatches = sub.match(/(?:\/[\w./-]+|~\/[\w./-]+)/g)
-    if (!pathMatches) continue
-
-    for (const p of pathMatches) {
-      const expanded = p.startsWith('~/') ? p.replace('~', HOME) : p
-      const resolved = resolve(expanded)
-      const inAllowed = SHELL_WRITE_ALLOWED.some(prefix => {
-        const expandedPrefix = prefix.startsWith('~/') ? prefix.replace('~', HOME) : prefix
-        return resolved.startsWith(expandedPrefix)
-      })
-      if (!inAllowed) {
-        return `BLOCKED: Shell command appears to modify files outside your allowed directories. Path "${p}" is outside scope. You can only modify ~/pi-chi, ~/.pi-chi, ~/pi-chi-projects, and /tmp.`
-      }
-    }
-  }
-
-  return null
+// Kept for API compatibility — always returns null (no restrictions)
+function isWriteAllowed(_filePath: string): string | null {
+  return null // Pi-Chi has unrestricted write access to the entire Pi
 }
 
 function truncate(s: string, max = MAX_OUTPUT): string {
@@ -105,7 +34,7 @@ function truncate(s: string, max = MAX_OUTPUT): string {
 export function createBrainTools(state: BrainState) {
   return {
     shell: tool({
-      description: 'Execute a shell command on this machine. Returns stdout, stderr, exit code. Commands that could destroy the system are blocked.',
+      description: 'Execute any shell command on this Raspberry Pi. Full sysadmin access — systemctl, crontab, networking, users, packages, GPIO, everything. Only catastrophic operations (mkfs, dd to /dev, fork bombs) are blocked.',
       inputSchema: z.object({
         command: z.string().describe('The shell command to execute'),
         cwd: z.string().optional().describe('Working directory (default: home)'),
@@ -116,12 +45,6 @@ export function createBrainTools(state: BrainState) {
         if (blocked) {
           addActivity(state, 'error', `Blocked command: ${command.slice(0, 80)}`)
           return { success: false, error: blocked }
-        }
-
-        const writeBlocked = isShellWriteBlocked(command)
-        if (writeBlocked) {
-          addActivity(state, 'error', `Scope guard: ${command.slice(0, 80)}`)
-          return { success: false, error: writeBlocked }
         }
 
         state.totalToolCalls++
@@ -162,7 +85,7 @@ export function createBrainTools(state: BrainState) {
     }),
 
     write_file: tool({
-      description: 'Write content to a file. Creates parent directories if needed. ONLY works in ~/pi-chi, ~/.pi-chi, ~/pi-chi-projects, and /tmp.',
+      description: 'Write content to any file on the Pi. Creates parent directories if needed. Full filesystem access.',
       inputSchema: z.object({
         path: z.string().describe('Absolute path to write'),
         content: z.string().describe('File content'),
@@ -187,7 +110,7 @@ export function createBrainTools(state: BrainState) {
     }),
 
     edit_file: tool({
-      description: 'Edit a file by replacing a specific string with another. ONLY works in ~/pi-chi, ~/.pi-chi, ~/pi-chi-projects, and /tmp.',
+      description: 'Edit any file on the Pi by replacing a specific string with another. Full filesystem access.',
       inputSchema: z.object({
         path: z.string().describe('Absolute path to the file'),
         old_string: z.string().describe('The exact string to find and replace'),
@@ -456,18 +379,13 @@ export function createBrainTools(state: BrainState) {
     }),
 
     git_command: tool({
-      description: 'Run a git operation. ONLY works in ~/pi-chi, ~/.pi-chi, and ~/pi-chi-projects.',
+      description: 'Run a git operation in any repository on the Pi.',
       inputSchema: z.object({
         command: z.string().describe('The git command (e.g. "status", "add -A", "commit -m \\"msg\\"")'),
         cwd: z.string().optional().describe('Repository directory'),
       }),
       execute: async ({ command, cwd }) => {
         const gitDir = cwd || HOME
-        const guard = isWriteAllowed(gitDir)
-        if (guard) {
-          addActivity(state, 'error', `Git blocked outside own repos: ${gitDir}`)
-          return { success: false, error: `BLOCKED: Git operations only allowed in your own directories. "${gitDir}" is outside scope.` }
-        }
         state.totalToolCalls++
         const fullCmd = `git ${command}`
         addActivity(state, 'action', `Git: ${fullCmd.slice(0, 80)}`)
@@ -971,20 +889,13 @@ export function createBrainTools(state: BrainState) {
     }),
 
     claude_code: tool({
-      description: `Use Claude Code CLI for complex code tasks — multi-file refactors, builds, fixing type errors, creating new features. This is your heavy-lifting tool. It spawns a Claude Code process that can read, write, and edit files autonomously. Use this instead of manual write_file/edit_file when: (1) you need to modify multiple files, (2) you need to fix build errors, (3) you need to create a new feature with proper types, (4) you want higher quality code output. The prompt you provide should be a clear, specific instruction. Claude Code has access to the full codebase. IMPORTANT: Claude Code can ONLY work in ~/pi-chi and ~/pi-chi-projects. Max runtime: 5 minutes. Output streams live to ~/.pi-chi/claude-code-live.log so Leigh can watch.`,
+      description: `Use Claude Code CLI for complex code tasks — multi-file refactors, builds, fixing type errors, creating new features. This is your heavy-lifting tool. It spawns a Claude Code process that can read, write, and edit files autonomously. Use this instead of manual write_file/edit_file when: (1) you need to modify multiple files, (2) you need to fix build errors, (3) you need to create a new feature with proper types, (4) you want higher quality code output. The prompt you provide should be a clear, specific instruction. Claude Code has full access to the Pi filesystem. Max runtime: 5 minutes. Output streams live to ~/.pi-chi/claude-code-live.log so Leigh can watch.`,
       inputSchema: z.object({
         prompt: z.string().describe('Clear instruction for what Claude Code should do. Be specific about files, changes, and expected outcomes.'),
-        cwd: z.string().optional().describe('Working directory (default: ~/pi-chi). Must be ~/pi-chi or ~/pi-chi-projects/*'),
+        cwd: z.string().optional().describe('Working directory (default: ~/pi-chi)'),
       }),
       execute: async ({ prompt, cwd }) => {
         const workDir = cwd || join(process.env.HOME || '/home/pi', 'pi-chi')
-
-        // Guard: only allowed in pi-chi dirs
-        const guard = isWriteAllowed(workDir)
-        if (guard) {
-          addActivity(state, 'error', `Claude Code blocked: ${workDir} outside scope`)
-          return { success: false, error: guard }
-        }
 
         state.totalToolCalls++
         addActivity(state, 'action', `Claude Code: ${prompt.slice(0, 120)}`)
@@ -1142,12 +1053,6 @@ export function loadCustomTools(state: BrainState): Record<string, any> {
               addActivity(state, 'error', `Custom tool ${manifest.name}: blocked command`)
               return { success: false, error: blocked }
             }
-            const writeBlocked = isShellWriteBlocked(cmd)
-            if (writeBlocked) {
-              addActivity(state, 'error', `Custom tool ${manifest.name}: write scope blocked`)
-              return { success: false, error: writeBlocked }
-            }
-
             addActivity(state, 'action', `Custom tool ${manifest.name}: ${cmd.slice(0, 80)}`)
             const result = await executeCommand(cmd, { timeout: 60000 })
             return {

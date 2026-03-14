@@ -25,53 +25,23 @@ const MAX_OUTPUT_CHARS = 50_000
 
 // ── Safety patterns ────────────────────────────────────────────────
 
-/** Commands that are ALWAYS blocked — catastrophically dangerous */
+/** Commands that are ALWAYS blocked — only catastrophic/unrecoverable operations.
+ *  Pi-Chi has full sysadmin control of the Pi. These blocks protect against
+ *  accidental destruction of the device itself, not against normal admin ops. */
 const BLOCKED_PATTERNS: RegExp[] = [
-  /rm\s+(-rf?|--recursive)\s+\/\s*$/,   // rm -rf /
+  /rm\s+(-rf?|--recursive)\s+\/\s*$/,   // rm -rf / (root filesystem destruction)
   /mkfs\./,                               // format filesystem
-  /dd\s+if=.*of=\/dev\//,                 // disk destroy
-  /:\(\)\{\s*:\|:&\s*\};\s*:/,            // fork bomb
-  />\s*\/dev\/sd[a-z]/,                    // overwrite disk
-  />\s*\/dev\/mmcblk/,                     // overwrite Pi SD card
-  /chmod\s+-R\s+777\s+\//,                // chmod 777 /
-  /curl.*\|\s*(bash|sh)/,                  // pipe to shell
-  /wget.*\|\s*(bash|sh)/,                  // pipe to shell
-  /sudo\s+passwd/,                        // change passwords
-  /echo.*>\s*\/etc\/passwd/,              // modify system users
-  /echo.*>\s*\/etc\/shadow/,              // modify passwords
-  /flashrom.*-w/,                         // flash firmware
-  /fdisk.*\/dev\//,                       // partition disks
-  /cat\s+\/etc\/shadow/,                  // read shadow passwords
-  /nc\s+-l/,                              // netcat listener
-  /\bncat\b.*-l/,                         // ncat listener
-  /\bsocat\b.*LISTEN/i,                   // socat listener
-  /cat\s+.*\.ssh\/id_rsa/,               // read SSH private key
-  /cat\s+.*\.ssh\/id_ed25519/,            // read SSH private key
-  /crontab\s+-e/,                         // interactive crontab
-  /\|\s*(bash|sh)\s*$/,                   // pipe to shell (generic)
+  /dd\s+if=.*of=\/dev\//,                 // raw disk write (SD card destruction)
+  /:\(\)\{\s*:\|:&\s*\};\s*:/,            // fork bomb (system DoS)
+  />\s*\/dev\/sd[a-z]/,                    // overwrite block device
+  />\s*\/dev\/mmcblk/,                     // overwrite Pi SD card directly
+  /flashrom.*-w/,                         // flash firmware (unrecoverable)
 ]
 
-/** Commands that are potentially dangerous — warn but allow */
+/** Commands that get a warning log — Pi-Chi has full sysadmin rights,
+ *  but we still log high-impact operations for audit trail */
 const DANGEROUS_PATTERNS: RegExp[] = [
-  /rm\s+(-rf?|--recursive)/,
-  /git\s+(push|reset\s+--hard|clean\s+-f)/,
-  /DROP\s+(TABLE|DATABASE)/i,
-  /sudo\s/,
-  /npm\s+publish/,
-  /docker\s+(rm|stop|kill)/,
-  /shutdown/,
-  /reboot/,
-  /halt/,
-  /systemctl\s+(stop|disable|mask)/,
-  /service\s+\w+\s+(stop|restart)/,
-  /crontab\s+-r/,                        // remove all cron jobs
-  /iptables.*-F/,                        // flush firewall rules
-  /ufw\s+(disable|reset)/,               // disable firewall
-  /raspi-config/,                        // system configuration
-  /vcgencmd.*=.*=/,                      // modify GPU settings
-  /echo.*>\s*\/boot/,                    // modify boot config
-  /mount.*\/dev/,                        // mount filesystems
-  /umount.*-f/,                          // force unmount
+  /rm\s+(-rf?|--recursive)/,              // recursive deletes — log for audit
 ]
 
 // ── Shell detection ────────────────────────────────────────────────
