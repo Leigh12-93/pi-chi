@@ -558,7 +558,7 @@ async function brainCycle(): Promise<void> {
       const changedFiles = (diffResult.stdout || '').trim()
       if (changedFiles && (changedFiles.includes('.ts') || changedFiles.includes('.tsx') || changedFiles.includes('.css'))) {
         console.log('[pi-brain] Source files changed — skipping build (ARM CPU cannot build Next.js). Changes committed but dashboard uses pre-built .next.')
-        addActivity(state, 'info', 'Source files changed. Build skipped (ARM limitation). Dashboard unchanged until remote rebuild.')
+        addActivity(state, 'system', 'Source files changed. Build skipped (ARM limitation). Dashboard unchanged until remote rebuild.')
         // Git commit changes but do NOT build — ARM CPU limitation
         await executeCommand('git add -A && git commit -m "pi-chi: source changes (build pending remote)" --no-verify', { cwd: PI_CHI_DIR, timeout: 10000 }).catch(() => {})
       }

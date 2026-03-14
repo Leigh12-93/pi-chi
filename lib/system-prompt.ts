@@ -416,6 +416,47 @@ const TIER_D_PATTERN = /\b(pi-chi|blueprint|new project|scaffold|from scratch|cr
 /** Triggers TIER_E (self-modification) */
 const TIER_E_PATTERN = /\b(yourself|self|improve|upgrade|modify yourself|pi_read|pi_modify|your own|your source|your code)\b/i
 
+// MANAGED BUSINESSES — context for the AI about what businesses it manages
+export const MANAGED_BUSINESSES_CONTEXT = `
+
+## Managed Businesses (Pi-Chi operates these autonomously)
+
+You manage 4 online businesses. Their codebases and training docs are on USB at /mnt/usb/. Use github_read_file, github_modify_external_file, github_list_repo_files, and deploy_to_vercel to manage them.
+
+### 1. CheapSkipBinsNearMe (development)
+- **Repo:** Leigh12-93/cheapskipbinsnearme | **Domain:** cheapskipbinsnearme.com.au
+- **Stack:** Next.js 15, React 19, TypeScript, Tailwind v4, Supabase, Anthropic Claude SDK
+- **What:** AI-powered skip bin comparison/finder with chat agent, suburb-based search, per-suburb SEO pages
+- **Training:** /mnt/usb/cheapskipbinsnearme/
+
+### 2. Bonkr (active)
+- **Repo:** Leigh12-93/Bonkr (branch: master) | **Domain:** bonkr.com.au
+- **Stack:** Next.js 14, TypeScript, Tailwind, Supabase (unsqcfflbedqclgkuknq), Stripe, ExoClick ads
+- **What:** Australian adult platform — personals/classifieds + video platform (19,384 Eporner embeds, 65 channels). Revenue: ExoClick + Stripe subscriptions. Age verification needed (Online Safety Act).
+- **Training:** /mnt/usb/bonkr/bonkr-pi-training.md
+- **Priority:** Age verification implementation, SEO (only 175/132,940 videos indexed), ExoClick optimization
+
+### 3. MiniSkip Hire Adelaide (active)
+- **Repo:** Leigh12-93/miniskiphireadelaide | **Android:** Leigh12-93/MiniSkipAdmin
+- **Domain:** miniskiphireadelaide.com.au | **Stack:** Next.js 16, React 19, Tailwind v4, Square payments
+- **DB:** Supabase (cxljsqwkpdagfvpcohsb) | **SMS:** AussieSMS Gateway
+- **What:** Skip bin hire booking — 326 suburbs, driver app, admin dashboard (Chad AI with 125+ tools), automated SMS workflows, capacity system
+- **Pricing:** 360L $99, 660L $139, 1100L $189 (7-day hire, $5/day extra)
+- **Training:** /mnt/usb/miniskip/miniskip-pi-training.md
+
+### 4. AussieSMS Gateway (active)
+- **Repo:** Leigh12-93/sms-gateway-web (branch: master) | **Domain:** aussiesms.vercel.app
+- **Stack:** Next.js 16, React 19, TypeScript, Tailwind, Stripe, OpenAI (content moderation)
+- **DB:** Supabase (koghrdiduiuicaysvwci) | **Paired:** sms-gateway-android
+- **What:** Multi-tenant SaaS SMS platform — API keys, credit packages (75/$5 to 1,750/$50), Android phone gateways, webhooks, scheduling, bulk send
+- **Training:** /mnt/usb/aussiesms/aussiesms-pi-training.md
+
+### Cross-Business Relationships
+- AussieSMS provides SMS gateway for MiniSkip
+- CheapSkipBinsNearMe is a lead-gen site funneling to MiniSkip
+- All use Supabase + Vercel + GitHub (Leigh12-93)
+`
+
 /** Build system prompt from tiers matched against user message intent */
 export function buildSystemPrompt(userMessage: string): string {
   let prompt = SYSTEM_PROMPT_TIER_A
@@ -425,13 +466,16 @@ export function buildSystemPrompt(userMessage: string): string {
   if (TIER_D_PATTERN.test(userMessage)) prompt += SYSTEM_PROMPT_TIER_D
   if (TIER_E_PATTERN.test(userMessage)) prompt += SYSTEM_PROMPT_TIER_E
 
+  // Always include managed businesses context
+  prompt += MANAGED_BUSINESSES_CONTEXT
+
   prompt += '\n\nMEMORY_PLACEHOLDER'
 
   return prompt
 }
 
 // Full prompt (all tiers combined)
-export const SYSTEM_PROMPT = SYSTEM_PROMPT_TIER_A + SYSTEM_PROMPT_TIER_B + SYSTEM_PROMPT_TIER_C + SYSTEM_PROMPT_TIER_D + SYSTEM_PROMPT_TIER_E + '\n\nMEMORY_PLACEHOLDER'
+export const SYSTEM_PROMPT = SYSTEM_PROMPT_TIER_A + SYSTEM_PROMPT_TIER_B + SYSTEM_PROMPT_TIER_C + SYSTEM_PROMPT_TIER_D + SYSTEM_PROMPT_TIER_E + MANAGED_BUSINESSES_CONTEXT + '\n\nMEMORY_PLACEHOLDER'
 
 /** Marker that route.ts replaces with actual project memory content */
 export const MEMORY_MARKER = 'MEMORY_PLACEHOLDER'

@@ -22,6 +22,7 @@ import { MoodPanel } from '@/components/agent/mood-panel'
 import { LiveLogPanel } from '@/components/agent/live-log-panel'
 import { AgentStatusIndicator } from '@/components/agent/agent-status'
 import { CollapsibleSection } from '@/components/agent/collapsible-section'
+import { BusinessesPanel } from '@/components/agent/businesses-panel'
 import { useSystemVitals } from '@/hooks/use-system-vitals'
 import { useAgentState } from '@/hooks/use-agent-state'
 
@@ -31,7 +32,6 @@ const ResearchThreadsPanel = lazy(() => import('@/components/agent/research-thre
 const GrowthLogPanel = lazy(() => import('@/components/agent/growth-log-panel').then(m => ({ default: m.GrowthLogPanel })))
 const ProjectsPanel = lazy(() => import('@/components/agent/projects-panel').then(m => ({ default: m.ProjectsPanel })))
 const CapabilitiesPanel = lazy(() => import('@/components/agent/capabilities-panel').then(m => ({ default: m.CapabilitiesPanel })))
-const AnalyticsPanel = lazy(() => import('@/components/agent/analytics-panel').then(m => ({ default: m.AnalyticsPanel })))
 const AchievementsPanel = lazy(() => import('@/components/agent/achievements-panel').then(m => ({ default: m.AchievementsPanel })))
 const PromptViewer = lazy(() => import('@/components/agent/prompt-viewer').then(m => ({ default: m.PromptViewer })))
 const SettingsPanel = lazy(() => import('@/components/agent/settings-panel').then(m => ({ default: m.SettingsPanel })))
@@ -55,7 +55,7 @@ interface AgentDashboardProps {
 /* ─── Tab types ─────────────────────────────────── */
 
 type MobileTab = 'chat' | 'goals' | 'activity' | 'vitals' | 'terminal'
-type CenterTab = 'brain-chat' | 'ai-chat' | 'mind' | 'activity' | 'analytics' | 'terminal'
+type CenterTab = 'brain-chat' | 'ai-chat' | 'businesses' | 'activity' | 'mind' | 'terminal'
 type MindSubTab = 'memories' | 'research' | 'growth' | 'projects' | 'skills' | 'achievements' | 'prompts'
 
 /* ─── Mobile tab config ─────────────────────────── */
@@ -100,7 +100,7 @@ export function AgentDashboard({
   onFileSelect, onFileChange, onFileDelete, onBulkFileUpdate,
   githubToken, pendingMessage, onPendingMessageSent,
 }: AgentDashboardProps) {
-  const [centerTab, setCenterTab] = useState<CenterTab>('brain-chat')
+  const [centerTab, setCenterTab] = useState<CenterTab>('ai-chat')
   const [mobileTab, setMobileTab] = useState<MobileTab>('chat')
   const [mindSubTab, setMindSubTab] = useState<MindSubTab>('memories')
   const [settingsOpen, setSettingsOpen] = useState(false)
@@ -146,7 +146,7 @@ export function AgentDashboard({
   useEffect(() => {
     function handleKeyDown(e: KeyboardEvent) {
       if (e.ctrlKey && !e.shiftKey && !e.altKey) {
-        const tabs: CenterTab[] = ['brain-chat', 'ai-chat', 'mind', 'activity', 'analytics', 'terminal']
+        const tabs: CenterTab[] = ['ai-chat', 'brain-chat', 'businesses', 'activity', 'mind', 'terminal']
         const num = parseInt(e.key)
         if (num >= 1 && num <= tabs.length) {
           e.preventDefault()
@@ -303,11 +303,11 @@ export function AgentDashboard({
   /* ─── Center tab config ───────────────────────── */
 
   const centerTabs: { id: CenterTab; icon: React.ElementType; label: string; badge?: number }[] = [
-    { id: 'brain-chat', icon: Bot, label: 'Pi-Chi', badge: unreadBrainMessages },
-    { id: 'ai-chat', icon: Code2, label: 'AI Code' },
-    { id: 'mind', icon: BookOpen, label: 'Mind' },
+    { id: 'ai-chat', icon: Bot, label: 'Chat' },
+    { id: 'brain-chat', icon: Code2, label: 'Pi-Chi', badge: unreadBrainMessages },
+    { id: 'businesses', icon: BarChart3, label: 'Businesses' },
     { id: 'activity', icon: Activity, label: 'Activity' },
-    { id: 'analytics', icon: BarChart3, label: 'Analytics' },
+    { id: 'mind', icon: BookOpen, label: 'Mind' },
     { id: 'terminal', icon: TerminalIcon, label: 'Terminal' },
   ]
 
@@ -460,11 +460,9 @@ export function AgentDashboard({
                   <ActivityFeed entries={agent.activity} agentStatus={agent.agentStatus} />
                 </div>
 
-                {/* Analytics */}
-                <div className={cn('absolute inset-0 overflow-y-auto', centerTab !== 'analytics' && 'hidden')}>
-                  <Suspense fallback={<PanelSkeleton />}>
-                    <AnalyticsPanel />
-                  </Suspense>
+                {/* Businesses */}
+                <div className={cn('absolute inset-0', centerTab !== 'businesses' && 'hidden')}>
+                  <BusinessesPanel />
                 </div>
 
                 {/* Terminal */}

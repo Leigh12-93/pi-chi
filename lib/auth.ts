@@ -86,6 +86,15 @@ export async function createSession(data: PiSession): Promise<string> {
 }
 
 export async function getSession(): Promise<PiSession | null> {
+  // Pi local/kiosk mode: return a synthetic session (no OAuth cookies needed)
+  if (process.env.PI_LOCAL_MODE === 'true') {
+    return {
+      user: { name: 'Leigh', email: 'local@pi-chi', image: '' },
+      accessToken: process.env.GITHUB_TOKEN || '',
+      githubUsername: 'Leigh12-93',
+    }
+  }
+
   try {
     const cookieStore = await cookies()
     const token = cookieStore.get(COOKIE_NAME)?.value
