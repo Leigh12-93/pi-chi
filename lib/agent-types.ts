@@ -26,16 +26,9 @@ export interface ActivityEntry {
   type: 'system' | 'goal' | 'action' | 'decision' | 'error' | 'success' | 'gpio' | 'network'
 }
 
-export interface TempReading {
-  cpu: number
-  gpu: number
-  t: number // timestamp ms
-}
-
 export interface SystemVitals {
   cpuPercent: number
   cpuTemp: number
-  gpuTemp: number
   ramUsedMb: number
   ramTotalMb: number
   diskUsedGb: number
@@ -45,7 +38,6 @@ export interface SystemVitals {
   wifiSsid?: string
   ipAddress?: string
   gpioActive: number[]
-  tempHistory: TempReading[]
 }
 
 export type AgentStatus = 'idle' | 'thinking' | 'executing' | 'error'

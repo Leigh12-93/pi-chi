@@ -1,14 +1,11 @@
 'use client'
 
 import { useState, useEffect, useRef, useCallback } from 'react'
-import type { SystemVitals, TempReading } from '@/lib/agent-types'
-
-const MAX_TEMP_HISTORY = 60 // 10 minutes at 10s intervals
+import type { SystemVitals } from '@/lib/agent-types'
 
 const MOCK_VITALS: SystemVitals = {
   cpuPercent: 12,
   cpuTemp: 42.3,
-  gpuTemp: 43.1,
   ramUsedMb: 1240,
   ramTotalMb: 4096,
   diskUsedGb: 12.4,
@@ -18,19 +15,17 @@ const MOCK_VITALS: SystemVitals = {
   wifiSsid: 'HomeNetwork',
   ipAddress: '192.168.1.42',
   gpioActive: [4, 17, 27],
-  tempHistory: [],
 }
 
 /** Polling intervals in ms */
 const FAST_INTERVAL = 10_000  // CPU, RAM, temp
 const SLOW_INTERVAL = 60_000  // disk, network, uptime
 
-// Linux command that outputs all vitals as JSON in one call (includes GPU temp)
+// Linux command that outputs all vitals as JSON in one call
 const VITALS_COMMAND = [
   'echo "{"',
   '"\\\"cpu\\\":$(top -bn1 | grep \'Cpu(s)\' | awk \'{print $2+$4}\' | cut -d. -f1),"',
   '"\\\"temp\\\":$(cat /sys/class/thermal/thermal_zone0/temp 2>/dev/null | awk \'{printf \\"%.1f\\", $1/1000}\' || echo 0),"',
-  '"\\\"gpu_temp\\\":$(vcgencmd measure_temp 2>/dev/null | grep -oP \'[\\d.]+\' || echo 0),"',
   '"\\\"ram_used\\\":$(free -m | awk \'/Mem:/{print $3}\'),"',
   '"\\\"ram_total\\\":$(free -m | awk \'/Mem:/{print $2}\'),"',
   '"\\\"disk_used\\\":$(df -BG / | awk \'NR==2{print $3}\' | tr -d \'G\'),"',
@@ -56,7 +51,6 @@ export function useSystemVitals(): UseSystemVitalsReturn {
   const fastTimerRef = useRef<ReturnType<typeof setInterval> | null>(null)
   const slowTimerRef = useRef<ReturnType<typeof setInterval> | null>(null)
   const mountedRef = useRef(true)
-  const tempHistoryRef = useRef<TempReading[]>([])
 
   const fetchVitals = useCallback(async () => {
     // Don't poll when tab is hidden
@@ -88,24 +82,12 @@ export function useSystemVitals(): UseSystemVitalsReturn {
         const data = JSON.parse(result.stdout.trim())
         if (!mountedRef.current) return
 
-        const cpuTemp = Number(data.temp) || 0
-        const gpuTemp = Number(data.gpu_temp) || 0
-
-        // Append to temperature history
-        if (cpuTemp > 0 || gpuTemp > 0) {
-          tempHistoryRef.current = [
-            ...tempHistoryRef.current.slice(-(MAX_TEMP_HISTORY - 1)),
-            { cpu: cpuTemp, gpu: gpuTemp, t: Date.now() },
-          ]
-        }
-
         setDevMode(false)
         setError(null)
         setLastUpdated(Date.now())
         setVitals(prev => ({
           cpuPercent: Number(data.cpu) || prev.cpuPercent,
-          cpuTemp: cpuTemp || prev.cpuTemp,
-          gpuTemp: gpuTemp || prev.gpuTemp,
+          cpuTemp: Number(data.temp) || prev.cpuTemp,
           ramUsedMb: Number(data.ram_used) || prev.ramUsedMb,
           ramTotalMb: Number(data.ram_total) || prev.ramTotalMb,
           diskUsedGb: Number(data.disk_used) || prev.diskUsedGb,
@@ -115,7 +97,6 @@ export function useSystemVitals(): UseSystemVitalsReturn {
           wifiSsid: data.ssid || undefined,
           ipAddress: data.ip || undefined,
           gpioActive: prev.gpioActive, // GPIO polled separately
-          tempHistory: [...tempHistoryRef.current],
         }))
       } catch {
         // JSON parse failed — dev mode
