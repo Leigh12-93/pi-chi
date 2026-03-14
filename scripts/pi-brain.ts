@@ -284,13 +284,19 @@ async function brainCycle(): Promise<void> {
     }
 
     // Post-cycle build check — if source files changed, verify build still passes
+    // Stops dashboard before building so .next deletion doesn't crash the live server
     try {
       const diffResult = await executeCommand('git diff --name-only HEAD', { cwd: PI_CHI_DIR, timeout: 5000 })
       const changedFiles = (diffResult.stdout || '').trim()
       if (changedFiles && (changedFiles.includes('.ts') || changedFiles.includes('.tsx') || changedFiles.includes('.css'))) {
-        console.log('[pi-brain] Source files changed — verifying build...')
-        const buildResult = await executeCommand('npm run build', { cwd: PI_CHI_DIR, timeout: 180000 })
-        if (buildResult.exitCode !== 0) {
+        console.log('[pi-brain] Source files changed — stopping dashboard for rebuild...')
+        await executeCommand('sudo systemctl stop pi-chi-dashboard', { cwd: PI_CHI_DIR, timeout: 15000 })
+
+        const buildResult = await executeCommand('NODE_OPTIONS="--max-old-space-size=1536" npm run build', { cwd: PI_CHI_DIR, timeout: 300000 })
+        if (buildResult.exitCode === 0) {
+          console.log('[pi-brain] Build verified OK — restarting dashboard')
+          await executeCommand('sudo systemctl start pi-chi-dashboard', { cwd: PI_CHI_DIR, timeout: 15000 })
+        } else {
           console.error('[pi-brain] BUILD FAILED — attempting auto-fix...', (buildResult.stderr || '').slice(-200))
           addActivity(state, 'error', `Build failed after code changes. Attempting auto-fix...`)
 
@@ -299,7 +305,7 @@ async function brainCycle(): Promise<void> {
           await executeCommand(fixCmd, { cwd: PI_CHI_DIR, timeout: 270000 })
 
           // Check if fix worked
-          const retryBuild = await executeCommand('npm run build', { cwd: PI_CHI_DIR, timeout: 180000 })
+          const retryBuild = await executeCommand('NODE_OPTIONS="--max-old-space-size=1536" npm run build', { cwd: PI_CHI_DIR, timeout: 300000 })
           if (retryBuild.exitCode === 0) {
             console.log('[pi-brain] Auto-fix succeeded — build passes now')
             addActivity(state, 'action', 'Auto-fixed build errors after code changes')
@@ -308,14 +314,16 @@ async function brainCycle(): Promise<void> {
             addActivity(state, 'error', 'Could not fix build errors — reverting to clean state')
             await executeCommand('git checkout -- .', { cwd: PI_CHI_DIR, timeout: 10000 })
             await executeCommand('git clean -fd', { cwd: PI_CHI_DIR, timeout: 10000 })
-            await executeCommand('npm run build', { cwd: PI_CHI_DIR, timeout: 180000 })
+            await executeCommand('NODE_OPTIONS="--max-old-space-size=1536" npm run build', { cwd: PI_CHI_DIR, timeout: 300000 })
           }
-        } else {
-          console.log('[pi-brain] Build verified OK after code changes')
+          // Always restart dashboard after fix attempts
+          await executeCommand('sudo systemctl start pi-chi-dashboard', { cwd: PI_CHI_DIR, timeout: 15000 })
         }
       }
     } catch (buildErr) {
       console.error('[pi-brain] Build check error:', buildErr)
+      // Ensure dashboard comes back up even if build check throws
+      await executeCommand('sudo systemctl start pi-chi-dashboard', { cwd: PI_CHI_DIR, timeout: 15000 }).catch(() => {})
     }
 
     // SUCCESS — reset crash counter and record good commit
