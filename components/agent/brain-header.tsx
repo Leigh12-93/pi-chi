@@ -1,9 +1,9 @@
 'use client'
 
-import { useMemo } from 'react'
+import { useMemo, useState, useEffect } from 'react'
 import {
   Brain, Clock, DollarSign, Timer, Sparkles,
-  Moon, AlertTriangle,
+  Moon, AlertTriangle, Play,
 } from 'lucide-react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { cn } from '@/lib/utils'
@@ -21,6 +21,7 @@ interface BrainHeaderProps {
     birthTimestamp?: string
     dreamCount?: number
     consecutiveCrashes?: number
+    lastWakeAt?: string
   } | null
   className?: string
 }
@@ -81,6 +82,30 @@ function StatChip({ icon: Icon, iconColor, value, label, warn }: {
 
 export function BrainHeader({ brainStatus, brainMeta, className }: BrainHeaderProps) {
   const name = brainMeta?.name || 'Pi-Chi'
+
+  // Countdown timer — ticks every second
+  const [now, setNow] = useState(Date.now())
+  useEffect(() => {
+    const id = setInterval(() => setNow(Date.now()), 1000)
+    return () => clearInterval(id)
+  }, [])
+
+  const countdown = useMemo(() => {
+    if (!brainMeta?.lastWakeAt || !brainMeta.wakeInterval) return null
+    const nextWake = new Date(brainMeta.lastWakeAt).getTime() + brainMeta.wakeInterval
+    const remaining = Math.max(0, nextWake - now)
+    const mins = Math.floor(remaining / 60000)
+    const secs = Math.floor((remaining % 60000) / 1000)
+    return { remaining, mins, secs, label: `${mins}:${secs.toString().padStart(2, '0')}` }
+  }, [brainMeta?.lastWakeAt, brainMeta?.wakeInterval, now])
+
+  const lastRunAgo = useMemo(() => {
+    if (!brainMeta?.lastWakeAt) return null
+    const diffMs = now - new Date(brainMeta.lastWakeAt).getTime()
+    if (diffMs < 60000) return `${Math.floor(diffMs / 1000)}s ago`
+    if (diffMs < 3600000) return `${Math.floor(diffMs / 60000)}m ago`
+    return `${Math.floor(diffMs / 3600000)}h ${Math.floor((diffMs % 3600000) / 60000)}m ago`
+  }, [brainMeta?.lastWakeAt, now])
 
   const statusConfig = useMemo(() => ({
     running: { label: 'Awake', color: 'bg-emerald-500', glow: 'shadow-[0_0_8px_rgba(52,211,153,0.4)]', textColor: 'text-emerald-500' },
@@ -160,7 +185,16 @@ export function BrainHeader({ brainStatus, brainMeta, className }: BrainHeaderPr
               <StatChip icon={Sparkles} iconColor="text-purple-400" value={brainMeta.totalThoughts.toLocaleString()} label="Total thoughts" />
               <StatChip icon={DollarSign} iconColor="text-emerald-400" value={formatCost(brainMeta.totalCost)} label="API cost" />
               <StatChip icon={Timer} iconColor="text-blue-400" value={formatInterval(brainMeta.wakeInterval)} label="Wake interval" />
-              <StatChip icon={Clock} iconColor="text-orange-400" value={formatUptime(brainMeta.birthTimestamp)} label="Age" />
+              {lastRunAgo && (
+                <StatChip icon={Play} iconColor="text-cyan-400" value={lastRunAgo} label="Last cycle" />
+              )}
+              {countdown && countdown.remaining > 0 ? (
+                <StatChip icon={Clock} iconColor="text-orange-400" value={countdown.label} label="Next cycle in" />
+              ) : countdown ? (
+                <StatChip icon={Clock} iconColor="text-emerald-400" value="now" label="Cycle due" />
+              ) : (
+                <StatChip icon={Clock} iconColor="text-orange-400" value={formatUptime(brainMeta.birthTimestamp)} label="Age" />
+              )}
               {brainMeta.dreamCount !== undefined && brainMeta.dreamCount > 0 && (
                 <StatChip icon={Moon} iconColor="text-indigo-400" value={brainMeta.dreamCount} label="Dreams" />
               )}
@@ -176,6 +210,17 @@ export function BrainHeader({ brainStatus, brainMeta, className }: BrainHeaderPr
       <div className="flex sm:hidden items-center gap-2 ml-auto shrink-0">
         {brainMeta && (
           <>
+            {countdown && countdown.remaining > 0 ? (
+              <div className="flex items-center gap-1 text-[9px] text-pi-text-dim" title="Next cycle">
+                <Clock className="w-2.5 h-2.5 text-orange-400" />
+                <span className="font-mono font-semibold text-pi-text">{countdown.label}</span>
+              </div>
+            ) : countdown ? (
+              <div className="flex items-center gap-1 text-[9px] text-emerald-400" title="Cycle due">
+                <Clock className="w-2.5 h-2.5" />
+                <span className="font-mono font-semibold">now</span>
+              </div>
+            ) : null}
             <div className="flex items-center gap-1 text-[9px] text-pi-text-dim" title="Thoughts">
               <Sparkles className="w-2.5 h-2.5 text-purple-400" />
               <span className="font-mono">{brainMeta.totalThoughts}</span>

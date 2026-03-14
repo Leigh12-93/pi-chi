@@ -71,7 +71,7 @@ interface UseAgentStateReturn {
   mood: BrainMood | null
   agentStatus: AgentStatus
   brainStatus: 'running' | 'sleeping' | 'not-running' | 'error'
-  brainMeta: { totalThoughts: number; totalCost: number; wakeInterval: number; lastThought?: string; name?: string; birthTimestamp?: string; dreamCount?: number; consecutiveCrashes?: number } | null
+  brainMeta: { totalThoughts: number; totalCost: number; wakeInterval: number; lastThought?: string; name?: string; birthTimestamp?: string; dreamCount?: number; consecutiveCrashes?: number; lastWakeAt?: string } | null
 
   // Goal management
   addGoal: (goal: Omit<Goal, 'id' | 'createdAt'>) => string
@@ -234,6 +234,7 @@ export function useAgentState(): UseAgentStateReturn {
             birthTimestamp: data.state.birthTimestamp,
             dreamCount: data.state.dreamCount,
             consecutiveCrashes: data.state.consecutiveCrashes,
+            lastWakeAt: data.state.lastWakeAt,
           })
         } else {
           brainActiveRef.current = false
