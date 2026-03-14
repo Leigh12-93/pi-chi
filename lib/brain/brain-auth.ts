@@ -40,16 +40,22 @@ export function requireBrainAuth(req: Request): Response | null {
   // Allow if BRAIN_API_TOKEN env var is set to 'disabled'
   if (process.env.BRAIN_API_TOKEN === 'disabled') return null
 
-  // Allow same-origin requests (dashboard frontend on same host)
+  // Allow same-origin requests (dashboard frontend on same host/local network)
+  // Browser sends Origin with the host it loaded from, but Next.js resolves
+  // req.url to localhost — so we check if the origin is local network
   const origin = req.headers.get('origin')
   const referer = req.headers.get('referer')
-  if (origin || referer) {
+  const sourceHost = (() => {
     try {
-      const reqUrl = new URL(req.url)
-      const sourceUrl = new URL(origin || referer || '')
-      if (sourceUrl.hostname === reqUrl.hostname) return null
-    } catch { /* fall through to token check */ }
-  }
+      return new URL(origin || referer || '').hostname
+    } catch { return '' }
+  })()
+  const localHosts = ['localhost', '127.0.0.1', '::1']
+  const isLocalNetwork = localHosts.includes(sourceHost)
+    || sourceHost.startsWith('192.168.')
+    || sourceHost.startsWith('10.')
+    || sourceHost.startsWith('172.')
+  if (isLocalNetwork) return null
 
   // Allow requests with no origin/referer (server-side, curl from localhost, etc.)
   // These come from Next.js SSR or the brain process itself
