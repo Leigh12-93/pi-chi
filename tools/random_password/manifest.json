@@ -1,0 +1,11 @@
+{
+  "name": "random_password",
+  "description": "Generate cryptographically secure random passwords or tokens",
+  "command": "python3 -c \"import secrets,string; chars=string.ascii_letters+string.digits+'!@#$%^&*'; pw=''.join(secrets.choice(chars) for _ in range({{length}})); token=secrets.token_hex({{length}}//2); urlsafe=secrets.token_urlsafe({{length}}); print(f'Password: {pw}'); print(f'Hex token: {token}'); print(f'URL-safe: {urlsafe}'); print(f'Length: {{length}} chars')\"",
+  "parameters": {
+    "length": {
+      "type": "number",
+      "description": "Password length (e.g. 32)"
+    }
+  }
+}

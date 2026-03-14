@@ -1,0 +1,5 @@
+{
+  "name": "user_sessions",
+  "description": "Show logged-in users, their sessions, and login history",
+  "command": "echo '=== Current Sessions ===' && who -a 2>/dev/null && echo '' && echo '=== Recent Logins ===' && last -10 2>/dev/null && echo '' && echo '=== Failed Logins ===' && lastb -5 2>/dev/null || echo 'lastb requires root'"
+}

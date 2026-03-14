@@ -1,0 +1,6 @@
+{
+  "name": "temp_history",
+  "description": "Log CPU temperature to CSV and show recent trend with min/max/avg",
+  "command": "bash /home/pi/.pi-chi/tools/temp_history/temp_history.sh",
+  "parameters": {}
+}

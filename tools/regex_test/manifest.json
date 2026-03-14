@@ -1,0 +1,15 @@
+{
+  "name": "regex_test",
+  "description": "Test a regex pattern against input text, showing all matches and groups",
+  "command": "python3 /home/pi/.pi-chi/tools/regex_test/regex_test.py {{pattern}} {{text}}",
+  "parameters": {
+    "pattern": {
+      "type": "string",
+      "description": "Regular expression pattern"
+    },
+    "text": {
+      "type": "string",
+      "description": "Text to match against"
+    }
+  }
+}

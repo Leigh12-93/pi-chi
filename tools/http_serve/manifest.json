@@ -1,0 +1,19 @@
+{
+  "name": "http_serve",
+  "description": "Start a simple HTTP file server on a port (runs for specified seconds)",
+  "command": "bash /home/pi/.pi-chi/tools/http_serve/http_serve.sh {{directory}} {{port}} {{duration_sec}}",
+  "parameters": {
+    "directory": {
+      "type": "string",
+      "description": "Directory to serve files from"
+    },
+    "port": {
+      "type": "number",
+      "description": "Port number (e.g. 8080)"
+    },
+    "duration_sec": {
+      "type": "number",
+      "description": "How many seconds to keep server running (max 55)"
+    }
+  }
+}

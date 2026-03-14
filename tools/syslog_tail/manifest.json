@@ -1,0 +1,15 @@
+{
+  "name": "syslog_tail",
+  "description": "Tail recent syslog/journal entries, optionally filtered by keyword",
+  "command": "bash /home/pi/.pi-chi/tools/syslog_tail/syslog_tail.sh {{lines}} {{filter}}",
+  "parameters": {
+    "lines": {
+      "type": "number",
+      "description": "Number of lines to show (e.g. 50)"
+    },
+    "filter": {
+      "type": "string",
+      "description": "Grep filter keyword (use 'all' for no filter)"
+    }
+  }
+}

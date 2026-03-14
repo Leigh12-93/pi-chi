@@ -1,0 +1,11 @@
+{
+  "name": "health_check_url",
+  "description": "Check HTTP health of URLs: status code, response time, SSL validity",
+  "command": "bash /home/pi/.pi-chi/tools/health_check_url/health_check_url.sh {{urls}}",
+  "parameters": {
+    "urls": {
+      "type": "string",
+      "description": "Comma-separated URLs to check (e.g. 'https://example.com,https://api.example.com/health')"
+    }
+  }
+}

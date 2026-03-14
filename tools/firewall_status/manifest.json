@@ -1,0 +1,5 @@
+{
+  "name": "firewall_status",
+  "description": "Show UFW or iptables firewall rules and status",
+  "command": "bash /home/pi/.pi-chi/tools/firewall_status/firewall_status.sh"
+}

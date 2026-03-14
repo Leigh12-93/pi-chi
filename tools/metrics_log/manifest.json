@@ -1,0 +1,19 @@
+{
+  "name": "metrics_log",
+  "description": "Append timestamped row to CSV file for trend tracking",
+  "command": "bash /home/pi/.pi-chi/tools/metrics_log/metrics_log.sh {{file}} {{values}} {{header}}",
+  "parameters": {
+    "file": {
+      "type": "string",
+      "description": "CSV filename (stored in ~/.pi-chi/data/, e.g. 'temps.csv')"
+    },
+    "values": {
+      "type": "string",
+      "description": "Comma-separated values to log (e.g. '42.5,780,0.65')"
+    },
+    "header": {
+      "type": "string",
+      "description": "Comma-separated column names, used if file is new (e.g. 'temp_c,mem_mb,cpu_load')"
+    }
+  }
+}

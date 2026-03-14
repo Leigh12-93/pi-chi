@@ -1,0 +1,15 @@
+{
+  "name": "apt_manage",
+  "description": "Full apt package management: install, remove, update, upgrade, search, autoremove",
+  "command": "bash /home/pi/.pi-chi/tools/apt_manage/apt_manage.sh {{action}} {{packages}}",
+  "parameters": {
+    "action": {
+      "type": "string",
+      "description": "Action: 'install', 'remove', 'update', 'upgrade', 'search', 'autoremove', 'info'"
+    },
+    "packages": {
+      "type": "string",
+      "description": "Package names (space-separated). Use 'all' for update/upgrade/autoremove."
+    }
+  }
+}

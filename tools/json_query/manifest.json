@@ -1,0 +1,15 @@
+{
+  "name": "json_query",
+  "description": "Query a JSON file using jq-style expressions or Python jsonpath",
+  "command": "python3 /home/pi/.pi-chi/tools/json_query/json_query.py {{file}} {{query}}",
+  "parameters": {
+    "file": {
+      "type": "string",
+      "description": "Path to JSON file"
+    },
+    "query": {
+      "type": "string",
+      "description": "Query expression (Python dict access, e.g. 'data.items[0].name' or 'keys' or 'length')"
+    }
+  }
+}

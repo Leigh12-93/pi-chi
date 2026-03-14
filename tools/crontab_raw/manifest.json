@@ -1,0 +1,19 @@
+{
+  "name": "crontab_raw",
+  "description": "Direct crontab editing for any user including root",
+  "command": "bash /home/pi/.pi-chi/tools/crontab_raw/crontab_raw.sh {{user}} {{action}} {{entry}}",
+  "parameters": {
+    "user": {
+      "type": "string",
+      "description": "User whose crontab to manage (e.g. 'pi', 'root')"
+    },
+    "action": {
+      "type": "string",
+      "description": "Action: 'list', 'add', 'remove'"
+    },
+    "entry": {
+      "type": "string",
+      "description": "Cron entry (for add) or search string (for remove). Use 'none' for list."
+    }
+  }
+}

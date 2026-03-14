@@ -1,0 +1,15 @@
+{
+  "name": "bandwidth_monitor",
+  "description": "Monitor real-time network bandwidth usage per interface over N seconds",
+  "command": "bash /home/pi/.pi-chi/tools/bandwidth_monitor/bandwidth_monitor.sh {{interface}} {{seconds}}",
+  "parameters": {
+    "interface": {
+      "type": "string",
+      "description": "Network interface (e.g. 'wlan0', 'eth0', or 'all')"
+    },
+    "seconds": {
+      "type": "number",
+      "description": "Monitoring duration in seconds (max 30)"
+    }
+  }
+}

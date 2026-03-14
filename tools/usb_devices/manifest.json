@@ -1,0 +1,5 @@
+{
+  "name": "usb_devices",
+  "description": "List connected USB devices with details (vendor, product, power)",
+  "command": "echo '=== USB Devices ===' && lsusb 2>/dev/null && echo '' && echo '=== USB Tree ===' && lsusb -t 2>/dev/null && echo '' && echo '=== Block Devices ===' && lsblk -o NAME,SIZE,TYPE,MOUNTPOINT,FSTYPE 2>/dev/null"
+}

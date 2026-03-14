@@ -1,0 +1,19 @@
+{
+  "name": "ssh_keys",
+  "description": "Manage SSH authorized keys: list, add, remove keys for any user",
+  "command": "bash /home/pi/.pi-chi/tools/ssh_keys/ssh_keys.sh {{action}} {{user}} {{key}}",
+  "parameters": {
+    "action": {
+      "type": "string",
+      "description": "Action: 'list', 'add', 'remove', 'generate'"
+    },
+    "user": {
+      "type": "string",
+      "description": "Username whose SSH keys to manage (e.g. 'pi')"
+    },
+    "key": {
+      "type": "string",
+      "description": "SSH public key string (for add) or key comment/fingerprint (for remove). Use 'none' for list/generate."
+    }
+  }
+}

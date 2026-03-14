@@ -1,0 +1,15 @@
+{
+  "name": "network_reset",
+  "description": "Reset network interface, restart NetworkManager, or reconnect WiFi",
+  "command": "bash /home/pi/.pi-chi/tools/network_reset/network_reset.sh {{action}} {{interface}}",
+  "parameters": {
+    "action": {
+      "type": "string",
+      "description": "Action: 'restart' interface, 'reconnect' WiFi, 'flush' DNS cache, 'dhcp' renew lease"
+    },
+    "interface": {
+      "type": "string",
+      "description": "Network interface (e.g. 'wlan0', 'eth0'). Use 'all' for flush/dhcp."
+    }
+  }
+}

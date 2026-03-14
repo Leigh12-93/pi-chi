@@ -1,0 +1,11 @@
+{
+  "name": "hash_file",
+  "description": "Compute MD5, SHA1, and SHA256 checksums of a file",
+  "command": "echo '=== Checksums for {{file}} ===' && echo \"MD5:    $(md5sum '{{file}}' | awk '{print $1}')\" && echo \"SHA1:   $(sha1sum '{{file}}' | awk '{print $1}')\" && echo \"SHA256: $(sha256sum '{{file}}' | awk '{print $1}')\" && echo \"Size:   $(ls -lh '{{file}}' | awk '{print $5}')\"",
+  "parameters": {
+    "file": {
+      "type": "string",
+      "description": "Path to file to hash"
+    }
+  }
+}

@@ -1,0 +1,11 @@
+{
+  "name": "service_status",
+  "description": "Check systemd service health: active/inactive/failed status and recent logs",
+  "command": "for svc in {{services}}; do echo \"=== $svc ===\"; systemctl is-active \"$svc\" 2>/dev/null; systemctl is-enabled \"$svc\" 2>/dev/null; journalctl -u \"$svc\" -n 3 --no-pager 2>/dev/null | tail -3; echo ''; done",
+  "parameters": {
+    "services": {
+      "type": "string",
+      "description": "Space-separated service names (e.g. 'pi-chi-brain nginx ssh')"
+    }
+  }
+}

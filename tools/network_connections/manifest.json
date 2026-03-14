@@ -1,0 +1,5 @@
+{
+  "name": "network_connections",
+  "description": "Show active network connections with process names, grouped by state",
+  "command": "bash /home/pi/.pi-chi/tools/network_connections/network_connections.sh"
+}

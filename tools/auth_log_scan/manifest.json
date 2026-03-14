@@ -1,0 +1,11 @@
+{
+  "name": "auth_log_scan",
+  "description": "Scan auth logs for failed SSH attempts, successful logins, and sudo usage",
+  "command": "bash /home/pi/.pi-chi/tools/auth_log_scan/auth_log_scan.sh {{lines}}",
+  "parameters": {
+    "lines": {
+      "type": "number",
+      "description": "Number of log lines to scan (e.g. 500)"
+    }
+  }
+}

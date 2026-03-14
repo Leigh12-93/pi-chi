@@ -1,0 +1,5 @@
+{
+  "name": "whoami_full",
+  "description": "Full user and system identity: user, groups, hostname, OS, hardware model",
+  "command": "echo '=== Identity ===' && echo \"User: $(whoami)\" && echo \"UID: $(id)\" && echo \"Home: $HOME\" && echo \"Shell: $SHELL\" && echo '' && echo '=== System ===' && echo \"Hostname: $(hostname)\" && echo \"OS: $(cat /etc/os-release 2>/dev/null | grep PRETTY_NAME | cut -d= -f2 | tr -d '\"')\" && echo \"Kernel: $(uname -r)\" && echo \"Arch: $(uname -m)\" && echo \"Model: $(cat /proc/device-tree/model 2>/dev/null || echo 'N/A')\" && echo \"Serial: $(cat /proc/device-tree/serial-number 2>/dev/null || echo 'N/A')\" && echo '' && echo '=== Groups ===' && groups"
+}

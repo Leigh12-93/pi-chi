@@ -1,0 +1,15 @@
+{
+  "name": "iptables_raw",
+  "description": "Direct iptables control: add, delete, list rules with full flexibility",
+  "command": "bash /home/pi/.pi-chi/tools/iptables_raw/iptables_raw.sh {{action}} {{rule}}",
+  "parameters": {
+    "action": {
+      "type": "string",
+      "description": "Action: 'list', 'add', 'delete', 'save', 'restore', 'flush'"
+    },
+    "rule": {
+      "type": "string",
+      "description": "iptables rule arguments (e.g. '-A INPUT -p tcp --dport 80 -j ACCEPT'). Use 'none' for list/save/flush."
+    }
+  }
+}

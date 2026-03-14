@@ -1,0 +1,5 @@
+{
+  "name": "uptime_log",
+  "description": "Log system uptime, load average, and connected users to CSV for tracking",
+  "command": "bash /home/pi/.pi-chi/tools/uptime_log/uptime_log.sh"
+}

@@ -1,0 +1,11 @@
+{
+  "name": "auto_heal",
+  "description": "Self-healing diagnostics: check and fix common issues (disk space, services, network, temp)",
+  "command": "bash /home/pi/.pi-chi/tools/auto_heal/auto_heal.sh {{mode}}",
+  "parameters": {
+    "mode": {
+      "type": "string",
+      "description": "Mode: 'diagnose' to check all, 'fix' to auto-repair common issues, 'report' for status summary"
+    }
+  }
+}

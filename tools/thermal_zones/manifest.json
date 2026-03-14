@@ -1,0 +1,5 @@
+{
+  "name": "thermal_zones",
+  "description": "Show all thermal zones, trip points, and cooling devices",
+  "command": "bash /home/pi/.pi-chi/tools/thermal_zones/thermal_zones.sh"
+}

@@ -1,0 +1,5 @@
+{
+  "name": "ip_info",
+  "description": "Get public IP info: geolocation, ISP, ASN, and all local interfaces",
+  "command": "bash /home/pi/.pi-chi/tools/ip_info/ip_info.sh"
+}

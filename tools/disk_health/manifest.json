@@ -1,0 +1,5 @@
+{
+  "name": "disk_health",
+  "description": "Disk usage, inode usage, and SD card I/O statistics",
+  "command": "bash /home/pi/.pi-chi/tools/disk_health/disk_health.sh"
+}

@@ -1,0 +1,15 @@
+{
+  "name": "weather",
+  "description": "Current weather conditions and 3-day forecast via Open-Meteo (no API key needed)",
+  "command": "bash /home/pi/.pi-chi/tools/weather/weather.sh {{latitude}} {{longitude}}",
+  "parameters": {
+    "latitude": {
+      "type": "string",
+      "description": "Latitude (e.g. '-34.93' for Adelaide)"
+    },
+    "longitude": {
+      "type": "string",
+      "description": "Longitude (e.g. '138.60' for Adelaide)"
+    }
+  }
+}

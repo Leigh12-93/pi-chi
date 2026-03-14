@@ -1,0 +1,15 @@
+{
+  "name": "timezone_set",
+  "description": "Get or set the system timezone",
+  "command": "if [ '{{action}}' = 'get' ]; then echo \"Timezone: $(cat /etc/timezone 2>/dev/null || timedatectl show -p Timezone --value)\" && echo \"Current time: $(date)\" && echo \"UTC: $(date -u)\"; else sudo timedatectl set-timezone '{{timezone}}' && echo \"Timezone set to: {{timezone}}\" && echo \"Current time: $(date)\"; fi",
+  "parameters": {
+    "action": {
+      "type": "string",
+      "description": "Action: 'get' or 'set'"
+    },
+    "timezone": {
+      "type": "string",
+      "description": "Timezone (e.g. 'Australia/Adelaide', 'UTC'). Use 'none' for get."
+    }
+  }
+}

@@ -1,0 +1,15 @@
+{
+  "name": "metrics_read",
+  "description": "Read CSV metrics file and compute min/max/avg per numeric column",
+  "command": "python3 /home/pi/.pi-chi/tools/metrics_read/metrics_read.py {{file}} {{rows}}",
+  "parameters": {
+    "file": {
+      "type": "string",
+      "description": "CSV filename in ~/.pi-chi/data/ (e.g. 'temps.csv')"
+    },
+    "rows": {
+      "type": "number",
+      "description": "Number of recent rows to analyze (0 = all)"
+    }
+  }
+}

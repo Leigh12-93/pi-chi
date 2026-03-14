@@ -1,0 +1,6 @@
+{
+  "name": "cpu_bench",
+  "description": "Quick CPU benchmark: single-core performance test with comparison",
+  "command": "python3 /home/pi/.pi-chi/tools/cpu_bench/cpu_bench.py",
+  "parameters": {}
+}

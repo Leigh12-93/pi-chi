@@ -1,0 +1,11 @@
+{
+  "name": "git_info",
+  "description": "Git repo info: branch, status, recent commits, and remote details",
+  "command": "bash /home/pi/.pi-chi/tools/git_info/git_info.sh {{repo_path}}",
+  "parameters": {
+    "repo_path": {
+      "type": "string",
+      "description": "Path to git repository"
+    }
+  }
+}

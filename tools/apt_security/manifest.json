@@ -1,0 +1,5 @@
+{
+  "name": "apt_security",
+  "description": "Check for security updates and show system patch status",
+  "command": "bash /home/pi/.pi-chi/tools/apt_security/apt_security.sh"
+}

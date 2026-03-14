@@ -1,0 +1,19 @@
+{
+  "name": "csv_merge",
+  "description": "Merge two CSV files side-by-side or vertically by matching timestamp column",
+  "command": "python3 /home/pi/.pi-chi/tools/csv_merge/csv_merge.py {{file1}} {{file2}} {{mode}}",
+  "parameters": {
+    "file1": {
+      "type": "string",
+      "description": "First CSV filename in ~/.pi-chi/data/"
+    },
+    "file2": {
+      "type": "string",
+      "description": "Second CSV filename in ~/.pi-chi/data/"
+    },
+    "mode": {
+      "type": "string",
+      "description": "Merge mode: 'join' (match timestamps), 'append' (stack rows), or 'summary' (stats comparison)"
+    }
+  }
+}

@@ -1,0 +1,11 @@
+{
+  "name": "ssl_check",
+  "description": "Check SSL certificate expiry and details for a domain",
+  "command": "bash /home/pi/.pi-chi/tools/ssl_check/ssl_check.sh {{domain}}",
+  "parameters": {
+    "domain": {
+      "type": "string",
+      "description": "Domain name to check SSL cert (e.g. 'google.com')"
+    }
+  }
+}

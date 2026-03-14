@@ -1,0 +1,15 @@
+{
+  "name": "dns_lookup",
+  "description": "DNS lookup: A, MX, TXT, CNAME, or reverse (PTR) records",
+  "command": "if [ '{{type}}' = 'reverse' ]; then host {{target}} 2>/dev/null || nslookup {{target}} 2>/dev/null; else dig +short {{target}} {{type}} 2>/dev/null || host -t {{type}} {{target}} 2>/dev/null || nslookup -type={{type}} {{target}} 2>/dev/null; fi",
+  "parameters": {
+    "target": {
+      "type": "string",
+      "description": "Domain name or IP address for reverse lookup"
+    },
+    "type": {
+      "type": "string",
+      "description": "Record type: A, AAAA, MX, TXT, CNAME, NS, or 'reverse'"
+    }
+  }
+}

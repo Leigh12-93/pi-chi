@@ -1,0 +1,11 @@
+{
+  "name": "traceroute_host",
+  "description": "Traceroute to a host showing each network hop and latency",
+  "command": "traceroute -m 20 -w 3 {{host}} 2>/dev/null || tracepath {{host}} 2>/dev/null || echo 'traceroute/tracepath not available'",
+  "parameters": {
+    "host": {
+      "type": "string",
+      "description": "Hostname or IP to traceroute to"
+    }
+  }
+}

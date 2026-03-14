@@ -1,0 +1,11 @@
+{
+  "name": "i2c_scan",
+  "description": "Scan I2C bus for connected devices and identify common addresses",
+  "command": "echo '=== I2C Bus {{bus}} Scan ===' && i2cdetect -y {{bus}} 2>/dev/null || echo 'i2cdetect not available. Install: sudo apt install i2c-tools'",
+  "parameters": {
+    "bus": {
+      "type": "number",
+      "description": "I2C bus number (usually 1 for Raspberry Pi)"
+    }
+  }
+}

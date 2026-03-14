@@ -1,0 +1,5 @@
+{
+  "name": "wifi_info",
+  "description": "WiFi SSID, signal strength, channel, frequency, and nearby networks",
+  "command": "bash /home/pi/.pi-chi/tools/wifi_info/wifi_info.sh"
+}

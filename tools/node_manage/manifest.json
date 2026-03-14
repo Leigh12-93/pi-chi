@@ -1,0 +1,15 @@
+{
+  "name": "node_manage",
+  "description": "Manage Node.js projects: npm install, list, run scripts, check versions",
+  "command": "bash /home/pi/.pi-chi/tools/node_manage/node_manage.sh {{action}} {{path}}",
+  "parameters": {
+    "action": {
+      "type": "string",
+      "description": "Action: 'install', 'scripts', 'outdated', 'versions', or 'audit'"
+    },
+    "path": {
+      "type": "string",
+      "description": "Path to Node.js project directory"
+    }
+  }
+}

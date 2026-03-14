@@ -1,0 +1,11 @@
+{
+  "name": "net_scan",
+  "description": "Ping sweep LAN subnet for device discovery with hostname resolution",
+  "command": "bash /home/pi/.pi-chi/tools/net_scan/net_scan.sh {{subnet}}",
+  "parameters": {
+    "subnet": {
+      "type": "string",
+      "description": "Subnet to scan (e.g. '192.168.8' for 192.168.8.1-254)"
+    }
+  }
+}

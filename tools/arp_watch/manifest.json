@@ -1,0 +1,5 @@
+{
+  "name": "arp_watch",
+  "description": "Log ARP table changes to detect new devices joining the network",
+  "command": "bash /home/pi/.pi-chi/tools/arp_watch/arp_watch.sh"
+}

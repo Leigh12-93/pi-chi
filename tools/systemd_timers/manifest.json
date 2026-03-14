@@ -1,0 +1,5 @@
+{
+  "name": "systemd_timers",
+  "description": "List all systemd timers with next/last trigger times",
+  "command": "echo '=== Systemd Timers ===' && systemctl list-timers --all --no-pager 2>/dev/null"
+}

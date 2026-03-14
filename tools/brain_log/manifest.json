@@ -1,0 +1,15 @@
+{
+  "name": "brain_log",
+  "description": "Read Pi-Chi brain service logs: recent entries, errors, or search by keyword",
+  "command": "bash /home/pi/.pi-chi/tools/brain_log/brain_log.sh {{mode}} {{filter}}",
+  "parameters": {
+    "mode": {
+      "type": "string",
+      "description": "Mode: 'recent' for last N lines, 'errors' for errors only, 'search' for keyword search"
+    },
+    "filter": {
+      "type": "string",
+      "description": "Number of lines (for recent), or search keyword (for search). Use 'all' for errors."
+    }
+  }
+}

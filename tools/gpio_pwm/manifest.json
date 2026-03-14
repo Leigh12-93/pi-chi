@@ -1,0 +1,23 @@
+{
+  "name": "gpio_pwm",
+  "description": "Software PWM on a GPIO pin for LED dimming or servo control",
+  "command": "python3 /home/pi/.pi-chi/tools/gpio_pwm/gpio_pwm.py {{pin}} {{duty_cycle}} {{frequency}} {{duration_ms}}",
+  "parameters": {
+    "pin": {
+      "type": "number",
+      "description": "GPIO pin number (BCM numbering, e.g. 18)"
+    },
+    "duty_cycle": {
+      "type": "number",
+      "description": "Duty cycle percentage (0-100)"
+    },
+    "frequency": {
+      "type": "number",
+      "description": "PWM frequency in Hz (e.g. 1000 for LED, 50 for servo)"
+    },
+    "duration_ms": {
+      "type": "number",
+      "description": "Duration in milliseconds (e.g. 2000)"
+    }
+  }
+}

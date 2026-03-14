@@ -1,0 +1,19 @@
+{
+  "name": "filesystem_ops",
+  "description": "File operations: copy, move, remove, create dirs, symlinks, and disk usage",
+  "command": "bash /home/pi/.pi-chi/tools/filesystem_ops/filesystem_ops.sh {{action}} {{source}} {{destination}}",
+  "parameters": {
+    "action": {
+      "type": "string",
+      "description": "Action: 'cp', 'mv', 'rm', 'mkdir', 'ln' (symlink), 'du' (disk usage), 'ls', 'cat', 'head', 'wc'"
+    },
+    "source": {
+      "type": "string",
+      "description": "Source path (or target for mkdir/du/ls)"
+    },
+    "destination": {
+      "type": "string",
+      "description": "Destination path (for cp/mv/ln). Use 'none' for rm/mkdir/du/ls/cat/head/wc."
+    }
+  }
+}

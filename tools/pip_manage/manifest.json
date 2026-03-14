@@ -1,0 +1,15 @@
+{
+  "name": "pip_manage",
+  "description": "Manage Python packages: install, list, check outdated, or uninstall",
+  "command": "bash /home/pi/.pi-chi/tools/pip_manage/pip_manage.sh {{action}} {{packages}}",
+  "parameters": {
+    "action": {
+      "type": "string",
+      "description": "Action: 'install', 'list', 'outdated', 'uninstall', or 'show'"
+    },
+    "packages": {
+      "type": "string",
+      "description": "Package names (space-separated for install/uninstall, or 'all' for list/outdated)"
+    }
+  }
+}

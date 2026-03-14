@@ -1,0 +1,5 @@
+{
+  "name": "cpu_throttle_check",
+  "description": "Check CPU throttling, undervoltage, and temperature warnings via vcgencmd",
+  "command": "bash /home/pi/.pi-chi/tools/cpu_throttle_check/cpu_throttle_check.sh"
+}

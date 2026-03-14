@@ -1,0 +1,15 @@
+{
+  "name": "systemd_manage",
+  "description": "Manage systemd services: start, stop, restart, enable, disable, status, logs",
+  "command": "bash /home/pi/.pi-chi/tools/systemd_manage/systemd_manage.sh {{action}} {{service}}",
+  "parameters": {
+    "action": {
+      "type": "string",
+      "description": "Action: 'start', 'stop', 'restart', 'enable', 'disable', 'status', 'logs', 'list-failed'"
+    },
+    "service": {
+      "type": "string",
+      "description": "Service name (e.g. 'pi-chi-brain', 'nginx'). Use 'all' for list-failed."
+    }
+  }
+}

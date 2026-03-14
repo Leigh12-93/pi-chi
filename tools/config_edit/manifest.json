@@ -1,0 +1,23 @@
+{
+  "name": "config_edit",
+  "description": "Read or modify Pi-Chi config files (brain config, .env, systemd units)",
+  "command": "bash /home/pi/.pi-chi/tools/config_edit/config_edit.sh {{action}} {{file}} {{key}} {{value}}",
+  "parameters": {
+    "action": {
+      "type": "string",
+      "description": "Action: 'read' to show file, 'get' to get a key value, 'set' to change a key value"
+    },
+    "file": {
+      "type": "string",
+      "description": "Config file path (e.g. '/home/pi/pi-chi/.env' or '/home/pi/pi-chi/config.json')"
+    },
+    "key": {
+      "type": "string",
+      "description": "Config key name (for get/set). Use 'none' for read."
+    },
+    "value": {
+      "type": "string",
+      "description": "New value (for set). Use 'none' for read/get."
+    }
+  }
+}

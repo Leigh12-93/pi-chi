@@ -1,0 +1,11 @@
+{
+  "name": "calc",
+  "description": "Evaluate mathematical expressions with Python (supports trig, log, conversions)",
+  "command": "python3 -c \"from math import *; result = eval('{{expression}}'); print(f'Result: {result}')\"",
+  "parameters": {
+    "expression": {
+      "type": "string",
+      "description": "Math expression (e.g. 'sqrt(144)', '2**10', 'sin(pi/4)', '1024*1024/8')"
+    }
+  }
+}

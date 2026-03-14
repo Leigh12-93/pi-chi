@@ -1,0 +1,19 @@
+{
+  "name": "cron_manage",
+  "description": "List, add, or remove cron jobs for the pi user",
+  "command": "bash /home/pi/.pi-chi/tools/cron_manage/cron_manage.sh {{action}} {{schedule}} {{command}}",
+  "parameters": {
+    "action": {
+      "type": "string",
+      "description": "Action: 'list', 'add', or 'remove'"
+    },
+    "schedule": {
+      "type": "string",
+      "description": "Cron schedule for add (e.g. '*/5 * * * *'), or search term for remove. Use 'none' for list."
+    },
+    "command": {
+      "type": "string",
+      "description": "Command for add, or search term for remove. Use 'none' for list."
+    }
+  }
+}

@@ -1,0 +1,15 @@
+{
+  "name": "raspi_config",
+  "description": "Non-interactive raspi-config: enable/disable interfaces, boot options, memory split",
+  "command": "bash /home/pi/.pi-chi/tools/raspi_config/raspi_config.sh {{setting}} {{value}}",
+  "parameters": {
+    "setting": {
+      "type": "string",
+      "description": "Setting: 'i2c', 'spi', 'camera', 'serial', 'vnc', 'ssh', 'gpu_mem', 'boot', 'wifi_country', 'status'"
+    },
+    "value": {
+      "type": "string",
+      "description": "Value: 'enable'/'disable' for interfaces, memory MB for gpu_mem, country code for wifi. Use 'none' for status."
+    }
+  }
+}

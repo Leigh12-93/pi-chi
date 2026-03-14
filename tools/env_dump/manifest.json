@@ -1,0 +1,11 @@
+{
+  "name": "env_dump",
+  "description": "Show all environment variables, optionally filtered by keyword",
+  "command": "if [ '{{filter}}' = 'all' ]; then env | sort; else env | sort | grep -i '{{filter}}'; fi",
+  "parameters": {
+    "filter": {
+      "type": "string",
+      "description": "Filter keyword (e.g. 'path', 'node', 'home') or 'all' for everything"
+    }
+  }
+}

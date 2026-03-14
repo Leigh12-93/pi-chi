@@ -1,0 +1,19 @@
+{
+  "name": "permissions_fix",
+  "description": "Fix file permissions: set ownership, make executable, or repair common permission issues",
+  "command": "bash /home/pi/.pi-chi/tools/permissions_fix/permissions_fix.sh {{action}} {{path}} {{mode}}",
+  "parameters": {
+    "action": {
+      "type": "string",
+      "description": "Action: 'fix-owner' (chown to pi), 'chmod' (set permissions), 'check' (show current)"
+    },
+    "path": {
+      "type": "string",
+      "description": "File or directory path"
+    },
+    "mode": {
+      "type": "string",
+      "description": "Permission mode for chmod (e.g. '755', '644', '+x'). Use 'none' for fix-owner/check."
+    }
+  }
+}

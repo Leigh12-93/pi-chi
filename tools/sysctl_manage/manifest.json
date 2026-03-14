@@ -1,0 +1,19 @@
+{
+  "name": "sysctl_manage",
+  "description": "Read or set kernel parameters via sysctl (network tuning, security, memory)",
+  "command": "bash /home/pi/.pi-chi/tools/sysctl_manage/sysctl_manage.sh {{action}} {{key}} {{value}}",
+  "parameters": {
+    "action": {
+      "type": "string",
+      "description": "Action: 'get' to read, 'set' to change, 'search' to find params, 'all' to list"
+    },
+    "key": {
+      "type": "string",
+      "description": "Sysctl key (e.g. 'net.ipv4.ip_forward', 'vm.swappiness'). Use 'none' for all."
+    },
+    "value": {
+      "type": "string",
+      "description": "New value for set. Use 'none' for get/search/all."
+    }
+  }
+}

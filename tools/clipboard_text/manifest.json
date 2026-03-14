@@ -1,0 +1,19 @@
+{
+  "name": "clipboard_text",
+  "description": "Save or retrieve text snippets to a persistent clipboard store",
+  "command": "bash /home/pi/.pi-chi/tools/clipboard_text/clipboard_text.sh {{action}} {{key}} {{value}}",
+  "parameters": {
+    "action": {
+      "type": "string",
+      "description": "Action: 'set' to save, 'get' to retrieve, 'list' to show all, 'delete' to remove"
+    },
+    "key": {
+      "type": "string",
+      "description": "Clipboard key name (e.g. 'wifi_password', 'server_ip'). Use 'all' for list."
+    },
+    "value": {
+      "type": "string",
+      "description": "Value to store (for 'set'). Use 'none' for get/list/delete."
+    }
+  }
+}

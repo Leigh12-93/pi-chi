@@ -1,0 +1,11 @@
+{
+  "name": "pkg_check",
+  "description": "Check if packages are installed, show versions, and list upgradable packages",
+  "command": "bash /home/pi/.pi-chi/tools/pkg_check/pkg_check.sh {{packages}}",
+  "parameters": {
+    "packages": {
+      "type": "string",
+      "description": "Space-separated package names to check (or 'upgradable' to list available updates)"
+    }
+  }
+}

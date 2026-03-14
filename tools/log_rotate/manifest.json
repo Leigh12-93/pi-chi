@@ -1,0 +1,15 @@
+{
+  "name": "log_rotate",
+  "description": "Manage log files in a directory: show sizes, truncate, or archive old logs",
+  "command": "bash /home/pi/.pi-chi/tools/log_rotate/log_rotate.sh {{action}} {{directory}}",
+  "parameters": {
+    "action": {
+      "type": "string",
+      "description": "Action: 'list' to show sizes, 'archive' to compress logs older than 7 days, 'cleanup' to remove archived logs"
+    },
+    "directory": {
+      "type": "string",
+      "description": "Directory containing logs (e.g. '/home/pi/.pi-chi/data' or '/var/log')"
+    }
+  }
+}

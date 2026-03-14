@@ -1,0 +1,5 @@
+{
+  "name": "mem_breakdown",
+  "description": "Detailed RAM breakdown: free, cached, buffers, swap, and top memory consumers",
+  "command": "bash /home/pi/.pi-chi/tools/mem_breakdown/mem_breakdown.sh"
+}

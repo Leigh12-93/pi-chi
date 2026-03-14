@@ -1,0 +1,19 @@
+{
+  "name": "archive_extract",
+  "description": "List or extract tar.gz, zip, or gz archives",
+  "command": "bash /home/pi/.pi-chi/tools/archive_extract/archive_extract.sh {{action}} {{file}} {{destination}}",
+  "parameters": {
+    "action": {
+      "type": "string",
+      "description": "Action: 'list' to show contents, 'extract' to decompress"
+    },
+    "file": {
+      "type": "string",
+      "description": "Path to archive file"
+    },
+    "destination": {
+      "type": "string",
+      "description": "Extraction destination directory (for extract action, use 'default' for current dir)"
+    }
+  }
+}

@@ -1,0 +1,19 @@
+{
+  "name": "git_clone",
+  "description": "Clone git repos, pull updates, or manage local repositories",
+  "command": "bash /home/pi/.pi-chi/tools/git_clone/git_clone.sh {{action}} {{repo}} {{destination}}",
+  "parameters": {
+    "action": {
+      "type": "string",
+      "description": "Action: 'clone', 'pull', 'status'"
+    },
+    "repo": {
+      "type": "string",
+      "description": "Git repo URL (for clone) or local path (for pull/status)"
+    },
+    "destination": {
+      "type": "string",
+      "description": "Destination directory (for clone). Use 'none' for pull/status."
+    }
+  }
+}

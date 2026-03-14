@@ -1,0 +1,5 @@
+{
+  "name": "mount_info",
+  "description": "Show all mounted filesystems, NFS mounts, and fstab entries",
+  "command": "echo '=== Mounted Filesystems ===' && mount | grep -vE 'tmpfs|proc|sys|cgroup|devpts' && echo '' && echo '=== /etc/fstab ===' && cat /etc/fstab | grep -v '^#' | grep -v '^$' && echo '' && echo '=== Block Devices ===' && lsblk -o NAME,SIZE,TYPE,MOUNTPOINT,FSTYPE,UUID 2>/dev/null"
+}

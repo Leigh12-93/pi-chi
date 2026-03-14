@@ -1,0 +1,11 @@
+{
+  "name": "quote",
+  "description": "Get a random inspirational, philosophical, or funny quote",
+  "command": "bash /home/pi/.pi-chi/tools/quote/quote.sh {{category}}",
+  "parameters": {
+    "category": {
+      "type": "string",
+      "description": "Category: 'inspire', 'philosophy', 'funny', 'stoic', 'science', or 'random'"
+    }
+  }
+}

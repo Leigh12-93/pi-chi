@@ -1,0 +1,5 @@
+{
+  "name": "system_snapshot",
+  "description": "Complete system overview: CPU, RAM, disk, temp, uptime, network, and services in one shot",
+  "command": "bash /home/pi/.pi-chi/tools/system_snapshot/system_snapshot.sh"
+}

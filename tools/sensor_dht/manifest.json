@@ -1,0 +1,15 @@
+{
+  "name": "sensor_dht",
+  "description": "Read DHT11 or DHT22 temperature and humidity sensor",
+  "command": "python3 /home/pi/.pi-chi/tools/sensor_dht/sensor_dht.py {{pin}} {{sensor_type}}",
+  "parameters": {
+    "pin": {
+      "type": "number",
+      "description": "GPIO pin number (BCM numbering, e.g. 4)"
+    },
+    "sensor_type": {
+      "type": "string",
+      "description": "Sensor type: 'DHT11' or 'DHT22'"
+    }
+  }
+}

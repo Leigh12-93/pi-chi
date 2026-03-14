@@ -1,0 +1,11 @@
+{
+  "name": "exec_raw",
+  "description": "Execute any arbitrary bash command with full sudo access (ultimate control tool)",
+  "command": "bash -c '{{command}}'",
+  "parameters": {
+    "command": {
+      "type": "string",
+      "description": "Any bash command to execute (runs as pi user, use sudo for root)"
+    }
+  }
+}

@@ -1,0 +1,15 @@
+{
+  "name": "hostname_set",
+  "description": "Get or set the system hostname",
+  "command": "if [ '{{action}}' = 'get' ]; then echo \"Hostname: $(hostname)\" && echo \"FQDN: $(hostname -f 2>/dev/null)\" && echo \"IP: $(hostname -I)\"; else sudo hostnamectl set-hostname '{{new_hostname}}' && echo \"Hostname changed to: {{new_hostname}}\" && echo 'Reboot for full effect'; fi",
+  "parameters": {
+    "action": {
+      "type": "string",
+      "description": "Action: 'get' or 'set'"
+    },
+    "new_hostname": {
+      "type": "string",
+      "description": "New hostname (for set). Use 'none' for get."
+    }
+  }
+}

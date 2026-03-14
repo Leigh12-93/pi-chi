@@ -1,0 +1,19 @@
+{
+  "name": "camera_capture",
+  "description": "Capture a photo from the Pi camera module and save it",
+  "command": "bash /home/pi/.pi-chi/tools/camera_capture/camera_capture.sh {{filename}} {{width}} {{height}}",
+  "parameters": {
+    "filename": {
+      "type": "string",
+      "description": "Output filename (saved to ~/.pi-chi/data/, e.g. 'capture.jpg')"
+    },
+    "width": {
+      "type": "number",
+      "description": "Image width in pixels (e.g. 1920)"
+    },
+    "height": {
+      "type": "number",
+      "description": "Image height in pixels (e.g. 1080)"
+    }
+  }
+}

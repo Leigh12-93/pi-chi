@@ -1,0 +1,15 @@
+{
+  "name": "journal_errors",
+  "description": "Extract recent errors, warnings, and critical messages from systemd journal",
+  "command": "bash /home/pi/.pi-chi/tools/journal_errors/journal_errors.sh {{priority}} {{hours}}",
+  "parameters": {
+    "priority": {
+      "type": "string",
+      "description": "Minimum priority: 'emerg', 'alert', 'crit', 'err', 'warning', or 'notice'"
+    },
+    "hours": {
+      "type": "number",
+      "description": "Look back N hours"
+    }
+  }
+}

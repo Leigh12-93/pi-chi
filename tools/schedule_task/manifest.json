@@ -1,0 +1,19 @@
+{
+  "name": "schedule_task",
+  "description": "Schedule a one-shot command to run at a specific time using 'at' daemon",
+  "command": "bash /home/pi/.pi-chi/tools/schedule_task/schedule_task.sh {{action}} {{time_spec}} {{command}}",
+  "parameters": {
+    "action": {
+      "type": "string",
+      "description": "Action: 'add' to schedule, 'list' to see pending, 'remove' to cancel"
+    },
+    "time_spec": {
+      "type": "string",
+      "description": "When to run (e.g. 'now + 5 minutes', '10:30', 'midnight', 'noon tomorrow'). Use 'none' for list/remove."
+    },
+    "command": {
+      "type": "string",
+      "description": "Command to execute. For remove, use job number. Use 'none' for list."
+    }
+  }
+}

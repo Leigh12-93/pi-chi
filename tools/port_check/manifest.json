@@ -1,0 +1,15 @@
+{
+  "name": "port_check",
+  "description": "Test TCP port reachability on a remote host",
+  "command": "timeout 10 bash -c 'echo > /dev/tcp/{{host}}/{{port}}' 2>/dev/null && echo 'OPEN: {{host}}:{{port}} is reachable' || echo 'CLOSED: {{host}}:{{port}} is not reachable'",
+  "parameters": {
+    "host": {
+      "type": "string",
+      "description": "Hostname or IP address to check"
+    },
+    "port": {
+      "type": "number",
+      "description": "TCP port number to test"
+    }
+  }
+}

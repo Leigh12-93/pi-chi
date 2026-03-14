@@ -1,0 +1,11 @@
+{
+  "name": "self_restart",
+  "description": "Restart the Pi-Chi brain service itself or reboot the entire Pi",
+  "command": "bash /home/pi/.pi-chi/tools/self_restart/self_restart.sh {{mode}}",
+  "parameters": {
+    "mode": {
+      "type": "string",
+      "description": "Mode: 'brain' to restart brain service, 'reboot' to reboot Pi, 'shutdown' to power off"
+    }
+  }
+}

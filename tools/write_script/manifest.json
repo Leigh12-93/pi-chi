@@ -1,0 +1,19 @@
+{
+  "name": "write_script",
+  "description": "Write content to a file in allowed Pi-Chi directories (tools, data, projects)",
+  "command": "bash /home/pi/.pi-chi/tools/write_script/write_script.sh {{filepath}} {{content}} {{executable}}",
+  "parameters": {
+    "filepath": {
+      "type": "string",
+      "description": "Destination file path (must be under ~/.pi-chi/ or ~/pi-chi-projects/)"
+    },
+    "content": {
+      "type": "string",
+      "description": "File content to write (use \\n for newlines)"
+    },
+    "executable": {
+      "type": "string",
+      "description": "Make executable: 'yes' or 'no'"
+    }
+  }
+}

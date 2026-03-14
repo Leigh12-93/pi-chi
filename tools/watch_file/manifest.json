@@ -1,0 +1,15 @@
+{
+  "name": "watch_file",
+  "description": "Watch a file for changes: show tail, size changes, or last modification time",
+  "command": "bash /home/pi/.pi-chi/tools/watch_file/watch_file.sh {{file}} {{lines}}",
+  "parameters": {
+    "file": {
+      "type": "string",
+      "description": "Path to file to watch"
+    },
+    "lines": {
+      "type": "number",
+      "description": "Number of tail lines to show"
+    }
+  }
+}

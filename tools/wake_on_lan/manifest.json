@@ -1,0 +1,11 @@
+{
+  "name": "wake_on_lan",
+  "description": "Send Wake-on-LAN magic packet to wake a device by MAC address",
+  "command": "python3 /home/pi/.pi-chi/tools/wake_on_lan/wake_on_lan.py {{mac_address}}",
+  "parameters": {
+    "mac_address": {
+      "type": "string",
+      "description": "Target MAC address (e.g. 'AA:BB:CC:DD:EE:FF')"
+    }
+  }
+}

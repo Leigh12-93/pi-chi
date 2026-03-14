@@ -1,0 +1,5 @@
+{
+  "name": "net_speed",
+  "description": "Download speed test using Cloudflare's speed test endpoint",
+  "command": "bash /home/pi/.pi-chi/tools/net_speed/net_speed.sh"
+}

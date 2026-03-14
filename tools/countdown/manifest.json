@@ -1,0 +1,11 @@
+{
+  "name": "countdown",
+  "description": "Calculate days/hours until a target date or between two dates",
+  "command": "python3 -c \"from datetime import datetime; t=datetime.strptime('{{target_date}}','%Y-%m-%d'); n=datetime.now(); d=t-n; print(f'Target: {{target_date}}'); print(f'Now: {n.strftime(\\\"%Y-%m-%d %H:%M\\\")}'); print(f'Days remaining: {d.days}'); print(f'Hours remaining: {d.total_seconds()/3600:.1f}'); print(f'Status: {\\\"PAST\\\" if d.total_seconds()<0 else \\\"FUTURE\\\"}')\"",
+  "parameters": {
+    "target_date": {
+      "type": "string",
+      "description": "Target date in YYYY-MM-DD format"
+    }
+  }
+}

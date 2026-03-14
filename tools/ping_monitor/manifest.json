@@ -1,0 +1,15 @@
+{
+  "name": "ping_monitor",
+  "description": "Ping a host N times and report latency stats and packet loss",
+  "command": "bash /home/pi/.pi-chi/tools/ping_monitor/ping_monitor.sh {{host}} {{count}}",
+  "parameters": {
+    "host": {
+      "type": "string",
+      "description": "Hostname or IP to ping"
+    },
+    "count": {
+      "type": "number",
+      "description": "Number of pings (e.g. 10)"
+    }
+  }
+}

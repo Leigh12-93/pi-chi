@@ -1,0 +1,5 @@
+{
+  "name": "gpio_read_all",
+  "description": "Read all GPIO pin states, modes, and values in a table format",
+  "command": "if command -v pinctrl &>/dev/null; then pinctrl; elif command -v raspi-gpio &>/dev/null; then raspi-gpio get; elif command -v gpio &>/dev/null; then gpio readall; else echo 'No GPIO readout tool found'; fi"
+}

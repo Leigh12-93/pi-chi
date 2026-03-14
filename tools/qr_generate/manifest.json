@@ -1,0 +1,15 @@
+{
+  "name": "qr_generate",
+  "description": "Generate a QR code as ASCII art or PNG file",
+  "command": "python3 /home/pi/.pi-chi/tools/qr_generate/qr_generate.py {{text}} {{output}}",
+  "parameters": {
+    "text": {
+      "type": "string",
+      "description": "Text or URL to encode in QR code"
+    },
+    "output": {
+      "type": "string",
+      "description": "Output mode: 'ascii' for terminal display, or filename for PNG (e.g. 'code.png')"
+    }
+  }
+}

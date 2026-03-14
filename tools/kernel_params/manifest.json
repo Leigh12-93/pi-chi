@@ -1,0 +1,19 @@
+{
+  "name": "kernel_params",
+  "description": "Read or modify /boot/firmware/config.txt kernel and hardware parameters",
+  "command": "bash /home/pi/.pi-chi/tools/kernel_params/kernel_params.sh {{action}} {{key}} {{value}}",
+  "parameters": {
+    "action": {
+      "type": "string",
+      "description": "Action: 'read' to show config, 'get' to read a key, 'set' to change a key, 'add' to add a line"
+    },
+    "key": {
+      "type": "string",
+      "description": "Config key (e.g. 'dtparam=i2c_arm', 'gpu_mem', 'arm_freq'). Use 'none' for read."
+    },
+    "value": {
+      "type": "string",
+      "description": "New value for set/add. Use 'none' for read/get."
+    }
+  }
+}

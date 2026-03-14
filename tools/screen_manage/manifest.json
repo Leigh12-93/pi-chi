@@ -1,0 +1,19 @@
+{
+  "name": "screen_manage",
+  "description": "Manage background screen/tmux sessions for long-running tasks",
+  "command": "bash /home/pi/.pi-chi/tools/screen_manage/screen_manage.sh {{action}} {{name}} {{command}}",
+  "parameters": {
+    "action": {
+      "type": "string",
+      "description": "Action: 'list', 'start' (new session), 'stop' (kill session), 'output' (read last output)"
+    },
+    "name": {
+      "type": "string",
+      "description": "Session name. Use 'all' for list."
+    },
+    "command": {
+      "type": "string",
+      "description": "Command to run in session (for start). Use 'none' for list/stop/output."
+    }
+  }
+}

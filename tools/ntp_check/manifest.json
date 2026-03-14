@@ -1,0 +1,5 @@
+{
+  "name": "ntp_check",
+  "description": "Check NTP time synchronization status and clock drift",
+  "command": "echo '=== Time Sync ===' && echo \"System time: $(date)\" && echo \"UTC: $(date -u)\" && echo \"Timezone: $(cat /etc/timezone 2>/dev/null || timedatectl show -p Timezone --value 2>/dev/null)\" && echo '' && timedatectl status 2>/dev/null && echo '' && echo '--- NTP Peers ---' && chronyc sources 2>/dev/null || ntpq -p 2>/dev/null || echo 'No NTP client found (chrony/ntpd)'"
+}

@@ -1,0 +1,15 @@
+{
+  "name": "locale_set",
+  "description": "Get or set system locale settings",
+  "command": "if [ '{{action}}' = 'get' ]; then locale && echo '' && echo 'Available:' && locale -a 2>/dev/null | head -10; else sudo localectl set-locale LANG='{{locale}}' && echo 'Locale set to: {{locale}}'; fi",
+  "parameters": {
+    "action": {
+      "type": "string",
+      "description": "Action: 'get' or 'set'"
+    },
+    "locale": {
+      "type": "string",
+      "description": "Locale (e.g. 'en_AU.UTF-8'). Use 'none' for get."
+    }
+  }
+}

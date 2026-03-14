@@ -1,0 +1,5 @@
+{
+  "name": "dmesg_errors",
+  "description": "Extract errors, warnings, and hardware messages from kernel ring buffer",
+  "command": "echo '=== Kernel Errors ===' && dmesg --level=err,warn,crit,alert,emerg 2>/dev/null | tail -30 || sudo dmesg | grep -iE 'error|warn|fail|critical|fault' | tail -30"
+}

@@ -1,0 +1,19 @@
+{
+  "name": "gpio_blink",
+  "description": "Blink an LED on a GPIO pin N times at configurable speed",
+  "command": "bash /home/pi/.pi-chi/tools/gpio_blink/gpio_blink.sh {{pin}} {{count}} {{delay_ms}}",
+  "parameters": {
+    "pin": {
+      "type": "number",
+      "description": "GPIO pin number (BCM numbering, e.g. 17)"
+    },
+    "count": {
+      "type": "number",
+      "description": "Number of blinks"
+    },
+    "delay_ms": {
+      "type": "number",
+      "description": "Delay between on/off in milliseconds (e.g. 200)"
+    }
+  }
+}

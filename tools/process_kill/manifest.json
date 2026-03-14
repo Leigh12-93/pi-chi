@@ -1,0 +1,15 @@
+{
+  "name": "process_kill",
+  "description": "Find and kill processes by name, PID, or port number",
+  "command": "bash /home/pi/.pi-chi/tools/process_kill/process_kill.sh {{mode}} {{target}}",
+  "parameters": {
+    "mode": {
+      "type": "string",
+      "description": "Mode: 'name' to kill by process name, 'pid' to kill by PID, 'port' to kill process on port"
+    },
+    "target": {
+      "type": "string",
+      "description": "Process name, PID number, or port number depending on mode"
+    }
+  }
+}

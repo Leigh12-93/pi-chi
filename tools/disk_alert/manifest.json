@@ -1,0 +1,11 @@
+{
+  "name": "disk_alert",
+  "description": "Check disk usage against threshold and report large files consuming space",
+  "command": "bash /home/pi/.pi-chi/tools/disk_alert/disk_alert.sh {{threshold_pct}}",
+  "parameters": {
+    "threshold_pct": {
+      "type": "number",
+      "description": "Alert threshold percentage (e.g. 80 to alert when disk is >80% full)"
+    }
+  }
+}

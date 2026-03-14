@@ -1,0 +1,27 @@
+{
+  "name": "color_led",
+  "description": "Set NeoPixel/WS2812B LED strip color via GPIO (requires neopixel library)",
+  "command": "python3 /home/pi/.pi-chi/tools/color_led/color_led.py {{pin}} {{red}} {{green}} {{blue}} {{count}}",
+  "parameters": {
+    "pin": {
+      "type": "number",
+      "description": "GPIO pin (BCM, typically 18 for NeoPixel)"
+    },
+    "red": {
+      "type": "number",
+      "description": "Red value 0-255"
+    },
+    "green": {
+      "type": "number",
+      "description": "Green value 0-255"
+    },
+    "blue": {
+      "type": "number",
+      "description": "Blue value 0-255"
+    },
+    "count": {
+      "type": "number",
+      "description": "Number of LEDs in strip"
+    }
+  }
+}

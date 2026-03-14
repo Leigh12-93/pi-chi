@@ -1,0 +1,15 @@
+{
+  "name": "fetch_url",
+  "description": "Fetch URL, strip HTML tags, return plain text content",
+  "command": "bash /home/pi/.pi-chi/tools/fetch_url/fetch_url.sh {{url}} {{max_bytes}}",
+  "parameters": {
+    "url": {
+      "type": "string",
+      "description": "URL to fetch"
+    },
+    "max_bytes": {
+      "type": "number",
+      "description": "Maximum bytes to return (e.g. 5000)"
+    }
+  }
+}

@@ -1,0 +1,5 @@
+{
+  "name": "open_ports",
+  "description": "List all listening TCP and UDP ports with process names",
+  "command": "echo '=== Listening Ports ===' && ss -tulnp 2>/dev/null || netstat -tulnp 2>/dev/null"
+}

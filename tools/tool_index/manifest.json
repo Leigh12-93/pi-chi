@@ -1,0 +1,15 @@
+{
+  "name": "tool_index",
+  "description": "Search, list, and describe all available custom tools by category or keyword",
+  "command": "python3 /home/pi/.pi-chi/tools/tool_index/tool_index.py {{action}} {{query}}",
+  "parameters": {
+    "action": {
+      "type": "string",
+      "description": "Action: 'list' all tools, 'search' by keyword, 'category' to list by category, 'describe' a specific tool, 'count' for summary"
+    },
+    "query": {
+      "type": "string",
+      "description": "Search keyword, category name, or tool name. Use 'all' for list/count."
+    }
+  }
+}

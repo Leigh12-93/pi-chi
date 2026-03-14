@@ -1,0 +1,15 @@
+{
+  "name": "brain_state",
+  "description": "Read or modify Pi-Chi brain state: goals, personality, wake config, activity log",
+  "command": "bash /home/pi/.pi-chi/tools/brain_state/brain_state.sh {{action}} {{target}}",
+  "parameters": {
+    "action": {
+      "type": "string",
+      "description": "Action: 'read' to view state, 'goals' for current goals, 'activity' for recent actions, 'personality' for personality config"
+    },
+    "target": {
+      "type": "string",
+      "description": "State file or section to read (e.g. 'all', 'goals', 'activity', 'personality', 'config')"
+    }
+  }
+}

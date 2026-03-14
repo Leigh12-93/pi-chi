@@ -1,0 +1,11 @@
+{
+  "name": "network_latency_log",
+  "description": "Log ping latency to multiple targets and save to CSV for trend analysis",
+  "command": "bash /home/pi/.pi-chi/tools/network_latency_log/network_latency_log.sh {{targets}}",
+  "parameters": {
+    "targets": {
+      "type": "string",
+      "description": "Comma-separated hosts to ping (e.g. '1.1.1.1,8.8.8.8,192.168.8.1')"
+    }
+  }
+}

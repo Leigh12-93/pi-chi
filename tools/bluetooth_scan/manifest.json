@@ -1,0 +1,5 @@
+{
+  "name": "bluetooth_scan",
+  "description": "Scan for nearby Bluetooth devices (classic and BLE)",
+  "command": "bash /home/pi/.pi-chi/tools/bluetooth_scan/bluetooth_scan.sh"
+}

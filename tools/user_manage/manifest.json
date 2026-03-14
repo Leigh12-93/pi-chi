@@ -1,0 +1,19 @@
+{
+  "name": "user_manage",
+  "description": "Manage system users: list, add, remove, lock/unlock, change groups",
+  "command": "bash /home/pi/.pi-chi/tools/user_manage/user_manage.sh {{action}} {{username}} {{extra}}",
+  "parameters": {
+    "action": {
+      "type": "string",
+      "description": "Action: 'list', 'add', 'remove', 'lock', 'unlock', 'groups', 'passwd'"
+    },
+    "username": {
+      "type": "string",
+      "description": "Username to manage. Use 'all' for list."
+    },
+    "extra": {
+      "type": "string",
+      "description": "Extra: groups to add (comma-separated for add), password for passwd. Use 'none' otherwise."
+    }
+  }
+}

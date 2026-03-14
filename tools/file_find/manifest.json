@@ -1,0 +1,19 @@
+{
+  "name": "file_find",
+  "description": "Find files by name pattern, size, or modification time",
+  "command": "bash /home/pi/.pi-chi/tools/file_find/file_find.sh {{directory}} {{pattern}} {{max_results}}",
+  "parameters": {
+    "directory": {
+      "type": "string",
+      "description": "Directory to search in"
+    },
+    "pattern": {
+      "type": "string",
+      "description": "File name pattern (e.g. '*.log', '*.py', 'config*')"
+    },
+    "max_results": {
+      "type": "number",
+      "description": "Maximum number of results to return"
+    }
+  }
+}

@@ -1,0 +1,5 @@
+{
+  "name": "kernel_info",
+  "description": "Kernel version, loaded modules, kernel parameters, and hardware info",
+  "command": "echo '=== Kernel ===' && uname -a && echo '' && echo '--- Hardware ---' && cat /proc/device-tree/model 2>/dev/null && echo '' && echo \"CPU: $(lscpu 2>/dev/null | grep 'Model name' | cut -d: -f2 | xargs)\" && echo \"Revision: $(cat /proc/device-tree/system/linux,revision 2>/dev/null | xxd -p 2>/dev/null || cat /proc/cpuinfo | grep Revision | awk '{print $3}')\" && echo '' && echo '--- Loaded Modules (top 15) ---' && lsmod | head -16 && echo '' && echo '--- Kernel Command Line ---' && cat /proc/cmdline"
+}

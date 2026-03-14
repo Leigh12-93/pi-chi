@@ -1,0 +1,15 @@
+{
+  "name": "base64_tool",
+  "description": "Encode or decode base64 strings",
+  "command": "if [ '{{action}}' = 'encode' ]; then echo '{{input}}' | base64; elif [ '{{action}}' = 'decode' ]; then echo '{{input}}' | base64 -d; else echo 'action must be encode or decode'; fi",
+  "parameters": {
+    "action": {
+      "type": "string",
+      "description": "Action: 'encode' or 'decode'"
+    },
+    "input": {
+      "type": "string",
+      "description": "String to encode or decode"
+    }
+  }
+}

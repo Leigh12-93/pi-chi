@@ -1,0 +1,11 @@
+{
+  "name": "resolv_test",
+  "description": "Test DNS resolution speed and check resolver configuration",
+  "command": "bash /home/pi/.pi-chi/tools/resolv_test/resolv_test.sh {{domain}}",
+  "parameters": {
+    "domain": {
+      "type": "string",
+      "description": "Domain to test resolution for (e.g. 'google.com')"
+    }
+  }
+}

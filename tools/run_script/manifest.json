@@ -1,0 +1,19 @@
+{
+  "name": "run_script",
+  "description": "Execute an arbitrary bash or python script from Pi-Chi directories",
+  "command": "bash /home/pi/.pi-chi/tools/run_script/run_script.sh {{interpreter}} {{script_path}} {{args}}",
+  "parameters": {
+    "interpreter": {
+      "type": "string",
+      "description": "Interpreter: 'bash', 'python3', or 'node'"
+    },
+    "script_path": {
+      "type": "string",
+      "description": "Path to script file"
+    },
+    "args": {
+      "type": "string",
+      "description": "Command line arguments (use 'none' for no args)"
+    }
+  }
+}

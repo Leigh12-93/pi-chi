@@ -1,0 +1,15 @@
+{
+  "name": "power_manage",
+  "description": "Power management: check voltage, set CPU governor, manage power-saving modes",
+  "command": "bash /home/pi/.pi-chi/tools/power_manage/power_manage.sh {{action}} {{value}}",
+  "parameters": {
+    "action": {
+      "type": "string",
+      "description": "Action: 'status' for power info, 'governor' to set CPU governor, 'hdmi' to toggle HDMI, 'led' to toggle activity LED"
+    },
+    "value": {
+      "type": "string",
+      "description": "Value: governor name (performance/ondemand/powersave), 'on'/'off' for hdmi/led. Use 'none' for status."
+    }
+  }
+}

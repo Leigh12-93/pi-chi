@@ -1,0 +1,5 @@
+{
+  "name": "sd_card_health",
+  "description": "Check SD card health: write speed, read speed, wear estimation, and SMART data",
+  "command": "bash /home/pi/.pi-chi/tools/sd_card_health/sd_card_health.sh"
+}

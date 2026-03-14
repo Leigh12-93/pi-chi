@@ -1,0 +1,15 @@
+{
+  "name": "firewall_manage",
+  "description": "Full firewall control: add/remove UFW rules, enable/disable, reset",
+  "command": "bash /home/pi/.pi-chi/tools/firewall_manage/firewall_manage.sh {{action}} {{rule}}",
+  "parameters": {
+    "action": {
+      "type": "string",
+      "description": "Action: 'status', 'enable', 'disable', 'allow', 'deny', 'delete', 'reset'"
+    },
+    "rule": {
+      "type": "string",
+      "description": "Rule spec (e.g. '22/tcp', '80', '192.168.8.0/24'). Use 'none' for status/enable/disable/reset."
+    }
+  }
+}

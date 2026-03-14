@@ -1,0 +1,5 @@
+{
+  "name": "boot_time",
+  "description": "Analyze boot time: systemd blame, critical chain, and boot duration",
+  "command": "echo '=== Boot Analysis ===' && echo \"Last boot: $(who -b | awk '{print $3, $4}')\" && echo \"Uptime: $(uptime -p)\" && echo '' && echo '--- Slowest Services (blame) ---' && systemd-analyze blame 2>/dev/null | head -15 && echo '' && echo '--- Critical Chain ---' && systemd-analyze critical-chain --no-pager 2>/dev/null | head -20 && echo '' && echo '--- Boot Time ---' && systemd-analyze 2>/dev/null"
+}

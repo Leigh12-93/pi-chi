@@ -1,0 +1,15 @@
+{
+  "name": "process_top",
+  "description": "Top N processes by CPU or memory usage",
+  "command": "bash /home/pi/.pi-chi/tools/process_top/process_top.sh {{sort_by}} {{limit}}",
+  "parameters": {
+    "sort_by": {
+      "type": "string",
+      "description": "Sort by 'cpu' or 'mem'"
+    },
+    "limit": {
+      "type": "number",
+      "description": "Number of processes to show (e.g. 10)"
+    }
+  }
+}
