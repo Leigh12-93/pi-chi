@@ -218,34 +218,92 @@ Each cycle costs ~$0.02-0.05 in API fees. Be mindful:
 - Don't call tools unnecessarily
 - Your daily budget is tracked and enforced`
 
-export function buildBrainPrompt(state: BrainState, _vitals: SystemVitalsSnapshot | null): string {
-  const parts: string[] = [SEED_PROMPT]
+/** Return the static seed prompt (identical every cycle — cached by Anthropic API) */
+export function getSeedPrompt(): string {
+  return SEED_PROMPT
+}
+
+// ── Stopwords for keyword relevance scoring ─────────────────────
+const STOPWORDS = new Set([
+  'the', 'a', 'an', 'is', 'are', 'was', 'were', 'be', 'been', 'being',
+  'have', 'has', 'had', 'do', 'does', 'did', 'will', 'would', 'could',
+  'should', 'may', 'might', 'shall', 'can', 'to', 'of', 'in', 'for',
+  'on', 'with', 'at', 'by', 'from', 'as', 'into', 'through', 'during',
+  'before', 'after', 'and', 'but', 'or', 'nor', 'not', 'no', 'so',
+  'if', 'then', 'than', 'that', 'this', 'it', 'its', 'i', 'my', 'you',
+  'your', 'we', 'our', 'they', 'their', 'he', 'she', 'his', 'her',
+  'what', 'which', 'who', 'when', 'where', 'how', 'all', 'each',
+  'every', 'both', 'few', 'more', 'most', 'other', 'some', 'such',
+  'up', 'out', 'about', 'just', 'also', 'very', 'often', 'use', 'set',
+])
+
+function tokenize(text: string): Set<string> {
+  const words = text.toLowerCase().replace(/[^a-z0-9\s-]/g, ' ').split(/\s+/)
+  return new Set(words.filter(w => w.length > 2 && !STOPWORDS.has(w)))
+}
+
+/**
+ * Build the dynamic system prompt (memories, capabilities, evolved wisdom).
+ * Changes every cycle — NOT cached.
+ */
+export function buildDynamicSystemPrompt(state: BrainState): string {
+  const parts: string[] = []
 
   // Self-authored additions
   if (state.promptOverrides.trim()) {
-    parts.push(`\n## Your Evolved Wisdom\n\n${state.promptOverrides.trim()}`)
+    parts.push(`## Your Evolved Wisdom\n\n${state.promptOverrides.trim()}`)
   }
 
-  // Persistent memories (top importance first, within same tier newest first)
+  // Smart memory retrieval — keyword relevance scoring
   if (state.memories.length > 0) {
-    const sorted = [...state.memories].sort((a, b) => {
-      const order = { critical: 0, high: 1, medium: 2, low: 3 }
-      const importanceDiff = order[a.importance] - order[b.importance]
-      if (importanceDiff !== 0) return importanceDiff
-      // Within same importance, newest first
-      return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+    // Build relevance keywords from active goals, threads, recent activity
+    const relevanceText: string[] = []
+    const activeGoals = state.goals.filter(g => g.status === 'active')
+    for (const g of activeGoals) {
+      relevanceText.push(g.title)
+      for (const t of g.tasks.filter(tk => tk.status !== 'done')) {
+        relevanceText.push(t.title)
+      }
+    }
+    const activeThreads = state.threads.filter(t => t.status === 'active')
+    for (const t of activeThreads) {
+      relevanceText.push(t.title)
+    }
+    // Last 3 activity messages
+    for (const a of state.activityLog.slice(-3)) {
+      relevanceText.push(a.message)
+    }
+    const keywords = tokenize(relevanceText.join(' '))
+
+    // Score each memory
+    const importanceWeight: Record<string, number> = { critical: 100, high: 50, medium: 10, low: 1 }
+    const scored = state.memories.map(m => {
+      let score = importanceWeight[m.importance] || 1
+      const memTokens = tokenize(`${m.key} ${m.content}`)
+      for (const kw of keywords) {
+        if (memTokens.has(kw)) score += 5
+      }
+      return { memory: m, score }
     })
-    const top = sorted.slice(0, 20)
+
+    scored.sort((a, b) => b.score - a.score)
+    const top = scored.slice(0, 10).map(s => s.memory)
+
     const memLines = top.map(m => `- [${m.importance}] **${m.key}**: ${m.content}`)
-    parts.push(`\n## Your Memories (${state.memories.length} total, showing top ${top.length})\n\n${memLines.join('\n')}`)
+    parts.push(`## Your Memories (${state.memories.length} total, showing ${top.length} most relevant)\n\n${memLines.join('\n')}`)
   }
 
   // Capabilities
   if (state.capabilities.length > 0) {
-    parts.push(`\n## Discovered Capabilities\n\n${state.capabilities.join(', ')}`)
+    parts.push(`## Discovered Capabilities\n\n${state.capabilities.join(', ')}`)
   }
 
-  return parts.join('\n')
+  return parts.join('\n\n')
+}
+
+/** @deprecated Use getSeedPrompt() + buildDynamicSystemPrompt() for cache-optimized prompting */
+export function buildBrainPrompt(state: BrainState, _vitals: SystemVitalsSnapshot | null): string {
+  return getSeedPrompt() + '\n' + buildDynamicSystemPrompt(state)
 }
 
 export function buildContextMessage(
@@ -278,19 +336,18 @@ export function buildContextMessage(
     lines.push(`System: CPU ${vitals.cpuPercent}%, RAM ${vitals.ramUsedMb}/${vitals.ramTotalMb}MB, Temp ${vitals.tempCelsius}°C, Disk ${vitals.diskUsedGb}/${vitals.diskTotalGb}GB, Uptime ${Math.round(vitals.uptimeSeconds / 3600)}h, IP ${vitals.localIp}`)
   }
 
-  // Active research threads
+  // Active research threads (compressed — next step only)
   const activeThreads = state.threads.filter(t => t.status === 'active')
   if (activeThreads.length > 0) {
     lines.push('')
-    lines.push(`Active research threads (${activeThreads.length}):`)
+    lines.push(`Research threads (${activeThreads.length}):`)
     for (const thread of activeThreads) {
       const doneSteps = thread.steps.filter(s => s.status === 'done').length
-      lines.push(`  - "${thread.title}" — ${doneSteps}/${thread.steps.length} steps, ${thread.findings.length} findings`)
       const nextStep = thread.steps.find(s => s.status === 'pending')
-      if (nextStep) lines.push(`    Next: ${nextStep.description}`)
-      if (thread.targetCycle && thread.targetCycle > state.totalThoughts) {
-        lines.push(`    (scheduled for cycle #${thread.targetCycle})`)
-      }
+      const next = nextStep ? ` → Next: ${nextStep.description}` : ''
+      const scheduled = thread.targetCycle && thread.targetCycle > state.totalThoughts
+        ? ` (cycle #${thread.targetCycle})` : ''
+      lines.push(`  - "${thread.title}" (${doneSteps}/${thread.steps.length} steps, ${thread.findings.length} findings)${next}${scheduled}`)
     }
   }
 
@@ -326,24 +383,36 @@ export function buildContextMessage(
         }
       }
 
+      const pendingTasks = goal.tasks.filter(t => t.status !== 'done')
       lines.push(`  ${goal.priority === 'high' ? '!' : goal.priority === 'medium' ? '-' : '.'} [${goal.priority.toUpperCase()}]${staleTag} ${goal.title} — ${progress}`)
-      for (const task of goal.tasks.filter(t => t.status !== 'done')) {
+      // Only show up to 3 pending tasks to save tokens
+      for (const task of pendingTasks.slice(0, 3)) {
         lines.push(`    [ ] ${task.title}`)
+      }
+      if (pendingTasks.length > 3) {
+        lines.push(`    ... +${pendingTasks.length - 3} more pending`)
       }
     }
   } else if (state.totalThoughts > 0) {
     lines.push('\nYou have no active goals. Consider setting some.')
   }
 
-  // Recent activity
+  // Recent activity (compressed — group by type, show last per type)
   const recent = state.activityLog.slice(-8)
   if (recent.length > 0) {
-    lines.push('')
-    lines.push(`Recent activity (last ${recent.length}):`)
+    const byType = new Map<string, { count: number; last: string }>()
     for (const entry of recent) {
-      const time = new Date(entry.time).toLocaleTimeString('en-AU', { hour: '2-digit', minute: '2-digit', hour12: false, timeZone: 'Australia/Adelaide' })
-      lines.push(`  ${time} [${entry.type}] ${entry.message.slice(0, 120)}`)
+      const prev = byType.get(entry.type)
+      byType.set(entry.type, {
+        count: (prev?.count || 0) + 1,
+        last: entry.message.slice(0, 100),
+      })
     }
+    const summary = Array.from(byType.entries())
+      .map(([type, { count, last }]) => `${count} ${type}${count > 1 ? 's' : ''} (last: "${last}")`)
+      .join(', ')
+    lines.push('')
+    lines.push(`Recent: ${summary}`)
   }
 
   // Projects
@@ -409,16 +478,13 @@ export function buildContextMessage(
     lines.push(`Reply using the chat_owner tool. Mark as read by responding.`)
   }
 
-  // Recent chat context (last 5 messages for conversation flow)
-  const recentChat = (state.chatMessages || []).slice(-5)
-  if (recentChat.length > 0 && unreadChat.length === 0) {
+  // Recent chat (compressed — only last 1 message for context when all read)
+  if (unreadChat.length === 0 && (state.chatMessages || []).length > 0) {
+    const lastMsg = state.chatMessages[state.chatMessages.length - 1]
+    const time = new Date(lastMsg.timestamp).toLocaleTimeString('en-AU', { hour: '2-digit', minute: '2-digit', hour12: false, timeZone: 'Australia/Adelaide' })
+    const sender = lastMsg.from === 'owner' ? state.ownerName : 'You'
     lines.push('')
-    lines.push('Recent chat:')
-    for (const msg of recentChat) {
-      const time = new Date(msg.timestamp).toLocaleTimeString('en-AU', { hour: '2-digit', minute: '2-digit', hour12: false, timeZone: 'Australia/Adelaide' })
-      const sender = msg.from === 'owner' ? state.ownerName : 'You'
-      lines.push(`  ${time} ${sender}: ${msg.message.slice(0, 120)}`)
-    }
+    lines.push(`Last chat: ${time} ${sender}: ${lastMsg.message.slice(0, 120)}`)
   }
 
   lines.push('')

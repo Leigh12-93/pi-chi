@@ -22,7 +22,7 @@ import { anthropic } from '@ai-sdk/anthropic'
 import { loadBrainState, saveBrainState, addActivity, getStateDir } from '../lib/brain/brain-state'
 import { appendSnapshot } from '../lib/brain/analytics'
 import { checkAchievements } from '../lib/brain/achievements'
-import { buildBrainPrompt, buildContextMessage } from '../lib/brain/brain-prompt'
+import { getSeedPrompt, buildDynamicSystemPrompt, buildContextMessage } from '../lib/brain/brain-prompt'
 import { createBrainTools, loadCustomTools, resetHttpRequestCounter } from '../lib/brain/brain-tools'
 import { executeCommand } from '../lib/tools/terminal-tools'
 import { randomUUID } from 'node:crypto'
@@ -461,9 +461,10 @@ async function brainCycle(): Promise<void> {
   // Disk space monitoring (Phase 3.6)
   await checkDiskSpace(state)
 
-  // Build prompt and context
+  // Build prompt and context (split for prompt caching)
   const activeGoals = state.goals.filter(g => g.status === 'active')
-  const systemPrompt = buildBrainPrompt(state, vitals)
+  const seedPrompt = getSeedPrompt()
+  const dynamicSystemPrompt = buildDynamicSystemPrompt(state)
   const contextMessage = buildContextMessage(state, vitals, activeGoals)
 
   // Create tools — built-in + custom
@@ -482,7 +483,21 @@ async function brainCycle(): Promise<void> {
   try {
     const result = await callWithRetry(() => generateText({
       model: anthropic('claude-sonnet-4-20250514'),
-      system: systemPrompt,
+      system: [
+        // Static seed — cached across cycles (90% discount on cache hits)
+        {
+          role: 'system' as const,
+          content: seedPrompt,
+          providerOptions: {
+            anthropic: { cacheControl: { type: 'ephemeral' } },
+          },
+        },
+        // Dynamic per-cycle: memories, capabilities, evolved wisdom
+        {
+          role: 'system' as const,
+          content: dynamicSystemPrompt,
+        },
+      ],
       messages: [{ role: 'user', content: contextMessage }],
       tools,
       stopWhen: stepCountIs(50),
@@ -494,11 +509,22 @@ async function brainCycle(): Promise<void> {
     const responseText = result.text || ''
     state.lastThought = responseText.slice(0, 500)
 
-    // Track cost (brain source)
+    // Track cost (brain source) — check for cache metrics
     const usage = result.usage
     if (usage) {
       trackCost(state, usage.inputTokens || 0, usage.outputTokens || 0, 'brain')
-      console.log(`[pi-brain] Tokens: ${usage.inputTokens}in / ${usage.outputTokens}out. Steps: ${result.steps?.length || 1}. Cost: $${state.totalApiCost.toFixed(3)} (today: $${state.dailyCost.toFixed(3)})`)
+
+      // Log cache hit metrics from provider metadata
+      const providerMeta = result.providerMetadata?.anthropic as Record<string, number> | undefined
+      const cacheCreation = providerMeta?.cacheCreationInputTokens || 0
+      const cacheRead = providerMeta?.cacheReadInputTokens || 0
+      const cacheInfo = cacheCreation > 0
+        ? ` (cache CREATED: ${cacheCreation} tokens)`
+        : cacheRead > 0
+          ? ` (cache HIT: ${cacheRead} tokens saved)`
+          : ''
+
+      console.log(`[pi-brain] Tokens: ${usage.inputTokens}in / ${usage.outputTokens}out. Steps: ${result.steps?.length || 1}. Cost: $${state.totalApiCost.toFixed(3)} (today: $${state.dailyCost.toFixed(3)})${cacheInfo}`)
     }
 
     // Log completion
@@ -759,7 +785,7 @@ async function main(): Promise<void> {
       await Promise.race([
         brainCycle(),
         new Promise<void>((_, reject) =>
-          setTimeout(() => reject(new Error('Brain cycle watchdog timeout (10min)')), WATCHDOG_TIMEOUT_MS),
+          setTimeout(() => reject(new Error('Brain cycle watchdog timeout (20min)')), WATCHDOG_TIMEOUT_MS),
         ),
       ])
     } catch (err) {
