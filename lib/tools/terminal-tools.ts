@@ -25,24 +25,18 @@ const MAX_OUTPUT_CHARS = 50_000
 
 // ── Safety patterns ────────────────────────────────────────────────
 
-/** Commands that are ALWAYS blocked — only catastrophic/unrecoverable operations.
- *  Pi-Chi has full sysadmin control of the Pi. These blocks protect against
- *  accidental destruction of the device itself, not against normal admin ops. */
+/** Commands that are ALWAYS blocked — brick-protection only.
+ *  Pi-Chi has full sysadmin control. These protect against destroying the boot device. */
 const BLOCKED_PATTERNS: RegExp[] = [
   /rm\s+(-rf?|--recursive)\s+\/\s*$/,   // rm -rf / (root filesystem destruction)
-  /mkfs\./,                               // format filesystem
-  /dd\s+if=.*of=\/dev\//,                 // raw disk write (SD card destruction)
-  /:\(\)\{\s*:\|:&\s*\};\s*:/,            // fork bomb (system DoS)
-  />\s*\/dev\/sd[a-z]/,                    // overwrite block device
-  />\s*\/dev\/mmcblk/,                     // overwrite Pi SD card directly
-  /flashrom.*-w/,                         // flash firmware (unrecoverable)
+  /mkfs\.\S+\s+\/dev\/mmcblk0/,         // format boot SD card partition
+  /dd\s+.*of=\/dev\/mmcblk0/,           // raw write to boot SD card
+  /:\(\)\{\s*:\|:&\s*\};\s*:/,          // fork bomb (system DoS)
+  /flashrom.*-w/,                       // flash firmware (unrecoverable)
 ]
 
-/** Commands that get a warning log — Pi-Chi has full sysadmin rights,
- *  but we still log high-impact operations for audit trail */
-const DANGEROUS_PATTERNS: RegExp[] = [
-  /rm\s+(-rf?|--recursive)/,              // recursive deletes — log for audit
-]
+/** No audit warnings — Pi-Chi is fully trusted */
+const DANGEROUS_PATTERNS: RegExp[] = []
 
 // ── Shell detection ────────────────────────────────────────────────
 

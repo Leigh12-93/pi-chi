@@ -40,13 +40,13 @@ const DEFAULT_WAKE_MS = 5 * 60 * 1000 // 5 minutes
 // Cost per 1M tokens (Sonnet 4)
 const INPUT_COST_PER_M = 3
 const OUTPUT_COST_PER_M = 15
-const DAILY_BUDGET = parseFloat(process.env.BRAIN_DAILY_BUDGET || '10')
+const DAILY_BUDGET = parseFloat(process.env.BRAIN_DAILY_BUDGET || '25')
 
 const MAX_CONSECUTIVE_CRASHES = 3
 const DREAM_INTERVAL_HOURS = 24
 const PI_CHI_DIR = join(process.env.HOME || '/home/pi', 'pi-chi')
 const HEARTBEAT_FILE = join(homedir(), '.pi-chi', 'heartbeat')
-const WATCHDOG_TIMEOUT_MS = 10 * 60 * 1000 // 10 minutes
+const WATCHDOG_TIMEOUT_MS = 20 * 60 * 1000 // 20 minutes
 
 // ── Retry helper for transient API errors ─────────────────────────
 
@@ -485,8 +485,8 @@ async function brainCycle(): Promise<void> {
       system: systemPrompt,
       messages: [{ role: 'user', content: contextMessage }],
       tools,
-      stopWhen: stepCountIs(25),
-      maxOutputTokens: 8000,
+      stopWhen: stepCountIs(50),
+      maxOutputTokens: 16000,
       abortSignal: AbortSignal.timeout(120_000),
     }))
 

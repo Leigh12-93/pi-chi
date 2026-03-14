@@ -8,9 +8,9 @@ import { homedir } from 'node:os'
 import type { BrainState } from './brain-types'
 import { addActivity, getAdelaideDate } from './brain-state'
 
-const MAX_SMS_PER_HOUR = 5
-const MAX_SMS_PER_DAY = 20
-const MIN_SMS_INTERVAL_MS = 10 * 60 * 1000 // 10 minutes
+const MAX_SMS_PER_HOUR = 10
+const MAX_SMS_PER_DAY = 50
+const MIN_SMS_INTERVAL_MS = 2 * 60 * 1000 // 2 minutes
 const SMS_LOG_FILE = join(homedir(), '.pi-chi', 'sms-log.jsonl')
 const SMS_LOG_MAX_BYTES = 100 * 1024 // 100KB
 

@@ -7,7 +7,7 @@ import {
 } from 'lucide-react'
 import { motion } from 'framer-motion'
 import { cn } from '@/lib/utils'
-import type { SystemVitals } from '@/lib/agent-types'
+import type { SystemVitals, TempReading } from '@/lib/agent-types'
 import { VitalBar } from './vital-bar'
 
 /* ─── Props ─────────────────────────────────────── */
@@ -39,7 +39,6 @@ function GaugeRing({ value, max, color, size = 64 }: { value: number; max: numbe
 
   return (
     <svg width={size} height={size} className="transform -rotate-90">
-      {/* Background ring */}
       <circle
         cx={size / 2}
         cy={size / 2}
@@ -49,7 +48,6 @@ function GaugeRing({ value, max, color, size = 64 }: { value: number; max: numbe
         strokeWidth={4}
         className="text-pi-border/30"
       />
-      {/* Value ring */}
       <motion.circle
         cx={size / 2}
         cy={size / 2}
@@ -67,11 +65,107 @@ function GaugeRing({ value, max, color, size = 64 }: { value: number; max: numbe
   )
 }
 
+/* ─── Temperature sparkline ─────────────────────── */
+
+function TempSparkline({ history, height = 48 }: { history: TempReading[]; height?: number }) {
+  if (history.length < 2) {
+    return (
+      <div style={{ height }} className="flex items-center justify-center text-[9px] text-pi-text-dim">
+        Collecting data...
+      </div>
+    )
+  }
+
+  const width = 200
+  const pad = 2
+  // Compute range across both CPU and GPU temps
+  const allTemps = history.flatMap(r => [r.cpu, r.gpu].filter(t => t > 0))
+  const minT = Math.floor(Math.min(...allTemps) - 2)
+  const maxT = Math.ceil(Math.max(...allTemps) + 2)
+  const range = maxT - minT || 1
+
+  const toX = (i: number) => pad + (i / (history.length - 1)) * (width - pad * 2)
+  const toY = (t: number) => pad + (1 - (t - minT) / range) * (height - pad * 2)
+
+  // Build SVG paths for CPU and GPU
+  const cpuPath = history.map((r, i) => `${i === 0 ? 'M' : 'L'}${toX(i).toFixed(1)},${toY(r.cpu).toFixed(1)}`).join(' ')
+  const gpuPoints = history.filter(r => r.gpu > 0)
+  const gpuPath = gpuPoints.length >= 2
+    ? history.filter(r => r.gpu > 0).map((r, i) => {
+        const idx = history.indexOf(r)
+        return `${i === 0 ? 'M' : 'L'}${toX(idx).toFixed(1)},${toY(r.gpu).toFixed(1)}`
+      }).join(' ')
+    : null
+
+  // Fill gradient under CPU line
+  const cpuFill = cpuPath + ` L${toX(history.length - 1).toFixed(1)},${height - pad} L${toX(0).toFixed(1)},${height - pad} Z`
+
+  // Current temps (last reading)
+  const last = history[history.length - 1]
+  const cpuColor = last.cpu > 70 ? '#ef4444' : last.cpu > 55 ? '#f97316' : '#22c55e'
+  const gpuColor = '#8b5cf6'
+
+  return (
+    <svg width="100%" height={height} viewBox={`0 0 ${width} ${height}`} preserveAspectRatio="none" className="overflow-visible">
+      {/* Y-axis labels */}
+      <text x={width - 1} y={pad + 4} textAnchor="end" className="fill-pi-text-dim" style={{ fontSize: 7 }}>{maxT}°</text>
+      <text x={width - 1} y={height - pad} textAnchor="end" className="fill-pi-text-dim" style={{ fontSize: 7 }}>{minT}°</text>
+
+      {/* CPU fill gradient */}
+      <defs>
+        <linearGradient id="cpuTempGrad" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stopColor={cpuColor} stopOpacity={0.15} />
+          <stop offset="100%" stopColor={cpuColor} stopOpacity={0} />
+        </linearGradient>
+      </defs>
+      <path d={cpuFill} fill="url(#cpuTempGrad)" />
+
+      {/* CPU line */}
+      <path d={cpuPath} fill="none" stroke={cpuColor} strokeWidth={1.5} strokeLinejoin="round" />
+
+      {/* GPU line */}
+      {gpuPath && (
+        <path d={gpuPath} fill="none" stroke={gpuColor} strokeWidth={1.5} strokeLinejoin="round" strokeDasharray="3,2" />
+      )}
+
+      {/* Current value dots */}
+      <circle cx={toX(history.length - 1)} cy={toY(last.cpu)} r={2.5} fill={cpuColor}>
+        <animate attributeName="r" values="2.5;3.5;2.5" dur="2s" repeatCount="indefinite" />
+      </circle>
+      {last.gpu > 0 && (
+        <circle cx={toX(history.length - 1)} cy={toY(last.gpu)} r={2} fill={gpuColor}>
+          <animate attributeName="r" values="2;3;2" dur="2s" repeatCount="indefinite" />
+        </circle>
+      )}
+    </svg>
+  )
+}
+
+/* ─── Temp stats helper ─────────────────────────── */
+
+function getTempStats(history: TempReading[]) {
+  if (history.length === 0) return { minCpu: 0, maxCpu: 0, avgCpu: 0, minGpu: 0, maxGpu: 0, avgGpu: 0 }
+  const cpuTemps = history.map(r => r.cpu).filter(t => t > 0)
+  const gpuTemps = history.map(r => r.gpu).filter(t => t > 0)
+  return {
+    minCpu: cpuTemps.length ? Math.min(...cpuTemps) : 0,
+    maxCpu: cpuTemps.length ? Math.max(...cpuTemps) : 0,
+    avgCpu: cpuTemps.length ? cpuTemps.reduce((a, b) => a + b, 0) / cpuTemps.length : 0,
+    minGpu: gpuTemps.length ? Math.min(...gpuTemps) : 0,
+    maxGpu: gpuTemps.length ? Math.max(...gpuTemps) : 0,
+    avgGpu: gpuTemps.length ? gpuTemps.reduce((a, b) => a + b, 0) / gpuTemps.length : 0,
+  }
+}
+
+function tempColor(t: number): string {
+  return t > 70 ? '#ef4444' : t > 55 ? '#f97316' : '#22c55e'
+}
+
 /* ─── Component ─────────────────────────────────── */
 
 export function VitalsPanel({ vitals, devMode }: VitalsPanelProps) {
   const cpuColor = vitals.cpuPercent > 80 ? '#ef4444' : vitals.cpuPercent > 50 ? '#f59e0b' : '#22c55e'
-  const tempColor = vitals.cpuTemp > 70 ? '#ef4444' : vitals.cpuTemp > 55 ? '#f97316' : '#22c55e'
+  const stats = getTempStats(vitals.tempHistory)
 
   return (
     <div className="flex flex-col">
@@ -120,44 +214,73 @@ export function VitalsPanel({ vitals, devMode }: VitalsPanelProps) {
           </span>
         </motion.div>
 
-        {/* CPU + Temp gauges */}
-        <div className="grid grid-cols-2 gap-2">
-          <motion.div
-            initial={{ opacity: 0, scale: 0.9 }}
-            animate={{ opacity: 1, scale: 1 }}
-            transition={{ delay: 0.1 }}
-            className="p-3 rounded-lg bg-pi-surface/50 border border-pi-border/50 flex flex-col items-center"
-          >
-            <div className="relative">
-              <GaugeRing value={vitals.cpuPercent} max={100} color={cpuColor} />
-              <div className="absolute inset-0 flex flex-col items-center justify-center">
-                <span className="text-base font-bold text-pi-text font-mono leading-none">{vitals.cpuPercent}%</span>
+        {/* ── Live Temperature Section ─────────────── */}
+        <motion.div
+          initial={{ opacity: 0, y: 5 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.05 }}
+          className="rounded-lg border border-pi-border/50 bg-pi-surface/50 overflow-hidden"
+        >
+          {/* Temp header with current values */}
+          <div className="flex items-center justify-between px-3 py-2 border-b border-pi-border/30">
+            <div className="flex items-center gap-1.5">
+              <Thermometer className="w-3.5 h-3.5 text-orange-500" />
+              <span className="text-[10px] font-bold text-pi-text uppercase tracking-wider">Temperature</span>
+            </div>
+            <div className="flex items-center gap-3">
+              <div className="flex items-center gap-1">
+                <span className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: tempColor(vitals.cpuTemp) }} />
+                <span className="text-[10px] font-mono font-bold text-pi-text">CPU {vitals.cpuTemp.toFixed(1)}°C</span>
+              </div>
+              {vitals.gpuTemp > 0 && (
+                <div className="flex items-center gap-1">
+                  <span className="w-1.5 h-1.5 rounded-full bg-violet-500" />
+                  <span className="text-[10px] font-mono font-bold text-pi-text">GPU {vitals.gpuTemp.toFixed(1)}°C</span>
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* Sparkline chart */}
+          <div className="px-2 py-1.5">
+            <TempSparkline history={vitals.tempHistory} height={52} />
+          </div>
+
+          {/* Min / Avg / Max stats */}
+          {vitals.tempHistory.length > 1 && (
+            <div className="grid grid-cols-3 border-t border-pi-border/30">
+              <div className="px-2 py-1.5 text-center border-r border-pi-border/30">
+                <p className="text-[8px] text-pi-text-dim uppercase tracking-wider">Min</p>
+                <p className="text-[11px] font-mono font-bold text-blue-400">{stats.minCpu.toFixed(1)}°</p>
+              </div>
+              <div className="px-2 py-1.5 text-center border-r border-pi-border/30">
+                <p className="text-[8px] text-pi-text-dim uppercase tracking-wider">Avg</p>
+                <p className="text-[11px] font-mono font-bold text-pi-text">{stats.avgCpu.toFixed(1)}°</p>
+              </div>
+              <div className="px-2 py-1.5 text-center">
+                <p className="text-[8px] text-pi-text-dim uppercase tracking-wider">Max</p>
+                <p className="text-[11px] font-mono font-bold" style={{ color: tempColor(stats.maxCpu) }}>{stats.maxCpu.toFixed(1)}°</p>
               </div>
             </div>
-            <div className="flex items-center gap-1 mt-1.5">
+          )}
+        </motion.div>
+
+        {/* CPU gauge */}
+        <motion.div
+          initial={{ opacity: 0, scale: 0.9 }}
+          animate={{ opacity: 1, scale: 1 }}
+          transition={{ delay: 0.1 }}
+          className="p-3 rounded-lg bg-pi-surface/50 border border-pi-border/50 flex items-center gap-3"
+        >
+          <GaugeRing value={vitals.cpuPercent} max={100} color={cpuColor} size={52} />
+          <div>
+            <div className="flex items-center gap-1">
               <Cpu className="w-3 h-3 text-pi-text-dim" />
               <span className="text-[10px] text-pi-text-dim font-medium">CPU</span>
             </div>
-          </motion.div>
-
-          <motion.div
-            initial={{ opacity: 0, scale: 0.9 }}
-            animate={{ opacity: 1, scale: 1 }}
-            transition={{ delay: 0.15 }}
-            className="p-3 rounded-lg bg-pi-surface/50 border border-pi-border/50 flex flex-col items-center"
-          >
-            <div className="relative">
-              <GaugeRing value={vitals.cpuTemp} max={85} color={tempColor} />
-              <div className="absolute inset-0 flex flex-col items-center justify-center">
-                <span className="text-base font-bold text-pi-text font-mono leading-none">{vitals.cpuTemp}°</span>
-              </div>
-            </div>
-            <div className="flex items-center gap-1 mt-1.5">
-              <Thermometer className="w-3 h-3 text-pi-text-dim" />
-              <span className="text-[10px] text-pi-text-dim font-medium">Temp</span>
-            </div>
-          </motion.div>
-        </div>
+            <span className="text-lg font-bold text-pi-text font-mono leading-none">{vitals.cpuPercent}%</span>
+          </div>
+        </motion.div>
 
         {/* RAM + Disk bars */}
         <div className="space-y-2.5">

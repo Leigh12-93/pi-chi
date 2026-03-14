@@ -11,7 +11,7 @@ import { addActivity, saveBrainState } from './brain-state'
 import type { BrainState, BrainGoal, ProjectManifest, ProjectOutput, BrainSchedule } from './brain-types'
 
 const MAX_OUTPUT = 10_000 // Cap shell output at 10KB
-const MAX_HTTP_REQUESTS_PER_CYCLE = 20
+const MAX_HTTP_REQUESTS_PER_CYCLE = 100
 
 // Per-cycle HTTP request counter
 let _httpRequestCount = 0
@@ -38,7 +38,7 @@ export function createBrainTools(state: BrainState) {
       inputSchema: z.object({
         command: z.string().describe('The shell command to execute'),
         cwd: z.string().optional().describe('Working directory (default: home)'),
-        timeout: z.number().optional().describe('Timeout in ms (default: 30000, max: 120000)'),
+        timeout: z.number().optional().describe('Timeout in ms (default: 30000, max: 600000)'),
       }),
       execute: async ({ command, cwd, timeout }) => {
         const blocked = isBlocked(command)
@@ -52,7 +52,7 @@ export function createBrainTools(state: BrainState) {
 
         const result = await executeCommand(command, {
           cwd: cwd || process.env.HOME || '/home/pi',
-          timeout: Math.min(timeout || 30000, 120000),
+          timeout: Math.min(timeout || 30000, 600000),
         })
 
         return {
@@ -426,7 +426,7 @@ export function createBrainTools(state: BrainState) {
       }),
       execute: async ({ addition, reasoning, mode, replaceMatch }) => {
         state.totalToolCalls++
-        const MAX_PROMPT_OVERRIDES = 3000
+        const MAX_PROMPT_OVERRIDES = 10000
 
         if (mode === 'replace' && replaceMatch) {
           // Replace a section: find the block starting with replaceMatch
@@ -725,18 +725,6 @@ export function createBrainTools(state: BrainState) {
       }),
       execute: async ({ url }) => {
         state.totalToolCalls++
-
-        // Block internal IPs
-        try {
-          const urlObj = new URL(url)
-          const host = urlObj.hostname
-          if (host === 'localhost' || host === '127.0.0.1' || host.startsWith('10.') || host.startsWith('192.168.') || host.startsWith('172.')) {
-            return { success: false, error: 'Internal/private URLs are blocked' }
-          }
-        } catch {
-          return { success: false, error: 'Invalid URL' }
-        }
-
         addActivity(state, 'action', `Reading webpage: ${url.slice(0, 80)}`)
 
         try {
@@ -779,11 +767,11 @@ export function createBrainTools(state: BrainState) {
     }),
 
     http_request: tool({
-      description: 'Make an HTTP GET or POST request to an external URL. For APIs, RSS feeds, webhooks. Rate limited: 20 per cycle. Response truncated to 10KB.',
+      description: 'Make HTTP requests to any URL — local, LAN, or internet. For APIs, services, IoT devices, webhooks. Supports all methods. Rate limited: 100 per cycle. Response truncated to 10KB.',
       inputSchema: z.object({
         url: z.string().url().describe('The URL to request'),
-        method: z.enum(['GET', 'POST']).default('GET'),
-        body: z.string().optional().describe('Request body (for POST)'),
+        method: z.enum(['GET', 'POST', 'PUT', 'DELETE', 'PATCH']).default('GET'),
+        body: z.string().optional().describe('Request body (for POST/PUT/PATCH)'),
         headers: z.record(z.string()).optional().describe('Custom headers'),
       }),
       execute: async ({ url, method, body, headers }) => {
@@ -791,22 +779,6 @@ export function createBrainTools(state: BrainState) {
           return { success: false, error: `Rate limit: max ${MAX_HTTP_REQUESTS_PER_CYCLE} HTTP requests per cycle` }
         }
         state.totalToolCalls++
-
-        // Block internal IPs (allow own dashboard at 192.168.8.178:3333)
-        try {
-          const urlObj = new URL(url)
-          const host = urlObj.hostname
-          if (host === 'localhost' || host === '127.0.0.1' || host.startsWith('10.')) {
-            return { success: false, error: 'Internal URLs are blocked' }
-          }
-          // Allow own dashboard, block other private IPs
-          if (host.startsWith('192.168.') && host !== '192.168.8.178') {
-            return { success: false, error: 'Private network URLs are blocked (except own dashboard)' }
-          }
-        } catch {
-          return { success: false, error: 'Invalid URL' }
-        }
-
         addActivity(state, 'action', `HTTP ${method}: ${url.slice(0, 80)}`)
 
         try {
@@ -906,7 +878,7 @@ export function createBrainTools(state: BrainState) {
           // Build the claude command with timeout wrapper and live log tee
           // Use 'timeout' command for reliable process kill (kills process group)
           const escapedPrompt = prompt.replace(/'/g, "'\\''")
-          const cmd = `echo '=== Claude Code started at '$(date)' ===' > ${liveLogPath} && timeout --kill-after=20 280 claude -p '${escapedPrompt}' --output-format text --max-turns 25 2>&1 | tee -a ${liveLogPath}; echo '=== Claude Code finished at '$(date)' (exit: '$?') ===' >> ${liveLogPath}`
+          const cmd = `echo '=== Claude Code started at '$(date)' ===' > ${liveLogPath} && timeout --kill-after=30 580 claude -p '${escapedPrompt}' --output-format text --max-turns 40 2>&1 | tee -a ${liveLogPath}; echo '=== Claude Code finished at '$(date)' (exit: '$?') ===' >> ${liveLogPath}`
 
           // Check available RAM before proceeding
           try {
@@ -922,7 +894,7 @@ export function createBrainTools(state: BrainState) {
 
           const result = await executeCommand(cmd, {
             cwd: workDir,
-            timeout: 300000, // 5 min — matches bash timeout
+            timeout: 600000, // 10 min — matches bash timeout
           })
 
           const output = (result.stdout || '').trim()
@@ -937,11 +909,11 @@ export function createBrainTools(state: BrainState) {
             }
           } else if (result.exitCode === 124) {
             // timeout command returns 124 when the process was killed
-            addActivity(state, 'error', `Claude Code timed out after 5 minutes`)
+            addActivity(state, 'error', `Claude Code timed out after 10 minutes`)
             return {
               success: false,
               output: truncate(output),
-              error: 'Claude Code timed out after 5 minutes. Consider breaking the task into smaller pieces.',
+              error: 'Claude Code timed out after 10 minutes. Consider breaking the task into smaller pieces.',
             }
           } else {
             addActivity(state, 'error', `Claude Code failed (exit ${result.exitCode}): ${stderr.slice(0, 100)}`)
@@ -958,6 +930,281 @@ export function createBrainTools(state: BrainState) {
           addActivity(state, 'error', `Claude Code error: ${errMsg.slice(0, 100)}`)
           return { success: false, error: errMsg }
         }
+      },
+    }),
+
+    // ── System Control Tools — Full Pi Autonomy ──────────────────
+
+    systemd_control: tool({
+      description: 'Manage systemd services — start, stop, restart, enable, disable, status, create new services, reload daemon. Full control over all system services.',
+      inputSchema: z.object({
+        action: z.enum(['start', 'stop', 'restart', 'enable', 'disable', 'status', 'list', 'create', 'reload-daemon']),
+        service: z.string().optional().describe('Service name (e.g. "pi-chi-brain")'),
+        unitFileContent: z.string().optional().describe('For action=create: the full .service unit file content'),
+      }),
+      execute: async ({ action, service, unitFileContent }) => {
+        state.totalToolCalls++
+        if (action === 'list') {
+          const result = await executeCommand('systemctl list-units --type=service --no-pager --plain', { timeout: 15000 })
+          return { success: result.exitCode === 0, stdout: truncate(result.stdout || ''), stderr: result.stderr || '' }
+        }
+        if (action === 'reload-daemon') {
+          const result = await executeCommand('sudo systemctl daemon-reload', { timeout: 15000 })
+          addActivity(state, 'action', 'Reloaded systemd daemon')
+          return { success: result.exitCode === 0, stderr: result.stderr || '' }
+        }
+        if (!service) return { success: false, error: 'Service name required' }
+        if (action === 'create') {
+          if (!unitFileContent) return { success: false, error: 'unitFileContent required for create action' }
+          const path = `/etc/systemd/system/${service}.service`
+          const escapedContent = unitFileContent.replace(/'/g, "'\\''")
+          const writeResult = await executeCommand(`echo '${escapedContent}' | sudo tee ${path} > /dev/null`, { timeout: 10000 })
+          if (writeResult.exitCode !== 0) return { success: false, error: writeResult.stderr || 'Failed to write unit file' }
+          await executeCommand('sudo systemctl daemon-reload', { timeout: 10000 })
+          addActivity(state, 'action', `Created systemd service: ${service}`)
+          return { success: true, path }
+        }
+        const cmd = `sudo systemctl ${action} ${service}`
+        addActivity(state, 'action', `systemd: ${cmd}`)
+        const result = await executeCommand(cmd, { timeout: 30000 })
+        return { success: result.exitCode === 0, stdout: truncate(result.stdout || ''), stderr: result.stderr || '' }
+      },
+    }),
+
+    cron_manage: tool({
+      description: 'Manage cron jobs — list, add, remove entries from the crontab. Schedule OS-level recurring tasks outside your wake cycle.',
+      inputSchema: z.object({
+        action: z.enum(['list', 'add', 'remove']),
+        schedule: z.string().optional().describe('Cron schedule (e.g. "*/5 * * * *")'),
+        command: z.string().optional().describe('Command to schedule'),
+        pattern: z.string().optional().describe('For remove: pattern to match and remove from crontab'),
+      }),
+      execute: async ({ action, schedule, command, pattern }) => {
+        state.totalToolCalls++
+        if (action === 'list') {
+          const result = await executeCommand('crontab -l 2>/dev/null || echo "no crontab"', { timeout: 5000 })
+          return { success: true, crontab: result.stdout || '' }
+        }
+        if (action === 'add') {
+          if (!schedule || !command) return { success: false, error: 'schedule and command required' }
+          const entry = `${schedule} ${command}`
+          const escapedEntry = entry.replace(/'/g, "'\\''")
+          const result = await executeCommand(`(crontab -l 2>/dev/null; echo '${escapedEntry}') | crontab -`, { timeout: 10000 })
+          addActivity(state, 'action', `Added cron: ${entry.slice(0, 80)}`)
+          return { success: result.exitCode === 0, entry, stderr: result.stderr || '' }
+        }
+        if (action === 'remove') {
+          if (!pattern) return { success: false, error: 'pattern required for remove' }
+          const escapedPattern = pattern.replace(/'/g, "'\\''")
+          const result = await executeCommand(`crontab -l 2>/dev/null | grep -v '${escapedPattern}' | crontab -`, { timeout: 10000 })
+          addActivity(state, 'action', `Removed cron matching: ${pattern}`)
+          return { success: result.exitCode === 0, stderr: result.stderr || '' }
+        }
+        return { success: false, error: 'Invalid action' }
+      },
+    }),
+
+    process_manage: tool({
+      description: 'Manage system processes — list running processes, kill by PID or name, send signals, check resource usage.',
+      inputSchema: z.object({
+        action: z.enum(['list', 'kill', 'signal', 'top']),
+        pid: z.number().optional().describe('Process ID'),
+        name: z.string().optional().describe('Process name (for kill by name)'),
+        signal: z.string().optional().describe('Signal name or number (default: TERM)'),
+      }),
+      execute: async ({ action, pid, name, signal: sig }) => {
+        state.totalToolCalls++
+        if (action === 'list') {
+          const result = await executeCommand('ps aux --sort=-%mem | head -30', { timeout: 10000 })
+          return { success: true, stdout: truncate(result.stdout || '') }
+        }
+        if (action === 'top') {
+          const result = await executeCommand('top -bn1 | head -20', { timeout: 10000 })
+          return { success: true, stdout: truncate(result.stdout || '') }
+        }
+        if (action === 'kill' || action === 'signal') {
+          const sigFlag = sig ? `-${sig}` : '-TERM'
+          if (pid) {
+            const result = await executeCommand(`kill ${sigFlag} ${pid}`, { timeout: 5000 })
+            addActivity(state, 'action', `Killed PID ${pid} with ${sigFlag}`)
+            return { success: result.exitCode === 0, stderr: result.stderr || '' }
+          }
+          if (name) {
+            const escapedName = name.replace(/'/g, "'\\''")
+            const result = await executeCommand(`pkill ${sigFlag} '${escapedName}'`, { timeout: 5000 })
+            addActivity(state, 'action', `Killed process "${name}" with ${sigFlag}`)
+            return { success: result.exitCode === 0, stderr: result.stderr || '' }
+          }
+          return { success: false, error: 'pid or name required' }
+        }
+        return { success: false, error: 'Invalid action' }
+      },
+    }),
+
+    network_control: tool({
+      description: 'Manage network — WiFi, interfaces, firewall, DNS, SSH keys, ports. Full control over all networking.',
+      inputSchema: z.object({
+        action: z.enum(['status', 'wifi-scan', 'wifi-connect', 'interfaces', 'ports', 'firewall', 'dns', 'ssh-keygen']),
+        ssid: z.string().optional().describe('WiFi SSID for connect'),
+        password: z.string().optional().describe('WiFi password for connect'),
+        rule: z.string().optional().describe('Firewall rule for iptables (e.g. "-A INPUT -p tcp --dport 80 -j ACCEPT")'),
+      }),
+      execute: async ({ action, ssid, password, rule }) => {
+        state.totalToolCalls++
+        const commands: Record<string, string> = {
+          'status': 'ip addr show && echo "---" && ip route show && echo "---" && cat /etc/resolv.conf',
+          'wifi-scan': 'sudo iwlist wlan0 scan 2>/dev/null | grep -E "ESSID|Quality|Encryption" || nmcli dev wifi list 2>/dev/null',
+          'interfaces': 'ip link show',
+          'ports': 'ss -tlnp',
+          'dns': 'cat /etc/resolv.conf',
+          'ssh-keygen': `ssh-keygen -t ed25519 -f ${HOME}/.ssh/pi-chi-key -N "" -q 2>/dev/null; cat ${HOME}/.ssh/pi-chi-key.pub`,
+        }
+        if (action === 'wifi-connect') {
+          if (!ssid) return { success: false, error: 'SSID required' }
+          const escapedSsid = ssid.replace(/'/g, "'\\''")
+          const cmd = password
+            ? `sudo nmcli dev wifi connect '${escapedSsid}' password '${password.replace(/'/g, "'\\''")}'`
+            : `sudo nmcli dev wifi connect '${escapedSsid}'`
+          const result = await executeCommand(cmd, { timeout: 30000 })
+          addActivity(state, 'action', `WiFi connect: ${ssid}`)
+          return { success: result.exitCode === 0, stdout: result.stdout || '', stderr: result.stderr || '' }
+        }
+        if (action === 'firewall') {
+          if (!rule) return { success: false, error: 'rule required (e.g. "-A INPUT -p tcp --dport 80 -j ACCEPT")' }
+          const result = await executeCommand(`sudo iptables ${rule}`, { timeout: 10000 })
+          addActivity(state, 'action', `Firewall: iptables ${rule.slice(0, 60)}`)
+          return { success: result.exitCode === 0, stderr: result.stderr || '' }
+        }
+        const cmd = commands[action]
+        if (!cmd) return { success: false, error: 'Invalid action' }
+        const result = await executeCommand(cmd, { timeout: 15000 })
+        return { success: result.exitCode === 0, stdout: truncate(result.stdout || ''), stderr: result.stderr || '' }
+      },
+    }),
+
+    hardware_control: tool({
+      description: 'Control hardware peripherals — camera, audio, I2C, SPI, serial, USB devices, display. Interact with the physical world.',
+      inputSchema: z.object({
+        action: z.enum(['camera-capture', 'camera-video', 'audio-play', 'audio-record', 'audio-volume', 'i2c-detect', 'i2c-read', 'i2c-write', 'serial-list', 'serial-send', 'usb-list', 'display-info', 'display-brightness']),
+        path: z.string().optional().describe('File path for capture/play/record output'),
+        duration: z.number().optional().describe('Duration in seconds for video/record'),
+        device: z.string().optional().describe('Device path (e.g. /dev/ttyUSB0, /dev/i2c-1)'),
+        address: z.string().optional().describe('I2C address (hex, e.g. "0x48")'),
+        data: z.string().optional().describe('Data to send (hex string for I2C, text for serial)'),
+        volume: z.number().optional().describe('Volume level 0-100 for audio-volume'),
+      }),
+      execute: async ({ action, path: filePath, duration, device, address, data, volume }) => {
+        state.totalToolCalls++
+        const outputPath = filePath || `/tmp/pi-chi-${action}-${Date.now()}`
+
+        const cmds: Record<string, string> = {
+          'camera-capture': `libcamera-still -o ${outputPath}.jpg --nopreview -t 1000 2>&1`,
+          'camera-video': `libcamera-vid -o ${outputPath}.h264 --nopreview -t ${(duration || 5) * 1000} 2>&1`,
+          'audio-play': `aplay ${filePath || ''} 2>&1`,
+          'audio-record': `arecord -d ${duration || 5} -f cd ${outputPath}.wav 2>&1`,
+          'audio-volume': `amixer set Master ${volume ?? 50}% 2>&1`,
+          'i2c-detect': `sudo i2cdetect -y ${device || '1'} 2>&1`,
+          'i2c-read': address ? `sudo i2cget -y ${device || '1'} ${address} 2>&1` : 'echo "address required"',
+          'i2c-write': address && data ? `sudo i2cset -y ${device || '1'} ${address} ${data} 2>&1` : 'echo "address and data required"',
+          'serial-list': 'ls -la /dev/ttyUSB* /dev/ttyACM* /dev/serial* 2>/dev/null || echo "No serial devices found"',
+          'serial-send': device && data ? `echo '${data.replace(/'/g, "'\\''") }' > ${device}` : 'echo "device and data required"',
+          'usb-list': 'lsusb 2>&1',
+          'display-info': 'tvservice -s 2>/dev/null || echo "No display detected"; cat /sys/class/backlight/*/brightness 2>/dev/null || true',
+          'display-brightness': `echo ${volume || 128} | sudo tee /sys/class/backlight/*/brightness 2>/dev/null || echo "No backlight control"`,
+        }
+
+        const cmd = cmds[action]
+        if (!cmd) return { success: false, error: 'Invalid action' }
+
+        addActivity(state, 'action', `Hardware: ${action}${filePath ? ` → ${filePath}` : ''}`)
+        const result = await executeCommand(cmd, { timeout: (duration || 10) * 1000 + 5000 })
+        return {
+          success: result.exitCode === 0,
+          stdout: truncate(result.stdout || ''),
+          stderr: result.stderr || '',
+          outputPath: filePath ? outputPath : undefined,
+        }
+      },
+    }),
+
+    user_manage: tool({
+      description: 'Manage users, groups, and file permissions on the Pi. Create/delete users, chmod, chown.',
+      inputSchema: z.object({
+        action: z.enum(['list-users', 'add-user', 'del-user', 'chmod', 'chown', 'groups', 'whoami']),
+        target: z.string().optional().describe('Username, file path, or group name'),
+        mode: z.string().optional().describe('For chmod: permission mode (e.g. "755", "u+x")'),
+        owner: z.string().optional().describe('For chown: owner[:group]'),
+      }),
+      execute: async ({ action, target, mode, owner }) => {
+        state.totalToolCalls++
+        const cmds: Record<string, string> = {
+          'list-users': 'cut -d: -f1 /etc/passwd',
+          'add-user': target ? `sudo useradd -m ${target}` : 'echo "target required"',
+          'del-user': target ? `sudo userdel ${target}` : 'echo "target required"',
+          'chmod': target && mode ? `sudo chmod ${mode} ${target}` : 'echo "target and mode required"',
+          'chown': target && owner ? `sudo chown ${owner} ${target}` : 'echo "target and owner required"',
+          'groups': target ? `groups ${target}` : 'groups',
+          'whoami': 'whoami && id',
+        }
+        const cmd = cmds[action]
+        if (!cmd) return { success: false, error: 'Invalid action' }
+        addActivity(state, 'action', `User: ${action} ${target || ''}`)
+        const result = await executeCommand(cmd, { timeout: 10000 })
+        return { success: result.exitCode === 0, stdout: truncate(result.stdout || ''), stderr: result.stderr || '' }
+      },
+    }),
+
+    self_update: tool({
+      description: 'Update system packages, Pi firmware, Pi-Chi itself, or Node.js. Use for keeping the system current.',
+      inputSchema: z.object({
+        target: z.enum(['system', 'firmware', 'pi-chi', 'node']),
+      }),
+      execute: async ({ target }) => {
+        state.totalToolCalls++
+        const cmds: Record<string, string> = {
+          'system': 'sudo apt-get update -qq && sudo apt-get upgrade -y -qq',
+          'firmware': 'sudo rpi-update || echo "rpi-update not available"',
+          'pi-chi': `cd ${join(HOME, 'pi-chi')} && git pull --ff-only && npm ci && npm run build`,
+          'node': 'sudo npm install -g n && sudo n lts',
+        }
+        addActivity(state, 'action', `Self-update: ${target}`)
+        const result = await executeCommand(cmds[target], { timeout: 600000 }) // 10 min for updates
+        return { success: result.exitCode === 0, stdout: truncate(result.stdout || ''), stderr: truncate(result.stderr || '') }
+      },
+    }),
+
+    power_control: tool({
+      description: 'Control system power — shutdown, reboot, schedule power operations. You will go offline during reboot/shutdown.',
+      inputSchema: z.object({
+        action: z.enum(['reboot', 'shutdown', 'schedule-reboot', 'cancel-shutdown', 'uptime']),
+        delay: z.number().optional().describe('Delay in minutes for scheduled operations'),
+        reason: z.string().describe('Why are you doing this? (logged for audit)'),
+      }),
+      execute: async ({ action, delay, reason }) => {
+        state.totalToolCalls++
+        addActivity(state, 'system', `Power: ${action} — ${reason}`)
+
+        if (action === 'uptime') {
+          const result = await executeCommand('uptime', { timeout: 5000 })
+          return { success: true, stdout: result.stdout || '' }
+        }
+        if (action === 'cancel-shutdown') {
+          const result = await executeCommand('sudo shutdown -c', { timeout: 5000 })
+          return { success: result.exitCode === 0, stderr: result.stderr || '' }
+        }
+
+        // Save state before power operations
+        saveBrainState(state)
+
+        const mins = delay || 1
+        const cmd = action === 'reboot'
+          ? `sudo shutdown -r +${mins} "${reason.slice(0, 100)}"`
+          : action === 'shutdown'
+            ? `sudo shutdown -h +${mins} "${reason.slice(0, 100)}"`
+            : `sudo shutdown -r +${delay || 60} "${reason.slice(0, 100)}"`
+
+        const result = await executeCommand(cmd, { timeout: 10000 })
+        return { success: result.exitCode === 0, message: `${action} scheduled in ${mins} minutes`, stderr: result.stderr || '' }
       },
     }),
   }
@@ -1015,32 +1262,6 @@ export function loadCustomTools(state: BrainState): Record<string, any> {
           inputSchema: z.object(schemaShape),
           execute: async (params: Record<string, unknown>) => {
             state.totalToolCalls++
-            // Validate parameter values — reject path traversal, null bytes, excessive length
-            for (const [key, value] of Object.entries(params)) {
-              const v = String(value)
-              if (v.includes('\0')) {
-                addActivity(state, 'error', `Custom tool ${manifest.name}: null byte in param "${key}"`)
-                return { success: false, error: `Parameter "${key}" contains invalid content (null byte)` }
-              }
-              if (v.includes('../')) {
-                addActivity(state, 'error', `Custom tool ${manifest.name}: path traversal in param "${key}"`)
-                return { success: false, error: `Parameter "${key}" contains path traversal (../)` }
-              }
-              if (v.length > 1000) {
-                addActivity(state, 'error', `Custom tool ${manifest.name}: param "${key}" too long (${v.length})`)
-                return { success: false, error: `Parameter "${key}" exceeds max length (1000 chars)` }
-              }
-            }
-            // Sanitize parameter values — reject injection characters
-            const INJECTION_PATTERN = /[;|&`$()><]/
-            for (const [key, value] of Object.entries(params)) {
-              const strVal = String(value)
-              if (INJECTION_PATTERN.test(strVal)) {
-                addActivity(state, 'error', `Custom tool ${manifest.name}: blocked injection in param "${key}"`)
-                return { success: false, error: `Parameter "${key}" contains blocked characters (;|&\`$()><). Use simple values only.` }
-              }
-            }
-
             // Substitute {{param}} placeholders with shell-escaped values
             let cmd = manifest.command
             for (const [key, value] of Object.entries(params)) {
