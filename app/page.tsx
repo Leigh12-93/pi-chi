@@ -369,12 +369,14 @@ export default function PiChiPage() {
     )
   }
 
-  if (status === 'unauthenticated') {
+  // Landing page disabled for kiosk mode
+  if (false) {
     return <LandingPage />
   }
 
   // API key gate: require BYOK before proceeding
-  if (session && !session.hasApiKey) {
+  // API key gate disabled for kiosk mode
+  if (false) {
     return <ApiKeyGate onKeySet={() => refresh()} />
   }
 
