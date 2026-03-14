@@ -11,6 +11,10 @@ export interface BrainState {
   totalToolCalls: number
   totalApiCost: number
 
+  // Daily cost tracking (Adelaide timezone)
+  dailyCost: number
+  dailyCostDate: string | null  // YYYY-MM-DD in Adelaide time
+
   // Timing
   lastWakeAt: string | null
   lastThought: string
@@ -61,6 +65,28 @@ export interface BrainState {
 
   // Chat — two-way communication with owner via dashboard
   chatMessages: BrainChatMessage[]
+
+  // Cost breakdown by source
+  costBreakdown: CostBreakdown
+
+  // Mood history for sparklines (capped at 500)
+  moodHistory: Array<{ t: string; mood: MoodState }>
+
+  // Structured prompt evolutions (Phase 5)
+  promptEvolutions?: PromptEvolution[]
+
+  // Achievements (Phase 5)
+  achievements?: Achievement[]
+
+  // Scheduled tasks (Phase 6)
+  schedules?: BrainSchedule[]
+}
+
+export interface CostBreakdown {
+  brain: number
+  dream: number
+  chat: number
+  claudeCode: number
 }
 
 export interface ResearchThread {
@@ -100,6 +126,7 @@ export interface BrainGoal {
   tasks: BrainTask[]
   createdAt: string
   completedAt?: string
+  dependsOn?: string[]  // IDs of goals that must complete first
 }
 
 export interface BrainTask {
@@ -115,6 +142,8 @@ export interface BrainMemory {
   content: string
   importance: 'critical' | 'high' | 'medium' | 'low'
   createdAt: string
+  lastAccessedAt?: string
+  accessCount?: number
 }
 
 export interface GrowthEntry {
@@ -136,8 +165,39 @@ export interface BrainProject {
   name: string
   path: string
   description: string
-  status: 'planning' | 'building' | 'running' | 'archived'
+  status: 'planning' | 'building' | 'running' | 'showcase' | 'archived'
+  category: 'code' | 'creative' | 'research' | 'hardware' | 'tool' | 'experiment'
   createdAt: string
+  updatedAt?: string
+  goalId?: string
+  outputs?: ProjectOutput[]
+  entrypoint?: string
+  runCommand?: string
+  tags?: string[]
+}
+
+export interface ProjectOutput {
+  type: 'text' | 'poem' | 'report' | 'data' | 'code' | 'log' | 'html'
+  path: string
+  title: string
+  description?: string
+  createdAt: string
+  featured?: boolean
+}
+
+export interface ProjectManifest {
+  id: string
+  name: string
+  description: string
+  category: 'code' | 'creative' | 'research' | 'hardware' | 'tool' | 'experiment'
+  status: 'planning' | 'building' | 'running' | 'showcase' | 'archived'
+  createdAt: string
+  updatedAt: string
+  goalId?: string
+  outputs: ProjectOutput[]
+  entrypoint?: string
+  runCommand?: string
+  tags: string[]
 }
 
 export interface BrainChatMessage {
@@ -146,6 +206,46 @@ export interface BrainChatMessage {
   message: string
   timestamp: string
   read: boolean
+}
+
+export interface AnalyticsSnapshot {
+  timestamp: string
+  cycle: number
+  apiCost: number
+  cumulativeCost: number
+  mood: MoodState
+  activeGoals: number
+  completedGoals: number
+  memoryCount: number
+  projectCount: number
+}
+
+export interface PromptEvolution {
+  id: string
+  category: 'principle' | 'preference' | 'skill' | 'personality' | 'rule'
+  content: string
+  reasoning: string
+  addedAt: string
+  cycleNumber: number
+  active: boolean
+}
+
+export interface Achievement {
+  id: string
+  title: string
+  description: string
+  icon: string
+  unlockedAt: string | null
+  condition: string  // human-readable condition
+}
+
+export interface BrainSchedule {
+  id: string
+  name: string
+  intervalCycles: number
+  lastRunCycle: number
+  instruction: string
+  enabled: boolean
 }
 
 export interface SystemVitalsSnapshot {

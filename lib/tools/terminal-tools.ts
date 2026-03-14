@@ -41,6 +41,14 @@ const BLOCKED_PATTERNS: RegExp[] = [
   /echo.*>\s*\/etc\/shadow/,              // modify passwords
   /flashrom.*-w/,                         // flash firmware
   /fdisk.*\/dev\//,                       // partition disks
+  /cat\s+\/etc\/shadow/,                  // read shadow passwords
+  /nc\s+-l/,                              // netcat listener
+  /\bncat\b.*-l/,                         // ncat listener
+  /\bsocat\b.*LISTEN/i,                   // socat listener
+  /cat\s+.*\.ssh\/id_rsa/,               // read SSH private key
+  /cat\s+.*\.ssh\/id_ed25519/,            // read SSH private key
+  /crontab\s+-e/,                         // interactive crontab
+  /\|\s*(bash|sh)\s*$/,                   // pipe to shell (generic)
 ]
 
 /** Commands that are potentially dangerous — warn but allow */

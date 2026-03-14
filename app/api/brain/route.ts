@@ -1,26 +1,48 @@
 /* ─── Brain State API — Dashboard ↔ Brain Bridge ─────────────── */
 
 import { NextResponse } from 'next/server'
-import { readFileSync, writeFileSync, existsSync } from 'node:fs'
+import { existsSync, statSync } from 'node:fs'
 import { join } from 'node:path'
 import { homedir } from 'node:os'
 import { randomUUID } from 'node:crypto'
+import { loadBrainState, saveBrainState, addActivity, getStatePath } from '@/lib/brain/brain-state'
+import { requireBrainAuth } from '@/lib/brain/brain-auth'
+import { rateLimit } from '@/lib/rate-limit'
 
-const STATE_FILE = join(homedir(), '.pi-chi', 'brain-state.json')
+const getLimit = rateLimit('brain-get', 60, 60_000)    // 60 req/min
+const postLimit = rateLimit('brain-post', 10, 60_000)   // 10 req/min
+const HEARTBEAT_FILE = join(homedir(), '.pi-chi', 'heartbeat')
 
-export async function GET() {
+export async function GET(req: Request) {
+  // Auth check
+  const authErr = requireBrainAuth(req)
+  if (authErr) return authErr
+
+  const ip = req.headers.get('x-forwarded-for') || req.headers.get('x-real-ip') || '127.0.0.1'
+  const rl = getLimit(ip)
+  if (!rl.ok) return NextResponse.json({ error: 'Rate limited' }, { status: 429 })
+
   try {
-    if (!existsSync(STATE_FILE)) {
+    if (!existsSync(getStatePath())) {
       return NextResponse.json({ status: 'not-running', state: null })
     }
 
-    const raw = readFileSync(STATE_FILE, 'utf-8')
-    const state = JSON.parse(raw)
+    const state = loadBrainState()
 
-    // Determine if brain is actively running
-    const lastWake = state.lastWakeAt ? new Date(state.lastWakeAt).getTime() : 0
-    const intervalMs = state.wakeIntervalMs || 300000
-    const isAlive = Date.now() - lastWake < intervalMs * 3 // Consider alive if woke within 3x the interval
+    // Determine if brain is actively running — check heartbeat file (Phase 3.4)
+    let isAlive = false
+    try {
+      if (existsSync(HEARTBEAT_FILE)) {
+        const hbMtime = statSync(HEARTBEAT_FILE).mtimeMs
+        isAlive = Date.now() - hbMtime < 90_000 // stale if >90s
+      }
+    } catch { /* fallback to old method */ }
+    if (!isAlive) {
+      // Fallback: check lastWakeAt
+      const lastWake = state.lastWakeAt ? new Date(state.lastWakeAt).getTime() : 0
+      const intervalMs = state.wakeIntervalMs || 300000
+      isAlive = Date.now() - lastWake < intervalMs * 3
+    }
 
     return NextResponse.json({
       status: isAlive ? 'running' : 'sleeping',
@@ -35,8 +57,16 @@ export async function GET() {
 }
 
 export async function POST(req: Request) {
+  // Auth check
+  const authErr = requireBrainAuth(req)
+  if (authErr) return authErr
+
+  const ip = req.headers.get('x-forwarded-for') || req.headers.get('x-real-ip') || '127.0.0.1'
+  const rl = postLimit(ip)
+  if (!rl.ok) return NextResponse.json({ error: 'Rate limited' }, { status: 429 })
+
   try {
-    if (!existsSync(STATE_FILE)) {
+    if (!existsSync(getStatePath())) {
       return NextResponse.json(
         { error: 'Brain state not found — brain service may not be running' },
         { status: 404 }
@@ -44,8 +74,7 @@ export async function POST(req: Request) {
     }
 
     const { type, data } = await req.json()
-    const raw = readFileSync(STATE_FILE, 'utf-8')
-    const state = JSON.parse(raw)
+    const state = loadBrainState()
 
     if (type === 'inject-goal') {
       state.goals.push({
@@ -61,24 +90,14 @@ export async function POST(req: Request) {
         })),
         createdAt: new Date().toISOString(),
       })
-      state.activityLog.push({
-        id: randomUUID(),
-        time: new Date().toISOString(),
-        type: 'system',
-        message: `Owner injected goal: ${data.title}`,
-      })
-      writeFileSync(STATE_FILE, JSON.stringify(state, null, 2))
+      addActivity(state, 'system', `Owner injected goal: ${data.title}`)
+      saveBrainState(state)
       return NextResponse.json({ ok: true, action: 'goal-injected' })
     }
 
     if (type === 'inject-message') {
       // Write to both activityLog (for brain context) and chatMessages (for chat UI)
-      state.activityLog.push({
-        id: randomUUID(),
-        time: new Date().toISOString(),
-        type: 'system',
-        message: `Owner: ${data.message}`,
-      })
+      addActivity(state, 'system', `Owner: ${data.message}`)
       if (!state.chatMessages) state.chatMessages = []
       state.chatMessages.push({
         id: randomUUID(),
@@ -91,7 +110,7 @@ export async function POST(req: Request) {
       if (state.mood) {
         state.mood.loneliness = Math.max(0, (state.mood.loneliness || 50) - 20)
       }
-      writeFileSync(STATE_FILE, JSON.stringify(state, null, 2))
+      saveBrainState(state)
       return NextResponse.json({ ok: true, action: 'message-injected' })
     }
 
@@ -103,9 +122,39 @@ export async function POST(req: Request) {
             msg.read = true
           }
         }
-        writeFileSync(STATE_FILE, JSON.stringify(state, null, 2))
+        saveBrainState(state)
       }
       return NextResponse.json({ ok: true, action: 'chat-marked-read' })
+    }
+
+    if (type === 'update-setting') {
+      if (data.wakeIntervalMs !== undefined) {
+        const interval = Math.max(60000, Math.min(3600000, Number(data.wakeIntervalMs)))
+        state.wakeIntervalMs = interval
+        addActivity(state, 'system', `Owner changed wake interval to ${interval / 60000}m`)
+      }
+      saveBrainState(state)
+      return NextResponse.json({ ok: true, action: 'setting-updated' })
+    }
+
+    if (type === 'update-goal') {
+      const goal = state.goals.find((g: { id: string }) => g.id === data.goalId)
+      if (!goal) return NextResponse.json({ error: 'Goal not found' }, { status: 404 })
+      if (data.title !== undefined) goal.title = data.title
+      if (data.priority !== undefined) goal.priority = data.priority
+      if (data.status !== undefined) goal.status = data.status
+      addActivity(state, 'system', `Owner updated goal: ${goal.title}`)
+      saveBrainState(state)
+      return NextResponse.json({ ok: true, action: 'goal-updated' })
+    }
+
+    if (type === 'delete-goal') {
+      const idx = state.goals.findIndex((g: { id: string }) => g.id === data.goalId)
+      if (idx === -1) return NextResponse.json({ error: 'Goal not found' }, { status: 404 })
+      const removed = state.goals.splice(idx, 1)
+      addActivity(state, 'system', `Owner deleted goal: ${removed[0].title}`)
+      saveBrainState(state)
+      return NextResponse.json({ ok: true, action: 'goal-deleted' })
     }
 
     return NextResponse.json({ error: `Unknown type: ${type}` }, { status: 400 })

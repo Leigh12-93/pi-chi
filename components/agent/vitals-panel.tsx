@@ -17,6 +17,18 @@ interface VitalsPanelProps {
   devMode?: boolean
 }
 
+/* ─── GPIO pin labels (BCM function names) ─────── */
+
+const gpioLabels: Record<number, string> = {
+  1: '3V3', 2: '5V', 3: 'SDA1', 4: '5V', 5: 'SCL1', 6: 'GND',
+  7: 'GPIO4', 8: 'TXD', 9: 'GND', 10: 'RXD', 11: 'GPIO17', 12: 'PWM0',
+  13: 'GPIO27', 14: 'GND', 15: 'GPIO22', 16: 'GPIO23', 17: '3V3', 18: 'GPIO24',
+  19: 'SPI0_MOSI', 20: 'GND', 21: 'SPI0_MISO', 22: 'GPIO25', 23: 'SPI0_SCLK', 24: 'SPI0_CE0',
+  25: 'GND', 26: 'SPI0_CE1', 27: 'ID_SD', 28: 'ID_SC', 29: 'GPIO5', 30: 'GND',
+  31: 'GPIO6', 32: 'PWM0', 33: 'PWM1', 34: 'GND', 35: 'SPI1_MISO', 36: 'GPIO16',
+  37: 'GPIO26', 38: 'SPI1_MOSI', 39: 'GND', 40: 'SPI1_SCLK',
+}
+
 /* ─── Gauge ring ────────────────────────────────── */
 
 function GaugeRing({ value, max, color, size = 64 }: { value: number; max: number; color: string; size?: number }) {
@@ -176,6 +188,7 @@ export function VitalsPanel({ vitals, devMode }: VitalsPanelProps) {
           <div className="grid grid-cols-10 gap-0.5">
             {Array.from({ length: 40 }, (_, i) => i + 1).map(pin => {
               const isActive = vitals.gpioActive.includes(pin)
+              const label = gpioLabels[pin] || `Pin ${pin}`
               return (
                 <motion.div
                   key={pin}
@@ -184,7 +197,7 @@ export function VitalsPanel({ vitals, devMode }: VitalsPanelProps) {
                     boxShadow: ['0 0 0 0 rgba(16,185,129,0)', '0 0 6px 2px rgba(16,185,129,0.3)', '0 0 0 0 rgba(16,185,129,0)'],
                   } : {}}
                   transition={{ duration: 2, repeat: Infinity }}
-                  title={`GPIO ${pin}${isActive ? ' (active)' : ''}`}
+                  title={`${label} (Pin ${pin})${isActive ? ' — Active' : ''}`}
                   className={cn(
                     'aspect-square rounded text-[7px] font-mono flex items-center justify-center border transition-all',
                     isActive

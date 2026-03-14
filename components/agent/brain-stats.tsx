@@ -3,25 +3,19 @@
 import { useMemo } from 'react'
 import {
   Sparkles, DollarSign, Timer, AlertTriangle,
-  Moon, Clock, TrendingUp,
+  Moon, Clock, TrendingUp, Wrench, Target,
 } from 'lucide-react'
 import { motion } from 'framer-motion'
 import { cn } from '@/lib/utils'
+import type { BrainMetaExtended } from '@/hooks/use-agent-state'
+import type { Goal } from '@/lib/agent-types'
 
 /* ─── Props ─────────────────────────────────────── */
 
 interface BrainStatsProps {
-  brainMeta: {
-    totalThoughts: number
-    totalCost: number
-    wakeInterval: number
-    lastThought?: string
-    name?: string
-    birthTimestamp?: string
-    dreamCount?: number
-    consecutiveCrashes?: number
-  } | null
+  brainMeta: BrainMetaExtended | null
   brainStatus: 'running' | 'sleeping' | 'not-running' | 'error'
+  goals?: Goal[]
   className?: string
 }
 
@@ -95,6 +89,8 @@ function StatCard({ icon: Icon, iconColor, bgGradient, label, value, subValue, w
           iconColor.includes('orange') ? 'from-orange-500/15 to-orange-500/5' :
           iconColor.includes('indigo') ? 'from-indigo-500/15 to-indigo-500/5' :
           iconColor.includes('red') ? 'from-red-500/15 to-red-500/5' :
+          iconColor.includes('amber') ? 'from-amber-500/15 to-amber-500/5' :
+          iconColor.includes('cyan') ? 'from-cyan-500/15 to-cyan-500/5' :
           'from-pi-accent/15 to-pi-accent/5'
         )}>
           <Icon className={cn('w-3.5 h-3.5', iconColor)} />
@@ -136,7 +132,7 @@ function StatsSkeleton() {
 
 /* ─── Component ─────────────────────────────────── */
 
-export function BrainStats({ brainMeta, brainStatus, className }: BrainStatsProps) {
+export function BrainStats({ brainMeta, brainStatus, goals, className }: BrainStatsProps) {
   const stats = useMemo(() => {
     if (!brainMeta) return []
     const items: StatCardProps[] = [
@@ -167,12 +163,35 @@ export function BrainStats({ brainMeta, brainStatus, className }: BrainStatsProp
       },
     ]
 
+    // Tool calls card
+    if (brainMeta.totalToolCalls !== undefined && brainMeta.totalToolCalls > 0) {
+      items.push({
+        icon: Wrench, iconColor: 'text-amber-400',
+        bgGradient: 'bg-gradient-to-br from-amber-500 to-amber-600',
+        label: 'Tool Calls', value: brainMeta.totalToolCalls.toLocaleString(),
+        index: items.length,
+      })
+    }
+
+    // Goal completion rate
+    if (goals && goals.length > 0) {
+      const completed = goals.filter(g => g.status === 'completed').length
+      const pct = Math.round((completed / goals.length) * 100)
+      items.push({
+        icon: Target, iconColor: 'text-cyan-400',
+        bgGradient: 'bg-gradient-to-br from-cyan-500 to-cyan-600',
+        label: 'Goal Rate', value: `${pct}%`,
+        subValue: `${completed}/${goals.length} completed`,
+        index: items.length,
+      })
+    }
+
     if (brainMeta.dreamCount !== undefined && brainMeta.dreamCount > 0) {
       items.push({
         icon: Moon, iconColor: 'text-indigo-400',
         bgGradient: 'bg-gradient-to-br from-indigo-500 to-indigo-600',
         label: 'Dreams', value: brainMeta.dreamCount,
-        index: 4,
+        index: items.length,
       })
     }
 
@@ -183,12 +202,12 @@ export function BrainStats({ brainMeta, brainStatus, className }: BrainStatsProp
         label: 'Crashes', value: brainMeta.consecutiveCrashes,
         warn: (brainMeta.consecutiveCrashes ?? 0) >= 2,
         subValue: (brainMeta.consecutiveCrashes ?? 0) >= 3 ? 'Auto-revert triggered!' : undefined,
-        index: 5,
+        index: items.length,
       })
     }
 
     return items
-  }, [brainMeta])
+  }, [brainMeta, goals])
 
   if (!brainMeta) return <StatsSkeleton />
 

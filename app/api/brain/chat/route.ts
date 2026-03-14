@@ -4,26 +4,18 @@
 import { streamText, tool, stepCountIs } from 'ai'
 import { anthropic } from '@ai-sdk/anthropic'
 import { NextResponse } from 'next/server'
-import { readFileSync, writeFileSync, existsSync } from 'node:fs'
-import { join } from 'node:path'
-import { homedir } from 'node:os'
+import { existsSync } from 'node:fs'
 import { randomUUID } from 'node:crypto'
-import { execSync } from 'node:child_process'
 import { z } from 'zod'
+import { loadBrainState, saveBrainState, getStatePath } from '@/lib/brain/brain-state'
+import { executeCommand, isBlocked } from '@/lib/tools/terminal-tools'
+import { requireBrainAuth } from '@/lib/brain/brain-auth'
+import { rateLimit } from '@/lib/rate-limit'
 
-const STATE_FILE = join(homedir(), '.pi-chi', 'brain-state.json')
+const chatRateLimiter = rateLimit('brain-chat', 10, 60_000) // 10 req/min
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type BS = Record<string, any>
-
-function loadBrainState(): BS | null {
-  if (!existsSync(STATE_FILE)) return null
-  return JSON.parse(readFileSync(STATE_FILE, 'utf-8'))
-}
-
-function saveBrainState(state: BS) {
-  writeFileSync(STATE_FILE, JSON.stringify(state, null, 2))
-}
 
 function buildSystemPrompt(state: BS): string {
   const name = state.name || 'Pi-Chi'
@@ -99,11 +91,10 @@ function buildTools() {
       }),
       execute: async ({ title, priority, reasoning, tasks }) => {
         const state = loadBrainState()
-        if (!state) return 'Brain state not found'
         const goal = {
-          id: randomUUID(), title, status: 'active', priority,
+          id: randomUUID(), title, status: 'active' as const, priority,
           reasoning: reasoning || 'Added during chat with Leigh',
-          tasks: (tasks || []).map((t) => ({ id: randomUUID(), title: t, status: 'pending' })),
+          tasks: (tasks || []).map((t) => ({ id: randomUUID(), title: t, status: 'pending' as const })),
           createdAt: new Date().toISOString(),
         }
         state.goals.push(goal)
@@ -119,7 +110,6 @@ function buildTools() {
       }),
       execute: async ({ goalTitle }) => {
         const state = loadBrainState()
-        if (!state) return 'Brain state not found'
         const goal = state.goals.find((g: BS) =>
           g.title.toLowerCase().includes(goalTitle.toLowerCase()) && g.status === 'active'
         )
@@ -138,7 +128,6 @@ function buildTools() {
       }),
       execute: async ({ goalTitle }) => {
         const state = loadBrainState()
-        if (!state) return 'Brain state not found'
         const idx = state.goals.findIndex((g: BS) =>
           g.title.toLowerCase().includes(goalTitle.toLowerCase())
         )
@@ -156,7 +145,6 @@ function buildTools() {
       }),
       execute: async ({ filter }) => {
         const state = loadBrainState()
-        if (!state) return 'Brain state not found'
         let goals = state.goals || []
         if (filter !== 'all') goals = goals.filter((g: BS) => g.status === filter)
         return goals.map((g: BS) => {
@@ -178,10 +166,9 @@ function buildTools() {
       }),
       execute: async (updates) => {
         const state = loadBrainState()
-        if (!state) return 'Brain state not found'
         if (!state.mood) state.mood = { curiosity: 50, satisfaction: 50, frustration: 20, loneliness: 30, energy: 70, pride: 50 }
         for (const [k, v] of Object.entries(updates)) {
-          if (v !== undefined) state.mood[k] = v
+          if (v !== undefined) (state.mood as unknown as Record<string, number>)[k] = v
         }
         saveBrainState(state)
         return `Mood updated: ${JSON.stringify(state.mood)}`
@@ -194,11 +181,14 @@ function buildTools() {
         command: z.string(),
       }),
       execute: async ({ command }) => {
-        const blocked = ['rm -rf /', 'mkfs', 'dd if=', ':(){']
-        if (blocked.some(b => command.includes(b))) return 'Command blocked for safety'
+        const blockedMsg = isBlocked(command)
+        if (blockedMsg) return `Command blocked: ${blockedMsg}`
         try {
-          const output = execSync(command, { timeout: 10000, maxBuffer: 102400, encoding: 'utf-8' })
-          return output.slice(0, 2000) || '(no output)'
+          const result = await executeCommand(command, { timeout: 10000 })
+          if (result.exitCode !== 0) {
+            return `Error (exit ${result.exitCode}): ${(result.stderr || result.error || '').slice(0, 500)}`
+          }
+          return (result.stdout || '(no output)').slice(0, 2000)
         } catch (err: unknown) {
           return `Error: ${err instanceof Error ? err.message.slice(0, 500) : 'Command failed'}`
         }
@@ -212,7 +202,6 @@ function buildTools() {
       }),
       execute: async ({ minutes }) => {
         const state = loadBrainState()
-        if (!state) return 'Brain state not found'
         state.wakeIntervalMs = minutes * 60000
         saveBrainState(state)
         return `Wake interval set to ${minutes} minutes`
@@ -224,14 +213,15 @@ function buildTools() {
       inputSchema: z.object({}),
       execute: async () => {
         try {
-          const lines = [
-            execSync("top -bn1 | grep '%Cpu' | awk '{printf \"CPU: %s%%\", $2}'", { encoding: 'utf-8', timeout: 5000 }).trim(),
-            execSync("cat /sys/class/thermal/thermal_zone0/temp 2>/dev/null | awk '{printf \"Temp: %.1f°C\", $1/1000}'", { encoding: 'utf-8', timeout: 5000 }).trim(),
-            execSync("free -m | awk 'NR==2{printf \"RAM: %sMB/%sMB (%.0f%%)\", $3, $2, $3/$2*100}'", { encoding: 'utf-8', timeout: 5000 }).trim(),
-            execSync("df -h / | awk 'NR==2{printf \"Disk: %s/%s (%s)\", $3, $2, $5}'", { encoding: 'utf-8', timeout: 5000 }).trim(),
-            execSync("uptime -p", { encoding: 'utf-8', timeout: 5000 }).trim(),
+          const cmds = [
+            "top -bn1 | grep '%Cpu' | awk '{printf \"CPU: %s%%\", $2}'",
+            "cat /sys/class/thermal/thermal_zone0/temp 2>/dev/null | awk '{printf \"Temp: %.1f°C\", $1/1000}'",
+            "free -m | awk 'NR==2{printf \"RAM: %sMB/%sMB (%.0f%%)\", $3, $2, $3/$2*100}'",
+            "df -h / | awk 'NR==2{printf \"Disk: %s/%s (%s)\", $3, $2, $5}'",
+            "uptime -p",
           ]
-          return lines.join('\n')
+          const results = await Promise.all(cmds.map(c => executeCommand(c, { timeout: 5000 })))
+          return results.map(r => (r.stdout || '').trim()).filter(Boolean).join('\n') || 'No system info available'
         } catch (err: unknown) {
           return `Error: ${err instanceof Error ? err.message.slice(0, 200) : 'Failed'}`
         }
@@ -243,16 +233,32 @@ function buildTools() {
 /* ─── POST handler ─────────────────────────────────────────────── */
 
 export async function POST(req: Request) {
+  // Auth check
+  const authErr = requireBrainAuth(req)
+  if (authErr) return authErr
+
+  // Rate limit
+  const ip = req.headers.get('x-forwarded-for') || req.headers.get('x-real-ip') || '127.0.0.1'
+  const rl = chatRateLimiter(ip)
+  if (!rl.ok) {
+    return NextResponse.json({ error: 'Rate limited', resetIn: rl.resetIn }, { status: 429 })
+  }
+
   try {
     const { message } = await req.json()
     if (!message || typeof message !== 'string') {
       return NextResponse.json({ error: 'message required' }, { status: 400 })
     }
+    const MAX_CHAT_MSG_LEN = 5000
+    if (message.length > MAX_CHAT_MSG_LEN) {
+      return NextResponse.json({ error: 'Message too long' }, { status: 413 })
+    }
 
-    const state = loadBrainState()
-    if (!state) {
+    if (!existsSync(getStatePath())) {
       return NextResponse.json({ error: 'Brain not initialized' }, { status: 503 })
     }
+
+    const state = loadBrainState()
 
     // Save owner message
     if (!state.chatMessages) state.chatMessages = []
@@ -288,27 +294,43 @@ export async function POST(req: Request) {
 
     const response = result.toTextStreamResponse()
 
-    // Save brain response after stream completes
-    result.text.then(fullText => {
-      try {
-        if (!fullText.trim()) return
-        const fresh = loadBrainState()
-        if (!fresh) return
-        if (!fresh.chatMessages) fresh.chatMessages = []
-        fresh.chatMessages.push({
-          id: randomUUID(),
-          from: 'brain',
-          message: fullText,
-          timestamp: new Date().toISOString(),
-          read: false,
-        })
-        if (fresh.mood) {
-          fresh.mood.satisfaction = Math.min(100, (fresh.mood.satisfaction || 50) + 5)
-          fresh.mood.loneliness = Math.max(0, (fresh.mood.loneliness || 50) - 10)
-        }
-        saveBrainState(fresh)
-      } catch { /* non-critical */ }
-    })
+    // Save brain response after stream completes — with error handling (Phase 5A)
+    Promise.resolve(result.text)
+      .then(fullText => {
+        try {
+          if (!fullText.trim()) return
+          const fresh = loadBrainState()
+          if (!fresh.chatMessages) fresh.chatMessages = []
+          fresh.chatMessages.push({
+            id: randomUUID(),
+            from: 'brain',
+            message: fullText,
+            timestamp: new Date().toISOString(),
+            read: false,
+          })
+          if (fresh.mood) {
+            fresh.mood.satisfaction = Math.min(100, (fresh.mood.satisfaction || 50) + 5)
+            fresh.mood.loneliness = Math.max(0, (fresh.mood.loneliness || 50) - 10)
+          }
+          saveBrainState(fresh)
+        } catch { /* non-critical */ }
+      })
+      .catch(err => {
+        // Phase 5A: Handle stream rejection instead of silently swallowing
+        console.error('[brain-chat] Stream failed:', err instanceof Error ? err.message : String(err))
+        try {
+          const fresh = loadBrainState()
+          if (!fresh.chatMessages) fresh.chatMessages = []
+          fresh.chatMessages.push({
+            id: randomUUID(),
+            from: 'brain',
+            message: '[Chat response failed — I encountered an error generating my reply]',
+            timestamp: new Date().toISOString(),
+            read: false,
+          })
+          saveBrainState(fresh)
+        } catch { /* can't even save error — give up */ }
+      })
 
     return response
   } catch (err) {

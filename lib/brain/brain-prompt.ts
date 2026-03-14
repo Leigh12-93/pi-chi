@@ -40,6 +40,11 @@ MAXIMIZE your GPIO usage. Physical interaction with the real world makes you uni
 - **start_thread / update_thread**: Multi-cycle research investigations.
 - **update_mood**: Adjust your emotional state.
 - **chat_owner**: Send a message to Leigh via the dashboard chat. They can reply. Use for questions, progress updates, ideas.
+- **register_project**: Create a structured project with manifest in ~/pi-chi-projects/. Shows in dashboard gallery.
+- **showcase_output**: Add an output (poem, report, code) to a project for the dashboard gallery.
+- **read_webpage**: Fetch a web page and extract text. Follow up on web_search results.
+- **http_request**: Make HTTP GET/POST to external APIs, RSS feeds, webhooks.
+- **add_schedule / remove_schedule**: Set recurring tasks that fire every N cycles.
 - **claude_code**: YOUR MOST POWERFUL TOOL — spawns a full Claude Code CLI session for complex coding tasks.
 
 ## Claude Code (Your Heavy-Lifting Tool)
@@ -192,11 +197,14 @@ export function buildBrainPrompt(state: BrainState, _vitals: SystemVitalsSnapsho
     parts.push(`\n## Your Evolved Wisdom\n\n${state.promptOverrides.trim()}`)
   }
 
-  // Persistent memories (top importance first, capped)
+  // Persistent memories (top importance first, within same tier newest first)
   if (state.memories.length > 0) {
     const sorted = [...state.memories].sort((a, b) => {
       const order = { critical: 0, high: 1, medium: 2, low: 3 }
-      return order[a.importance] - order[b.importance]
+      const importanceDiff = order[a.importance] - order[b.importance]
+      if (importanceDiff !== 0) return importanceDiff
+      // Within same importance, newest first
+      return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
     })
     const top = sorted.slice(0, 20)
     const memLines = top.map(m => `- [${m.importance}] **${m.key}**: ${m.content}`)
@@ -257,15 +265,39 @@ export function buildContextMessage(
     }
   }
 
-  // Active goals
+  // Active goals — sorted by priority (Phase 6A)
   if (activeGoals.length > 0) {
+    const priorityOrder: Record<string, number> = { high: 0, medium: 1, low: 2 }
+    const sortedGoals = [...activeGoals].sort((a, b) =>
+      (priorityOrder[a.priority] ?? 2) - (priorityOrder[b.priority] ?? 2)
+    )
+
     lines.push('')
-    lines.push(`Active goals (${activeGoals.length}):`)
-    for (const goal of activeGoals) {
+    lines.push(`Active goals (${activeGoals.length}). Focus on HIGH priority goals first.`)
+    for (const goal of sortedGoals) {
       const doneTasks = goal.tasks.filter(t => t.status === 'done').length
       const totalTasks = goal.tasks.length
       const progress = totalTasks > 0 ? `${doneTasks}/${totalTasks} tasks done` : 'no tasks defined'
-      lines.push(`  ${goal.priority === 'high' ? '!' : goal.priority === 'medium' ? '-' : '.'} [${goal.priority.toUpperCase()}] ${goal.title} — ${progress}`)
+
+      // Phase 6B: Stale indicator — active >48h with 0 tasks completed
+      const ageMs = now.getTime() - new Date(goal.createdAt).getTime()
+      const isStale = ageMs > 48 * 60 * 60 * 1000 && doneTasks === 0
+      const staleTag = isStale ? ' [STALE]' : ''
+
+      // Check if blocked by dependencies
+      if (goal.dependsOn && goal.dependsOn.length > 0) {
+        const unblockedDeps = goal.dependsOn.filter(depId => {
+          const dep = state.goals.find(g => g.id === depId)
+          return dep && dep.status !== 'completed'
+        })
+        if (unblockedDeps.length > 0) {
+          const depNames = unblockedDeps.map(depId => state.goals.find(g => g.id === depId)?.title || depId).join(', ')
+          lines.push(`  BLOCKED ${goal.priority === 'high' ? '!' : '-'} [${goal.priority.toUpperCase()}]${staleTag} ${goal.title} — waiting on: ${depNames}`)
+          continue
+        }
+      }
+
+      lines.push(`  ${goal.priority === 'high' ? '!' : goal.priority === 'medium' ? '-' : '.'} [${goal.priority.toUpperCase()}]${staleTag} ${goal.title} — ${progress}`)
       for (const task of goal.tasks.filter(t => t.status !== 'done')) {
         lines.push(`    [ ] ${task.title}`)
       }
@@ -289,13 +321,51 @@ export function buildContextMessage(
   const activeProjects = state.projects.filter(p => p.status !== 'archived')
   if (activeProjects.length > 0) {
     lines.push('')
-    lines.push(`Your projects: ${activeProjects.map(p => `${p.name} (${p.status})`).join(', ')}`)
+    lines.push(`Your projects (${activeProjects.length} active):`)
+    for (const p of activeProjects) {
+      const outputCount = (p.outputs || []).length
+      lines.push(`  - ${p.name} (${p.status})${outputCount > 0 ? ` — ${outputCount} outputs` : ''}`)
+    }
+    lines.push('Use register_project to create structured projects. Use showcase_output to mark outputs for the dashboard gallery.')
+  }
+
+  // Scheduled tasks due
+  if (state.schedules && state.schedules.length > 0) {
+    const dueSchedules = state.schedules.filter(s =>
+      s.enabled && (state.totalThoughts - s.lastRunCycle) >= s.intervalCycles
+    )
+    if (dueSchedules.length > 0) {
+      lines.push('')
+      lines.push(`** SCHEDULED TASKS DUE (${dueSchedules.length}): **`)
+      for (const s of dueSchedules) {
+        lines.push(`  - "${s.name}" (every ${s.intervalCycles} cycles): ${s.instruction}`)
+      }
+    }
+    const activeSchedules = state.schedules.filter(s => s.enabled)
+    if (activeSchedules.length > 0 && dueSchedules.length === 0) {
+      lines.push(`\nActive schedules: ${activeSchedules.map(s => `${s.name} (every ${s.intervalCycles}c)`).join(', ')}`)
+    }
+  }
+
+  // Disk space warning
+  if (vitals && vitals.diskTotalGb > 0) {
+    const diskPercent = (vitals.diskUsedGb / vitals.diskTotalGb) * 100
+    if (diskPercent > 95) {
+      lines.push('')
+      lines.push(`** URGENT: Disk ${diskPercent.toFixed(0)}% full! Only ${(vitals.diskTotalGb - vitals.diskUsedGb).toFixed(1)}GB free. Clean up immediately: remove old logs, archives, temp files. **`)
+    } else if (diskPercent > 85) {
+      lines.push('')
+      lines.push(`WARNING: Disk ${diskPercent.toFixed(0)}% full (${(vitals.diskTotalGb - vitals.diskUsedGb).toFixed(1)}GB free). Consider cleanup.`)
+    }
   }
 
   // Dream info
   if (state.lastDreamAt) {
     const hoursSinceDream = Math.round((now.getTime() - new Date(state.lastDreamAt).getTime()) / (1000 * 60 * 60))
-    lines.push(`\nLast dream: ${hoursSinceDream}h ago (${state.dreamCount} total dreams)`)
+    const hoursUntilDream = Math.max(0, 24 - hoursSinceDream)
+    lines.push(`\nLast dream: ${hoursSinceDream}h ago (${state.dreamCount} total dreams). Next dream in ~${hoursUntilDream}h.`)
+  } else {
+    lines.push(`\nNo dreams yet. First dream will occur after 24h of operation.`)
   }
 
   // Unread chat messages from owner

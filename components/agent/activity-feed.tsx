@@ -1,9 +1,9 @@
 'use client'
 
-import { useRef, useEffect, useMemo } from 'react'
+import { useRef, useEffect, useMemo, useState, useCallback } from 'react'
 import {
   Brain, Cpu, Target, Zap, AlertTriangle,
-  CheckCircle2, Activity, Wifi,
+  CheckCircle2, Activity, Wifi, Search, Pause, Play,
 } from 'lucide-react'
 import { motion } from 'framer-motion'
 import { cn } from '@/lib/utils'
@@ -36,21 +36,54 @@ const statusMessages: Record<AgentStatus, { label: string; color: string }> = {
   error: { label: 'Encountered an error', color: 'text-red-400' },
 }
 
+const allTypes = ['system', 'goal', 'action', 'decision', 'error', 'success', 'gpio', 'network'] as const
+
 /* ─── Component ─────────────────────────────────── */
 
 export function ActivityFeed({ entries, agentStatus }: ActivityFeedProps) {
   const scrollRef = useRef<HTMLDivElement>(null)
   const prevLenRef = useRef(0)
+  const [autoScroll, setAutoScroll] = useState(true)
+  const [typeFilter, setTypeFilter] = useState<Set<string>>(new Set())
+  const [searchQuery, setSearchQuery] = useState('')
+  const [searchDebounced, setSearchDebounced] = useState('')
+
+  // Debounce search
+  const searchTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const handleSearch = useCallback((value: string) => {
+    setSearchQuery(value)
+    if (searchTimerRef.current) clearTimeout(searchTimerRef.current)
+    searchTimerRef.current = setTimeout(() => setSearchDebounced(value), 200)
+  }, [])
+
+  const [newCount, setNewCount] = useState(0)
+
+  // Track scroll position to detect if user is scrolled up
+  const handleScroll = useCallback(() => {
+    if (!scrollRef.current) return
+    const el = scrollRef.current
+    const isAtBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 40
+    if (isAtBottom) {
+      setAutoScroll(true)
+      setNewCount(0)
+    }
+  }, [])
 
   // Auto-scroll on new entries
   useEffect(() => {
-    if (entries.length > prevLenRef.current && scrollRef.current) {
-      requestAnimationFrame(() => {
-        scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: 'smooth' })
-      })
+    if (entries.length > prevLenRef.current) {
+      const diff = entries.length - prevLenRef.current
+      if (autoScroll && scrollRef.current) {
+        requestAnimationFrame(() => {
+          scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: 'smooth' })
+        })
+      } else {
+        // Not auto-scrolling — accumulate new entry count
+        setNewCount(prev => prev + diff)
+      }
     }
     prevLenRef.current = entries.length
-  }, [entries.length])
+  }, [entries.length, autoScroll])
 
   // Count by type
   const typeCounts = useMemo(() => {
@@ -58,6 +91,28 @@ export function ActivityFeed({ entries, agentStatus }: ActivityFeedProps) {
     entries.forEach(e => { counts[e.type] = (counts[e.type] || 0) + 1 })
     return counts
   }, [entries])
+
+  // Filter entries
+  const filteredEntries = useMemo(() => {
+    let result = entries
+    if (typeFilter.size > 0) {
+      result = result.filter(e => typeFilter.has(e.type))
+    }
+    if (searchDebounced) {
+      const q = searchDebounced.toLowerCase()
+      result = result.filter(e => e.message.toLowerCase().includes(q))
+    }
+    return result
+  }, [entries, typeFilter, searchDebounced])
+
+  const toggleTypeFilter = useCallback((type: string) => {
+    setTypeFilter(prev => {
+      const next = new Set(prev)
+      if (next.has(type)) next.delete(type)
+      else next.add(type)
+      return next
+    })
+  }, [])
 
   return (
     <div className="h-full flex flex-col">
@@ -67,7 +122,7 @@ export function ActivityFeed({ entries, agentStatus }: ActivityFeedProps) {
           <Activity className="w-3.5 h-3.5 text-pi-accent" />
           <span className="text-xs font-bold text-pi-text">Activity</span>
           <span className="text-[10px] text-pi-text-dim font-mono bg-pi-surface px-1.5 py-0.5 rounded-full">
-            {entries.length}
+            {filteredEntries.length}{filteredEntries.length !== entries.length ? `/${entries.length}` : ''}
           </span>
         </div>
         <div className="flex items-center gap-2">
@@ -86,7 +141,19 @@ export function ActivityFeed({ entries, agentStatus }: ActivityFeedProps) {
               </span>
             )}
           </div>
-          <span className="flex items-center gap-1 text-[10px] text-pi-text-dim">
+          {/* Pause/resume */}
+          <button
+            onClick={() => setAutoScroll(s => !s)}
+            className={cn(
+              'p-1 rounded-lg transition-all',
+              autoScroll ? 'text-pi-text-dim hover:text-pi-text' : 'text-yellow-500 bg-yellow-500/10'
+            )}
+            title={autoScroll ? 'Pause auto-scroll' : 'Resume auto-scroll'}
+            aria-label={autoScroll ? 'Pause auto-scroll' : 'Resume auto-scroll'}
+          >
+            {autoScroll ? <Pause className="w-3 h-3" /> : <Play className="w-3 h-3" />}
+          </button>
+          <span className="flex items-center gap-1 text-[10px] text-pi-text-dim" aria-live="polite">
             <motion.span
               animate={{ opacity: [0.4, 1, 0.4] }}
               transition={{ duration: 2, repeat: Infinity }}
@@ -97,10 +164,59 @@ export function ActivityFeed({ entries, agentStatus }: ActivityFeedProps) {
         </div>
       </div>
 
+      {/* Filter bar */}
+      <div className="px-3 py-1.5 border-b border-pi-border/50 flex items-center gap-1.5 overflow-x-auto">
+        {/* Search */}
+        <div className="relative shrink-0">
+          <Search className="absolute left-2 top-1/2 -translate-y-1/2 w-2.5 h-2.5 text-pi-text-dim/40" />
+          <input
+            value={searchQuery}
+            onChange={e => handleSearch(e.target.value)}
+            placeholder="Filter..."
+            className="bg-pi-surface border border-pi-border rounded-md pl-6 pr-2 py-1 text-[10px] text-pi-text placeholder:text-pi-text-dim/40 focus:outline-none focus:ring-1 focus:ring-pi-accent/50 w-24"
+          />
+        </div>
+        {/* Type chips */}
+        {allTypes.map(type => {
+          const { icon: Icon, color } = activityIcons[type]
+          const count = typeCounts[type] || 0
+          if (count === 0 && typeFilter.size === 0) return null
+          const isActive = typeFilter.has(type)
+          return (
+            <button
+              key={type}
+              onClick={() => toggleTypeFilter(type)}
+              className={cn(
+                'flex items-center gap-1 text-[9px] px-1.5 py-0.5 rounded-full font-medium transition-all shrink-0',
+                isActive
+                  ? 'bg-pi-accent/10 text-pi-accent border border-pi-accent/30'
+                  : 'text-pi-text-dim/50 hover:text-pi-text-dim border border-transparent'
+              )}
+            >
+              <Icon className={cn('w-2.5 h-2.5', isActive ? 'text-pi-accent' : color)} />
+              {count > 0 && <span>{count}</span>}
+            </button>
+          )
+        })}
+      </div>
+
       {/* Entries */}
-      <div ref={scrollRef} className="flex-1 overflow-y-auto">
+      <div ref={scrollRef} onScroll={handleScroll} className="flex-1 overflow-y-auto relative" aria-live="polite">
+        {/* New content badge */}
+        {newCount > 0 && (
+          <button
+            onClick={() => {
+              setAutoScroll(true)
+              setNewCount(0)
+              scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: 'smooth' })
+            }}
+            className="sticky top-0 z-10 w-full py-1 bg-pi-accent/90 text-white text-[10px] font-medium text-center hover:bg-pi-accent transition-colors"
+          >
+            {newCount} new {newCount === 1 ? 'entry' : 'entries'} — click to scroll
+          </button>
+        )}
         <div className="px-3 py-2 space-y-px">
-          {entries.length === 0 ? (
+          {filteredEntries.length === 0 ? (
             <motion.div
               initial={{ opacity: 0, y: 10 }}
               animate={{ opacity: 1, y: 0 }}
@@ -112,15 +228,19 @@ export function ActivityFeed({ entries, agentStatus }: ActivityFeedProps) {
               >
                 <Activity className="w-10 h-10 mb-3 opacity-15" />
               </motion.div>
-              <p className="text-xs font-medium">No activity yet</p>
+              <p className="text-xs font-medium">
+                {entries.length === 0 ? 'No activity yet' : 'No matching entries'}
+              </p>
               <p className="text-[10px] mt-1 text-center max-w-[200px]">
-                Actions will appear here as the brain operates.
+                {entries.length === 0
+                  ? 'Actions will appear here as the brain operates.'
+                  : 'Try adjusting your filters.'}
               </p>
             </motion.div>
           ) : (
-            entries.map((entry, i) => {
+            filteredEntries.map((entry, i) => {
               const { icon: Icon, color } = activityIcons[entry.type] || activityIcons.action
-              const isRecent = i >= entries.length - 3
+              const isRecent = i >= filteredEntries.length - 3
 
               return (
                 <motion.div

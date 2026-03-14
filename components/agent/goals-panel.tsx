@@ -1,9 +1,9 @@
 'use client'
 
-import { useState, useCallback } from 'react'
+import { useState, useCallback, useMemo, useRef } from 'react'
 import {
-  Target, Plus, X, Send, Filter,
-  CheckCircle2, Clock, Pause, Play,
+  Target, Plus, X, Send, Filter, Search,
+  CheckCircle2, Clock, Pause, Play, ArrowUpDown,
 } from 'lucide-react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { cn } from '@/lib/utils'
@@ -18,9 +18,16 @@ interface GoalsPanelProps {
   onInjectGoal?: (title: string, priority?: string, tasks?: string[]) => Promise<boolean>
 }
 
-/* ─── Filter type ───────────────────────────────── */
+/* ─── Filter & sort types ────────────────────────── */
 
 type GoalFilter = 'all' | 'active' | 'completed' | 'paused'
+type GoalSort = 'priority' | 'created' | 'status'
+
+const quickTemplates = [
+  'Learn something new',
+  'Run diagnostics',
+  'Improve dashboard',
+]
 
 /* ─── Component ─────────────────────────────────── */
 
@@ -33,6 +40,17 @@ export function GoalsPanel({ goals, onInjectGoal }: GoalsPanelProps) {
   const [injectPriority, setInjectPriority] = useState<'high' | 'medium' | 'low'>('medium')
   const [injecting, setInjecting] = useState(false)
   const [filter, setFilter] = useState<GoalFilter>('all')
+  const [sort, setSort] = useState<GoalSort>('priority')
+  const [searchQuery, setSearchQuery] = useState('')
+  const [searchDebounced, setSearchDebounced] = useState('')
+
+  // Debounce search
+  const searchTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const handleSearch = useCallback((value: string) => {
+    setSearchQuery(value)
+    if (searchTimerRef.current) clearTimeout(searchTimerRef.current)
+    searchTimerRef.current = setTimeout(() => setSearchDebounced(value), 200)
+  }, [])
 
   const activeCount = goals.filter(g => g.status === 'active').length
   const completedCount = goals.filter(g => g.status === 'completed').length
@@ -40,20 +58,58 @@ export function GoalsPanel({ goals, onInjectGoal }: GoalsPanelProps) {
     (acc, g) => acc + g.tasks.filter(t => t.status === 'running').length, 0
   )
 
-  const filteredGoals = filter === 'all'
-    ? goals
-    : goals.filter(g => g.status === filter)
+  const filteredAndSorted = useMemo(() => {
+    let result = filter === 'all' ? goals : goals.filter(g => g.status === filter)
+    if (searchDebounced) {
+      const q = searchDebounced.toLowerCase()
+      result = result.filter(g =>
+        g.title.toLowerCase().includes(q) ||
+        (g.reasoning && g.reasoning.toLowerCase().includes(q))
+      )
+    }
+    const priorityOrder: Record<string, number> = { high: 0, medium: 1, low: 2 }
+    const statusOrder: Record<string, number> = { active: 0, pending: 1, paused: 2, completed: 3 }
+    return [...result].sort((a, b) => {
+      if (sort === 'priority') return (priorityOrder[a.priority] ?? 1) - (priorityOrder[b.priority] ?? 1)
+      if (sort === 'created') return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+      if (sort === 'status') return (statusOrder[a.status] ?? 1) - (statusOrder[b.status] ?? 1)
+      return 0
+    })
+  }, [goals, filter, sort, searchDebounced])
 
-  const handleInject = useCallback(async () => {
-    if (!injectTitle.trim() || !onInjectGoal || injecting) return
+  const [confirmGoal, setConfirmGoal] = useState<string | null>(null)
+  const [duplicateWarn, setDuplicateWarn] = useState(false)
+
+  const handleInject = useCallback(async (title?: string) => {
+    const goalTitle = title || injectTitle.trim()
+    if (!goalTitle || !onInjectGoal || injecting) return
+
+    // Check for duplicate titles (case-insensitive)
+    const isDuplicate = goals.some(g =>
+      g.title.toLowerCase() === goalTitle.toLowerCase()
+    )
+    if (isDuplicate) {
+      setDuplicateWarn(true)
+      setTimeout(() => setDuplicateWarn(false), 3000)
+      return
+    }
+
+    // Show confirmation if not already confirming this title
+    if (confirmGoal !== goalTitle) {
+      setConfirmGoal(goalTitle)
+      return
+    }
+
+    // Confirmed — inject
     setInjecting(true)
-    const ok = await onInjectGoal(injectTitle.trim(), injectPriority)
+    setConfirmGoal(null)
+    const ok = await onInjectGoal(goalTitle, injectPriority)
     if (ok) {
       setInjectTitle('')
       setShowInjectForm(false)
     }
     setInjecting(false)
-  }, [injectTitle, injectPriority, onInjectGoal, injecting])
+  }, [injectTitle, injectPriority, onInjectGoal, injecting, goals, confirmGoal])
 
   return (
     <div className="h-full flex flex-col bg-pi-panel border-r border-pi-border">
@@ -72,11 +128,37 @@ export function GoalsPanel({ goals, onInjectGoal }: GoalsPanelProps) {
           </motion.span>
         </div>
         <div className="flex items-center gap-1">
+          {/* Sort dropdown */}
+          <div className="relative group">
+            <button
+              className="p-1.5 rounded-lg text-pi-text-dim hover:text-pi-text hover:bg-pi-surface transition-all"
+              title="Sort goals"
+              aria-label="Sort goals"
+            >
+              <ArrowUpDown className="w-3 h-3" />
+            </button>
+            <div className="absolute right-0 top-full mt-1 bg-pi-surface border border-pi-border rounded-lg shadow-xl z-20 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all min-w-[100px]">
+              {(['priority', 'created', 'status'] as GoalSort[]).map(s => (
+                <button
+                  key={s}
+                  onClick={() => setSort(s)}
+                  className={cn(
+                    'w-full text-left px-3 py-1.5 text-[11px] hover:bg-pi-surface-hover transition-colors first:rounded-t-lg last:rounded-b-lg capitalize',
+                    sort === s ? 'text-pi-accent font-medium' : 'text-pi-text-dim'
+                  )}
+                >
+                  {s}
+                </button>
+              ))}
+            </div>
+          </div>
+
           {/* Filter dropdown */}
           <div className="relative group">
             <button
               className="p-1.5 rounded-lg text-pi-text-dim hover:text-pi-text hover:bg-pi-surface transition-all"
               title="Filter goals"
+              aria-label="Filter goals"
             >
               <Filter className="w-3 h-3" />
             </button>
@@ -115,10 +197,24 @@ export function GoalsPanel({ goals, onInjectGoal }: GoalsPanelProps) {
                   : 'text-pi-text-dim hover:text-pi-accent hover:bg-pi-accent/10'
               )}
               title={showInjectForm ? 'Cancel' : 'Inject a new goal'}
+              aria-label={showInjectForm ? 'Cancel goal injection' : 'Inject a new goal'}
             >
               {showInjectForm ? <X className="w-3.5 h-3.5" /> : <Plus className="w-3.5 h-3.5" />}
             </motion.button>
           )}
+        </div>
+      </div>
+
+      {/* Search */}
+      <div className="px-3 py-1.5 border-b border-pi-border/50">
+        <div className="relative">
+          <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3 h-3 text-pi-text-dim/40" />
+          <input
+            value={searchQuery}
+            onChange={e => handleSearch(e.target.value)}
+            placeholder="Search goals..."
+            className="w-full bg-pi-surface border border-pi-border rounded-lg pl-7 pr-3 py-1.5 text-[10px] text-pi-text placeholder:text-pi-text-dim/40 focus:outline-none focus:ring-1 focus:ring-pi-accent/50"
+          />
         </div>
       </div>
 
@@ -141,6 +237,31 @@ export function GoalsPanel({ goals, onInjectGoal }: GoalsPanelProps) {
                 className="w-full bg-pi-surface border border-pi-border rounded-lg px-3 py-2 text-xs text-pi-text placeholder:text-pi-text-dim/40 focus:outline-none focus:ring-1 focus:ring-pi-accent/50"
                 autoFocus
               />
+              {/* Quick templates */}
+              <div className="flex gap-1 flex-wrap">
+                {quickTemplates.map(t => (
+                  <button
+                    key={t}
+                    onClick={() => handleInject(t)}
+                    disabled={injecting}
+                    className="text-[9px] px-2 py-1 rounded-md bg-pi-surface border border-pi-border text-pi-text-dim hover:text-pi-accent hover:border-pi-accent/30 transition-all"
+                  >
+                    {t}
+                  </button>
+                ))}
+              </div>
+              {/* Duplicate warning */}
+              {duplicateWarn && (
+                <p className="text-[10px] text-red-400 px-1">
+                  A goal with this title already exists.
+                </p>
+              )}
+              {/* Confirmation prompt */}
+              {confirmGoal && (
+                <p className="text-[10px] text-yellow-400 px-1">
+                  Click &ldquo;Inject&rdquo; again to confirm: &ldquo;{confirmGoal}&rdquo;
+                </p>
+              )}
               <div className="flex items-center gap-2">
                 <div className="flex gap-1">
                   {(['high', 'medium', 'low'] as const).map(p => (
@@ -162,13 +283,15 @@ export function GoalsPanel({ goals, onInjectGoal }: GoalsPanelProps) {
                 </div>
                 <motion.button
                   whileTap={{ scale: 0.9 }}
-                  onClick={handleInject}
+                  onClick={() => handleInject()}
                   disabled={!injectTitle.trim() || injecting}
                   className={cn(
                     'ml-auto flex items-center gap-1 px-3 py-1.5 rounded-lg text-[10px] font-medium transition-all',
-                    injectTitle.trim() && !injecting
-                      ? 'bg-pi-accent text-white hover:bg-pi-accent-hover'
-                      : 'bg-pi-surface text-pi-text-dim/30 cursor-not-allowed'
+                    confirmGoal
+                      ? 'bg-yellow-500 text-white hover:bg-yellow-600'
+                      : injectTitle.trim() && !injecting
+                        ? 'bg-pi-accent text-white hover:bg-pi-accent-hover'
+                        : 'bg-pi-surface text-pi-text-dim/30 cursor-not-allowed'
                   )}
                 >
                   {injecting ? (
@@ -180,7 +303,7 @@ export function GoalsPanel({ goals, onInjectGoal }: GoalsPanelProps) {
                   ) : (
                     <Send className="w-3 h-3" />
                   )}
-                  Inject
+                  {confirmGoal ? 'Confirm' : 'Inject'}
                 </motion.button>
               </div>
             </div>
@@ -190,7 +313,7 @@ export function GoalsPanel({ goals, onInjectGoal }: GoalsPanelProps) {
 
       {/* Goal list */}
       <div className="flex-1 overflow-y-auto p-2 space-y-2">
-        {filteredGoals.length === 0 ? (
+        {filteredAndSorted.length === 0 ? (
           <motion.div
             initial={{ opacity: 0, y: 10 }}
             animate={{ opacity: 1, y: 0 }}
@@ -203,17 +326,17 @@ export function GoalsPanel({ goals, onInjectGoal }: GoalsPanelProps) {
               <Target className="w-8 h-8 mb-2 opacity-20" />
             </motion.div>
             <p className="text-xs font-medium">
-              {filter === 'all' ? 'No goals yet' : `No ${filter} goals`}
+              {goals.length === 0 ? 'No goals yet' : 'No matching goals'}
             </p>
             <p className="text-[10px] mt-1 text-center max-w-[160px]">
-              {filter === 'all'
+              {goals.length === 0
                 ? 'The brain will set goals autonomously, or you can inject one above.'
-                : 'Try changing the filter to see other goals.'}
+                : 'Try changing the filter or search.'}
             </p>
           </motion.div>
         ) : (
           <AnimatePresence>
-            {filteredGoals.map((goal, i) => (
+            {filteredAndSorted.map((goal, i) => (
               <motion.div
                 key={goal.id}
                 initial={{ opacity: 0, y: 8 }}

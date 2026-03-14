@@ -3,26 +3,21 @@
 import { useMemo, useState, useEffect } from 'react'
 import {
   Brain, Clock, DollarSign, Timer, Sparkles,
-  Moon, AlertTriangle, Play,
+  Moon, AlertTriangle, Play, MessageSquare, Wrench,
+  RefreshCw, Settings,
 } from 'lucide-react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { cn } from '@/lib/utils'
+import type { BrainMetaExtended } from '@/hooks/use-agent-state'
 
 /* ─── Props ─────────────────────────────────────── */
 
 interface BrainHeaderProps {
   brainStatus: 'running' | 'sleeping' | 'not-running' | 'error'
-  brainMeta: {
-    totalThoughts: number
-    totalCost: number
-    wakeInterval: number
-    lastThought?: string
-    name?: string
-    birthTimestamp?: string
-    dreamCount?: number
-    consecutiveCrashes?: number
-    lastWakeAt?: string
-  } | null
+  brainMeta: BrainMetaExtended | null
+  lastFetchedAt?: number | null
+  onRefresh?: () => void
+  onSettingsOpen?: () => void
   className?: string
 }
 
@@ -80,8 +75,9 @@ function StatChip({ icon: Icon, iconColor, value, label, warn }: {
 
 /* ─── Component ─────────────────────────────────── */
 
-export function BrainHeader({ brainStatus, brainMeta, className }: BrainHeaderProps) {
+export function BrainHeader({ brainStatus, brainMeta, lastFetchedAt, onRefresh, onSettingsOpen, className }: BrainHeaderProps) {
   const name = brainMeta?.name || 'Pi-Chi'
+  const [thoughtExpanded, setThoughtExpanded] = useState(false)
 
   // Countdown timer — ticks every second
   const [now, setNow] = useState(Date.now())
@@ -115,6 +111,20 @@ export function BrainHeader({ brainStatus, brainMeta, className }: BrainHeaderPr
   }), [])
 
   const status = statusConfig[brainStatus]
+
+  // Budget warning
+  const budgetWarn = brainMeta ? brainMeta.totalCost > 8 : false
+
+  // Staleness indicator (Phase 5.1)
+  const staleness = useMemo(() => {
+    if (!lastFetchedAt) return null
+    const ageMs = now - lastFetchedAt
+    const ageSec = Math.floor(ageMs / 1000)
+    if (ageSec < 10) return null // fresh enough
+    const label = ageSec < 60 ? `${ageSec}s ago` : `${Math.floor(ageSec / 60)}m ago`
+    const level = ageSec > 120 ? 'stale' : ageSec > 30 ? 'warn' : 'ok'
+    return { label, level }
+  }, [lastFetchedAt, now])
 
   return (
     <div className={cn(
@@ -170,8 +180,15 @@ export function BrainHeader({ brainStatus, brainMeta, className }: BrainHeaderPr
             </span>
           </div>
           {brainMeta?.lastThought && (
-            <p className="text-[10px] text-pi-text-dim truncate max-w-[180px] md:max-w-[350px] italic leading-tight mt-0.5">
-              &ldquo;{brainMeta.lastThought.slice(0, 80)}{brainMeta.lastThought.length > 80 ? '...' : ''}&rdquo;
+            <p
+              onClick={() => setThoughtExpanded(e => !e)}
+              className={cn(
+                'text-[10px] text-pi-text-dim max-w-[180px] md:max-w-[350px] italic leading-tight mt-0.5 cursor-pointer hover:text-pi-text transition-colors',
+                !thoughtExpanded && 'truncate'
+              )}
+              title={thoughtExpanded ? 'Click to collapse' : 'Click to expand'}
+            >
+              &ldquo;{thoughtExpanded ? brainMeta.lastThought : (brainMeta.lastThought.slice(0, 80) + (brainMeta.lastThought.length > 80 ? '...' : ''))}&rdquo;
             </p>
           )}
         </div>
@@ -183,7 +200,7 @@ export function BrainHeader({ brainStatus, brainMeta, className }: BrainHeaderPr
           {brainMeta && (
             <>
               <StatChip icon={Sparkles} iconColor="text-purple-400" value={brainMeta.totalThoughts.toLocaleString()} label="Total thoughts" />
-              <StatChip icon={DollarSign} iconColor="text-emerald-400" value={formatCost(brainMeta.totalCost)} label="API cost" />
+              <StatChip icon={DollarSign} iconColor={budgetWarn ? 'text-red-400' : 'text-emerald-400'} value={formatCost(brainMeta.totalCost)} label={`API cost ($${brainMeta.totalCost.toFixed(2)} / $10 daily)`} warn={budgetWarn} />
               <StatChip icon={Timer} iconColor="text-blue-400" value={formatInterval(brainMeta.wakeInterval)} label="Wake interval" />
               {lastRunAgo && (
                 <StatChip icon={Play} iconColor="text-cyan-400" value={lastRunAgo} label="Last cycle" />
@@ -194,6 +211,14 @@ export function BrainHeader({ brainStatus, brainMeta, className }: BrainHeaderPr
                 <StatChip icon={Clock} iconColor="text-emerald-400" value="now" label="Cycle due" />
               ) : (
                 <StatChip icon={Clock} iconColor="text-orange-400" value={formatUptime(brainMeta.birthTimestamp)} label="Age" />
+              )}
+              {/* Tool calls chip */}
+              {brainMeta.totalToolCalls !== undefined && brainMeta.totalToolCalls > 0 && (
+                <StatChip icon={Wrench} iconColor="text-amber-400" value={brainMeta.totalToolCalls.toLocaleString()} label="Tool calls" />
+              )}
+              {/* SMS counter chip */}
+              {brainMeta.smsTodayCount !== undefined && brainMeta.smsTodayCount > 0 && (
+                <StatChip icon={MessageSquare} iconColor="text-pink-400" value={`${brainMeta.smsTodayCount} today`} label={`SMS today (${brainMeta.smsCount || 0} total)`} />
               )}
               {brainMeta.dreamCount !== undefined && brainMeta.dreamCount > 0 && (
                 <StatChip icon={Moon} iconColor="text-indigo-400" value={brainMeta.dreamCount} label="Dreams" />
@@ -226,10 +251,44 @@ export function BrainHeader({ brainStatus, brainMeta, className }: BrainHeaderPr
               <span className="font-mono">{brainMeta.totalThoughts}</span>
             </div>
             <div className="flex items-center gap-1 text-[9px] text-pi-text-dim" title="Cost">
-              <DollarSign className="w-2.5 h-2.5 text-emerald-400" />
-              <span className="font-mono">{formatCost(brainMeta.totalCost)}</span>
+              <DollarSign className={cn('w-2.5 h-2.5', budgetWarn ? 'text-red-400' : 'text-emerald-400')} />
+              <span className={cn('font-mono', budgetWarn && 'text-red-400')}>{formatCost(brainMeta.totalCost)}</span>
             </div>
           </>
+        )}
+      </div>
+
+      {/* Staleness + Refresh + Settings */}
+      <div className="flex items-center gap-1.5 shrink-0 ml-1">
+        {staleness && (
+          <span className={cn(
+            'text-[9px] font-mono px-1.5 py-0.5 rounded-full',
+            staleness.level === 'stale' ? 'text-red-400 bg-red-500/10' :
+            staleness.level === 'warn' ? 'text-yellow-400 bg-yellow-500/10' :
+            'text-pi-text-dim'
+          )}>
+            {staleness.level === 'stale' ? 'Stale' : staleness.label}
+          </span>
+        )}
+        {onRefresh && (
+          <button
+            onClick={onRefresh}
+            className="p-1 rounded-lg text-pi-text-dim hover:text-pi-accent hover:bg-pi-accent/10 transition-all"
+            title="Refresh now"
+            aria-label="Refresh brain state"
+          >
+            <RefreshCw className="w-3 h-3" />
+          </button>
+        )}
+        {onSettingsOpen && (
+          <button
+            onClick={onSettingsOpen}
+            className="p-1 rounded-lg text-pi-text-dim hover:text-pi-accent hover:bg-pi-accent/10 transition-all"
+            title="Settings"
+            aria-label="Open settings"
+          >
+            <Settings className="w-3 h-3" />
+          </button>
         )}
       </div>
     </div>

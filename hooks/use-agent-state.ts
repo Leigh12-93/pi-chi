@@ -2,10 +2,16 @@
 
 import { useState, useCallback, useRef, useEffect } from 'react'
 import type { Goal, AgentTask, ActivityEntry, AgentStatus, ToolInvocation } from '@/lib/agent-types'
+import type {
+  BrainMemory, ResearchThread, GrowthEntry, BrainProject, MoodState,
+  PromptEvolution, Achievement, BrainSchedule,
+} from '@/lib/brain/brain-types'
 
 const MAX_ACTIVITY_ENTRIES = 200
 const STORAGE_KEY = 'pi_agent_goals'
+const MOOD_HISTORY_KEY = 'pi_mood_history'
 const BRAIN_POLL_MS = 3_000 // Poll every 3s for live updates
+const MAX_MOOD_HISTORY = 100
 
 export interface BrainChatMessage {
   id: string
@@ -34,23 +40,33 @@ interface BrainApiResponse {
       message: string
     }>
     chatMessages?: BrainChatMessage[]
-    mood?: {
-      curiosity: number
-      satisfaction: number
-      frustration: number
-      loneliness: number
-      energy: number
-      pride: number
-    }
+    mood?: MoodState
     lastWakeAt?: string
     totalThoughts: number
     totalApiCost: number
+    totalToolCalls?: number
     wakeIntervalMs: number
     lastThought?: string
     name?: string
     birthTimestamp?: string
+    personalityTraits?: string[]
     dreamCount?: number
+    lastDreamAt?: string | null
     consecutiveCrashes?: number
+    lastSelfEditAt?: string | null
+    smsCount?: number
+    smsTodayCount?: number
+    lastSmsAt?: string | null
+    // Hidden data fields
+    memories?: BrainMemory[]
+    threads?: ResearchThread[]
+    growthLog?: GrowthEntry[]
+    capabilities?: string[]
+    projects?: BrainProject[]
+    promptOverrides?: string
+    promptEvolutions?: PromptEvolution[]
+    achievements?: Achievement[]
+    schedules?: BrainSchedule[]
   }
   error?: string
 }
@@ -64,14 +80,51 @@ interface BrainMood {
   pride: number
 }
 
+export interface MoodSnapshot {
+  timestamp: number
+  mood: MoodState
+}
+
+export interface BrainMetaExtended {
+  totalThoughts: number
+  totalCost: number
+  wakeInterval: number
+  lastThought?: string
+  name?: string
+  birthTimestamp?: string
+  dreamCount?: number
+  consecutiveCrashes?: number
+  lastWakeAt?: string
+  // New fields
+  smsCount?: number
+  smsTodayCount?: number
+  lastSmsAt?: string | null
+  personalityTraits?: string[]
+  lastDreamAt?: string | null
+  totalToolCalls?: number
+  lastSelfEditAt?: string | null
+}
+
 interface UseAgentStateReturn {
   goals: Goal[]
   activity: ActivityEntry[]
   chatMessages: BrainChatMessage[]
   mood: BrainMood | null
+  moodHistory: MoodSnapshot[]
   agentStatus: AgentStatus
   brainStatus: 'running' | 'sleeping' | 'not-running' | 'error'
-  brainMeta: { totalThoughts: number; totalCost: number; wakeInterval: number; lastThought?: string; name?: string; birthTimestamp?: string; dreamCount?: number; consecutiveCrashes?: number; lastWakeAt?: string } | null
+  brainMeta: BrainMetaExtended | null
+  lastFetchedAt: number | null
+
+  // New data fields
+  memories: BrainMemory[]
+  threads: ResearchThread[]
+  growthLog: GrowthEntry[]
+  capabilities: string[]
+  projects: BrainProject[]
+  promptOverrides: string
+  promptEvolutions: PromptEvolution[]
+  achievements: Achievement[]
 
   // Goal management
   addGoal: (goal: Omit<Goal, 'id' | 'createdAt'>) => string
@@ -94,6 +147,7 @@ interface UseAgentStateReturn {
   injectGoal: (title: string, priority?: string, tasks?: string[]) => Promise<boolean>
   injectMessage: (message: string) => Promise<boolean>
   markChatRead: () => Promise<boolean>
+  refresh: () => void
 }
 
 function generateId(): string {
@@ -133,6 +187,23 @@ function mapActivityType(t: string): ActivityEntry['type'] {
   return 'action'
 }
 
+/** Load mood history from sessionStorage */
+function loadMoodHistory(): MoodSnapshot[] {
+  try {
+    const stored = sessionStorage.getItem(MOOD_HISTORY_KEY)
+    return stored ? JSON.parse(stored) : []
+  } catch {
+    return []
+  }
+}
+
+/** Save mood history to sessionStorage */
+function saveMoodHistory(history: MoodSnapshot[]) {
+  try {
+    sessionStorage.setItem(MOOD_HISTORY_KEY, JSON.stringify(history))
+  } catch { /* sessionStorage unavailable */ }
+}
+
 export function useAgentState(): UseAgentStateReturn {
   // Load goals from localStorage on mount
   const [goals, setGoals] = useState<Goal[]>(() => {
@@ -147,11 +218,27 @@ export function useAgentState(): UseAgentStateReturn {
   const [activity, setActivity] = useState<ActivityEntry[]>([])
   const [chatMessages, setChatMessages] = useState<BrainChatMessage[]>([])
   const [mood, setMood] = useState<BrainMood | null>(null)
+  const [moodHistory, setMoodHistory] = useState<MoodSnapshot[]>(() => loadMoodHistory())
   const [agentStatus, setAgentStatus] = useState<AgentStatus>('idle')
   const [brainStatus, setBrainStatus] = useState<BrainApiResponse['status']>('not-running')
-  const [brainMeta, setBrainMeta] = useState<UseAgentStateReturn['brainMeta']>(null)
+  const [brainMeta, setBrainMeta] = useState<BrainMetaExtended | null>(null)
+
+  // New state for hidden brain data
+  const [memories, setMemories] = useState<BrainMemory[]>([])
+  const [threads, setThreads] = useState<ResearchThread[]>([])
+  const [growthLog, setGrowthLog] = useState<GrowthEntry[]>([])
+  const [capabilities, setCapabilities] = useState<string[]>([])
+  const [projects, setProjects] = useState<BrainProject[]>([])
+  const [promptOverrides, setPromptOverrides] = useState<string>('')
+  const [promptEvolutions, setPromptEvolutions] = useState<PromptEvolution[]>([])
+  const [achievements, setAchievements] = useState<Achievement[]>([])
+
+  const [lastFetchedAt, setLastFetchedAt] = useState<number | null>(null)
+
   const mountedRef = useRef(true)
   const brainActiveRef = useRef(false) // true when brain provides data
+  const lastMoodTsRef = useRef(0)
+  const pollFnRef = useRef<(() => void) | null>(null)
 
   // Persist goals to localStorage (only when brain is NOT providing them)
   useEffect(() => {
@@ -181,6 +268,7 @@ export function useAgentState(): UseAgentStateReturn {
         if (!mountedRef.current) return
 
         setBrainStatus(data.status)
+        setLastFetchedAt(Date.now())
 
         if (data.state && (data.status === 'running' || data.status === 'sleeping')) {
           brainActiveRef.current = true
@@ -221,10 +309,25 @@ export function useAgentState(): UseAgentStateReturn {
           // Chat messages
           setChatMessages(data.state.chatMessages || [])
 
-          // Mood
-          setMood(data.state.mood || null)
+          // Mood + mood history accumulation
+          const currentMood = data.state.mood || null
+          setMood(currentMood)
 
-          // Store brain metadata
+          if (currentMood) {
+            const now = Date.now()
+            // Only append if at least 3s since last snapshot
+            if (now - lastMoodTsRef.current >= 3000) {
+              lastMoodTsRef.current = now
+              setMoodHistory(prev => {
+                const next = [...prev, { timestamp: now, mood: currentMood }]
+                const capped = next.length > MAX_MOOD_HISTORY ? next.slice(-MAX_MOOD_HISTORY) : next
+                saveMoodHistory(capped)
+                return capped
+              })
+            }
+          }
+
+          // Store brain metadata (expanded)
           setBrainMeta({
             totalThoughts: data.state.totalThoughts,
             totalCost: data.state.totalApiCost,
@@ -235,12 +338,38 @@ export function useAgentState(): UseAgentStateReturn {
             dreamCount: data.state.dreamCount,
             consecutiveCrashes: data.state.consecutiveCrashes,
             lastWakeAt: data.state.lastWakeAt,
+            // New meta fields
+            smsCount: data.state.smsCount,
+            smsTodayCount: data.state.smsTodayCount,
+            lastSmsAt: data.state.lastSmsAt,
+            personalityTraits: data.state.personalityTraits,
+            lastDreamAt: data.state.lastDreamAt,
+            totalToolCalls: data.state.totalToolCalls,
+            lastSelfEditAt: data.state.lastSelfEditAt,
           })
+
+          // Extract hidden brain data
+          setMemories(data.state.memories || [])
+          setThreads(data.state.threads || [])
+          setGrowthLog(data.state.growthLog || [])
+          setCapabilities(data.state.capabilities || [])
+          setProjects(data.state.projects || [])
+          setPromptOverrides(data.state.promptOverrides || '')
+          setPromptEvolutions(data.state.promptEvolutions || [])
+          setAchievements(data.state.achievements || [])
         } else {
           brainActiveRef.current = false
           setBrainMeta(null)
           setMood(null)
           setChatMessages([])
+          setMemories([])
+          setThreads([])
+          setGrowthLog([])
+          setCapabilities([])
+          setProjects([])
+          setPromptOverrides('')
+          setPromptEvolutions([])
+          setAchievements([])
         }
       } catch {
         // Brain API not available — use localStorage fallback
@@ -250,9 +379,11 @@ export function useAgentState(): UseAgentStateReturn {
       }
     }
 
+    // Store for manual refresh
+    pollFnRef.current = pollBrain
     // Initial poll
     pollBrain()
-    // Poll every 10s
+    // Poll every 3s
     timer = setInterval(pollBrain, BRAIN_POLL_MS)
 
     return () => clearInterval(timer)
@@ -392,14 +523,27 @@ export function useAgentState(): UseAgentStateReturn {
     }
   }, [])
 
+  const refresh = useCallback(() => {
+    if (pollFnRef.current) pollFnRef.current()
+  }, [])
+
   return {
     goals,
     activity,
     chatMessages,
     mood,
+    moodHistory,
     agentStatus,
     brainStatus,
     brainMeta,
+    memories,
+    threads,
+    growthLog,
+    capabilities,
+    projects,
+    promptOverrides,
+    promptEvolutions,
+    achievements,
     addGoal,
     updateGoal,
     removeGoal,
@@ -409,9 +553,11 @@ export function useAgentState(): UseAgentStateReturn {
     clearActivity,
     setAgentStatus,
     handleToolInvocation,
+    lastFetchedAt,
     injectGoal,
     injectMessage,
     markChatRead,
+    refresh,
   }
 }
 

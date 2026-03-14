@@ -3,14 +3,19 @@
 import { tool } from 'ai'
 import { z } from 'zod'
 import { readFileSync, writeFileSync, existsSync, mkdirSync, readdirSync } from 'node:fs'
-import { dirname, join } from 'node:path'
+import { dirname, join, resolve } from 'node:path'
 import { randomUUID } from 'node:crypto'
 import { executeCommand, isBlocked } from '../tools/terminal-tools'
 import { sendSms } from './brain-sms'
 import { addActivity, saveBrainState } from './brain-state'
-import type { BrainState, BrainGoal } from './brain-types'
+import type { BrainState, BrainGoal, ProjectManifest, ProjectOutput, BrainSchedule } from './brain-types'
 
 const MAX_OUTPUT = 10_000 // Cap shell output at 10KB
+const MAX_HTTP_REQUESTS_PER_CYCLE = 20
+
+// Per-cycle HTTP request counter
+let _httpRequestCount = 0
+export function resetHttpRequestCounter() { _httpRequestCount = 0 }
 
 // ── HARD GUARD: Pi-Chi can ONLY modify its own files ──────────────
 // Allowed paths: its own repo, its state dir, its home-created projects, /tmp
@@ -29,8 +34,9 @@ const TAMPER_PROTECTED_FILES = [
   'lib/tools/terminal-tools.ts',  // Contains blocked command patterns
 ]
 
-function isWriteAllowed(path: string): string | null {
-  const resolved = path.startsWith('/') ? path : join(HOME, path)
+function isWriteAllowed(filePath: string): string | null {
+  // Resolve to absolute path, normalizing .. and symlinks
+  const resolved = resolve(filePath.startsWith('/') ? filePath : join(HOME, filePath))
   const allowed = ALLOWED_WRITE_PREFIXES.some(prefix => resolved.startsWith(prefix))
   if (!allowed) {
     return `BLOCKED: You can only write/edit files in your own directories (${ALLOWED_WRITE_PREFIXES.join(', ')}). Path "${resolved}" is outside your allowed scope.`
@@ -47,18 +53,48 @@ function isWriteAllowed(path: string): string | null {
   return null
 }
 
-// Shell commands that could modify other projects
-const BLOCKED_WRITE_PATTERNS = [
-  /\bcd\s+(?!~\/pi-chi|~\/.pi-chi|~\/pi-chi-projects|\/tmp).*&&.*(?:rm|mv|cp|cat\s*>|tee|sed\s+-i|echo\s+.*>)/i,
-  /(?:rm|mv|cat\s*>|tee|sed\s+-i)\s+(?:\/home\/\w+\/(?!pi-chi|\.pi-chi|pi-chi-projects))/i,
+// Write-type operations that modify files
+const WRITE_OPS = /\b(rm|mv|cp|tee|dd)\b|>\s*[\/~]|sed\s+-i|\bchmod\b|\bchown\b/
+
+// Allowed path prefixes for shell write operations (expanded for matching)
+const SHELL_WRITE_ALLOWED = [
+  `${HOME}/pi-chi`,
+  `${HOME}/.pi-chi`,
+  `${HOME}/pi-chi-projects`,
+  '~/pi-chi',
+  '~/.pi-chi',
+  '~/pi-chi-projects',
+  '/tmp',
 ]
 
 function isShellWriteBlocked(command: string): string | null {
-  for (const pattern of BLOCKED_WRITE_PATTERNS) {
-    if (pattern.test(command)) {
-      return `BLOCKED: Shell command appears to modify files outside your allowed directories. You can only modify ~/pi-chi, ~/.pi-chi, ~/pi-chi-projects, and /tmp.`
+  // Only check commands that contain write-type operations
+  if (!WRITE_OPS.test(command)) return null
+
+  // Split on shell chaining operators to check each subcommand
+  const subcommands = command.split(/[;&|]+/).map(s => s.trim()).filter(Boolean)
+
+  for (const sub of subcommands) {
+    // Check if this subcommand has a write operation
+    if (!WRITE_OPS.test(sub)) continue
+
+    // Extract file path arguments — look for paths starting with / or ~
+    const pathMatches = sub.match(/(?:\/[\w./-]+|~\/[\w./-]+)/g)
+    if (!pathMatches) continue
+
+    for (const p of pathMatches) {
+      const expanded = p.startsWith('~/') ? p.replace('~', HOME) : p
+      const resolved = resolve(expanded)
+      const inAllowed = SHELL_WRITE_ALLOWED.some(prefix => {
+        const expandedPrefix = prefix.startsWith('~/') ? prefix.replace('~', HOME) : prefix
+        return resolved.startsWith(expandedPrefix)
+      })
+      if (!inAllowed) {
+        return `BLOCKED: Shell command appears to modify files outside your allowed directories. Path "${p}" is outside scope. You can only modify ~/pi-chi, ~/.pi-chi, ~/pi-chi-projects, and /tmp.`
+      }
     }
   }
+
   return null
 }
 
@@ -199,8 +235,9 @@ export function createBrainTools(state: BrainState) {
         reasoning: z.string().describe('Why are you setting this goal?'),
         tasks: z.array(z.string()).optional().describe('Subtask titles'),
         existingGoalId: z.string().optional().describe('If updating an existing goal, provide its ID'),
+        dependsOn: z.array(z.string()).optional().describe('IDs of goals that must complete before this one can start'),
       }),
-      execute: async ({ title, priority, reasoning, tasks, existingGoalId }) => {
+      execute: async ({ title, priority, reasoning, tasks, existingGoalId, dependsOn }) => {
         state.totalToolCalls++
 
         if (existingGoalId) {
@@ -227,6 +264,7 @@ export function createBrainTools(state: BrainState) {
             status: 'pending' as const,
           })),
           createdAt: new Date().toISOString(),
+          ...(dependsOn && dependsOn.length > 0 ? { dependsOn } : {}),
         }
         state.goals.push(goal)
         addActivity(state, 'goal', `New goal: ${title}`)
@@ -461,14 +499,41 @@ export function createBrainTools(state: BrainState) {
     }),
 
     evolve_prompt: tool({
-      description: 'Add to your own system prompt. Use this to evolve your personality, add guidelines, or record principles you want to always follow. Be judicious — prompt tokens cost money.',
+      description: 'Add to your own system prompt. Use this to evolve your personality, add guidelines, or record principles you want to always follow. Be judicious — prompt tokens cost money. Max 3000 chars total. Use mode "replace" to replace a named section instead of appending.',
       inputSchema: z.object({
         addition: z.string().describe('Text to add to your system prompt'),
         reasoning: z.string().describe('Why are you adding this?'),
+        mode: z.enum(['append', 'replace']).default('append').describe('"append" to add, "replace" to replace a section by matching its first line'),
+        replaceMatch: z.string().optional().describe('If mode=replace, the first line of the section to replace'),
       }),
-      execute: async ({ addition, reasoning }) => {
+      execute: async ({ addition, reasoning, mode, replaceMatch }) => {
         state.totalToolCalls++
-        state.promptOverrides += `\n\n${addition}`
+        const MAX_PROMPT_OVERRIDES = 3000
+
+        if (mode === 'replace' && replaceMatch) {
+          // Replace a section: find the block starting with replaceMatch
+          const sections = state.promptOverrides.split('\n\n')
+          const idx = sections.findIndex(s => s.trim().startsWith(replaceMatch.trim()))
+          if (idx >= 0) {
+            sections[idx] = addition
+            state.promptOverrides = sections.join('\n\n')
+          } else {
+            return { success: false, error: `No section starting with "${replaceMatch}" found to replace`, currentLength: state.promptOverrides.length, maxLength: MAX_PROMPT_OVERRIDES }
+          }
+        } else {
+          // Append mode — check capacity
+          const newLength = state.promptOverrides.length + addition.length + 2
+          if (newLength > MAX_PROMPT_OVERRIDES) {
+            return {
+              success: false,
+              error: `Prompt overrides would exceed ${MAX_PROMPT_OVERRIDES} char limit. Current: ${state.promptOverrides.length}, addition: ${addition.length}, remaining capacity: ${MAX_PROMPT_OVERRIDES - state.promptOverrides.length}. Use mode "replace" to update existing sections.`,
+              currentLength: state.promptOverrides.length,
+              maxLength: MAX_PROMPT_OVERRIDES,
+            }
+          }
+          state.promptOverrides += `\n\n${addition}`
+        }
+
         addActivity(state, 'decision', `Evolved prompt: ${reasoning.slice(0, 100)}`)
         state.growthLog.push({
           id: randomUUID(),
@@ -476,7 +541,7 @@ export function createBrainTools(state: BrainState) {
           category: 'realized',
           description: `Evolved prompt: ${reasoning}`,
         })
-        return { success: true, promptLength: state.promptOverrides.length }
+        return { success: true, promptLength: state.promptOverrides.length, maxLength: MAX_PROMPT_OVERRIDES, remainingCapacity: MAX_PROMPT_OVERRIDES - state.promptOverrides.length }
       },
     }),
 
@@ -632,6 +697,279 @@ export function createBrainTools(state: BrainState) {
       },
     }),
 
+    register_project: tool({
+      description: 'Create a structured project with a manifest in ~/pi-chi-projects/. Projects appear in the dashboard gallery.',
+      inputSchema: z.object({
+        name: z.string().describe('Project name (used as directory name, lowercase-hyphenated)'),
+        description: z.string().describe('What this project does'),
+        category: z.enum(['code', 'creative', 'research', 'hardware', 'tool', 'experiment']),
+        entrypoint: z.string().optional().describe('Main file (e.g. "main.py")'),
+        runCommand: z.string().optional().describe('Command to run (e.g. "python3 main.py")'),
+        tags: z.array(z.string()).optional(),
+        goalId: z.string().optional().describe('ID of the goal this project serves'),
+      }),
+      execute: async ({ name, description, category, entrypoint, runCommand, tags, goalId }) => {
+        state.totalToolCalls++
+        const safeName = name.toLowerCase().replace(/[^a-z0-9-]/g, '-').replace(/-+/g, '-')
+        const projectDir = join(HOME, 'pi-chi-projects', safeName)
+
+        try {
+          if (!existsSync(projectDir)) mkdirSync(projectDir, { recursive: true })
+
+          const manifest: ProjectManifest = {
+            id: randomUUID(),
+            name,
+            description,
+            category,
+            status: 'building',
+            createdAt: new Date().toISOString(),
+            updatedAt: new Date().toISOString(),
+            outputs: [],
+            tags: tags || [],
+            ...(entrypoint ? { entrypoint } : {}),
+            ...(runCommand ? { runCommand } : {}),
+            ...(goalId ? { goalId } : {}),
+          }
+
+          writeFileSync(join(projectDir, 'pi-project.json'), JSON.stringify(manifest, null, 2))
+
+          // Update brain state projects list
+          state.projects.push({
+            id: manifest.id,
+            name,
+            path: projectDir,
+            description,
+            status: 'building',
+            category,
+            createdAt: manifest.createdAt,
+            tags: manifest.tags,
+          })
+
+          addActivity(state, 'action', `Registered project: ${name}`)
+          return { success: true, projectId: manifest.id, path: projectDir }
+        } catch (err) {
+          return { success: false, error: err instanceof Error ? err.message : String(err) }
+        }
+      },
+    }),
+
+    showcase_output: tool({
+      description: 'Add an output (poem, report, code file, etc.) to a project and mark it for the dashboard gallery.',
+      inputSchema: z.object({
+        projectId: z.string().describe('Project ID'),
+        path: z.string().describe('Relative path within the project directory'),
+        title: z.string().describe('Display title for this output'),
+        type: z.enum(['text', 'poem', 'report', 'data', 'code', 'log', 'html']),
+        description: z.string().optional(),
+        featured: z.boolean().optional().describe('Show prominently in the gallery'),
+      }),
+      execute: async ({ projectId, path, title, type, description, featured }) => {
+        state.totalToolCalls++
+
+        // Find project manifest
+        const projectsDir = join(HOME, 'pi-chi-projects')
+        if (!existsSync(projectsDir)) {
+          return { success: false, error: 'No projects directory' }
+        }
+
+        const entries = readdirSync(projectsDir, { withFileTypes: true })
+        for (const entry of entries) {
+          if (!entry.isDirectory()) continue
+          const manifestPath = join(projectsDir, entry.name, 'pi-project.json')
+          if (!existsSync(manifestPath)) continue
+
+          try {
+            const manifest = JSON.parse(readFileSync(manifestPath, 'utf-8')) as ProjectManifest
+            if (manifest.id === projectId) {
+              const output: ProjectOutput = {
+                type, path, title,
+                createdAt: new Date().toISOString(),
+                ...(description ? { description } : {}),
+                ...(featured ? { featured } : {}),
+              }
+              manifest.outputs.push(output)
+              manifest.updatedAt = new Date().toISOString()
+              writeFileSync(manifestPath, JSON.stringify(manifest, null, 2))
+              addActivity(state, 'action', `Showcased output: ${title} in ${manifest.name}`)
+              return { success: true, outputCount: manifest.outputs.length }
+            }
+          } catch { /* skip */ }
+        }
+
+        return { success: false, error: 'Project not found' }
+      },
+    }),
+
+    read_webpage: tool({
+      description: 'Fetch a web page and extract its text content. Use this to follow up on web_search results. Rate limited: 10 per cycle. Max 10KB extracted text.',
+      inputSchema: z.object({
+        url: z.string().url().describe('The URL to fetch'),
+      }),
+      execute: async ({ url }) => {
+        state.totalToolCalls++
+
+        // Block internal IPs
+        try {
+          const urlObj = new URL(url)
+          const host = urlObj.hostname
+          if (host === 'localhost' || host === '127.0.0.1' || host.startsWith('10.') || host.startsWith('192.168.') || host.startsWith('172.')) {
+            return { success: false, error: 'Internal/private URLs are blocked' }
+          }
+        } catch {
+          return { success: false, error: 'Invalid URL' }
+        }
+
+        addActivity(state, 'action', `Reading webpage: ${url.slice(0, 80)}`)
+
+        try {
+          const controller = new AbortController()
+          const timeout = setTimeout(() => controller.abort(), 15000)
+
+          const res = await fetch(url, {
+            signal: controller.signal,
+            headers: { 'User-Agent': 'Pi-Chi/1.0 (Autonomous AI Agent)' },
+          })
+          clearTimeout(timeout)
+
+          if (!res.ok) {
+            return { success: false, error: `HTTP ${res.status}` }
+          }
+
+          const html = await res.text()
+          // Strip HTML to text — simple regex approach (no heavy deps)
+          let text = html
+            .replace(/<script[^>]*>[\s\S]*?<\/script>/gi, '')
+            .replace(/<style[^>]*>[\s\S]*?<\/style>/gi, '')
+            .replace(/<[^>]+>/g, ' ')
+            .replace(/&nbsp;/g, ' ')
+            .replace(/&amp;/g, '&')
+            .replace(/&lt;/g, '<')
+            .replace(/&gt;/g, '>')
+            .replace(/&quot;/g, '"')
+            .replace(/&#39;/g, "'")
+            .replace(/\s+/g, ' ')
+            .trim()
+
+          // Cap at 10KB
+          if (text.length > 10240) text = text.slice(0, 10240) + '\n... (truncated)'
+
+          return { success: true, text, length: text.length, url }
+        } catch (err) {
+          return { success: false, error: err instanceof Error ? err.message : String(err) }
+        }
+      },
+    }),
+
+    http_request: tool({
+      description: 'Make an HTTP GET or POST request to an external URL. For APIs, RSS feeds, webhooks. Rate limited: 20 per cycle. Response truncated to 10KB.',
+      inputSchema: z.object({
+        url: z.string().url().describe('The URL to request'),
+        method: z.enum(['GET', 'POST']).default('GET'),
+        body: z.string().optional().describe('Request body (for POST)'),
+        headers: z.record(z.string()).optional().describe('Custom headers'),
+      }),
+      execute: async ({ url, method, body, headers }) => {
+        if (++_httpRequestCount > MAX_HTTP_REQUESTS_PER_CYCLE) {
+          return { success: false, error: `Rate limit: max ${MAX_HTTP_REQUESTS_PER_CYCLE} HTTP requests per cycle` }
+        }
+        state.totalToolCalls++
+
+        // Block internal IPs (allow own dashboard at 192.168.8.178:3333)
+        try {
+          const urlObj = new URL(url)
+          const host = urlObj.hostname
+          if (host === 'localhost' || host === '127.0.0.1' || host.startsWith('10.')) {
+            return { success: false, error: 'Internal URLs are blocked' }
+          }
+          // Allow own dashboard, block other private IPs
+          if (host.startsWith('192.168.') && host !== '192.168.8.178') {
+            return { success: false, error: 'Private network URLs are blocked (except own dashboard)' }
+          }
+        } catch {
+          return { success: false, error: 'Invalid URL' }
+        }
+
+        addActivity(state, 'action', `HTTP ${method}: ${url.slice(0, 80)}`)
+
+        try {
+          const controller = new AbortController()
+          const timeout = setTimeout(() => controller.abort(), 15000)
+
+          const res = await fetch(url, {
+            method,
+            signal: controller.signal,
+            headers: {
+              'User-Agent': 'Pi-Chi/1.0 (Autonomous AI Agent)',
+              ...(body ? { 'Content-Type': 'application/json' } : {}),
+              ...(headers || {}),
+            },
+            ...(body ? { body } : {}),
+          })
+          clearTimeout(timeout)
+
+          const responseText = await res.text()
+          const truncated = responseText.length > 10240
+            ? responseText.slice(0, 10240) + '\n... (truncated)'
+            : responseText
+
+          return {
+            success: res.ok,
+            status: res.status,
+            body: truncated,
+            contentType: res.headers.get('content-type') || undefined,
+          }
+        } catch (err) {
+          return { success: false, error: err instanceof Error ? err.message : String(err) }
+        }
+      },
+    }),
+
+    add_schedule: tool({
+      description: 'Add a scheduled task that runs every N cycles. The instruction is included in your context message when due.',
+      inputSchema: z.object({
+        name: z.string().describe('Schedule name (e.g. "daily-summary", "check-weather")'),
+        intervalCycles: z.number().min(1).max(1000).describe('Run every N cycles'),
+        instruction: z.string().describe('What to do when this schedule fires'),
+      }),
+      execute: async ({ name, intervalCycles, instruction }) => {
+        state.totalToolCalls++
+        if (!state.schedules) state.schedules = []
+
+        // Check for duplicate name
+        if (state.schedules.some(s => s.name === name)) {
+          return { success: false, error: `Schedule "${name}" already exists. Remove it first.` }
+        }
+
+        const schedule: BrainSchedule = {
+          id: randomUUID(),
+          name,
+          intervalCycles,
+          lastRunCycle: state.totalThoughts,
+          instruction,
+          enabled: true,
+        }
+        state.schedules.push(schedule)
+        addActivity(state, 'decision', `Scheduled: "${name}" every ${intervalCycles} cycles`)
+        return { success: true, scheduleId: schedule.id }
+      },
+    }),
+
+    remove_schedule: tool({
+      description: 'Remove a scheduled task by name.',
+      inputSchema: z.object({
+        name: z.string().describe('Schedule name to remove'),
+      }),
+      execute: async ({ name }) => {
+        state.totalToolCalls++
+        if (!state.schedules) state.schedules = []
+        const idx = state.schedules.findIndex(s => s.name === name)
+        if (idx === -1) return { success: false, error: `Schedule "${name}" not found` }
+        state.schedules.splice(idx, 1)
+        addActivity(state, 'decision', `Removed schedule: "${name}"`)
+        return { success: true }
+      },
+    }),
+
     claude_code: tool({
       description: `Use Claude Code CLI for complex code tasks — multi-file refactors, builds, fixing type errors, creating new features. This is your heavy-lifting tool. It spawns a Claude Code process that can read, write, and edit files autonomously. Use this instead of manual write_file/edit_file when: (1) you need to modify multiple files, (2) you need to fix build errors, (3) you need to create a new feature with proper types, (4) you want higher quality code output. The prompt you provide should be a clear, specific instruction. Claude Code has access to the full codebase. IMPORTANT: Claude Code can ONLY work in ~/pi-chi and ~/pi-chi-projects. Max runtime: 5 minutes. Output streams live to ~/.pi-chi/claude-code-live.log so Leigh can watch.`,
       inputSchema: z.object({
@@ -657,11 +995,23 @@ export function createBrainTools(state: BrainState) {
           // Build the claude command with timeout wrapper and live log tee
           // Use 'timeout' command for reliable process kill (kills process group)
           const escapedPrompt = prompt.replace(/'/g, "'\\''")
-          const cmd = `echo '=== Claude Code started at '$(date)' ===' > ${liveLogPath} && timeout --kill-after=30 300 claude -p '${escapedPrompt}' --output-format text --max-turns 25 2>&1 | tee -a ${liveLogPath}; echo '=== Claude Code finished at '$(date)' (exit: '$?') ===' >> ${liveLogPath}`
+          const cmd = `echo '=== Claude Code started at '$(date)' ===' > ${liveLogPath} && timeout --kill-after=20 280 claude -p '${escapedPrompt}' --output-format text --max-turns 25 2>&1 | tee -a ${liveLogPath}; echo '=== Claude Code finished at '$(date)' (exit: '$?') ===' >> ${liveLogPath}`
+
+          // Check available RAM before proceeding
+          try {
+            const memResult = await executeCommand("awk '/MemAvailable/ {print $2}' /proc/meminfo", { timeout: 3000 })
+            if (memResult.exitCode === 0 && memResult.stdout) {
+              const availKb = parseInt(memResult.stdout.trim(), 10)
+              if (availKb > 0 && availKb < 200 * 1024) { // < 200MB
+                addActivity(state, 'error', `Claude Code skipped: only ${Math.round(availKb / 1024)}MB RAM available`)
+                return { success: false, error: `Insufficient RAM (${Math.round(availKb / 1024)}MB available, need 200MB+). Try simpler tools like edit_file or shell.` }
+              }
+            }
+          } catch { /* /proc/meminfo may not exist on non-Linux — continue */ }
 
           const result = await executeCommand(cmd, {
             cwd: workDir,
-            timeout: 330000, // 5.5 min — slightly longer than the timeout command
+            timeout: 300000, // 5 min — matches bash timeout
           })
 
           const output = (result.stdout || '').trim()
@@ -702,6 +1052,11 @@ export function createBrainTools(state: BrainState) {
   }
 }
 
+// ── Shell escaping for custom tool parameters ───────────────────
+function shellEscape(s: string): string {
+  return "'" + s.replace(/'/g, "'\\''") + "'"
+}
+
 /** Load custom tools from ~/.pi-chi/tools/ — each subdirectory has a manifest.json */
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 export function loadCustomTools(state: BrainState): Record<string, any> {
@@ -736,16 +1091,63 @@ export function loadCustomTools(state: BrainState): Record<string, any> {
           }
         }
 
+        // Validate manifest structure
+        if (!manifest.name || typeof manifest.name !== 'string' || !manifest.command || typeof manifest.command !== 'string') {
+          continue // Skip invalid manifests
+        }
+        if (!/^[a-zA-Z0-9_-]+$/.test(manifest.name)) {
+          continue // Name must be alphanumeric
+        }
+
         customTools[`custom_${manifest.name}`] = tool({
           description: `[Custom Tool] ${manifest.description}`,
           inputSchema: z.object(schemaShape),
           execute: async (params: Record<string, unknown>) => {
             state.totalToolCalls++
-            // Substitute {{param}} placeholders in the command
+            // Validate parameter values — reject path traversal, null bytes, excessive length
+            for (const [key, value] of Object.entries(params)) {
+              const v = String(value)
+              if (v.includes('\0')) {
+                addActivity(state, 'error', `Custom tool ${manifest.name}: null byte in param "${key}"`)
+                return { success: false, error: `Parameter "${key}" contains invalid content (null byte)` }
+              }
+              if (v.includes('../')) {
+                addActivity(state, 'error', `Custom tool ${manifest.name}: path traversal in param "${key}"`)
+                return { success: false, error: `Parameter "${key}" contains path traversal (../)` }
+              }
+              if (v.length > 1000) {
+                addActivity(state, 'error', `Custom tool ${manifest.name}: param "${key}" too long (${v.length})`)
+                return { success: false, error: `Parameter "${key}" exceeds max length (1000 chars)` }
+              }
+            }
+            // Sanitize parameter values — reject injection characters
+            const INJECTION_PATTERN = /[;|&`$()><]/
+            for (const [key, value] of Object.entries(params)) {
+              const strVal = String(value)
+              if (INJECTION_PATTERN.test(strVal)) {
+                addActivity(state, 'error', `Custom tool ${manifest.name}: blocked injection in param "${key}"`)
+                return { success: false, error: `Parameter "${key}" contains blocked characters (;|&\`$()><). Use simple values only.` }
+              }
+            }
+
+            // Substitute {{param}} placeholders with shell-escaped values
             let cmd = manifest.command
             for (const [key, value] of Object.entries(params)) {
-              cmd = cmd.replace(new RegExp(`\\{\\{${key}\\}\\}`, 'g'), String(value))
+              cmd = cmd.replace(new RegExp(`\\{\\{${key}\\}\\}`, 'g'), shellEscape(String(value)))
             }
+
+            // Run assembled command through safety checks
+            const blocked = isBlocked(cmd)
+            if (blocked) {
+              addActivity(state, 'error', `Custom tool ${manifest.name}: blocked command`)
+              return { success: false, error: blocked }
+            }
+            const writeBlocked = isShellWriteBlocked(cmd)
+            if (writeBlocked) {
+              addActivity(state, 'error', `Custom tool ${manifest.name}: write scope blocked`)
+              return { success: false, error: writeBlocked }
+            }
+
             addActivity(state, 'action', `Custom tool ${manifest.name}: ${cmd.slice(0, 80)}`)
             const result = await executeCommand(cmd, { timeout: 60000 })
             return {

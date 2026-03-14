@@ -2,12 +2,22 @@
 
 import { execFile } from 'node:child_process'
 import { platform } from 'node:os'
+import { readFileSync, appendFileSync, writeFileSync, existsSync, statSync } from 'node:fs'
+import { join } from 'node:path'
+import { homedir } from 'node:os'
 import type { BrainState } from './brain-types'
-import { addActivity } from './brain-state'
+import { addActivity, getAdelaideDate } from './brain-state'
 
 const MAX_SMS_PER_HOUR = 5
 const MAX_SMS_PER_DAY = 20
 const MIN_SMS_INTERVAL_MS = 10 * 60 * 1000 // 10 minutes
+const SMS_LOG_FILE = join(homedir(), '.pi-chi', 'sms-log.jsonl')
+const SMS_LOG_MAX_BYTES = 100 * 1024 // 100KB
+
+interface SmsLogEntry {
+  time: string
+  message: string
+}
 
 interface SmsResult {
   success: boolean
@@ -15,11 +25,49 @@ interface SmsResult {
   rateLimited?: boolean
 }
 
+// ── Persistent SMS log ───────────────────────────────────────────
+
+function getSmsLogEntries(): SmsLogEntry[] {
+  if (!existsSync(SMS_LOG_FILE)) return []
+  try {
+    const raw = readFileSync(SMS_LOG_FILE, 'utf-8').trim()
+    if (!raw) return []
+    return raw.split('\n').map(line => {
+      try { return JSON.parse(line) as SmsLogEntry }
+      catch { return null }
+    }).filter((e): e is SmsLogEntry => e !== null)
+  } catch {
+    return []
+  }
+}
+
+function appendSmsLog(entry: SmsLogEntry): void {
+  try {
+    appendFileSync(SMS_LOG_FILE, JSON.stringify(entry) + '\n')
+  } catch { /* non-critical */ }
+}
+
+function rotateSmsLog(): void {
+  try {
+    if (!existsSync(SMS_LOG_FILE)) return
+    const size = statSync(SMS_LOG_FILE).size
+    if (size <= SMS_LOG_MAX_BYTES) return
+
+    // Keep only today's entries
+    const today = getAdelaideDate()
+    const entries = getSmsLogEntries()
+    const todayEntries = entries.filter(e => e.time.startsWith(today))
+    writeFileSync(SMS_LOG_FILE, todayEntries.map(e => JSON.stringify(e)).join('\n') + (todayEntries.length > 0 ? '\n' : ''))
+  } catch { /* non-critical */ }
+}
+
+// ── Rate limit checks ────────────────────────────────────────────
+
 export function canSendSms(state: BrainState): { allowed: boolean; reason?: string } {
   const now = Date.now()
 
-  // Check daily limit
-  const today = new Date().toISOString().slice(0, 10)
+  // Check daily limit (Adelaide timezone)
+  const today = getAdelaideDate()
   if (state.smsTodayDate === today && state.smsTodayCount >= MAX_SMS_PER_DAY) {
     return { allowed: false, reason: `Daily SMS limit reached (${MAX_SMS_PER_DAY}/day)` }
   }
@@ -33,11 +81,10 @@ export function canSendSms(state: BrainState): { allowed: boolean; reason?: stri
     }
   }
 
-  // Check hourly limit
+  // Check hourly limit from persistent SMS log (survives state resets)
   const oneHourAgo = now - 60 * 60 * 1000
-  const recentSms = state.activityLog.filter(
-    e => e.type === 'sms' && new Date(e.time).getTime() > oneHourAgo
-  )
+  const logEntries = getSmsLogEntries()
+  const recentSms = logEntries.filter(e => new Date(e.time).getTime() > oneHourAgo)
   if (recentSms.length >= MAX_SMS_PER_HOUR) {
     return { allowed: false, reason: `Hourly SMS limit reached (${MAX_SMS_PER_HOUR}/hour)` }
   }
@@ -99,7 +146,7 @@ export async function sendSms(state: BrainState, message: string): Promise<SmsRe
 }
 
 function recordSmsSent(state: BrainState, message: string): void {
-  const today = new Date().toISOString().slice(0, 10)
+  const today = getAdelaideDate()
   state.lastSmsAt = new Date().toISOString()
   state.smsCount++
   if (state.smsTodayDate !== today) {
@@ -109,4 +156,8 @@ function recordSmsSent(state: BrainState, message: string): void {
     state.smsTodayCount++
   }
   addActivity(state, 'sms', `Sent SMS: ${message.slice(0, 100)}`)
+
+  // Persist to SMS log file (survives state resets)
+  appendSmsLog({ time: new Date().toISOString(), message: message.slice(0, 100) })
+  rotateSmsLog()
 }

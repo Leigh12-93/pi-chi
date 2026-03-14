@@ -1,9 +1,10 @@
 'use client'
 
-import { useState, useRef, useEffect, useCallback } from 'react'
+import { useState, useRef, useEffect, useCallback, useMemo } from 'react'
 import {
   Terminal, ChevronDown, Loader2,
   Copy, Check, Maximize2, Minimize2, AlertCircle,
+  Search, ArrowDown,
 } from 'lucide-react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { cn } from '@/lib/utils'
@@ -55,6 +56,8 @@ export function LiveLogPanel({ className, defaultExpanded = false }: LiveLogPane
   const [error, setError] = useState<string | null>(null)
   const [copied, setCopied] = useState(false)
   const [retryCount, setRetryCount] = useState(0)
+  const [showSearch, setShowSearch] = useState(false)
+  const [searchQuery, setSearchQuery] = useState('')
   const scrollRef = useRef<HTMLPreElement>(null)
   const sizeRef = useRef(0)
   const userScrolledRef = useRef(false)
@@ -138,6 +141,37 @@ export function LiveLogPanel({ className, defaultExpanded = false }: LiveLogPane
   const hasContent = content.length > 0
   const lineCount = content.split('\n').length
 
+  // Add line numbers
+  const displayContent = useMemo(() => {
+    if (!hasContent) return ''
+    const lines = content.split('\n')
+    return lines.map((line, i) => {
+      const num = String(i + 1).padStart(4, ' ')
+      return `${num} | ${line}`
+    }).join('\n')
+  }, [content, hasContent])
+
+  // Find first error line
+  const firstErrorLine = useMemo(() => {
+    if (!hasContent) return -1
+    const lines = content.split('\n')
+    return lines.findIndex(l => /error/i.test(l))
+  }, [content, hasContent])
+
+  // Jump to error
+  const jumpToError = useCallback(() => {
+    if (firstErrorLine < 0 || !scrollRef.current) return
+    const lineHeight = 18 // approximate
+    scrollRef.current.scrollTop = firstErrorLine * lineHeight
+  }, [firstErrorLine])
+
+  // Filter by search
+  const filteredContent = useMemo(() => {
+    if (!searchQuery || !hasContent) return displayContent
+    const lines = displayContent.split('\n')
+    return lines.filter(l => l.toLowerCase().includes(searchQuery.toLowerCase())).join('\n')
+  }, [displayContent, searchQuery, hasContent])
+
   return (
     <motion.div
       layout
@@ -168,6 +202,8 @@ export function LiveLogPanel({ className, defaultExpanded = false }: LiveLogPane
           'w-full flex items-center justify-between px-3 py-2 hover:bg-pi-surface/50 transition-all',
           isActive && 'bg-gradient-to-r from-pi-accent/5 to-transparent',
         )}
+        aria-expanded={expanded}
+        aria-label={`${expanded ? 'Collapse' : 'Expand'} Claude Code output`}
       >
         <div className="flex items-center gap-2">
           <div className="relative">
@@ -211,12 +247,37 @@ export function LiveLogPanel({ className, defaultExpanded = false }: LiveLogPane
         <div className="flex items-center gap-1">
           {expanded && hasContent && (
             <>
+              {/* Jump to error */}
+              {firstErrorLine >= 0 && (
+                <motion.button
+                  initial={{ opacity: 0, scale: 0.8 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  onClick={e => { e.stopPropagation(); jumpToError() }}
+                  className="p-1 rounded hover:bg-red-500/10 transition-colors"
+                  title="Jump to error"
+                  aria-label="Jump to first error"
+                >
+                  <ArrowDown className="w-3 h-3 text-red-400" />
+                </motion.button>
+              )}
+              {/* Search */}
+              <motion.button
+                initial={{ opacity: 0, scale: 0.8 }}
+                animate={{ opacity: 1, scale: 1 }}
+                onClick={e => { e.stopPropagation(); setShowSearch(s => !s) }}
+                className={cn('p-1 rounded transition-colors', showSearch ? 'bg-pi-accent/10 text-pi-accent' : 'hover:bg-pi-surface text-pi-text-dim')}
+                title="Search log"
+                aria-label="Search log content"
+              >
+                <Search className="w-3 h-3" />
+              </motion.button>
               <motion.button
                 initial={{ opacity: 0, scale: 0.8 }}
                 animate={{ opacity: 1, scale: 1 }}
                 onClick={e => { e.stopPropagation(); handleCopy() }}
                 className="p-1 rounded hover:bg-pi-surface transition-colors"
                 title="Copy output"
+                aria-label="Copy log output"
               >
                 {copied
                   ? <Check className="w-3 h-3 text-emerald-500" />
@@ -229,6 +290,7 @@ export function LiveLogPanel({ className, defaultExpanded = false }: LiveLogPane
                 onClick={e => { e.stopPropagation(); setFullscreen(f => !f) }}
                 className="p-1 rounded hover:bg-pi-surface transition-colors"
                 title={fullscreen ? 'Exit fullscreen' : 'Fullscreen'}
+                aria-label={fullscreen ? 'Exit fullscreen' : 'Enter fullscreen'}
               >
                 {fullscreen
                   ? <Minimize2 className="w-3 h-3 text-pi-text-dim" />
@@ -260,6 +322,19 @@ export function LiveLogPanel({ className, defaultExpanded = false }: LiveLogPane
             transition={{ type: 'spring', stiffness: 400, damping: 30 }}
             className="border-t border-pi-border overflow-hidden"
           >
+            {/* Search bar */}
+            {showSearch && (
+              <div className="px-3 py-1.5 border-b border-pi-border/50 bg-[#0a0a0f]">
+                <input
+                  value={searchQuery}
+                  onChange={e => setSearchQuery(e.target.value)}
+                  placeholder="Search log..."
+                  className="w-full bg-pi-surface border border-pi-border rounded-md px-2.5 py-1 text-[10px] text-pi-text placeholder:text-pi-text-dim/40 focus:outline-none focus:ring-1 focus:ring-pi-accent/50"
+                  autoFocus
+                />
+              </div>
+            )}
+
             {/* Error state */}
             {error ? (
               <motion.div
@@ -290,7 +365,7 @@ export function LiveLogPanel({ className, defaultExpanded = false }: LiveLogPane
                   'selection:bg-pi-accent/30'
                 )}
               >
-                {hasContent ? content : (
+                {hasContent ? filteredContent : (
                   <span className="text-pi-text-dim/30 italic">
                     No recent Claude Code activity
                   </span>
