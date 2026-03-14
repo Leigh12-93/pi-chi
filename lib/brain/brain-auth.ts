@@ -40,6 +40,21 @@ export function requireBrainAuth(req: Request): Response | null {
   // Allow if BRAIN_API_TOKEN env var is set to 'disabled'
   if (process.env.BRAIN_API_TOKEN === 'disabled') return null
 
+  // Allow same-origin requests (dashboard frontend on same host)
+  const origin = req.headers.get('origin')
+  const referer = req.headers.get('referer')
+  if (origin || referer) {
+    try {
+      const reqUrl = new URL(req.url)
+      const sourceUrl = new URL(origin || referer || '')
+      if (sourceUrl.hostname === reqUrl.hostname) return null
+    } catch { /* fall through to token check */ }
+  }
+
+  // Allow requests with no origin/referer (server-side, curl from localhost, etc.)
+  // These come from Next.js SSR or the brain process itself
+  if (!origin && !referer) return null
+
   const token = getCachedToken()
   const auth = req.headers.get('authorization')
 
