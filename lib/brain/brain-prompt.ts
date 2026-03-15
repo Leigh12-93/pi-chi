@@ -323,6 +323,15 @@ export function buildDynamicSystemPrompt(state: BrainState): string {
     parts.push(`## Your Memories (${state.memories.length} total, showing ${top.length} most relevant)\n\n${memLines.join('\n')}`)
   }
 
+  // Deploy pipeline stats
+  if (state.deployHistory && state.deployHistory.length > 0) {
+    try {
+      const { formatDeployStats } = require('./deploy-history')
+      const stats = formatDeployStats(state)
+      parts.push(`## Deploy Pipeline\n\n${stats}`)
+    } catch { /* deploy-history not available */ }
+  }
+
   // Capabilities
   if (state.capabilities.length > 0) {
     parts.push(`## Discovered Capabilities\n\n${state.capabilities.join(', ')}`)
