@@ -48,14 +48,14 @@ function getIcon(key: string): React.ElementType {
 const toneBg: Record<string, string> = {
   neutral:  '',
   positive: 'bg-emerald-500/5',
-  warning:  'bg-amber-500/5',
-  critical: 'bg-red-500/5',
+  warning:  'bg-orange-900/10',
+  critical: 'bg-red-500/8',
   accent:   'bg-pi-accent/5',
 }
 
 /* ─── Scroll constants ─────────────────────────── */
 
-const SCROLL_SPEED = 0.5        // px per frame
+const SCROLL_SPEED = 0.2        // px per frame (~12px/sec at 60fps)
 const HOVER_RESUME_MS = 4000    // resume after hover ends
 
 /* ─── Feed Item Row ────────────────────────────── */
@@ -88,11 +88,11 @@ function FeedRow({ item, isNew }: { item: FeedItem; isNew: boolean }) {
       <div className="min-w-0 flex-1">
         <span className={cn(
           'text-[11px] leading-relaxed block',
-          item.tone === 'critical' ? 'text-red-400' :
-          item.tone === 'positive' ? 'text-emerald-400' :
+          item.tone === 'critical' ? 'text-red-300' :
+          item.tone === 'positive' ? 'text-emerald-300' :
           item.tone === 'accent' ? 'text-pi-accent' :
-          item.tone === 'warning' ? 'text-amber-400' :
-          'text-pi-text-dim',
+          item.tone === 'warning' ? 'text-orange-300' :
+          'text-pi-text',
         )}>
           {item.headline}
         </span>
@@ -127,11 +127,17 @@ export function ContextRail({
   activity, brainStatus, onOpenDrawer, className,
 }: ContextRailProps) {
   const scrollRef = useRef<HTMLDivElement>(null)
+  const firstCopyRef = useRef<HTMLDivElement>(null)
   const rafRef = useRef<number | null>(null)
   const pausedRef = useRef(false)
   const pauseTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const autoScrollRef = useRef(true)
   const [autoScrollEnabled, setAutoScrollEnabled] = useState(true)
+  const scrollPosRef = useRef(0) // sub-pixel accumulator
   const prevItemCountRef = useRef(0)
+
+  // Keep ref in sync with state
+  useEffect(() => { autoScrollRef.current = autoScrollEnabled }, [autoScrollEnabled])
 
   // Build feed items
   const feedItems = useFeedItems({
@@ -153,38 +159,47 @@ export function ContextRail({
     prevItemCountRef.current = feedItems.length
   }, [feedItems.length])
 
-  /* ─── Infinite scroll via clone-and-reset ────── */
-
-  const scrollTick = useCallback(() => {
-    const el = scrollRef.current
-    if (!el || pausedRef.current || !autoScrollEnabled) {
-      rafRef.current = requestAnimationFrame(scrollTick)
-      return
-    }
-
-    // Clone-and-loop: items rendered twice. When scrollTop passes the
-    // first copy's height, snap back by that amount — seamless because
-    // the second copy is identical to the first.
-    const halfHeight = el.scrollHeight / 2
-    if (halfHeight <= 0) {
-      rafRef.current = requestAnimationFrame(scrollTick)
-      return
-    }
-    if (el.scrollTop >= halfHeight) {
-      el.scrollTop -= halfHeight
-    }
-    el.scrollTop += SCROLL_SPEED
-
-    rafRef.current = requestAnimationFrame(scrollTick)
-  }, [autoScrollEnabled])
+  /* ─── Smooth infinite scroll ─────────────────── */
 
   useEffect(() => {
-    rafRef.current = requestAnimationFrame(scrollTick)
+    const tick = () => {
+      const el = scrollRef.current
+      const firstCopy = firstCopyRef.current
+      if (!el || !firstCopy || pausedRef.current || !autoScrollRef.current) {
+        rafRef.current = requestAnimationFrame(tick)
+        return
+      }
+
+      const copyHeight = firstCopy.offsetHeight
+      if (copyHeight <= 0) {
+        rafRef.current = requestAnimationFrame(tick)
+        return
+      }
+
+      // Advance sub-pixel position
+      scrollPosRef.current += SCROLL_SPEED
+
+      // Seamless wrap: when we've scrolled past the first copy, subtract
+      // its height so we snap back without any visual jump
+      if (scrollPosRef.current >= copyHeight) {
+        scrollPosRef.current -= copyHeight
+      }
+
+      el.scrollTop = scrollPosRef.current
+      rafRef.current = requestAnimationFrame(tick)
+    }
+
+    // Sync accumulator with current scroll position
+    if (scrollRef.current) {
+      scrollPosRef.current = scrollRef.current.scrollTop
+    }
+
+    rafRef.current = requestAnimationFrame(tick)
     return () => {
       if (rafRef.current) cancelAnimationFrame(rafRef.current)
       if (pauseTimeoutRef.current) clearTimeout(pauseTimeoutRef.current)
     }
-  }, [scrollTick])
+  }, []) // stable — never recreated
 
   // Pause on hover/touch
   const handleInteractionStart = useCallback(() => {
@@ -193,6 +208,10 @@ export function ContextRail({
   }, [])
 
   const handleInteractionEnd = useCallback(() => {
+    // Sync accumulator to wherever user scrolled manually
+    if (scrollRef.current) {
+      scrollPosRef.current = scrollRef.current.scrollTop
+    }
     pauseTimeoutRef.current = setTimeout(() => {
       pausedRef.current = false
     }, HOVER_RESUME_MS)
@@ -241,7 +260,7 @@ export function ContextRail({
         onMouseLeave={handleInteractionEnd}
         onTouchStart={handleInteractionStart}
         onTouchEnd={handleInteractionEnd}
-        className="flex-1 overflow-y-auto scrollbar-thin"
+        className="flex-1 overflow-y-auto scrollbar-none"
       >
         {feedItems.length === 0 ? (
           /* Empty state */
@@ -260,7 +279,7 @@ export function ContextRail({
         ) : (
           <>
             {/* First copy of feed items */}
-            <div className="py-1">
+            <div ref={firstCopyRef} className="py-1">
               {feedItems.map(item => (
                 <FeedRow key={item.id} item={item} isNew={newItemIds.has(item.id)} />
               ))}

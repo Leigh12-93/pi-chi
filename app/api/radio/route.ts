@@ -14,8 +14,29 @@ async function mpc(cmd: string): Promise<string> {
   }
 }
 
-// GET — current MPD status
-export async function GET() {
+// GET — current MPD status, or Icecast status if ?icecast=true
+export async function GET(req: NextRequest) {
+  const icecast = req.nextUrl.searchParams.get('icecast')
+
+  if (icecast) {
+    try {
+      const res = await fetch('http://localhost:8000/status-json.xsl', { signal: AbortSignal.timeout(3000) })
+      const data = await res.json()
+      const source = data?.icestats?.source
+      // source can be an array (multiple mounts) or single object
+      const mount = Array.isArray(source) ? source[0] : source
+      return NextResponse.json({
+        title: mount?.title || 'Unknown',
+        genre: mount?.genre || '',
+        listeners: mount?.listeners || 0,
+        bitrate: mount?.audio_bitrate || 192,
+        online: true,
+      })
+    } catch {
+      return NextResponse.json({ title: 'Offline', genre: '', listeners: 0, online: false })
+    }
+  }
+
   const status = await mpc('status')
   const current = await mpc('current')
 

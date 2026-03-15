@@ -281,7 +281,7 @@ export function RadioPanel({ fullPage }: RadioPanelProps) {
           <div className="flex items-center gap-3">
             <Radio className="w-5 h-5 text-pi-accent" />
             <span className="text-base font-bold text-pi-text">Radio</span>
-            <span className="text-xs text-pi-text-dim/50 font-mono">Pi speaker</span>
+            <span className="text-xs text-pi-text-dim/70 font-mono">Pi speaker</span>
           </div>
           <div className="flex items-center gap-3">
             {isPlaying && activeStation && (
@@ -517,7 +517,7 @@ export function RadioPanel({ fullPage }: RadioPanelProps) {
         <div className="flex items-center gap-2">
           <Radio className="w-3.5 h-3.5 text-pi-accent" />
           <span className="text-xs font-bold text-pi-text">Radio</span>
-          <span className="text-[9px] text-pi-text-dim/50 font-mono">Pi speaker</span>
+          <span className="text-[9px] text-pi-text-dim/70 font-mono">Pi speaker</span>
         </div>
         {isPlaying && activeStation && (
           <div className="flex items-center gap-1.5">
@@ -671,7 +671,7 @@ export function RadioPanel({ fullPage }: RadioPanelProps) {
 
           {morningStation && (
             <div className="flex items-center gap-1.5 mt-1.5 pt-1.5 border-t border-pi-border/30">
-              <Clock className="w-3 h-3 text-pi-text-dim/40" />
+              <Clock className="w-3 h-3 text-pi-text-dim/60" />
               <span className="text-[9px] text-pi-text-dim/60">
                 Weekday mornings {MORNING_START_HOUR}:{String(MORNING_START_MIN).padStart(2, '0')}&ndash;{MORNING_END_HOUR}:{String(MORNING_END_MIN).padStart(2, '0')} · Today: {morningStation.name}
               </span>
