@@ -561,6 +561,57 @@ export async function POST(req: Request) {
     return m
   })
 
+  // Dedup tool_use IDs — Anthropic API rejects duplicate IDs across the conversation.
+  // Scan all messages, collect seen tool_use IDs, and strip duplicates from earlier messages.
+  // Also strip orphaned tool_result parts whose tool_use was removed.
+  const seenToolIds = new Set<string>()
+  // First pass: collect all tool_use IDs from the last messages (highest priority to keep)
+  for (let i = trimmedMessages.length - 1; i >= 0; i--) {
+    const m = trimmedMessages[i] as any
+    if (m.role === 'assistant' && Array.isArray(m.parts)) {
+      for (const p of m.parts) {
+        if ((p.type === 'tool-invocation' || p.type === 'tool-call') && p.toolCallId) {
+          if (seenToolIds.has(p.toolCallId)) {
+            // Duplicate — will be stripped in second pass
+          } else {
+            seenToolIds.add(p.toolCallId)
+          }
+        }
+      }
+    }
+  }
+  // Second pass: strip duplicate tool_use parts and orphaned tool_results (forward scan)
+  const keepToolIds = new Set<string>()
+  trimmedMessages = trimmedMessages.map((m: any) => {
+    if (m.role === 'assistant' && Array.isArray(m.parts)) {
+      const filtered = m.parts.filter((p: any) => {
+        if ((p.type === 'tool-invocation' || p.type === 'tool-call') && p.toolCallId) {
+          if (keepToolIds.has(p.toolCallId)) {
+            return false
+          }
+          keepToolIds.add(p.toolCallId)
+        }
+        return true
+      })
+      if (filtered.length !== m.parts.length) {
+        return { ...m, parts: filtered.length > 0 ? filtered : [{ type: 'text', text: '[tool calls deduplicated]' }] }
+      }
+    }
+    if (m.role === 'user' && Array.isArray(m.parts)) {
+      const filtered = m.parts.filter((p: any) => {
+        if (p.type === 'tool-result' && p.toolCallId && !keepToolIds.has(p.toolCallId)) {
+          return false
+        }
+        return true
+      })
+      if (filtered.length !== m.parts.length) {
+        if (filtered.length === 0) return { ...m, parts: [{ type: 'text', text: '[continued]' }] }
+        return { ...m, parts: filtered }
+      }
+    }
+    return m
+  })
+
   // Estimate full context size (system + tools + messages)
   // Build the tiered system prompt — only includes tool/DB/self-mod docs when relevant
   // Inject project memory into the MEMORY_MARKER placeholder
