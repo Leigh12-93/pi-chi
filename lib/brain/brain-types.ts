@@ -92,6 +92,9 @@ export interface BrainState {
 
   // Scheduled tasks (Phase 6)
   schedules?: BrainSchedule[]
+
+  // Deploy pipeline history (timing, outcomes, anomaly detection)
+  deployHistory?: import('./deploy-types').DeployRecord[]
 }
 
 export interface CostBreakdown {

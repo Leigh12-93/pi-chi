@@ -648,140 +648,33 @@ async function brainCycle(): Promise<void> {
       }
     }
 
-    // Post-cycle: type-check, commit, build locally, push to GitHub
+    // Post-cycle: Full deploy pipeline (type-check, auto-fix, build, health sweep, rollback)
     try {
-      const diffResult = await executeCommand('git diff --name-only HEAD', { cwd: PI_CHI_DIR, timeout: 5000 })
-      const changedFiles = (diffResult.stdout || '').trim()
-      if (changedFiles) {
-        // Step 1: Clean stale .next/types to prevent phantom type errors
-        await executeCommand('rm -rf .next/types', { cwd: PI_CHI_DIR, timeout: 5000 }).catch(() => {})
+      const { runDeployPipeline } = await import('../lib/brain/deploy-pipeline')
+      const deployResult = await runDeployPipeline(state, { piChiDir: PI_CHI_DIR })
 
-        // Step 2: Type-check before committing (fast, ~2-5s)
-        console.log('[pi-brain] Source files changed — running type check...')
-        let typeCheckPassed = false
-        const tscResult = await executeCommand('npx tsc --noEmit --pretty 2>&1', { cwd: PI_CHI_DIR, timeout: 30000 })
-
-        if (tscResult.exitCode === 0) {
-          typeCheckPassed = true
-        } else {
-          // Auto-fix: use Claude Code to surgically fix type errors instead of reverting
-          const tscErrors = (tscResult.stdout || tscResult.stderr || '').trim()
-          console.error('[pi-brain] Type check FAILED — attempting auto-fix via Claude Code...')
-          addActivity(state, 'error', `Type check failed — auto-fixing: ${tscErrors.slice(0, 150)}`)
-
-          const MAX_FIX_ATTEMPTS = 2
-          for (let attempt = 1; attempt <= MAX_FIX_ATTEMPTS; attempt++) {
-            console.log(`[pi-brain] Auto-fix attempt ${attempt}/${MAX_FIX_ATTEMPTS}...`)
-
-            // Get fresh error output for retry attempts
-            const freshTsc = attempt === 1 ? tscResult : await executeCommand('npx tsc --noEmit --pretty 2>&1', { cwd: PI_CHI_DIR, timeout: 30000 })
-            const errors = (freshTsc.stdout || freshTsc.stderr || '').trim()
-
-            // Write prompt file with the errors for Claude Code to fix
-            const fixPromptPath = join(getStateDir(), `fix-prompt-${Date.now()}.txt`)
-            const fixPrompt = [
-              'You are fixing TypeScript build errors in the Pi-Chi codebase at ~/pi-chi.',
-              'The following `tsc --noEmit` errors must be fixed. Do NOT regenerate or rewrite files from scratch.',
-              'Make surgical, minimal fixes to the specific lines mentioned in the errors.',
-              'Read the failing files first, understand the context, then apply targeted fixes.',
-              '',
-              '=== TypeScript Errors ===',
-              errors,
-              '',
-              '=== Instructions ===',
-              '1. Read each file mentioned in the errors above',
-              '2. Fix ONLY the specific type errors — do not refactor, rename, or rewrite',
-              '3. If a type/interface is missing, check brain-types.ts and agent-types.ts for the correct types',
-              '4. If an import is wrong, fix the import path — do not delete the import',
-              '5. After fixing, run: npx tsc --noEmit',
-              '6. If errors remain, fix those too',
-              '7. Do NOT run npm run build — just fix the type errors',
-            ].join('\n')
-
-            writeFileSync(fixPromptPath, fixPrompt, 'utf-8')
-
-            try {
-              const fixResult = await runClaudeCodePrompt({
-                promptPath: fixPromptPath,
-                cwd: PI_CHI_DIR,
-                maxTurns: 15,
-                timeoutSeconds: 120,
-              })
-              console.log(`[pi-brain] Auto-fix attempt ${attempt} exit code: ${fixResult.exitCode}`)
-            } catch (fixErr) {
-              console.error(`[pi-brain] Auto-fix attempt ${attempt} crashed:`, fixErr)
-            } finally {
-              try { unlinkSync(fixPromptPath) } catch { /* cleanup */ }
-            }
-
-            // Re-check if the fix worked
-            await executeCommand('rm -rf .next/types', { cwd: PI_CHI_DIR, timeout: 5000 }).catch(() => {})
-            const recheck = await executeCommand('npx tsc --noEmit --pretty 2>&1', { cwd: PI_CHI_DIR, timeout: 30000 })
-            if (recheck.exitCode === 0) {
-              console.log(`[pi-brain] Auto-fix succeeded on attempt ${attempt}!`)
-              addActivity(state, 'system', `Auto-fixed type errors on attempt ${attempt}`)
-              typeCheckPassed = true
-              break
-            } else {
-              const remaining = (recheck.stdout || recheck.stderr || '').trim()
-              console.error(`[pi-brain] Auto-fix attempt ${attempt} — errors remain: ${remaining.slice(0, 200)}`)
-            }
-          }
-
-          if (!typeCheckPassed) {
-            console.error('[pi-brain] Auto-fix exhausted — reverting changes')
-            addActivity(state, 'error', 'Auto-fix failed after 2 attempts — reverting changes')
-            await executeCommand('git checkout -- .', { cwd: PI_CHI_DIR, timeout: 5000 }).catch(() => {})
-          }
-        }
-
-        if (typeCheckPassed) {
-          // Step 3: Commit all changes (works for both initial pass and auto-fixed code)
-          addActivity(state, 'system', 'Type check passed — committing changes...')
-          await executeCommand(
-            'git add -A && git commit -m "pi-chi: autonomous changes" --no-verify',
-            { cwd: PI_CHI_DIR, timeout: 10000 },
-          ).catch(() => {})
-
-          // Determine if dashboard build is needed
-          const dashboardFiles = changedFiles.split('\n').filter(f =>
-            (f.startsWith('app/') || f.startsWith('components/') || f.startsWith('lib/') || f.includes('globals.css') || f.includes('next.config'))
-            && !f.startsWith('scripts/pi-brain'),
-          )
-
-          if (dashboardFiles.length > 0) {
-            // Step 4: Local build via self-deploy.sh (stops dashboard, builds with max RAM, restarts)
-            console.log(`[pi-brain] Dashboard files changed (${dashboardFiles.length}) — running local self-deploy...`)
-            addActivity(state, 'system', `Dashboard code changed (${dashboardFiles.join(', ').slice(0, 100)}) — building locally...`)
-            const deployResult = await executeCommand(
-              'bash /home/pi/pi-chi/scripts/self-deploy.sh',
-              { cwd: PI_CHI_DIR, timeout: 600000 },  // 10 min timeout for ARM build
-            )
-            if (deployResult.exitCode === 0) {
-              addActivity(state, 'system', 'Self-deploy succeeded — dashboard updated with new build')
-              console.log('[pi-brain] Self-deploy succeeded')
-            } else {
-              const output = (deployResult.stderr || deployResult.stdout || '').trim()
-              addActivity(state, 'error', `Self-deploy failed: ${output.slice(0, 200)}`)
-              console.error('[pi-brain] Self-deploy failed:', output.slice(0, 300))
-            }
-          } else {
-            console.log('[pi-brain] Brain-only changes committed. No build needed.')
-            addActivity(state, 'system', 'Brain-only changes committed. Takes effect next cycle restart.')
-          }
-
-          // Step 5: Push to GitHub (backup + triggers CI validation)
-          await executeCommand('git push origin master 2>&1', { cwd: PI_CHI_DIR, timeout: 30000 }).catch(() => {})
+      if (deployResult) {
+        if (deployResult.outcome === 'success') {
+          const buildInfo = deployResult.buildTimeMs
+            ? ` (build ${Math.round(deployResult.buildTimeMs / 1000)}s)`
+            : ''
+          console.log(`[pi-brain] Deploy succeeded in ${Math.round(deployResult.durationMs / 1000)}s${buildInfo}`)
+        } else if (deployResult.outcome === 'rolled-back') {
+          console.error(`[pi-brain] Deploy rolled back (L${deployResult.rollbackLevel})`)
+        } else if (deployResult.outcome === 'reverted') {
+          console.error('[pi-brain] Changes reverted — could not fix errors')
         }
       }
     } catch (deployErr) {
-      console.error('[pi-brain] Deploy check error:', deployErr)
+      const msg = deployErr instanceof Error ? deployErr.message : String(deployErr)
+      console.error('[pi-brain] Deploy pipeline error:', msg)
+      addActivity(state, 'error', `Deploy pipeline error: ${msg.slice(0, 150)}`)
     } finally {
-      // Guarantee dashboard comes back up regardless of what happened
+      // GUARANTEE: Dashboard must be running regardless of what happened above
       try {
         const dashCheck = await executeCommand('systemctl is-active pi-chi-dashboard', { timeout: 3000 })
         if ((dashCheck.stdout || '').trim() !== 'active') {
-          console.log('[pi-brain] Dashboard not active — restarting...')
+          console.log('[pi-brain] Dashboard not active — emergency restart...')
           await executeCommand('sudo systemctl start pi-chi-dashboard', { cwd: PI_CHI_DIR, timeout: 15000 })
         }
       } catch {

@@ -395,6 +395,7 @@ export function loadBrainState(): BrainState {
   if (!state.promptEvolutions) state.promptEvolutions = []
   if (!state.achievements) state.achievements = []
   if (!state.schedules) state.schedules = []
+  if (!state.deployHistory) state.deployHistory = []
 
   // Backfill horizon on existing goals that don't have it
   for (const goal of state.goals) {
