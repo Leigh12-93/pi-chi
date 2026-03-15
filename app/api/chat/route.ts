@@ -33,7 +33,7 @@ import {
   buildFileManifest, loadProjectMemory,
   buildSixChiSection, buildActiveFileSection, assembleSystemPrompt,
 } from '@/lib/chat/context-builder'
-import { processMessages } from '@/lib/chat/message-processor'
+import { processMessages, dedupToolIds } from '@/lib/chat/message-processor'
 
 // Repo owner — only this GitHub user can use self-modification tools
 const PI_OWNER = 'leigh12-93'
@@ -295,6 +295,9 @@ export async function POST(req: Request) {
     trimmedMessages = result.messages
     compactionOccurred = result.compacted
     if (compactionOccurred) {
+      // Re-dedup after compaction — compaction may remove assistant messages with tool_uses,
+      // leaving orphaned tool_results that cause "tool_use_id not found" API errors
+      trimmedMessages = dedupToolIds(trimmedMessages)
       messageTokens = JSON.stringify(trimmedMessages).length / 3
       estimatedInputTokens = messageTokens + systemTokens + TOOL_SCHEMA_OVERHEAD + SAFETY_BUFFER
       compactedTokensSaved = Math.round(preCompactionTokens - estimatedInputTokens)

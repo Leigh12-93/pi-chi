@@ -17,19 +17,17 @@
  * Or:  npm run brain
  * ═══════════════════════════════════════════════════════════════════ */
 
-import { generateText, stepCountIs } from 'ai'
-import { anthropic } from '@ai-sdk/anthropic'
 import { loadBrainState, saveBrainState, addActivity, getStateDir } from '../lib/brain/brain-state'
 import { appendSnapshot } from '../lib/brain/analytics'
 import { checkAchievements } from '../lib/brain/achievements'
 import { getSeedPrompt, buildDynamicSystemPrompt, buildContextMessage } from '../lib/brain/brain-prompt'
-import { createBrainTools, loadCustomTools, resetHttpRequestCounter } from '../lib/brain/brain-tools'
+import { loadCustomTools, resetHttpRequestCounter } from '../lib/brain/brain-tools'
 import { executeCommand } from '../lib/tools/terminal-tools'
 import { randomUUID } from 'node:crypto'
-import { writeFileSync } from 'node:fs'
+import { writeFileSync, unlinkSync } from 'node:fs'
 import { join } from 'node:path'
 import { homedir } from 'node:os'
-import type { SystemVitalsSnapshot, BrainState, CostBreakdown } from '../lib/brain/brain-types'
+import type { SystemVitalsSnapshot, BrainState } from '../lib/brain/brain-types'
 
 // ── Constants ─────────────────────────────────────────────────────
 
@@ -37,9 +35,6 @@ const MIN_WAKE_MS = 60 * 1000        // 1 minute
 const MAX_WAKE_MS = 60 * 60 * 1000   // 1 hour
 const DEFAULT_WAKE_MS = 5 * 60 * 1000 // 5 minutes
 
-// Cost per 1M tokens (Sonnet 4)
-const INPUT_COST_PER_M = 3
-const OUTPUT_COST_PER_M = 15
 const DAILY_BUDGET = parseFloat(process.env.BRAIN_DAILY_BUDGET || '25')
 
 const MAX_CONSECUTIVE_CRASHES = 3
@@ -119,23 +114,7 @@ async function gatherVitals(): Promise<SystemVitalsSnapshot | null> {
   }
 }
 
-// ── Cost tracking ─────────────────────────────────────────────────
-
-function trackCost(
-  state: BrainState,
-  inputTokens: number,
-  outputTokens: number,
-  source: keyof CostBreakdown = 'brain',
-  inputRate: number = INPUT_COST_PER_M,
-  outputRate: number = OUTPUT_COST_PER_M,
-): void {
-  const cost = (inputTokens / 1_000_000) * inputRate + (outputTokens / 1_000_000) * outputRate
-  state.totalApiCost += cost
-  state.dailyCost += cost
-  if (state.costBreakdown) {
-    state.costBreakdown[source] += cost
-  }
-}
+// ── Budget check (safety net — Max subscription has no per-token cost) ────
 
 function isDailyBudgetExceeded(state: BrainState): boolean {
   return state.dailyCost > DAILY_BUDGET
@@ -303,13 +282,16 @@ Respond with a JSON object:
 }`
 
   try {
-    const result = await generateText({
-      model: anthropic('claude-sonnet-4-20250514'),
-      messages: [{ role: 'user', content: dreamPrompt }],
-      maxOutputTokens: 4000,
-    })
+    // Use Claude Code CLI for dream cycle (Max OAuth — no API cost)
+    const stateDir = getStateDir()
+    const dreamPromptPath = join(stateDir, 'dream-prompt.txt')
+    writeFileSync(dreamPromptPath, dreamPrompt, 'utf-8')
 
-    const text = result.text || ''
+    const dreamCmd = `cat "${dreamPromptPath}" | timeout --kill-after=15 120 claude -p - --output-format text --max-turns 3 2>&1`
+    const dreamResult = await executeCommand(dreamCmd, { cwd: PI_CHI_DIR, timeout: 150_000 })
+    try { unlinkSync(dreamPromptPath) } catch { /* ok */ }
+
+    const text = (dreamResult.stdout || '').trim()
     try {
       const dream = extractJson(text) as {
         patterns?: string[]
@@ -378,10 +360,7 @@ Respond with a JSON object:
       addActivity(state, 'system', 'Dream: reflection complete (unstructured)')
     }
 
-    // Track cost (Sonnet for dreams)
-    if (result.usage) {
-      trackCost(state, result.usage.inputTokens || 0, result.usage.outputTokens || 0, 'dream')
-    }
+    // No API cost — Claude Max subscription covers dream cycles
 
     state.lastDreamAt = new Date().toISOString()
     state.dreamCount++
@@ -467,65 +446,44 @@ async function brainCycle(): Promise<void> {
   const dynamicSystemPrompt = buildDynamicSystemPrompt(state)
   const contextMessage = buildContextMessage(state, vitals, activeGoals)
 
-  // Create tools — built-in + custom
-  const builtinTools = createBrainTools(state)
-  const customTools = loadCustomTools(state)
-  const tools = { ...builtinTools, ...customTools }
-
-  const customCount = Object.keys(customTools).length
-  if (customCount > 0) {
-    console.log(`[pi-brain] Loaded ${customCount} custom tool(s)`)
-  }
-
   // Reset per-cycle counters
   resetHttpRequestCounter()
 
   try {
-    const result = await callWithRetry(() => generateText({
-      model: anthropic('claude-sonnet-4-20250514'),
-      system: [
-        // Static seed — cached across cycles (90% discount on cache hits)
-        {
-          role: 'system' as const,
-          content: seedPrompt,
-          providerOptions: {
-            anthropic: { cacheControl: { type: 'ephemeral' } },
-          },
-        },
-        // Dynamic per-cycle: memories, capabilities, evolved wisdom
-        {
-          role: 'system' as const,
-          content: dynamicSystemPrompt,
-        },
-      ],
-      messages: [{ role: 'user', content: contextMessage }],
-      tools,
-      stopWhen: stepCountIs(50),
-      maxOutputTokens: 16000,
-      abortSignal: AbortSignal.timeout(120_000),
+    // ── Claude Code CLI cycle (uses Max OAuth — no API cost) ──────────
+    // Write the full prompt to a temp file to avoid shell escaping issues
+    const stateDir = getStateDir()
+    const promptPath = join(stateDir, 'cycle-prompt.txt')
+    const fullPrompt = `${seedPrompt}\n\n${dynamicSystemPrompt}\n\n---\n\n${contextMessage}\n\n---\n\nIMPORTANT: You have access to the Pi filesystem via Claude Code tools (Read, Write, Edit, Bash).\nThe brain state file is at: ${join(stateDir, 'brain-state.json')}\nTo save a memory, update a goal, or change mood — modify brain-state.json directly using the Edit tool.\nKeep your response concise — summarize what you did and what you learned.`
+    writeFileSync(promptPath, fullPrompt, 'utf-8')
+
+    const cmd = `cat "${promptPath}" | timeout --kill-after=30 280 claude -p - --output-format text --max-turns 25 2>&1; echo "EXIT_CODE:$?"`
+
+    const result = await callWithRetry(() => executeCommand(cmd, {
+      cwd: PI_CHI_DIR,
+      timeout: 300_000, // 5 min
     }))
 
-    // Record the response
-    const responseText = result.text || ''
+    const output = (result.stdout || '').trim()
+    const exitMatch = output.match(/EXIT_CODE:(\d+)$/)
+    const exitCode = exitMatch ? parseInt(exitMatch[1], 10) : result.exitCode
+    const responseText = output.replace(/EXIT_CODE:\d+$/, '').trim()
+
     state.lastThought = responseText.slice(0, 500)
 
-    // Track cost (brain source) — check for cache metrics
-    const usage = result.usage
-    if (usage) {
-      trackCost(state, usage.inputTokens || 0, usage.outputTokens || 0, 'brain')
+    // Reload state — Claude Code may have modified brain-state.json directly
+    const freshState = loadBrainState()
+    // Merge volatile fields back (Claude Code may have updated memories/goals/mood)
+    state.memories = freshState.memories
+    state.goals = freshState.goals
+    state.mood = freshState.mood
+    state.growthLog = freshState.growthLog
 
-      // Log cache hit metrics from provider metadata
-      const providerMeta = result.providerMetadata?.anthropic as Record<string, number> | undefined
-      const cacheCreation = providerMeta?.cacheCreationInputTokens || 0
-      const cacheRead = providerMeta?.cacheReadInputTokens || 0
-      const cacheInfo = cacheCreation > 0
-        ? ` (cache CREATED: ${cacheCreation} tokens)`
-        : cacheRead > 0
-          ? ` (cache HIT: ${cacheRead} tokens saved)`
-          : ''
+    // No API cost — Claude Max subscription covers this
+    console.log(`[pi-brain] Claude Code cycle complete (exit: ${exitCode}). Response: ${responseText.slice(0, 150)}`)
 
-      console.log(`[pi-brain] Tokens: ${usage.inputTokens}in / ${usage.outputTokens}out. Steps: ${result.steps?.length || 1}. Cost: $${state.totalApiCost.toFixed(3)} (today: $${state.dailyCost.toFixed(3)})${cacheInfo}`)
-    }
+    // Clean up temp prompt
+    try { unlinkSync(promptPath) } catch { /* ok */ }
 
     // Log completion
     addActivity(state, 'thought', responseText.slice(0, 200) || 'Cycle completed with tool use only')
@@ -687,9 +645,10 @@ async function main(): Promise<void> {
     process.exit(1) // Must exit — state is unknown
   })
 
-  // Verify API key
-  if (!process.env.ANTHROPIC_API_KEY) {
-    console.error('[pi-brain] FATAL: ANTHROPIC_API_KEY not set in environment')
+  // Verify Claude Code CLI is available (uses Max OAuth — no API key needed)
+  const claudeCheck = await executeCommand('which claude', { timeout: 5000 })
+  if (claudeCheck.exitCode !== 0) {
+    console.error('[pi-brain] FATAL: Claude Code CLI not found. Install with: npm i -g @anthropic-ai/claude-code')
     process.exit(1)
   }
 

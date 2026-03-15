@@ -225,6 +225,10 @@ export function createBrainTools(state: BrainState) {
               category: 'built',
               description: `Completed goal: ${goal.title}`,
             })
+            // Archive to goal history
+            if (!state.goalHistory) state.goalHistory = []
+            state.goalHistory.push({ ...goal })
+            state.goals = state.goals.filter(g => g.id !== goalId)
           }
           return { success: true, action: 'task_completed' }
         }
@@ -238,6 +242,10 @@ export function createBrainTools(state: BrainState) {
           category: 'built',
           description: `Completed goal: ${goal.title}. ${result || ''}`,
         })
+        // Archive to goal history
+        if (!state.goalHistory) state.goalHistory = []
+        state.goalHistory.push({ ...goal })
+        state.goals = state.goals.filter(g => g.id !== goalId)
         return { success: true, action: 'goal_completed' }
       },
     }),

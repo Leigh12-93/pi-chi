@@ -23,6 +23,9 @@ export interface BrainState {
   // Goals (self-set)
   goals: BrainGoal[]
 
+  // Goal history — completed/abandoned goals archived here
+  goalHistory?: BrainGoal[]
+
   // Memories — key insights the brain wants to remember
   memories: BrainMemory[]
 
