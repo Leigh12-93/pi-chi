@@ -10,6 +10,8 @@ interface VitalsResponse {
   disk: { used: number; total: number }
   temp?: number
   uptime: number
+  ip?: string
+  ssid?: string
   timestamp: string
 }
 
@@ -89,12 +91,14 @@ function parseUptime(raw: string | null): number {
 /** GET /api/vitals — system vitals (CPU, memory, disk, temperature, uptime) */
 export async function GET() {
   // Run all commands in parallel for speed
-  const [cpuRaw, memRaw, diskRaw, tempRaw, uptimeRaw] = await Promise.all([
+  const [cpuRaw, memRaw, diskRaw, tempRaw, uptimeRaw, ipRaw, ssidRaw] = await Promise.all([
     run("top -bn1 | grep 'Cpu'"),
     run('free -m'),
     run('df -h /'),
     run('cat /sys/class/thermal/thermal_zone0/temp'),
     run('uptime -s'),
+    run("hostname -I 2>/dev/null | awk '{print $1}'"),
+    run('iwgetid -r 2>/dev/null'),
   ])
 
   const vitals: VitalsResponse = {
@@ -103,6 +107,8 @@ export async function GET() {
     disk: parseDisk(diskRaw),
     temp: parseTemp(tempRaw),
     uptime: parseUptime(uptimeRaw),
+    ip: ipRaw || undefined,
+    ssid: ssidRaw || undefined,
     timestamp: new Date().toISOString(),
   }
 
