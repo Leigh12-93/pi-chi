@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useRef, useEffect, useCallback, useMemo, Suspense, lazy } from 'react'
+import { useState, useRef, useEffect, useMemo, Suspense, lazy } from 'react'
 import { Panel, PanelGroup, PanelResizeHandle } from 'react-resizable-panels'
 import {
   Activity, Terminal as TerminalIcon,
@@ -11,7 +11,7 @@ import { motion, AnimatePresence } from 'framer-motion'
 import { cn } from '@/lib/utils'
 import { toast } from 'sonner'
 
-import { ChatPanel } from '@/components/chat-panel'
+import { BrainChat } from '@/components/agent/brain-chat'
 import { GoalsPanel } from '@/components/agent/goals-panel'
 import { ActivityFeed } from '@/components/agent/activity-feed'
 import { VitalsPanel } from '@/components/agent/vitals-panel'
@@ -111,11 +111,7 @@ function useMediaQuery(query: string): boolean {
 
 /* ─── Component ─────────────────────────────────── */
 
-export function AgentDashboard({
-  projectName, projectId, files, activeFile,
-  onFileSelect, onFileChange, onFileDelete, onBulkFileUpdate,
-  githubToken, pendingMessage, onPendingMessageSent,
-}: AgentDashboardProps) {
+export function AgentDashboard(_props: AgentDashboardProps) {
   const [centerTab, setCenterTab] = useState<CenterTab>('chat')
   const [mobileTab, setMobileTab] = useState<MobileTab>('chat')
   const [mindSubTab, setMindSubTab] = useState<MindSubTab>('memories')
@@ -143,10 +139,10 @@ export function AgentDashboard({
     [bizMetrics]
   )
 
-  // Connect chat loading state to agent status
-  const handleLoadingChange = useCallback((isLoading: boolean) => {
-    agent.setAgentStatus(isLoading ? 'thinking' : 'idle')
-  }, [agent])
+  // Brain status drives agent status indicator
+  useEffect(() => {
+    agent.setAgentStatus(agent.brainStatus === 'running' ? 'thinking' : 'idle')
+  }, [agent.brainStatus]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── Toast notifications ─────────────────────────
   useEffect(() => {
@@ -352,24 +348,15 @@ export function AgentDashboard({
 
                 {/* Tab content */}
                 <div className="flex-1 overflow-hidden relative">
-                  {/* Unified Chat — Pi-Chi personality + all builder tools */}
+                  {/* Pi-Chi Chat — brain personality with tool actions */}
                   <div className={cn('absolute inset-0', centerTab !== 'chat' && 'hidden')}>
                     <PanelErrorBoundary name="Chat">
-                      <ChatPanel
-                        projectName={projectName}
-                        projectId={projectId}
-                        files={files}
-                        onFileChange={onFileChange}
-                        onFileDelete={onFileDelete}
-                        onBulkFileUpdate={onBulkFileUpdate}
-                        githubToken={githubToken}
-                        pendingMessage={pendingMessage}
-                        onPendingMessageSent={onPendingMessageSent}
-                        activeFile={activeFile}
-                        onLoadingChange={handleLoadingChange}
-                        onFileSelect={onFileSelect}
-                        brainName={agent.brainMeta?.name || 'Pi-Chi'}
+                      <BrainChat
+                        chatMessages={agent.chatMessages}
                         brainStatus={agent.brainStatus}
+                        brainName={agent.brainMeta?.name || 'Pi-Chi'}
+                        onSendMessage={agent.injectMessage}
+                        onMarkRead={agent.markChatRead}
                       />
                     </PanelErrorBoundary>
                   </div>
@@ -476,7 +463,7 @@ export function AgentDashboard({
           {/* Mobile content area */}
           <div className="flex-1 overflow-hidden relative bg-pi-bg">
             <AnimatePresence mode="wait">
-              {/* Chat (Unified — Pi-Chi + builder tools) */}
+              {/* Pi-Chi Chat */}
               {mobileTab === 'chat' && (
                 <motion.div
                   key="mobile-chat"
@@ -486,21 +473,12 @@ export function AgentDashboard({
                   transition={{ type: 'spring', stiffness: 400, damping: 30 }}
                   className="absolute inset-0 flex flex-col"
                 >
-                  <ChatPanel
-                    projectName={projectName}
-                    projectId={projectId}
-                    files={files}
-                    onFileChange={onFileChange}
-                    onFileDelete={onFileDelete}
-                    onBulkFileUpdate={onBulkFileUpdate}
-                    githubToken={githubToken}
-                    pendingMessage={pendingMessage}
-                    onPendingMessageSent={onPendingMessageSent}
-                    activeFile={activeFile}
-                    onLoadingChange={handleLoadingChange}
-                    onFileSelect={onFileSelect}
-                    brainName={agent.brainMeta?.name || 'Pi-Chi'}
+                  <BrainChat
+                    chatMessages={agent.chatMessages}
                     brainStatus={agent.brainStatus}
+                    brainName={agent.brainMeta?.name || 'Pi-Chi'}
+                    onSendMessage={agent.injectMessage}
+                    onMarkRead={agent.markChatRead}
                   />
                 </motion.div>
               )}
