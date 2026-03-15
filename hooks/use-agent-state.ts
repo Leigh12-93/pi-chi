@@ -1,11 +1,12 @@
 'use client'
 
-import { useState, useCallback, useRef, useEffect } from 'react'
+import { useState, useCallback, useRef, useEffect, useMemo } from 'react'
 import type { Goal, AgentTask, ActivityEntry, AgentStatus, ToolInvocation } from '@/lib/agent-types'
 import type {
   BrainMemory, ResearchThread, GrowthEntry, BrainProject, MoodState,
   PromptEvolution, Achievement, BrainSchedule,
 } from '@/lib/brain/brain-types'
+import type { DashboardSummary, Mission, AttentionItem } from '@/lib/brain/domain-types'
 
 const MAX_ACTIVITY_ENTRIES = 200
 const STORAGE_KEY = 'pi_agent_goals'
@@ -116,6 +117,7 @@ interface UseAgentStateReturn {
   brainStatus: 'running' | 'sleeping' | 'not-running' | 'error'
   brainMeta: BrainMetaExtended | null
   lastFetchedAt: number | null
+  summary: DashboardSummary
 
   // New data fields
   memories: BrainMemory[]
@@ -561,6 +563,69 @@ export function useAgentState(): UseAgentStateReturn {
     if (pollFnRef.current) pollFnRef.current()
   }, [])
 
+  // ── Derived DashboardSummary ───────────────────────────────
+  const summary = useMemo((): DashboardSummary => {
+    // Current mission — map highest-priority active goal to a Mission
+    const activeGoals = goals.filter(g => g.status === 'active')
+    const topGoal = activeGoals.sort((a, b) => {
+      const p = { high: 3, medium: 2, low: 1 }
+      return (p[b.priority] || 0) - (p[a.priority] || 0)
+    })[0]
+
+    const currentMission: Mission | null = topGoal ? {
+      id: topGoal.id,
+      type: inferMissionType(topGoal.title),
+      title: topGoal.title,
+      rationale: topGoal.reasoning || '',
+      progressLabel: `${topGoal.tasks.filter(t => t.status === 'done').length}/${topGoal.tasks.length} tasks`,
+      startedAt: topGoal.createdAt,
+      status: 'active',
+    } : null
+
+    // Now doing — latest activity entry or last thought
+    const nowDoing = activity.length > 0
+      ? activity[activity.length - 1].message
+      : brainMeta?.lastThought || 'Idle'
+
+    // Next up
+    const nextGoal = activeGoals[1]
+    const nextUp = nextGoal ? nextGoal.title : null
+
+    // Attention needed
+    const attentionNeeded: AttentionItem[] = []
+    if (brainMeta?.consecutiveCrashes && brainMeta.consecutiveCrashes > 0) {
+      attentionNeeded.push({
+        id: 'crashes',
+        level: brainMeta.consecutiveCrashes >= 3 ? 'critical' : 'warn',
+        message: `${brainMeta.consecutiveCrashes} consecutive crash${brainMeta.consecutiveCrashes > 1 ? 'es' : ''}`,
+      })
+    }
+    if (brainStatus === 'error') {
+      attentionNeeded.push({ id: 'brain-error', level: 'critical', message: 'Brain is in error state' })
+    }
+    if (brainStatus === 'not-running') {
+      attentionNeeded.push({ id: 'brain-offline', level: 'warn', message: 'Brain is offline' })
+    }
+    if (brainMeta && brainMeta.totalCost > 8) {
+      attentionNeeded.push({ id: 'budget', level: 'warn', message: `API cost $${brainMeta.totalCost.toFixed(2)} approaching limit` })
+    }
+
+    // Portfolio — placeholder until real business data flows in
+    const portfolioValue = 0
+    const portfolioTarget = 1_000_000
+
+    return {
+      nowDoing,
+      currentMission,
+      nextUp,
+      attentionNeeded,
+      topBusiness: null,
+      topOpportunity: null,
+      portfolioValue,
+      portfolioTarget,
+    }
+  }, [goals, activity, brainMeta, brainStatus])
+
   return {
     goals,
     activity,
@@ -578,6 +643,7 @@ export function useAgentState(): UseAgentStateReturn {
     promptOverrides,
     promptEvolutions,
     achievements,
+    summary,
     addGoal,
     updateGoal,
     removeGoal,
@@ -605,6 +671,16 @@ function getToolActivityType(toolName: string): ActivityEntry['type'] {
   if (toolName === 'think' || toolName === 'suggest_improvement') return 'decision'
   if (toolName === 'deploy_to_vercel' || toolName === 'pi_redeploy') return 'system'
   return 'action'
+}
+
+/** Infer mission type from goal title keywords */
+function inferMissionType(title: string): Mission['type'] {
+  const t = title.toLowerCase()
+  if (t.includes('launch') || t.includes('deploy') || t.includes('ship')) return 'launch'
+  if (t.includes('grow') || t.includes('revenue') || t.includes('scale') || t.includes('customer')) return 'grow'
+  if (t.includes('explore') || t.includes('research') || t.includes('investigate') || t.includes('find')) return 'explore'
+  if (t.includes('improve') || t.includes('refactor') || t.includes('optimize') || t.includes('learn')) return 'self-improve'
+  return 'maintain'
 }
 
 function getToolSummary(invocation: ToolInvocation): string {

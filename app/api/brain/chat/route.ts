@@ -292,7 +292,8 @@ export async function POST(req: Request) {
       stopWhen: stepCountIs(5),
     })
 
-    const response = result.toTextStreamResponse()
+    // @ts-expect-error — toDataStreamResponse exists in ai SDK v6 but types may lag
+    const response = result.toDataStreamResponse ? result.toDataStreamResponse() : result.toTextStreamResponse()
 
     // Save brain response after stream completes — with error handling (Phase 5A)
     Promise.resolve(result.text)

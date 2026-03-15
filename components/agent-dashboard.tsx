@@ -4,8 +4,8 @@ import { useState, useRef, useEffect, useMemo, Suspense, lazy } from 'react'
 import { Panel, PanelGroup, PanelResizeHandle } from 'react-resizable-panels'
 import {
   Activity, Terminal as TerminalIcon,
-  Target, Cpu, Code2, Bot, BookOpen,
-  BarChart3,
+  Target, Bot, BookOpen,
+  BarChart3, X,
 } from 'lucide-react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { cn } from '@/lib/utils'
@@ -14,13 +14,9 @@ import { toast } from 'sonner'
 import { BrainChat } from '@/components/agent/brain-chat'
 import { GoalsPanel } from '@/components/agent/goals-panel'
 import { ActivityFeed } from '@/components/agent/activity-feed'
-import { VitalsPanel } from '@/components/agent/vitals-panel'
 import { BrainHeader } from '@/components/agent/brain-header'
-import { BrainStats } from '@/components/agent/brain-stats'
-import { MoodPanel } from '@/components/agent/mood-panel'
-import { LiveLogPanel } from '@/components/agent/live-log-panel'
+import { ContextRail } from '@/components/agent/context-rail'
 import { AgentStatusIndicator } from '@/components/agent/agent-status'
-import { CollapsibleSection } from '@/components/agent/collapsible-section'
 import { BusinessesPanel } from '@/components/agent/businesses-panel'
 import { PanelErrorBoundary } from '@/components/error-boundary'
 import { useSystemVitals } from '@/hooks/use-system-vitals'
@@ -28,7 +24,7 @@ import { useAgentState } from '@/hooks/use-agent-state'
 import { usePiTerminal } from '@/hooks/use-pi-terminal'
 import { useBusinessMetrics } from '@/hooks/use-business-metrics'
 
-// Lazy load Mind tab panels for Pi 4B performance
+// Lazy load panels for Pi 4B performance
 const MemoriesPanel = lazy(() => import('@/components/agent/memories-panel').then(m => ({ default: m.MemoriesPanel })))
 const ResearchThreadsPanel = lazy(() => import('@/components/agent/research-threads-panel').then(m => ({ default: m.ResearchThreadsPanel })))
 const GrowthLogPanel = lazy(() => import('@/components/agent/growth-log-panel').then(m => ({ default: m.GrowthLogPanel })))
@@ -56,17 +52,18 @@ interface AgentDashboardProps {
 
 /* ─── Tab types ─────────────────────────────────── */
 
-type MobileTab = 'chat' | 'goals' | 'activity' | 'vitals' | 'terminal'
+type MobileTab = 'chat' | 'context' | 'goals' | 'activity' | 'terminal'
 type CenterTab = 'chat' | 'businesses' | 'activity' | 'mind' | 'terminal'
 type MindSubTab = 'memories' | 'research' | 'growth' | 'projects' | 'skills' | 'achievements' | 'prompts'
+type DrawerSection = 'memories' | 'research' | 'growth' | 'projects' | 'skills' | 'achievements' | 'prompts' | null
 
 /* ─── Mobile tab config ─────────────────────────── */
 
 const mobileTabs: { id: MobileTab; icon: React.ElementType; label: string }[] = [
   { id: 'chat', icon: Bot, label: 'Chat' },
+  { id: 'context', icon: Target, label: 'Status' },
   { id: 'goals', icon: Target, label: 'Goals' },
   { id: 'activity', icon: Activity, label: 'Activity' },
-  { id: 'vitals', icon: Cpu, label: 'Status' },
   { id: 'terminal', icon: TerminalIcon, label: 'Terminal' },
 ]
 
@@ -109,6 +106,55 @@ function useMediaQuery(query: string): boolean {
   return matches
 }
 
+/* ─── Deep Inspection Drawer ──────────────────── */
+
+function DeepDrawer({ section, onClose, agent }: {
+  section: DrawerSection
+  onClose: () => void
+  agent: ReturnType<typeof useAgentState>
+}) {
+  if (!section) return null
+
+  return (
+    <AnimatePresence>
+      <motion.div
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        exit={{ opacity: 0 }}
+        className="fixed inset-0 z-50 flex justify-end"
+        onClick={onClose}
+      >
+        <motion.div
+          initial={{ x: '100%' }}
+          animate={{ x: 0 }}
+          exit={{ x: '100%' }}
+          transition={{ type: 'spring', stiffness: 400, damping: 35 }}
+          className="w-full max-w-md h-full bg-pi-panel border-l border-pi-border shadow-2xl overflow-y-auto"
+          onClick={e => e.stopPropagation()}
+        >
+          <div className="flex items-center justify-between px-4 py-3 border-b border-pi-border sticky top-0 bg-pi-panel/95 backdrop-blur-sm z-10">
+            <h2 className="text-sm font-bold text-pi-text capitalize">{section}</h2>
+            <button onClick={onClose} className="p-1.5 rounded-lg text-pi-text-dim hover:text-pi-text hover:bg-pi-surface transition-all">
+              <X className="w-4 h-4" />
+            </button>
+          </div>
+          <div className="p-1">
+            <Suspense fallback={<PanelSkeleton />}>
+              {section === 'memories' && <MemoriesPanel memories={agent.memories} />}
+              {section === 'research' && <ResearchThreadsPanel threads={agent.threads} />}
+              {section === 'growth' && <GrowthLogPanel growthLog={agent.growthLog} />}
+              {section === 'projects' && <ProjectsPanel projects={agent.projects} />}
+              {section === 'skills' && <CapabilitiesPanel capabilities={agent.capabilities} />}
+              {section === 'achievements' && <AchievementsPanel achievements={agent.achievements} brainMeta={agent.brainMeta} />}
+              {section === 'prompts' && <PromptViewer promptOverrides={agent.promptOverrides} promptEvolutions={agent.promptEvolutions} />}
+            </Suspense>
+          </div>
+        </motion.div>
+      </motion.div>
+    </AnimatePresence>
+  )
+}
+
 /* ─── Component ─────────────────────────────────── */
 
 export function AgentDashboard(_props: AgentDashboardProps) {
@@ -116,6 +162,7 @@ export function AgentDashboard(_props: AgentDashboardProps) {
   const [mobileTab, setMobileTab] = useState<MobileTab>('chat')
   const [mindSubTab, setMindSubTab] = useState<MindSubTab>('memories')
   const [settingsOpen, setSettingsOpen] = useState(false)
+  const [drawerSection, setDrawerSection] = useState<DrawerSection>(null)
   const prevBrainStatusRef = useRef<string>('')
 
   // Hooks
@@ -144,7 +191,7 @@ export function AgentDashboard(_props: AgentDashboardProps) {
     agent.setAgentStatus(agent.brainStatus === 'running' ? 'thinking' : 'idle')
   }, [agent.brainStatus]) // eslint-disable-line react-hooks/exhaustive-deps
 
-  // ── Toast notifications ─────────────────────────
+  // Toast notifications
   useEffect(() => {
     const newStatus = agent.brainStatus
     const oldStatus = prevBrainStatusRef.current
@@ -158,7 +205,7 @@ export function AgentDashboard(_props: AgentDashboardProps) {
     prevBrainStatusRef.current = newStatus
   }, [agent.brainStatus])
 
-  // ── Keyboard shortcuts (Ctrl+N for tabs) ───────
+  // Keyboard shortcuts (Ctrl+N for tabs)
   useEffect(() => {
     function handleKeyDown(e: KeyboardEvent) {
       if (e.ctrlKey && !e.shiftKey && !e.altKey) {
@@ -174,7 +221,7 @@ export function AgentDashboard(_props: AgentDashboardProps) {
     return () => window.removeEventListener('keydown', handleKeyDown)
   }, [])
 
-  // ── Kiosk / CEC remote keyboard navigation ────
+  // Kiosk / CEC remote keyboard navigation
   useEffect(() => {
     const tabs: CenterTab[] = ['chat', 'businesses', 'activity', 'mind', 'terminal']
 
@@ -184,21 +231,17 @@ export function AgentDashboard(_props: AgentDashboardProps) {
       const tag = el.tagName.toLowerCase()
       if (tag === 'input' || tag === 'textarea' || tag === 'select') return true
       if ((el as HTMLElement).isContentEditable) return true
-      // Terminal xterm.js uses a hidden textarea
       if (el.closest('.xterm')) return true
       return false
     }
 
     function handleKioskKeyDown(e: KeyboardEvent) {
-      // Skip if modifier keys are held (those are handled by the Ctrl+N handler above)
       if (e.ctrlKey || e.altKey || e.metaKey) return
-      // Skip if user is typing in an input field
       if (isInputFocused()) return
 
       switch (e.key) {
         case 'ArrowRight':
         case 'PageUp': {
-          // Next center tab
           e.preventDefault()
           setCenterTab(prev => {
             const idx = tabs.indexOf(prev)
@@ -208,7 +251,6 @@ export function AgentDashboard(_props: AgentDashboardProps) {
         }
         case 'ArrowLeft':
         case 'PageDown': {
-          // Previous center tab
           e.preventDefault()
           setCenterTab(prev => {
             const idx = tabs.indexOf(prev)
@@ -217,7 +259,6 @@ export function AgentDashboard(_props: AgentDashboardProps) {
           break
         }
         case 'ArrowUp': {
-          // Scroll active panel up
           e.preventDefault()
           const panel = document.querySelector('[data-panel-content="active"]')
             || document.querySelector('.overflow-y-auto')
@@ -225,7 +266,6 @@ export function AgentDashboard(_props: AgentDashboardProps) {
           break
         }
         case 'ArrowDown': {
-          // Scroll active panel down
           e.preventDefault()
           const panel = document.querySelector('[data-panel-content="active"]')
             || document.querySelector('.overflow-y-auto')
@@ -233,15 +273,11 @@ export function AgentDashboard(_props: AgentDashboardProps) {
           break
         }
         case 'Escape': {
-          // Close any open modal/dialog/settings
-          if (settingsOpen) {
-            e.preventDefault()
-            setSettingsOpen(false)
-          }
+          if (settingsOpen) { e.preventDefault(); setSettingsOpen(false) }
+          if (drawerSection) { e.preventDefault(); setDrawerSection(null) }
           break
         }
         case 'r': {
-          // Refresh current panel data
           e.preventDefault()
           agent.refresh()
           toast('Refreshing dashboard data...')
@@ -252,7 +288,7 @@ export function AgentDashboard(_props: AgentDashboardProps) {
 
     window.addEventListener('keydown', handleKioskKeyDown)
     return () => window.removeEventListener('keydown', handleKioskKeyDown)
-  }, [settingsOpen, agent])
+  }, [settingsOpen, drawerSection, agent])
 
   /* ─── Center tab config ───────────────────────── */
 
@@ -268,12 +304,13 @@ export function AgentDashboard(_props: AgentDashboardProps) {
 
   return (
     <div className="h-full flex flex-col overflow-hidden bg-pi-bg">
-      {/* ─── Brain Header ─── */}
+      {/* ─── Hero Band ─── */}
       <BrainHeader
         brainStatus={agent.brainStatus}
         brainMeta={agent.brainMeta}
         vitals={vitals}
         lastFetchedAt={agent.lastFetchedAt}
+        summary={agent.summary}
         onRefresh={agent.refresh}
         onSettingsOpen={() => setSettingsOpen(true)}
       />
@@ -283,23 +320,16 @@ export function AgentDashboard(_props: AgentDashboardProps) {
         <SettingsPanel open={settingsOpen} onClose={() => setSettingsOpen(false)} brainMeta={agent.brainMeta} />
       </Suspense>
 
+      {/* ─── Deep Inspection Drawer ─── */}
+      <DeepDrawer section={drawerSection} onClose={() => setDrawerSection(null)} agent={agent} />
+
       {/* ─── Conditionally render ONLY the active layout ─── */}
       {isDesktop ? (
-        /* ─── DESKTOP LAYOUT (md+) ─── */
+        /* ─── DESKTOP LAYOUT: Live Stage (65%) + Context Rail (35%) ─── */
         <div className="flex flex-1 overflow-hidden">
-          <PanelGroup direction="horizontal" autoSaveId="pi-agent-dashboard-v3" className="flex-1">
-            {/* ─── Left: Goals ─── */}
-            <Panel defaultSize={22} minSize={15} maxSize={35}>
-              <GoalsPanel
-                goals={agent.goals}
-                onInjectGoal={agent.injectGoal}
-              />
-            </Panel>
-
-            <PanelResizeHandle className="w-[3px] bg-transparent hover:bg-pi-accent/20 active:bg-pi-accent/40 transition-colors relative cursor-col-resize" />
-
-            {/* ─── Center: Chat / Mind / Activity / Terminal ─── */}
-            <Panel defaultSize={48} minSize={30}>
+          <PanelGroup direction="horizontal" autoSaveId="pi-agent-dashboard-v4" className="flex-1">
+            {/* ─── Live Stage: Chat + tabbed panels ─── */}
+            <Panel defaultSize={65} minSize={45}>
               <div className="h-full flex flex-col bg-pi-bg">
                 {/* Tab bar */}
                 <div className="flex items-center border-b border-pi-border bg-pi-panel/80 backdrop-blur-sm" role="tablist">
@@ -319,7 +349,6 @@ export function AgentDashboard(_props: AgentDashboardProps) {
                     >
                       <tab.icon className="w-3.5 h-3.5" />
                       {tab.label}
-                      {/* Unread badge */}
                       {tab.badge !== undefined && tab.badge > 0 && (
                         <motion.span
                           initial={{ scale: 0 }}
@@ -329,10 +358,9 @@ export function AgentDashboard(_props: AgentDashboardProps) {
                           {tab.badge}
                         </motion.span>
                       )}
-                      {/* Active indicator */}
                       {centerTab === tab.id && (
                         <motion.span
-                          layoutId="agent-center-tab-v3"
+                          layoutId="agent-center-tab-v4"
                           className="absolute bottom-0 left-1 right-1 h-0.5 bg-pi-accent rounded-full"
                           transition={{ type: 'spring', stiffness: 400, damping: 30 }}
                         />
@@ -340,7 +368,6 @@ export function AgentDashboard(_props: AgentDashboardProps) {
                     </button>
                   ))}
 
-                  {/* Status indicator on the right */}
                   <div className="ml-auto pr-3">
                     <AgentStatusIndicator status={agent.agentStatus} />
                   </div>
@@ -348,7 +375,7 @@ export function AgentDashboard(_props: AgentDashboardProps) {
 
                 {/* Tab content */}
                 <div className="flex-1 overflow-hidden relative">
-                  {/* Pi-Chi Chat — brain personality with tool actions */}
+                  {/* Pi-Chi Chat */}
                   <div className={cn('absolute inset-0', centerTab !== 'chat' && 'hidden')}>
                     <PanelErrorBoundary name="Chat">
                       <BrainChat
@@ -363,7 +390,6 @@ export function AgentDashboard(_props: AgentDashboardProps) {
 
                   {/* Mind — sub-tabbed panel */}
                   <div className={cn('absolute inset-0 flex flex-col', centerTab !== 'mind' && 'hidden')}>
-                    {/* Sub-tab bar */}
                     <div className="flex items-center gap-1 px-3 py-1.5 border-b border-pi-border/50 bg-pi-panel/50">
                       {mindSubTabs.map(st => (
                         <button
@@ -380,8 +406,6 @@ export function AgentDashboard(_props: AgentDashboardProps) {
                         </button>
                       ))}
                     </div>
-
-                    {/* Sub-tab content */}
                     <div className="flex-1 overflow-hidden">
                       <PanelErrorBoundary name="Mind">
                         <Suspense fallback={<PanelSkeleton />}>
@@ -425,42 +449,26 @@ export function AgentDashboard(_props: AgentDashboardProps) {
 
             <PanelResizeHandle className="w-[3px] bg-transparent hover:bg-pi-accent/20 active:bg-pi-accent/40 transition-colors relative cursor-col-resize" />
 
-            {/* ─── Right: Collapsible Vitals + Stats + Mood + Log ─── */}
-            <Panel defaultSize={30} minSize={20} maxSize={40}>
-              <div className="h-full overflow-y-auto bg-pi-panel border-l border-pi-border">
-                <CollapsibleSection title="System Vitals" icon={Cpu} defaultOpen={true}>
-                  <VitalsPanel vitals={vitals} devMode={devMode} />
-                </CollapsibleSection>
-
-                <div className="mx-3 h-px bg-gradient-to-r from-transparent via-pi-border to-transparent" />
-
-                <CollapsibleSection title="Brain Stats" icon={Activity} defaultOpen={true}>
-                  <BrainStats
-                    brainMeta={agent.brainMeta}
-                    brainStatus={agent.brainStatus}
-                    goals={agent.goals}
-                  />
-                </CollapsibleSection>
-
-                <div className="mx-3 h-px bg-gradient-to-r from-transparent via-pi-border to-transparent" />
-
-                <CollapsibleSection title="Mood" icon={Target} defaultOpen={true}>
-                  <MoodPanel mood={agent.mood || undefined} moodHistory={agent.moodHistory} />
-                </CollapsibleSection>
-
-                <div className="mx-3 h-px bg-gradient-to-r from-transparent via-pi-border to-transparent" />
-
-                <CollapsibleSection title="Live Log" icon={TerminalIcon} defaultOpen={false}>
-                  <LiveLogPanel />
-                </CollapsibleSection>
-              </div>
+            {/* ─── Context Rail ─── */}
+            <Panel defaultSize={35} minSize={22} maxSize={45}>
+              <PanelErrorBoundary name="Context Rail">
+                <ContextRail
+                  summary={agent.summary}
+                  vitals={vitals}
+                  devMode={devMode}
+                  mood={agent.mood}
+                  moodHistory={agent.moodHistory}
+                  activity={agent.activity}
+                  agentStatus={agent.agentStatus}
+                  onOpenDrawer={(section) => setDrawerSection(section as DrawerSection)}
+                />
+              </PanelErrorBoundary>
             </Panel>
           </PanelGroup>
         </div>
       ) : (
         /* ─── MOBILE LAYOUT (< md) ─── */
         <div className="flex flex-1 flex-col overflow-hidden">
-          {/* Mobile content area */}
           <div className="flex-1 overflow-hidden relative bg-pi-bg">
             <AnimatePresence mode="wait">
               {/* Pi-Chi Chat */}
@@ -479,6 +487,29 @@ export function AgentDashboard(_props: AgentDashboardProps) {
                     brainName={agent.brainMeta?.name || 'Pi-Chi'}
                     onSendMessage={agent.injectMessage}
                     onMarkRead={agent.markChatRead}
+                  />
+                </motion.div>
+              )}
+
+              {/* Context Rail (mobile) */}
+              {mobileTab === 'context' && (
+                <motion.div
+                  key="mobile-context"
+                  initial={{ opacity: 0, x: -20 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  exit={{ opacity: 0, x: 20 }}
+                  transition={{ type: 'spring', stiffness: 400, damping: 30 }}
+                  className="absolute inset-0"
+                >
+                  <ContextRail
+                    summary={agent.summary}
+                    vitals={vitals}
+                    devMode={devMode}
+                    mood={agent.mood}
+                    moodHistory={agent.moodHistory}
+                    activity={agent.activity}
+                    agentStatus={agent.agentStatus}
+                    onOpenDrawer={(section) => setDrawerSection(section as DrawerSection)}
                   />
                 </motion.div>
               )}
@@ -515,86 +546,6 @@ export function AgentDashboard(_props: AgentDashboardProps) {
                 </motion.div>
               )}
 
-              {/* Status — all sections, collapsible */}
-              {mobileTab === 'vitals' && (
-                <motion.div
-                  key="mobile-vitals"
-                  initial={{ opacity: 0, x: -20 }}
-                  animate={{ opacity: 1, x: 0 }}
-                  exit={{ opacity: 0, x: 20 }}
-                  transition={{ type: 'spring', stiffness: 500, damping: 35 }}
-                  className="absolute inset-0 overflow-y-auto pb-safe-bottom"
-                >
-                  <CollapsibleSection title="System Vitals" icon={Cpu} defaultOpen={true}>
-                    <VitalsPanel vitals={vitals} devMode={devMode} />
-                  </CollapsibleSection>
-
-                  <div className="mx-4 my-3 h-px bg-gradient-to-r from-transparent via-pi-border to-transparent" />
-
-                  <CollapsibleSection title="Brain Stats" icon={Activity} defaultOpen={true}>
-                    <div className="px-1">
-                      <BrainStats brainMeta={agent.brainMeta} brainStatus={agent.brainStatus} goals={agent.goals} />
-                    </div>
-                  </CollapsibleSection>
-
-                  <div className="mx-4 my-3 h-px bg-gradient-to-r from-transparent via-pi-border to-transparent" />
-
-                  <CollapsibleSection title="Mood" icon={Target} defaultOpen={true}>
-                    <div className="px-1">
-                      <MoodPanel mood={agent.mood || undefined} moodHistory={agent.moodHistory} />
-                    </div>
-                  </CollapsibleSection>
-
-                  <div className="mx-4 my-3 h-px bg-gradient-to-r from-transparent via-pi-border to-transparent" />
-
-                  <CollapsibleSection title="Memories" icon={BookOpen} defaultOpen={false} badge={agent.memories.length || undefined}>
-                    <Suspense fallback={<PanelSkeleton />}>
-                      <MemoriesPanel memories={agent.memories} />
-                    </Suspense>
-                  </CollapsibleSection>
-
-                  <div className="mx-4 my-3 h-px bg-gradient-to-r from-transparent via-pi-border to-transparent" />
-
-                  <CollapsibleSection title="Research" icon={BookOpen} defaultOpen={false} badge={agent.threads.length || undefined}>
-                    <Suspense fallback={<PanelSkeleton />}>
-                      <ResearchThreadsPanel threads={agent.threads} />
-                    </Suspense>
-                  </CollapsibleSection>
-
-                  <div className="mx-4 my-3 h-px bg-gradient-to-r from-transparent via-pi-border to-transparent" />
-
-                  <CollapsibleSection title="Growth" icon={Activity} defaultOpen={false} badge={agent.growthLog.length || undefined}>
-                    <Suspense fallback={<PanelSkeleton />}>
-                      <GrowthLogPanel growthLog={agent.growthLog} />
-                    </Suspense>
-                  </CollapsibleSection>
-
-                  <div className="mx-4 my-3 h-px bg-gradient-to-r from-transparent via-pi-border to-transparent" />
-
-                  <CollapsibleSection title="Projects" icon={Code2} defaultOpen={false} badge={agent.projects.length || undefined}>
-                    <Suspense fallback={<PanelSkeleton />}>
-                      <ProjectsPanel projects={agent.projects} />
-                    </Suspense>
-                  </CollapsibleSection>
-
-                  <div className="mx-4 my-3 h-px bg-gradient-to-r from-transparent via-pi-border to-transparent" />
-
-                  <CollapsibleSection title="Skills" icon={Cpu} defaultOpen={false} badge={agent.capabilities.length || undefined}>
-                    <Suspense fallback={<PanelSkeleton />}>
-                      <CapabilitiesPanel capabilities={agent.capabilities} />
-                    </Suspense>
-                  </CollapsibleSection>
-
-                  <div className="mx-4 my-3 h-px bg-gradient-to-r from-transparent via-pi-border to-transparent" />
-
-                  <CollapsibleSection title="Live Log" icon={TerminalIcon} defaultOpen={false}>
-                    <LiveLogPanel />
-                  </CollapsibleSection>
-
-                  <div className="h-6" />
-                </motion.div>
-              )}
-
               {/* Terminal */}
               {mobileTab === 'terminal' && (
                 <motion.div
@@ -624,7 +575,6 @@ export function AgentDashboard(_props: AgentDashboardProps) {
                     aria-selected={isActive}
                     onClick={() => {
                       setMobileTab(tab.id)
-                      // Haptic feedback
                       if ('vibrate' in navigator) navigator.vibrate(10)
                     }}
                     className={cn(

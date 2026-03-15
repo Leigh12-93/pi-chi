@@ -1,15 +1,15 @@
 'use client'
 
-import { useMemo, useState, useEffect } from 'react'
+import { useMemo, useEffect, useState } from 'react'
 import {
-  Brain, Clock, DollarSign, Timer, Sparkles,
-  Moon, AlertTriangle, Play, MessageSquare, Wrench,
-  RefreshCw, Settings, Thermometer, Cpu,
+  Brain, Clock, RefreshCw, Settings, Sparkles,
+  Target, Zap, Search, Rocket, Wrench,
 } from 'lucide-react'
 import type { SystemVitals } from '@/lib/agent-types'
-import { motion, AnimatePresence } from 'framer-motion'
+import { motion } from 'framer-motion'
 import { cn } from '@/lib/utils'
 import type { BrainMetaExtended } from '@/hooks/use-agent-state'
+import type { DashboardSummary, Mission } from '@/lib/brain/domain-types'
 
 /* ─── Props ─────────────────────────────────────── */
 
@@ -18,6 +18,7 @@ interface BrainHeaderProps {
   brainMeta: BrainMetaExtended | null
   vitals?: SystemVitals | null
   lastFetchedAt?: number | null
+  summary?: DashboardSummary | null
   onRefresh?: () => void
   onSettingsOpen?: () => void
   className?: string
@@ -25,61 +26,31 @@ interface BrainHeaderProps {
 
 /* ─── Helpers ───────────────────────────────────── */
 
-function formatUptime(birthTimestamp?: string): string {
-  if (!birthTimestamp) return '—'
-  try {
-    const birth = new Date(birthTimestamp)
-    const diffMs = Date.now() - birth.getTime()
-    const days = Math.floor(diffMs / 86400000)
-    const hours = Math.floor((diffMs % 86400000) / 3600000)
-    if (days > 0) return `${days}d ${hours}h`
-    return `${hours}h ${Math.floor((diffMs % 3600000) / 60000)}m`
-  } catch { return '—' }
-}
-
 function formatCost(cost: number): string {
   return cost < 0.01 ? '<$0.01' : `$${cost.toFixed(2)}`
 }
 
-function formatInterval(ms: number): string {
-  const mins = Math.round(ms / 60000)
-  return mins < 60 ? `${mins}m` : `${Math.floor(mins / 60)}h ${mins % 60}m`
+function formatCurrency(val: number): string {
+  if (val >= 1_000_000) return `$${(val / 1_000_000).toFixed(1)}M`
+  if (val >= 1_000) return `$${(val / 1_000).toFixed(1)}K`
+  return `$${val.toFixed(0)}`
 }
 
-/* ─── Stat chip ─────────────────────────────────── */
-
-function StatChip({ icon: Icon, iconColor, value, label, warn }: {
-  icon: React.ElementType
-  iconColor: string
-  value: string | number
-  label: string
-  warn?: boolean
-}) {
-  return (
-    <motion.div
-      initial={{ opacity: 0, y: -5 }}
-      animate={{ opacity: 1, y: 0 }}
-      className={cn(
-        'flex items-center gap-1.5 px-2 py-1 rounded-lg transition-all',
-        'bg-pi-surface/50 border border-pi-border/50',
-        'hover:border-pi-accent/20 hover:bg-pi-surface',
-        warn && 'border-pi-danger/30 bg-red-500/5'
-      )}
-      title={label}
-    >
-      <Icon className={cn('w-3 h-3', iconColor)} />
-      <span className={cn('text-[10px] font-mono font-semibold', warn ? 'text-pi-danger' : 'text-pi-text')}>
-        {value}
-      </span>
-    </motion.div>
-  )
+const missionIcons: Record<Mission['type'], React.ElementType> = {
+  maintain: Wrench,
+  grow: Zap,
+  explore: Search,
+  launch: Rocket,
+  'self-improve': Sparkles,
 }
 
 /* ─── Component ─────────────────────────────────── */
 
-export function BrainHeader({ brainStatus, brainMeta, vitals, lastFetchedAt, onRefresh, onSettingsOpen, className }: BrainHeaderProps) {
+export function BrainHeader({
+  brainStatus, brainMeta, lastFetchedAt, summary,
+  onRefresh, onSettingsOpen, className,
+}: BrainHeaderProps) {
   const name = brainMeta?.name || 'Pi-Chi'
-  const [thoughtExpanded, setThoughtExpanded] = useState(false)
 
   // Countdown timer — ticks every second
   const [now, setNow] = useState(Date.now())
@@ -94,50 +65,36 @@ export function BrainHeader({ brainStatus, brainMeta, vitals, lastFetchedAt, onR
     const remaining = Math.max(0, nextWake - now)
     const mins = Math.floor(remaining / 60000)
     const secs = Math.floor((remaining % 60000) / 1000)
-    return { remaining, mins, secs, label: `${mins}:${secs.toString().padStart(2, '0')}` }
+    return { remaining, label: `${mins}:${secs.toString().padStart(2, '0')}` }
   }, [brainMeta?.lastWakeAt, brainMeta?.wakeInterval, now])
 
-  const lastRunAgo = useMemo(() => {
-    if (!brainMeta?.lastWakeAt) return null
-    const diffMs = now - new Date(brainMeta.lastWakeAt).getTime()
-    if (diffMs < 60000) return `${Math.floor(diffMs / 1000)}s ago`
-    if (diffMs < 3600000) return `${Math.floor(diffMs / 60000)}m ago`
-    return `${Math.floor(diffMs / 3600000)}h ${Math.floor((diffMs % 3600000) / 60000)}m ago`
-  }, [brainMeta?.lastWakeAt, now])
-
   const statusConfig = useMemo(() => ({
-    running: { label: 'Awake', color: 'bg-emerald-500', glow: 'shadow-[0_0_8px_rgba(52,211,153,0.4)]', textColor: 'text-emerald-500' },
-    sleeping: { label: 'Sleeping', color: 'bg-yellow-500', glow: '', textColor: 'text-yellow-500' },
-    'not-running': { label: 'Offline', color: 'bg-gray-500', glow: '', textColor: 'text-gray-500' },
-    error: { label: 'Error', color: 'bg-red-500', glow: 'shadow-[0_0_8px_rgba(239,68,68,0.4)]', textColor: 'text-red-500' },
+    running: { label: 'Awake', color: 'bg-emerald-500', glow: 'shadow-[0_0_8px_rgba(52,211,153,0.4)]' },
+    sleeping: { label: 'Sleeping', color: 'bg-yellow-500', glow: '' },
+    'not-running': { label: 'Offline', color: 'bg-gray-500', glow: '' },
+    error: { label: 'Error', color: 'bg-red-500', glow: 'shadow-[0_0_8px_rgba(239,68,68,0.4)]' },
   }), [])
 
   const status = statusConfig[brainStatus]
+  const mission = summary?.currentMission
+  const MissionIcon = mission ? missionIcons[mission.type] || Target : null
+  const portfolioProgress = summary ? Math.min(100, (summary.portfolioValue / summary.portfolioTarget) * 100) : 0
 
-  // Budget warning
-  const budgetWarn = brainMeta ? brainMeta.totalCost > 8 : false
-
-  // Staleness indicator (Phase 5.1)
+  // Staleness
   const staleness = useMemo(() => {
     if (!lastFetchedAt) return null
-    const ageMs = now - lastFetchedAt
-    const ageSec = Math.floor(ageMs / 1000)
-    if (ageSec < 10) return null // fresh enough
+    const ageSec = Math.floor((now - lastFetchedAt) / 1000)
+    if (ageSec < 10) return null
     const label = ageSec < 60 ? `${ageSec}s ago` : `${Math.floor(ageSec / 60)}m ago`
     const level = ageSec > 120 ? 'stale' : ageSec > 30 ? 'warn' : 'ok'
     return { label, level }
   }, [lastFetchedAt, now])
 
   return (
-    <div className={cn(
-      'flex items-center gap-3 px-3 md:px-4 py-2 border-b border-pi-border',
-      'bg-gradient-to-r from-pi-panel via-pi-bg to-pi-panel',
-      className
-    )}>
-      {/* Identity */}
-      <div className="flex items-center gap-2.5 min-w-0 shrink-0">
+    <div className={cn('hero-band', className)}>
+      {/* Identity + status */}
+      <div className="flex items-center gap-2 shrink-0">
         <div className="relative">
-          {/* Brain icon with animated glow */}
           <motion.div
             animate={brainStatus === 'running' ? {
               boxShadow: [
@@ -156,8 +113,6 @@ export function BrainHeader({ brainStatus, brainMeta, vitals, lastFetchedAt, onR
               'text-pi-text-dim'
             )} />
           </motion.div>
-
-          {/* Status dot */}
           <motion.span
             animate={brainStatus === 'running' ? { scale: [1, 1.4, 1] } : {}}
             transition={{ duration: 2, repeat: Infinity }}
@@ -167,10 +122,9 @@ export function BrainHeader({ brainStatus, brainMeta, vitals, lastFetchedAt, onR
             )}
           />
         </div>
-
         <div className="min-w-0">
           <div className="flex items-center gap-1.5">
-            <span className="text-sm font-bold text-pi-text truncate">{name}</span>
+            <span className="text-sm font-bold text-pi-text">{name}</span>
             <span className={cn(
               'text-[9px] px-1.5 py-px rounded-full font-semibold border shrink-0',
               brainStatus === 'running' ? 'bg-emerald-500/10 text-emerald-500 border-emerald-500/20' :
@@ -181,99 +135,85 @@ export function BrainHeader({ brainStatus, brainMeta, vitals, lastFetchedAt, onR
               {status.label}
             </span>
           </div>
-          {brainMeta?.lastThought && (
-            <p
-              onClick={() => setThoughtExpanded(e => !e)}
-              className={cn(
-                'text-[10px] text-pi-text-dim max-w-[180px] md:max-w-[350px] italic leading-tight mt-0.5 cursor-pointer hover:text-pi-text transition-colors',
-                !thoughtExpanded && 'truncate'
-              )}
-              title={thoughtExpanded ? 'Click to collapse' : 'Click to expand'}
-            >
-              &ldquo;{thoughtExpanded ? brainMeta.lastThought : (brainMeta.lastThought.slice(0, 80) + (brainMeta.lastThought.length > 80 ? '...' : ''))}&rdquo;
-            </p>
-          )}
         </div>
       </div>
 
-      {/* Stats — responsive */}
-      <div className="hidden sm:flex items-center gap-1.5 ml-auto shrink-0 flex-wrap justify-end">
-        <AnimatePresence>
-          {vitals && (
-            <>
-              <StatChip icon={Thermometer} iconColor={vitals.cpuTemp > 70 ? 'text-red-400' : vitals.cpuTemp > 55 ? 'text-amber-400' : 'text-emerald-400'} value={`${vitals.cpuTemp}°C`} label="CPU Temperature" warn={vitals.cpuTemp > 70} />
-              <StatChip icon={Cpu} iconColor={vitals.cpuPercent > 80 ? 'text-red-400' : 'text-amber-400'} value={`${vitals.cpuPercent}%`} label="CPU Usage" warn={vitals.cpuPercent > 80} />
-            </>
-          )}
-          {brainMeta && (
-            <>
-              <StatChip icon={Sparkles} iconColor="text-purple-400" value={brainMeta.totalThoughts.toLocaleString()} label="Total thoughts" />
-              <StatChip icon={DollarSign} iconColor={budgetWarn ? 'text-red-400' : 'text-emerald-400'} value={formatCost(brainMeta.totalCost)} label={`API cost ($${brainMeta.totalCost.toFixed(2)} / $10 daily)`} warn={budgetWarn} />
-              <StatChip icon={Timer} iconColor="text-blue-400" value={formatInterval(brainMeta.wakeInterval)} label="Wake interval" />
-              {lastRunAgo && (
-                <StatChip icon={Play} iconColor="text-cyan-400" value={lastRunAgo} label="Last cycle" />
-              )}
-              {countdown && countdown.remaining > 0 ? (
-                <StatChip icon={Clock} iconColor="text-orange-400" value={countdown.label} label="Next cycle in" />
-              ) : countdown ? (
-                <StatChip icon={Clock} iconColor="text-emerald-400" value="now" label="Cycle due" />
-              ) : (
-                <StatChip icon={Clock} iconColor="text-orange-400" value={formatUptime(brainMeta.birthTimestamp)} label="Age" />
-              )}
-              {/* Tool calls chip */}
-              {brainMeta.totalToolCalls !== undefined && brainMeta.totalToolCalls > 0 && (
-                <StatChip icon={Wrench} iconColor="text-amber-400" value={brainMeta.totalToolCalls.toLocaleString()} label="Tool calls" />
-              )}
-              {/* SMS counter chip */}
-              {brainMeta.smsTodayCount !== undefined && brainMeta.smsTodayCount > 0 && (
-                <StatChip icon={MessageSquare} iconColor="text-pink-400" value={`${brainMeta.smsTodayCount} today`} label={`SMS today (${brainMeta.smsCount || 0} total)`} />
-              )}
-              {brainMeta.dreamCount !== undefined && brainMeta.dreamCount > 0 && (
-                <StatChip icon={Moon} iconColor="text-indigo-400" value={brainMeta.dreamCount} label="Dreams" />
-              )}
-              {brainMeta.consecutiveCrashes !== undefined && brainMeta.consecutiveCrashes > 0 && (
-                <StatChip icon={AlertTriangle} iconColor="text-red-400" value={brainMeta.consecutiveCrashes} label="Crashes" warn />
-              )}
-            </>
-          )}
-        </AnimatePresence>
+      {/* Current mission — desktop only */}
+      <div className="hidden md:flex items-center gap-2 min-w-0 flex-1 mx-4">
+        {mission && MissionIcon ? (
+          <div className="flex items-center gap-2 min-w-0">
+            <span className="mission-badge" data-type={mission.type}>
+              <MissionIcon className="w-2.5 h-2.5" />
+              {mission.type}
+            </span>
+            <span className="text-[11px] font-medium text-pi-text truncate max-w-[300px]">
+              {mission.title}
+            </span>
+          </div>
+        ) : (
+          <span className="text-[10px] text-pi-text-dim italic">No active mission</span>
+        )}
       </div>
 
-      {/* Mobile: compact stats */}
-      <div className="flex sm:hidden items-center gap-2 ml-auto shrink-0">
-        {vitals && (
-          <div className={cn('flex items-center gap-1 text-[9px]', vitals.cpuTemp > 70 ? 'text-red-400' : 'text-pi-text-dim')} title="CPU Temp">
-            <Thermometer className="w-2.5 h-2.5" />
-            <span className="font-mono font-semibold">{vitals.cpuTemp}°</span>
+      {/* Now doing — mobile only */}
+      {summary?.nowDoing && (
+        <div className="flex md:hidden items-center min-w-0 flex-1 mx-2">
+          <p className="text-[10px] text-pi-text-dim truncate">{summary.nowDoing}</p>
+        </div>
+      )}
+
+      {/* Right side: portfolio bar + wake countdown + actions */}
+      <div className="flex items-center gap-3 shrink-0 ml-auto">
+        {/* Portfolio progress mini */}
+        {summary && (
+          <div className="hidden sm:flex flex-col items-end gap-0.5 min-w-[100px]">
+            <div className="flex items-center gap-1.5 w-full justify-end">
+              <span className="text-[9px] text-pi-text-dim font-medium">
+                {formatCurrency(summary.portfolioValue)}
+              </span>
+              <span className="text-[8px] text-pi-text-dim/50">/</span>
+              <span className="text-[9px] text-pi-text-dim font-medium">
+                {formatCurrency(summary.portfolioTarget)}
+              </span>
+            </div>
+            <div className="w-full portfolio-bar" style={{ height: '4px' }}>
+              <div className="portfolio-bar-fill" style={{ width: `${portfolioProgress}%` }} />
+            </div>
           </div>
         )}
-        {brainMeta && (
-          <>
-            {countdown && countdown.remaining > 0 ? (
-              <div className="flex items-center gap-1 text-[9px] text-pi-text-dim" title="Next cycle">
-                <Clock className="w-2.5 h-2.5 text-orange-400" />
-                <span className="font-mono font-semibold text-pi-text">{countdown.label}</span>
-              </div>
-            ) : countdown ? (
-              <div className="flex items-center gap-1 text-[9px] text-emerald-400" title="Cycle due">
-                <Clock className="w-2.5 h-2.5" />
-                <span className="font-mono font-semibold">now</span>
-              </div>
-            ) : null}
-            <div className="flex items-center gap-1 text-[9px] text-pi-text-dim" title="Thoughts">
-              <Sparkles className="w-2.5 h-2.5 text-purple-400" />
-              <span className="font-mono">{brainMeta.totalThoughts}</span>
-            </div>
-            <div className="flex items-center gap-1 text-[9px] text-pi-text-dim" title="Cost">
-              <DollarSign className={cn('w-2.5 h-2.5', budgetWarn ? 'text-red-400' : 'text-emerald-400')} />
-              <span className={cn('font-mono', budgetWarn && 'text-red-400')}>{formatCost(brainMeta.totalCost)}</span>
-            </div>
-          </>
-        )}
-      </div>
 
-      {/* Staleness + Refresh + Settings */}
-      <div className="flex items-center gap-1.5 shrink-0 ml-1">
+        {/* Wake countdown */}
+        {countdown && countdown.remaining > 0 ? (
+          <div className="flex items-center gap-1 text-[10px]" title="Next cycle">
+            <Clock className="w-3 h-3 text-orange-400" />
+            <span className="font-mono font-semibold text-pi-text">{countdown.label}</span>
+          </div>
+        ) : countdown ? (
+          <div className="flex items-center gap-1 text-[10px] text-emerald-400" title="Cycle due">
+            <Clock className="w-3 h-3" />
+            <span className="font-mono font-semibold">now</span>
+          </div>
+        ) : null}
+
+        {/* Cost chip */}
+        {brainMeta && (
+          <span className={cn(
+            'text-[9px] font-mono px-1.5 py-0.5 rounded-full',
+            brainMeta.totalCost > 8 ? 'text-red-400 bg-red-500/10' : 'text-pi-text-dim bg-pi-surface/50'
+          )} title={`API cost: $${brainMeta.totalCost.toFixed(2)}`}>
+            {formatCost(brainMeta.totalCost)}
+          </span>
+        )}
+
+        {/* Thoughts */}
+        {brainMeta && (
+          <div className="hidden sm:flex items-center gap-1 text-[9px] text-pi-text-dim" title="Thoughts">
+            <Sparkles className="w-2.5 h-2.5 text-purple-400" />
+            <span className="font-mono">{brainMeta.totalThoughts.toLocaleString()}</span>
+          </div>
+        )}
+
+        {/* Staleness */}
         {staleness && (
           <span className={cn(
             'text-[9px] font-mono px-1.5 py-0.5 rounded-full',
@@ -284,11 +224,13 @@ export function BrainHeader({ brainStatus, brainMeta, vitals, lastFetchedAt, onR
             {staleness.level === 'stale' ? 'Stale' : staleness.label}
           </span>
         )}
+
+        {/* Actions */}
         {onRefresh && (
           <button
             onClick={onRefresh}
             className="p-1 rounded-lg text-pi-text-dim hover:text-pi-accent hover:bg-pi-accent/10 transition-all"
-            title="Refresh now"
+            title="Refresh"
             aria-label="Refresh brain state"
           >
             <RefreshCw className="w-3 h-3" />
