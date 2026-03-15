@@ -123,3 +123,80 @@ export interface CycleSummary {
   outcome: string
   nextStep: string | null
 }
+
+/* ─── Tool Execution & Chat Stream Types ─────────────────────── */
+
+/** Tool category for icon/color mapping */
+export type ToolCategory =
+  | 'shell' | 'file' | 'git' | 'build' | 'network'
+  | 'system' | 'brain' | 'comms' | 'gpio' | 'coding' | 'other'
+
+/** A single tool execution event (running, completed, or failed) */
+export interface ToolExecutionEvent {
+  id: string
+  toolName: string
+  category: ToolCategory
+  status: 'running' | 'completed' | 'failed'
+  inputSummary?: string
+  resultSummary?: string
+  error?: string
+  durationMs?: number
+  startedAt: string
+}
+
+/** Chat stream component — union discriminator */
+export type ChatStreamComponent =
+  | ToolCallComponent
+  | StateSnapshotComponent
+  | GoalProgressComponent
+  | CodeBlockComponent
+
+/** Inline tool call card in chat stream */
+export interface ToolCallComponent {
+  type: 'tool-call'
+  event: ToolExecutionEvent
+}
+
+/** Inline state snapshot (mood, vitals, goals) */
+export interface StateSnapshotComponent {
+  type: 'state-snapshot'
+  mood?: {
+    curiosity: number
+    satisfaction: number
+    energy: number
+    pride: number
+    frustration: number
+  }
+  vitals?: {
+    cpuPercent: number
+    ramUsedMb: number
+    ramTotalMb: number
+    tempC: number
+    diskPercent: number
+  }
+  goalsSummary?: {
+    active: number
+    completed: number
+    totalTasks: number
+    doneTasks: number
+  }
+}
+
+/** Goal progress update card */
+export interface GoalProgressComponent {
+  type: 'goal-progress'
+  goalTitle: string
+  taskCompleted?: string
+  tasksDone: number
+  tasksRemaining: number
+}
+
+/** Code block with file action context */
+export interface CodeBlockComponent {
+  type: 'code-block'
+  filename?: string
+  language: string
+  content: string
+  action: 'created' | 'edited' | 'read'
+}
+

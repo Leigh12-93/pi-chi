@@ -1,274 +1,132 @@
-#!/bin/bash
+#\!/bin/bash
 # ═══════════════════════════════════════════════════════════════
-# Pi-Chi Self-Deploy Script
+# Pi-Chi Self-Deploy Script (Local Build)
 #
-# Downloads the latest standalone build artifact from GitHub Actions
-# and deploys it to the local Pi. Called by the brain after pushing
-# code changes.
+# Builds the Next.js app locally on the Pi and restarts the
+# dashboard service. Called by the brain after code changes.
 #
-# Usage: bash scripts/self-deploy.sh [--wait]
-#   --wait: Poll until a new workflow run completes (default: use latest)
+# Steps:
+#   1. Pull latest code
+#   2. Clean stale .next/types
+#   3. Type check gate (tsc --noEmit)
+#   4. Backup .next/ to /tmp
+#   5. Stop dashboard (free RAM for build)
+#   6. Build with constrained memory
+#   7. Restart + health check (auto-rollback on failure)
 #
-# Exit codes:
-#   0 = success
-#   1 = failed (artifact download, extraction, or health check)
-#   2 = no artifact available
+# Usage: bash scripts/self-deploy.sh [--skip-typecheck]
+# Exit codes: 0=success, 1=failed
 # ═══════════════════════════════════════════════════════════════
 
 set -euo pipefail
 
-REPO="Leigh12-93/pi-chi"
 PI_CHI_DIR="${HOME}/pi-chi"
-DEPLOY_DIR="${PI_CHI_DIR}/.next/standalone"
-DEPLOY_TMP="/tmp/pi-chi-deploy"
+BACKUP_DIR="/tmp/pi-chi-next-backup"
 HEALTH_URL="http://localhost:3333/api/vitals"
-MAX_POLL_ATTEMPTS=40       # 40 * 15s = 10 minutes max wait
-POLL_INTERVAL=15
-HEALTH_CHECK_RETRIES=5
-HEALTH_CHECK_INTERVAL=5
+HEALTH_RETRIES=8
+HEALTH_INTERVAL=5
+SKIP_TYPECHECK=false
 
-# ── Extract GitHub token from git remote URL ───────────────────
-extract_token() {
-  local remote_url
-  remote_url=$(cd "$PI_CHI_DIR" && git remote get-url origin 2>/dev/null || echo "")
-  # Format: https://user:TOKEN@github.com/...
-  echo "$remote_url" | sed -n 's|.*:\(gho_[^@]*\)@.*|\1|p' || \
-  echo "$remote_url" | sed -n 's|.*:\(ghp_[^@]*\)@.*|\1|p' || \
-  echo "$remote_url" | sed -n 's|.*:\([^@]*\)@github.com.*|\1|p'
-}
+[ "${1:-}" = "--skip-typecheck" ] && SKIP_TYPECHECK=true
 
-TOKEN=$(extract_token)
-if [ -z "$TOKEN" ]; then
-  echo "[deploy] ERROR: Could not extract GitHub token from git remote"
+cd "$PI_CHI_DIR"
+
+echo "[deploy] Pi-Chi local build starting..."
+echo "[deploy] $(date)"
+
+# ── 1. Pull latest code ────────────────────────────────────────
+echo "[deploy] Step 1: Pulling latest code..."
+git pull --ff-only origin master 2>&1 || {
+  echo "[deploy] Git pull failed (merge conflict?). Aborting."
   exit 1
-fi
-
-API="https://api.github.com"
-AUTH="Authorization: token $TOKEN"
-
-# ── Get the latest successful workflow run ──────────────────────
-get_latest_run() {
-  curl -sf -H "$AUTH" \
-    "$API/repos/$REPO/actions/runs?status=completed&conclusion=success&per_page=1" \
-    | python3 -c "import sys,json; runs=json.load(sys.stdin).get('workflow_runs',[]); print(runs[0]['id'] if runs else '')" 2>/dev/null
 }
 
-# ── Get the head SHA of the latest run ──────────────────────────
-get_run_sha() {
-  local run_id=$1
-  curl -sf -H "$AUTH" \
-    "$API/repos/$REPO/actions/runs/$run_id" \
-    | python3 -c "import sys,json; print(json.load(sys.stdin).get('head_sha',''))" 2>/dev/null
-}
+# ── 2. Clean stale .next/types ─────────────────────────────────
+echo "[deploy] Step 2: Cleaning stale .next/types..."
+rm -rf .next/types 2>/dev/null || true
 
-# ── Wait for a new workflow run to complete ─────────────────────
-wait_for_run() {
-  local head_sha
-  head_sha=$(cd "$PI_CHI_DIR" && git rev-parse HEAD)
-  echo "[deploy] Waiting for GitHub Actions build of $head_sha..."
-
-  for i in $(seq 1 $MAX_POLL_ATTEMPTS); do
-    local run_id
-    # Check for any run matching our commit
-    run_id=$(curl -sf -H "$AUTH" \
-      "$API/repos/$REPO/actions/runs?head_sha=$head_sha&per_page=1" \
-      | python3 -c "
-import sys, json
-runs = json.load(sys.stdin).get('workflow_runs', [])
-if runs:
-    r = runs[0]
-    if r['status'] == 'completed':
-        if r['conclusion'] == 'success':
-            print(r['id'])
-        else:
-            print('FAILED:' + r['conclusion'])
-    else:
-        print('PENDING:' + r['status'])
-else:
-    print('NONE')
-" 2>/dev/null)
-
-    case "$run_id" in
-      FAILED:*)
-        echo "[deploy] Build failed: ${run_id#FAILED:}"
-        return 1
-        ;;
-      PENDING:*|NONE)
-        echo "[deploy] [$i/$MAX_POLL_ATTEMPTS] Build ${run_id}... (${i}/${MAX_POLL_ATTEMPTS})"
-        sleep $POLL_INTERVAL
-        ;;
-      *)
-        if [ -n "$run_id" ]; then
-          echo "[deploy] Build completed! Run ID: $run_id"
-          echo "$run_id"
-          return 0
-        fi
-        sleep $POLL_INTERVAL
-        ;;
-    esac
-  done
-
-  echo "[deploy] Timed out waiting for build"
-  return 1
-}
-
-# ── Download the deploy artifact from a run ─────────────────────
-download_artifact() {
-  local run_id=$1
-  echo "[deploy] Downloading artifact from run $run_id..."
-
-  # Get artifact ID
-  local artifact_id
-  artifact_id=$(curl -sf -H "$AUTH" \
-    "$API/repos/$REPO/actions/runs/$run_id/artifacts" \
-    | python3 -c "
-import sys, json
-arts = json.load(sys.stdin).get('artifacts', [])
-for a in arts:
-    if a['name'] == 'pi-chi-deploy' and not a.get('expired', False):
-        print(a['id'])
-        break
-" 2>/dev/null)
-
-  if [ -z "$artifact_id" ]; then
-    echo "[deploy] ERROR: No pi-chi-deploy artifact found in run $run_id"
-    return 1
-  fi
-
-  # Download artifact (GitHub returns a zip containing our tarball)
-  rm -rf "$DEPLOY_TMP"
-  mkdir -p "$DEPLOY_TMP"
-  curl -sfL -H "$AUTH" \
-    "$API/repos/$REPO/actions/artifacts/$artifact_id/zip" \
-    -o "$DEPLOY_TMP/artifact.zip"
-
-  # Unzip the outer wrapper (GitHub wraps artifacts in a zip)
-  cd "$DEPLOY_TMP"
-  unzip -qo artifact.zip
-  rm artifact.zip
-
-  if [ ! -f "pi-chi-deploy.tar.gz" ]; then
-    echo "[deploy] ERROR: pi-chi-deploy.tar.gz not found in artifact"
-    return 1
-  fi
-
-  echo "[deploy] Artifact downloaded successfully"
-  return 0
-}
-
-# ── Deploy the artifact ─────────────────────────────────────────
-deploy() {
-  echo "[deploy] Deploying..."
-
-  # Stop dashboard
-  sudo systemctl stop pi-chi-dashboard 2>/dev/null || true
-  sleep 2
-
-  # Backup current standalone (if exists)
-  if [ -d "$DEPLOY_DIR" ]; then
-    rm -rf "${DEPLOY_DIR}.bak"
-    mv "$DEPLOY_DIR" "${DEPLOY_DIR}.bak"
-  fi
-
-  # Extract new standalone
-  mkdir -p "$DEPLOY_DIR"
-  tar xzf "$DEPLOY_TMP/pi-chi-deploy.tar.gz" -C "$DEPLOY_DIR"
-
-  # Copy env file if it exists
-  if [ -f "$PI_CHI_DIR/.env.local" ]; then
-    cp "$PI_CHI_DIR/.env.local" "$DEPLOY_DIR/.env.local"
-  fi
-
-  # Start dashboard
-  sudo systemctl start pi-chi-dashboard
-  echo "[deploy] Dashboard restarted"
-
-  # Cleanup
-  rm -rf "$DEPLOY_TMP"
-}
-
-# ── Health check ────────────────────────────────────────────────
-health_check() {
-  echo "[deploy] Running health check..."
-  for i in $(seq 1 $HEALTH_CHECK_RETRIES); do
-    sleep $HEALTH_CHECK_INTERVAL
-    if curl -sf "$HEALTH_URL" > /dev/null 2>&1; then
-      echo "[deploy] Health check passed!"
-      return 0
-    fi
-    echo "[deploy] Health check attempt $i/$HEALTH_CHECK_RETRIES failed, retrying..."
-  done
-
-  echo "[deploy] Health check FAILED after $HEALTH_CHECK_RETRIES attempts"
-  return 1
-}
-
-# ── Rollback on failure ─────────────────────────────────────────
-rollback() {
-  echo "[deploy] Rolling back to previous version..."
-  if [ -d "${DEPLOY_DIR}.bak" ]; then
-    sudo systemctl stop pi-chi-dashboard 2>/dev/null || true
-    rm -rf "$DEPLOY_DIR"
-    mv "${DEPLOY_DIR}.bak" "$DEPLOY_DIR"
-    sudo systemctl start pi-chi-dashboard
-    sleep 5
-    if curl -sf "$HEALTH_URL" > /dev/null 2>&1; then
-      echo "[deploy] Rollback successful"
-    else
-      echo "[deploy] Rollback also failed — manual intervention needed"
-    fi
-  else
-    echo "[deploy] No backup available for rollback"
-  fi
-}
-
-# ═══════════════════════════════════════════════════════════════
-# MAIN
-# ═══════════════════════════════════════════════════════════════
-
-echo "[deploy] Pi-Chi Self-Deploy starting..."
-echo "[deploy] Token: ${TOKEN:0:8}..."
-
-RUN_ID=""
-
-if [ "${1:-}" = "--wait" ]; then
-  # Wait for the build triggered by our push
-  RUN_ID=$(wait_for_run)
-  if [ -z "$RUN_ID" ] || [ "$RUN_ID" = "1" ]; then
-    echo "[deploy] Failed to get completed run"
-    exit 1
+# ── 3. Type check gate ─────────────────────────────────────────
+if [ "$SKIP_TYPECHECK" = false ]; then
+  echo "[deploy] Step 3: Type checking (tsc --noEmit)..."
+  if \! npx tsc --noEmit 2>&1; then
+    echo "[deploy] WARNING: Type check failed, continuing anyway..."
   fi
 else
-  # Use the latest successful run
-  RUN_ID=$(get_latest_run)
-  if [ -z "$RUN_ID" ]; then
-    echo "[deploy] No successful runs found"
-    exit 2
+  echo "[deploy] Step 3: Skipped (--skip-typecheck)"
+fi
+
+# ── 4. Backup current .next/ ───────────────────────────────────
+echo "[deploy] Step 4: Backing up .next/ to /tmp..."
+rm -rf "$BACKUP_DIR"
+if [ -d .next ]; then
+  cp -a .next "$BACKUP_DIR"
+  echo "[deploy] Backup created at $BACKUP_DIR"
+else
+  echo "[deploy] No .next/ to backup"
+fi
+
+# ── 5. Stop dashboard (free RAM for build) ─────────────────────
+echo "[deploy] Step 5: Stopping dashboard to free RAM..."
+sudo systemctl stop pi-chi-dashboard 2>/dev/null || true
+sleep 2
+
+# ── 6. Build ───────────────────────────────────────────────────
+echo "[deploy] Step 6: Building Next.js app..."
+BUILD_START=$(date +%s)
+
+if NODE_OPTIONS="--max-old-space-size=3072" npm run build 2>&1; then
+  BUILD_END=$(date +%s)
+  echo "[deploy] Build succeeded in $(( BUILD_END - BUILD_START ))s"
+else
+  BUILD_END=$(date +%s)
+  echo "[deploy] Build FAILED after $(( BUILD_END - BUILD_START ))s"
+
+  # Restore backup
+  if [ -d "$BACKUP_DIR" ]; then
+    echo "[deploy] Restoring backup..."
+    rm -rf .next
+    mv "$BACKUP_DIR" .next
   fi
-fi
 
-# Download
-if ! download_artifact "$RUN_ID"; then
-  echo "[deploy] Artifact download failed"
+  # Restart with old build
+  sudo systemctl start pi-chi-dashboard
+  echo "[deploy] Rolled back to previous build"
   exit 1
 fi
 
-# Deploy
-if ! deploy; then
-  echo "[deploy] Deploy failed"
-  rollback
-  exit 1
+# ── 7. Restart + health check ──────────────────────────────────
+echo "[deploy] Step 7: Restarting dashboard..."
+sudo systemctl start pi-chi-dashboard
+
+echo "[deploy] Running health check..."
+for i in $(seq 1 $HEALTH_RETRIES); do
+  sleep $HEALTH_INTERVAL
+  if curl -sf "$HEALTH_URL" > /dev/null 2>&1; then
+    echo "[deploy] Health check passed\!"
+    rm -rf "$BACKUP_DIR"
+    echo "[deploy] Deploy complete\!"
+    exit 0
+  fi
+  echo "[deploy] Health check $i/$HEALTH_RETRIES..."
+done
+
+# Health check failed — rollback
+echo "[deploy] Health check FAILED. Rolling back..."
+sudo systemctl stop pi-chi-dashboard 2>/dev/null || true
+
+if [ -d "$BACKUP_DIR" ]; then
+  rm -rf .next
+  mv "$BACKUP_DIR" .next
+  sudo systemctl start pi-chi-dashboard
+  sleep 5
+  if curl -sf "$HEALTH_URL" > /dev/null 2>&1; then
+    echo "[deploy] Rollback successful"
+  else
+    echo "[deploy] Rollback health check also failed\!"
+  fi
+else
+  echo "[deploy] No backup to rollback to\!"
+  sudo systemctl start pi-chi-dashboard
 fi
 
-# Health check
-if ! health_check; then
-  echo "[deploy] Unhealthy after deploy"
-  rollback
-  exit 1
-fi
-
-# Clean up backup
-rm -rf "${DEPLOY_DIR}.bak"
-
-echo "[deploy] Self-deploy complete!"
-exit 0
+exit 1
