@@ -104,7 +104,7 @@ export function VitalsPanel({ vitals, devMode }: VitalsPanelProps) {
               : <WifiOff className="w-4 h-4 text-red-500" />
             }
             <div>
-              <p className="text-[11px] font-medium text-pi-text">
+              <p className="text-[11px] font-medium text-pi-text truncate max-w-[150px]">
                 {vitals.wifiConnected ? vitals.wifiSsid : 'Disconnected'}
               </p>
               <p className="text-[10px] text-pi-text-dim font-mono">{vitals.ipAddress}</p>

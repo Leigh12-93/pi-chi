@@ -136,7 +136,7 @@ export function BrainHeader({
         </div>
         <div className="min-w-0">
           <div className="flex items-center gap-1.5">
-            <span className="text-sm font-bold text-pi-text">{name}</span>
+            <span className="text-sm font-bold text-pi-text truncate max-w-[120px]">{name}</span>
             <span className={cn(
               'text-[9px] px-1.5 py-px rounded-full font-semibold border shrink-0',
               brainStatus === 'running' ? 'bg-emerald-500/10 text-emerald-500 border-emerald-500/20' :

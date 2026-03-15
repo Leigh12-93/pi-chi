@@ -115,7 +115,7 @@ export function ActivityFeed({ entries, agentStatus }: ActivityFeedProps) {
   }, [])
 
   return (
-    <div className="h-full flex flex-col">
+    <div className="h-full flex flex-col overflow-hidden">
       {/* Header */}
       <div className="flex items-center justify-between border-b border-pi-border bg-pi-panel/80 backdrop-blur-sm px-4 py-2.5">
         <div className="flex items-center gap-2">
@@ -270,7 +270,7 @@ export function ActivityFeed({ entries, agentStatus }: ActivityFeedProps) {
 
                   {/* Message */}
                   <span className={cn(
-                    'text-[11px] leading-relaxed',
+                    'text-[11px] leading-relaxed line-clamp-2',
                     entry.type === 'error' ? 'text-red-400' :
                     entry.type === 'success' ? 'text-emerald-400' :
                     entry.type === 'decision' ? 'text-purple-400' :

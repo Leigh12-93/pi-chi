@@ -87,7 +87,7 @@ function FeedRow({ item, isNew }: { item: FeedItem; isNew: boolean }) {
       {/* Content */}
       <div className="min-w-0 flex-1">
         <span className={cn(
-          'text-[11px] leading-relaxed block',
+          'text-[11px] leading-relaxed block truncate',
           item.tone === 'critical' ? 'text-red-300' :
           item.tone === 'positive' ? 'text-emerald-300' :
           item.tone === 'accent' ? 'text-pi-accent' :

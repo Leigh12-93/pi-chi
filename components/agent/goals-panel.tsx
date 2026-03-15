@@ -119,7 +119,7 @@ export function GoalsPanel({ goals, onInjectGoal }: GoalsPanelProps) {
   }, [injectTitle, injectPriority, onInjectGoal, injecting, goals, confirmGoal])
 
   return (
-    <div className="h-full flex flex-col bg-pi-panel border-r border-pi-border">
+    <div className="h-full flex flex-col overflow-hidden bg-pi-panel border-r border-pi-border">
       {/* Header */}
       <div className="flex items-center justify-between px-3 py-2.5 border-b border-pi-border">
         <div className="flex items-center gap-1.5">
