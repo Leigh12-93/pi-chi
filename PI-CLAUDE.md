@@ -26,7 +26,7 @@ You are NOT working for a human. You are being invoked by Pi-Chi's brain process
 | GPIO | 40-pin header, some pins in use |
 | Ports | 2x USB 2.0, 2x USB 3.0, 2x micro-HDMI (HDMI connected to TV), 3.5mm |
 | Webcam | Logitech C922 Pro Stream (USB, /dev/video0) |
-| Display | HDMI kiosk via Cage + Chromium, CEC remote support |
+| Display | HDMI kiosk via Cage + Chromium on tty1, auto-falls back to a lightweight standby screen for heavy tasks, CEC remote via kernel uinput bridge |
 | Node.js | v20 LTS |
 | IP | 192.168.8.174 |
 
@@ -62,7 +62,7 @@ Pi-Chi's source code lives at `/home/pi/pi-chi` (git repo: `github.com/Leigh12-9
 │   ├── chat-panel.tsx      # Chat UI
 │   └── workspace.tsx       # Workspace layout
 ├── hooks/
-│   ├── use-agent-state.ts  # Brain state polling (3s interval)
+│   ├── use-agent-state.ts  # Brain state via SSE + fallback polling
 │   └── use-system-vitals.ts # System vitals hook
 ├── lib/
 │   ├── brain/              # BRAIN CODE — the autonomous loop
@@ -77,7 +77,10 @@ Pi-Chi's source code lives at `/home/pi/pi-chi` (git repo: `github.com/Leigh12-9
 │   └── utils.ts            # Utility functions
 ├── scripts/
 │   ├── pi-brain.ts         # Main brain loop (systemd service)
-│   └── pi-setup.sh         # Pi bootstrap script
+│   ├── pi-setup.sh         # Pi bootstrap script
+│   ├── start-kiosk.sh      # Lightweight HDMI launcher (Cage + Chromium)
+│   ├── pi-chi-kiosk.service # HDMI kiosk service definition
+│   └── pi-chi-cec.service  # HDMI-CEC input bridge
 └── package.json
 ```
 
@@ -85,10 +88,11 @@ Pi-Chi's source code lives at `/home/pi/pi-chi` (git repo: `github.com/Leigh12-9
 
 | File | Purpose | Notes |
 |------|---------|-------|
-| `lib/brain/brain-types.ts` | All TypeScript interfaces | BrainState, BrainGoal, BrainChatMessage, MoodState |
+| `lib/brain/brain-types.ts` | All TypeScript interfaces | BrainState, BrainGoal, BrainChatMessage, MoodState, persisted work cycles |
 | `lib/brain/brain-state.ts` | State load/save to ~/.pi-chi/brain-state.json | Atomic writes, migration backfill |
-| `hooks/use-agent-state.ts` | Dashboard polls brain state every 3s | Exports BrainChatMessage, mood, chatMessages |
-| `components/agent-dashboard.tsx` | Main 3-panel layout | Left=Goals, Center=Chat/Activity/Terminal, Right=Vitals |
+| `lib/brain/claude-code.ts` | Shared Claude Code runner | Enforces `claude.ai` Max OAuth, strips Anthropic API-key envs |
+| `hooks/use-agent-state.ts` | Dashboard streams brain state with SSE | Falls back to polling if stream drops |
+| `components/agent-dashboard.tsx` | Main viewer dashboard shell | Hero + live stage + context rail |
 | `app/globals.css` | Theme tokens (Tailwind v4) | Pi-Chi chose cyan (#00d4ff) as accent color |
 
 ---
@@ -200,7 +204,7 @@ Use these as Tailwind classes: `bg-pi-accent`, `text-pi-text`, `border-pi-border
 
 ## Brain State (~/. pi-chi/brain-state.json)
 
-The brain state file is the shared communication bus. The brain writes it, the dashboard reads it via `/api/brain`.
+The brain state file is the shared communication bus. The brain writes it, the dashboard reads it via `/api/brain` and `/api/brain/stream`.
 
 ### Key Fields
 
@@ -215,6 +219,10 @@ interface BrainState {
   totalThoughts: number           // Cycle count
   totalToolCalls: number
   totalApiCost: number
+
+  currentMission?: Mission | null
+  currentCycle?: WorkCycle | null
+  workCycles?: WorkCycle[]        // recent explicit cycle history for dashboard/autonomy UI
 
   // Timing
   lastWakeAt: string | null
@@ -235,6 +243,13 @@ interface BrainState {
   consecutiveCrashes: number
 }
 ```
+
+### Claude Code Auth Mode
+
+- Pi-Chi heavy-lift work must run through the local `claude` CLI with the **Max OAuth** account.
+- `lib/brain/claude-code.ts` checks `claude auth status` before running.
+- Anthropic API key env vars are explicitly unset for Claude Code child processes so the CLI does not drift back to API-key auth.
+- If the Pi is not logged into the Max account, the brain will fail closed rather than silently using the wrong billing path.
 
 ### Chat Messages
 

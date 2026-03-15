@@ -75,6 +75,11 @@ export function createInitialState(): BrainState {
     wakeIntervalMs: 5 * 60 * 1000, // 5 minutes
 
     goals: [],
+    currentMission: null,
+    stretchGoals: [],
+    opportunities: [],
+    currentCycle: null,
+    workCycles: [],
     memories: [],
     growthLog: [],
     activityLog: [],
@@ -238,6 +243,11 @@ export function loadBrainState(): BrainState {
   if (state.consecutiveCrashes === undefined) state.consecutiveCrashes = defaults.consecutiveCrashes
   if (state.lastSelfEditAt === undefined) state.lastSelfEditAt = defaults.lastSelfEditAt
   if (!state.chatMessages) state.chatMessages = defaults.chatMessages
+  if (state.currentMission === undefined) state.currentMission = defaults.currentMission
+  if (!state.stretchGoals) state.stretchGoals = defaults.stretchGoals
+  if (!state.opportunities) state.opportunities = defaults.opportunities
+  if (state.currentCycle === undefined) state.currentCycle = defaults.currentCycle
+  if (!state.workCycles) state.workCycles = defaults.workCycles
   if (state.dailyCost === undefined) state.dailyCost = defaults.dailyCost
   if (state.dailyCostDate === undefined) state.dailyCostDate = defaults.dailyCostDate
   if (!state.costBreakdown) state.costBreakdown = defaults.costBreakdown

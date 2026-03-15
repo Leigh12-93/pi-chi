@@ -1,0 +1,24 @@
+[Unit]
+Description=Pi-Chi Standby Screen
+After=systemd-user-sessions.service
+
+[Service]
+Type=simple
+User=pi
+WorkingDirectory=/home/pi
+Environment=HOME=/home/pi
+PAMName=login
+TTYPath=/dev/tty1
+TTYReset=yes
+TTYVHangup=yes
+TTYVTDisallocate=yes
+StandardInput=tty
+StandardOutput=tty
+StandardError=journal
+ExecStart=/home/pi/pi-chi/scripts/standby-screen.sh
+Restart=always
+RestartSec=2
+SyslogIdentifier=pi-chi-standby
+
+[Install]
+WantedBy=multi-user.target

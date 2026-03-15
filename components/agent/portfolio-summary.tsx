@@ -6,7 +6,7 @@ import type { BusinessProfile } from '@/lib/brain/domain-types'
 
 interface PortfolioSummaryProps {
   topBusiness: BusinessProfile | null
-  portfolioValue: number
+  portfolioValue: number | null
   portfolioTarget: number
 }
 
@@ -24,7 +24,10 @@ const healthDots: Record<BusinessProfile['health'], string> = {
 }
 
 export function PortfolioSummary({ topBusiness, portfolioValue, portfolioTarget }: PortfolioSummaryProps) {
-  const progress = portfolioTarget > 0 ? Math.min(100, (portfolioValue / portfolioTarget) * 100) : 0
+  const progress = portfolioValue !== null && portfolioTarget > 0
+    ? Math.min(100, (portfolioValue / portfolioTarget) * 100)
+    : null
+  const recentlyActive = topBusiness ? Date.now() - new Date(topBusiness.lastActionAt).getTime() < 86_400_000 : false
 
   return (
     <div className="px-3 py-3 space-y-3">
@@ -32,22 +35,28 @@ export function PortfolioSummary({ topBusiness, portfolioValue, portfolioTarget 
       <div>
         <div className="flex items-center justify-between mb-1.5">
           <span className="text-[10px] text-pi-text-dim font-medium">Annual Run Rate</span>
-          <span className="text-[11px] font-mono font-semibold text-pi-text">
-            {formatCurrency(portfolioValue)} <span className="text-pi-text-dim">/ {formatCurrency(portfolioTarget)}</span>
-          </span>
+          {portfolioValue !== null ? (
+            <span className="text-[11px] font-mono font-semibold text-pi-text">
+              {formatCurrency(portfolioValue)} <span className="text-pi-text-dim">/ {formatCurrency(portfolioTarget)}</span>
+            </span>
+          ) : (
+            <span className="text-[10px] text-pi-text-dim italic">No revenue signal yet</span>
+          )}
         </div>
-        <div className="portfolio-bar">
-          <div className="portfolio-bar-fill" style={{ width: `${progress}%` }} />
+        <div className={cn('portfolio-bar', progress !== null && progress > 0 && 'is-live')}>
+          <div className="portfolio-bar-fill" style={{ width: `${progress ?? 0}%` }} />
         </div>
-        <p className="text-[9px] text-pi-text-dim mt-1">{progress.toFixed(1)}% to target</p>
+        <p className="text-[9px] text-pi-text-dim mt-1">
+          {progress !== null ? `${progress.toFixed(1)}% to target` : 'Connect a real ARR signal before showing progress'}
+        </p>
       </div>
 
       {/* Top business */}
       {topBusiness && (
-        <div className="bg-pi-surface/50 rounded-lg px-2.5 py-2 border border-pi-border/50">
+        <div className={cn('bg-pi-surface/50 rounded-lg px-2.5 py-2 border border-pi-border/50', recentlyActive && 'alive-panel')}>
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-1.5">
-              <span className={cn('w-2 h-2 rounded-full', healthDots[topBusiness.health])} />
+              <span className={cn('w-2 h-2 rounded-full', healthDots[topBusiness.health], recentlyActive && 'animate-pulse')} />
               <span className="text-[11px] font-semibold text-pi-text">{topBusiness.name}</span>
             </div>
             <div className="flex items-center gap-0.5">
@@ -67,6 +76,9 @@ export function PortfolioSummary({ topBusiness, portfolioValue, portfolioTarget 
               Next: {topBusiness.nextMilestone}
             </p>
           )}
+          <p className="mt-1 text-[9px] text-pi-text-dim/80">
+            {recentlyActive ? 'Updated in the last 24h' : 'Awaiting fresh portfolio movement'}
+          </p>
           {topBusiness.riskFlags.length > 0 && (
             <div className="flex flex-wrap gap-1 mt-1.5">
               {topBusiness.riskFlags.slice(0, 3).map((flag, i) => (

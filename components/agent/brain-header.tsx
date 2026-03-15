@@ -3,7 +3,7 @@
 import { useMemo, useEffect, useState } from 'react'
 import {
   Brain, Clock, RefreshCw, Settings, Sparkles,
-  Target, Zap, Search, Rocket, Wrench,
+  Target, Zap, Search, Rocket, Wrench, Activity,
 } from 'lucide-react'
 import type { SystemVitals } from '@/lib/agent-types'
 import { motion } from 'framer-motion'
@@ -44,6 +44,16 @@ const missionIcons: Record<Mission['type'], React.ElementType> = {
   'self-improve': Sparkles,
 }
 
+const phaseTone: Record<NonNullable<DashboardSummary['cyclePhase']>, string> = {
+  idle: 'text-pi-text-dim bg-pi-surface/60 border-pi-border',
+  planning: 'text-cyan-400 bg-cyan-500/10 border-cyan-500/20',
+  executing: 'text-emerald-400 bg-emerald-500/10 border-emerald-500/20',
+  responding: 'text-pi-accent bg-pi-accent/10 border-pi-accent/20',
+  sleeping: 'text-yellow-400 bg-yellow-500/10 border-yellow-500/20',
+  offline: 'text-gray-400 bg-gray-500/10 border-gray-500/20',
+  error: 'text-red-400 bg-red-500/10 border-red-500/20',
+}
+
 /* ─── Component ─────────────────────────────────── */
 
 export function BrainHeader({
@@ -78,7 +88,9 @@ export function BrainHeader({
   const status = statusConfig[brainStatus]
   const mission = summary?.currentMission
   const MissionIcon = mission ? missionIcons[mission.type] || Target : null
-  const portfolioProgress = summary ? Math.min(100, (summary.portfolioValue / summary.portfolioTarget) * 100) : 0
+  const portfolioProgress = summary && summary.portfolioValue !== null
+    ? Math.min(100, (summary.portfolioValue / summary.portfolioTarget) * 100)
+    : null
 
   // Staleness
   const staleness = useMemo(() => {
@@ -91,7 +103,7 @@ export function BrainHeader({
   }, [lastFetchedAt, now])
 
   return (
-    <div className={cn('hero-band', className)}>
+    <div className={cn('hero-band', brainStatus === 'running' && 'hero-band-live', className)}>
       {/* Identity + status */}
       <div className="flex items-center gap-2 shrink-0">
         <div className="relative">
@@ -146,6 +158,11 @@ export function BrainHeader({
               <MissionIcon className="w-2.5 h-2.5" />
               {mission.type}
             </span>
+            {summary && (
+              <span className={cn('inline-flex items-center rounded-full border px-1.5 py-px text-[8px] font-semibold', phaseTone[summary.cyclePhase])}>
+                {summary.cyclePhase}
+              </span>
+            )}
             <span className="text-[11px] font-medium text-pi-text truncate max-w-[300px]">
               {mission.title}
             </span>
@@ -153,10 +170,16 @@ export function BrainHeader({
         ) : (
           <span className="text-[10px] text-pi-text-dim italic">No active mission</span>
         )}
+        {summary?.nowDoing && (
+          <div className="hidden lg:flex min-w-0 items-center gap-1.5 rounded-full border border-pi-border/50 bg-pi-surface/40 px-2 py-1">
+            <Activity className="h-3 w-3 text-pi-accent" />
+            <span className="max-w-[320px] truncate text-[10px] text-pi-text-dim">{summary.nowDoing}</span>
+          </div>
+        )}
       </div>
 
       {/* Now doing — mobile only */}
-      {summary?.nowDoing && (
+        {summary?.nowDoing && (
         <div className="flex md:hidden items-center min-w-0 flex-1 mx-2">
           <p className="text-[10px] text-pi-text-dim truncate">{summary.nowDoing}</p>
         </div>
@@ -169,7 +192,7 @@ export function BrainHeader({
           <div className="hidden sm:flex flex-col items-end gap-0.5 min-w-[100px]">
             <div className="flex items-center gap-1.5 w-full justify-end">
               <span className="text-[9px] text-pi-text-dim font-medium">
-                {formatCurrency(summary.portfolioValue)}
+                {summary.portfolioValue !== null ? formatCurrency(summary.portfolioValue) : 'Unknown'}
               </span>
               <span className="text-[8px] text-pi-text-dim/50">/</span>
               <span className="text-[9px] text-pi-text-dim font-medium">
@@ -177,7 +200,7 @@ export function BrainHeader({
               </span>
             </div>
             <div className="w-full portfolio-bar" style={{ height: '4px' }}>
-              <div className="portfolio-bar-fill" style={{ width: `${portfolioProgress}%` }} />
+              <div className="portfolio-bar-fill" style={{ width: `${portfolioProgress ?? 0}%` }} />
             </div>
           </div>
         )}
@@ -224,6 +247,21 @@ export function BrainHeader({
             {staleness.level === 'stale' ? 'Stale' : staleness.label}
           </span>
         )}
+
+        {summary?.lastEventLabel && (
+          <div className="hidden xl:flex items-center gap-1 rounded-full border border-pi-border/40 bg-pi-surface/40 px-2 py-1">
+            <span className="h-1.5 w-1.5 rounded-full bg-pi-accent animate-pulse" />
+            <span className="max-w-[180px] truncate text-[9px] text-pi-text-dim">{summary.lastEventLabel}</span>
+          </div>
+        )}
+        {summary?.attentionNeeded?.length ? (
+          <div className="hidden lg:flex items-center gap-1 rounded-full border border-red-500/20 bg-red-500/8 px-2 py-1">
+            <span className="h-1.5 w-1.5 rounded-full bg-red-400" />
+            <span className="text-[9px] font-medium text-red-300">
+              {summary.attentionNeeded.length} attention item{summary.attentionNeeded.length === 1 ? '' : 's'}
+            </span>
+          </div>
+        ) : null}
 
         {/* Actions */}
         {onRefresh && (

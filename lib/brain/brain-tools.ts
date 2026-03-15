@@ -2,13 +2,16 @@
 
 import { tool } from 'ai'
 import { z } from 'zod'
-import { readFileSync, writeFileSync, existsSync, mkdirSync, readdirSync } from 'node:fs'
+import { readFileSync, writeFileSync, existsSync, mkdirSync, readdirSync, unlinkSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { randomUUID } from 'node:crypto'
 import { executeCommand, isBlocked } from '../tools/terminal-tools'
+import { ensureClaudeCodeMaxOAuth, runClaudeCodePrompt } from './claude-code'
+import { enterStandbyDisplay, resumeDashboardDisplay } from './display-mode'
 import { sendSms } from './brain-sms'
 import { addActivity, saveBrainState } from './brain-state'
 import type { BrainState, BrainGoal, ProjectManifest, ProjectOutput, BrainSchedule } from './brain-types'
+import type { Opportunity, StretchGoal } from './domain-types'
 
 const MAX_OUTPUT = 10_000 // Cap shell output at 10KB
 const MAX_HTTP_REQUESTS_PER_CYCLE = 100
@@ -883,10 +886,7 @@ export function createBrainTools(state: BrainState) {
         const liveLogPath = join(process.env.HOME || '/home/pi', '.pi-chi', 'claude-code-live.log')
 
         try {
-          // Build the claude command with timeout wrapper and live log tee
-          // Use 'timeout' command for reliable process kill (kills process group)
-          const escapedPrompt = prompt.replace(/'/g, "'\\''")
-          const cmd = `echo '=== Claude Code started at '$(date)' ===' > ${liveLogPath} && timeout --kill-after=30 580 claude -p '${escapedPrompt}' --output-format text --max-turns 40 2>&1 | tee -a ${liveLogPath}; echo '=== Claude Code finished at '$(date)' (exit: '$?') ===' >> ${liveLogPath}`
+          await ensureClaudeCodeMaxOAuth()
 
           // Check available RAM before proceeding
           try {
@@ -900,10 +900,21 @@ export function createBrainTools(state: BrainState) {
             }
           } catch { /* /proc/meminfo may not exist on non-Linux — continue */ }
 
-          const result = await executeCommand(cmd, {
+          await enterStandbyDisplay('Claude Code tool running')
+          addActivity(state, 'system', 'Display switched to standby mode for Claude Code tool')
+
+          const promptPath = join(process.env.HOME || '/home/pi', '.pi-chi', `claude-code-${randomUUID()}.txt`)
+          writeFileSync(promptPath, prompt, 'utf-8')
+
+          const result = await runClaudeCodePrompt({
+            promptPath,
             cwd: workDir,
-            timeout: 600000, // 10 min — matches bash timeout
+            maxTurns: 40,
+            timeoutSeconds: 580,
+            liveLogPath,
           })
+
+          try { unlinkSync(promptPath) } catch { /* ignore */ }
 
           const output = (result.stdout || '').trim()
           const stderr = (result.stderr || '').trim()
@@ -937,7 +948,111 @@ export function createBrainTools(state: BrainState) {
           const errMsg = err instanceof Error ? err.message : String(err)
           addActivity(state, 'error', `Claude Code error: ${errMsg.slice(0, 100)}`)
           return { success: false, error: errMsg }
+        } finally {
+          await resumeDashboardDisplay('Claude Code tool complete')
         }
+      },
+    }),
+
+    upsert_opportunity: tool({
+      description: 'Create or update a business opportunity in your venture pipeline. Use this when you spot, validate, advance, launch, or discard a new business idea.',
+      inputSchema: z.object({
+        title: z.string().describe('Opportunity title'),
+        description: z.string().describe('Concise explanation of the opportunity'),
+        source: z.string().describe('Where it came from: search, customer signal, owner request, market pattern, etc.'),
+        stage: z.enum(['signal', 'idea', 'research', 'validation', 'candidate', 'incubation', 'launched', 'discarded']),
+        confidence: z.number().min(0).max(100).describe('Confidence score from 0-100'),
+        existingOpportunityId: z.string().optional().describe('If updating an existing opportunity, provide its ID'),
+      }),
+      execute: async ({ title, description, source, stage, confidence, existingOpportunityId }) => {
+        state.totalToolCalls++
+        if (!state.opportunities) state.opportunities = []
+
+        const now = new Date().toISOString()
+        const existing = existingOpportunityId
+          ? state.opportunities.find(opportunity => opportunity.id === existingOpportunityId)
+          : state.opportunities.find(opportunity => opportunity.title.toLowerCase() === title.toLowerCase())
+
+        if (existing) {
+          existing.title = title
+          existing.description = description
+          existing.source = source
+          existing.stage = stage
+          existing.confidence = confidence
+          existing.updatedAt = now
+          addActivity(state, 'decision', `Opportunity updated: ${title} → ${stage} (${confidence}%)`)
+          return { success: true, opportunityId: existing.id, action: 'updated' }
+        }
+
+        const opportunity: Opportunity = {
+          id: randomUUID(),
+          title,
+          description,
+          source,
+          stage,
+          confidence,
+          createdAt: now,
+          updatedAt: now,
+        }
+        state.opportunities.push(opportunity)
+        addActivity(state, 'decision', `Opportunity added: ${title} (${stage}, ${confidence}%)`)
+        return { success: true, opportunityId: opportunity.id, action: 'created' }
+      },
+    }),
+
+    set_stretch_goal: tool({
+      description: 'Create or update a stretch goal with ratcheting. Use this for ambitious targets that should rise as you achieve them.',
+      inputSchema: z.object({
+        title: z.string().describe('Stretch goal title'),
+        domain: z.enum(['business', 'venture', 'system', 'self-improvement']),
+        target: z.number().positive().describe('Target value to beat'),
+        current: z.number().min(0).describe('Current measured progress'),
+        unit: z.string().describe('Unit label, e.g. "$ ARR", "deploys", "experiments", "customers"'),
+        ratchetFactor: z.number().min(1.05).max(10).default(1.5).describe('How much to increase the target when reached'),
+        existingStretchGoalId: z.string().optional().describe('If updating an existing stretch goal, provide its ID'),
+      }),
+      execute: async ({ title, domain, target, current, unit, ratchetFactor, existingStretchGoalId }) => {
+        state.totalToolCalls++
+        if (!state.stretchGoals) state.stretchGoals = []
+
+        const existing = existingStretchGoalId
+          ? state.stretchGoals.find(goal => goal.id === existingStretchGoalId)
+          : state.stretchGoals.find(goal => goal.title.toLowerCase() === title.toLowerCase())
+
+        const applyRatcheting = (goal: StretchGoal) => {
+          while (goal.current >= goal.target) {
+            goal.history.push({ target: goal.target, achievedAt: new Date().toISOString() })
+            goal.target = Math.ceil(goal.target * goal.ratchetFactor)
+          }
+        }
+
+        if (existing) {
+          existing.title = title
+          existing.domain = domain
+          existing.target = target
+          existing.current = current
+          existing.unit = unit
+          existing.ratchetFactor = ratchetFactor
+          existing.history = existing.history || []
+          applyRatcheting(existing)
+          addActivity(state, 'goal', `Stretch goal updated: ${title} (${existing.current}/${existing.target} ${unit})`)
+          return { success: true, stretchGoalId: existing.id, target: existing.target, current: existing.current, action: 'updated' }
+        }
+
+        const stretchGoal: StretchGoal = {
+          id: randomUUID(),
+          title,
+          domain,
+          target,
+          current,
+          unit,
+          ratchetFactor,
+          history: [],
+        }
+        applyRatcheting(stretchGoal)
+        state.stretchGoals.push(stretchGoal)
+        addActivity(state, 'goal', `Stretch goal set: ${title} (${stretchGoal.current}/${stretchGoal.target} ${unit})`)
+        return { success: true, stretchGoalId: stretchGoal.id, target: stretchGoal.target, current: stretchGoal.current, action: 'created' }
       },
     }),
 
@@ -1176,8 +1291,19 @@ export function createBrainTools(state: BrainState) {
           'node': 'sudo npm install -g n && sudo n lts',
         }
         addActivity(state, 'action', `Self-update: ${target}`)
-        const result = await executeCommand(cmds[target], { timeout: 600000 }) // 10 min for updates
-        return { success: result.exitCode === 0, stdout: truncate(result.stdout || ''), stderr: truncate(result.stderr || '') }
+        const isHeavyTarget = target === 'pi-chi'
+        try {
+          if (isHeavyTarget) {
+            await enterStandbyDisplay('Local Pi-Chi update/build task')
+            addActivity(state, 'system', 'Display switched to standby mode for local update/build')
+          }
+          const result = await executeCommand(cmds[target], { timeout: 600000 }) // 10 min for updates
+          return { success: result.exitCode === 0, stdout: truncate(result.stdout || ''), stderr: truncate(result.stderr || '') }
+        } finally {
+          if (isHeavyTarget) {
+            await resumeDashboardDisplay('Local Pi-Chi update/build complete')
+          }
+        }
       },
     }),
 

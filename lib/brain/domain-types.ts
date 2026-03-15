@@ -69,12 +69,19 @@ export interface WorkCycle {
 /** Dashboard summary — derived, not stored */
 export interface DashboardSummary {
   nowDoing: string
+  cyclePhase: 'idle' | 'planning' | 'executing' | 'responding' | 'sleeping' | 'offline' | 'error'
   currentMission: Mission | null
+  autonomyReason: string | null
   nextUp: string | null
+  lastEventLabel: string | null
+  workQueue: WorkQueueItem[]
+  backgroundEvents: AutomationEvent[]
+  lastCycle: CycleSummary | null
+  recentCycles: CycleSummary[]
   attentionNeeded: AttentionItem[]
   topBusiness: BusinessProfile | null
   topOpportunity: Opportunity | null
-  portfolioValue: number
+  portfolioValue: number | null
   portfolioTarget: number // 1,000,000
 }
 
@@ -82,4 +89,24 @@ export interface AttentionItem {
   id: string
   level: 'info' | 'warn' | 'critical'
   message: string
+}
+
+export interface WorkQueueItem {
+  id: string
+  label: string
+  status: 'now' | 'next' | 'queued' | 'blocked'
+}
+
+export interface AutomationEvent {
+  id: string
+  label: string
+  tone: 'thinking' | 'action' | 'result' | 'warning'
+  at: string
+}
+
+export interface CycleSummary {
+  id: string
+  title: string
+  outcome: string
+  nextStep: string | null
 }

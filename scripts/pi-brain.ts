@@ -21,13 +21,16 @@ import { loadBrainState, saveBrainState, addActivity, getStateDir } from '../lib
 import { appendSnapshot } from '../lib/brain/analytics'
 import { checkAchievements } from '../lib/brain/achievements'
 import { getSeedPrompt, buildDynamicSystemPrompt, buildContextMessage } from '../lib/brain/brain-prompt'
+import { ensureClaudeCodeMaxOAuth, runClaudeCodePrompt } from '../lib/brain/claude-code'
 import { loadCustomTools, resetHttpRequestCounter } from '../lib/brain/brain-tools'
+import { enterStandbyDisplay, resumeDashboardDisplay } from '../lib/brain/display-mode'
 import { executeCommand } from '../lib/tools/terminal-tools'
 import { randomUUID } from 'node:crypto'
 import { writeFileSync, unlinkSync } from 'node:fs'
 import { join } from 'node:path'
 import { homedir } from 'node:os'
 import type { SystemVitalsSnapshot, BrainState } from '../lib/brain/brain-types'
+import type { Mission, WorkCycle } from '../lib/brain/domain-types'
 
 // ── Constants ─────────────────────────────────────────────────────
 
@@ -223,6 +226,69 @@ function computeAdaptiveInterval(state: BrainState): number {
   return 5 * 60 * 1000
 }
 
+function inferMissionType(title: string): Mission['type'] {
+  const text = title.toLowerCase()
+  if (text.includes('launch') || text.includes('ship') || text.includes('deploy')) return 'launch'
+  if (text.includes('grow') || text.includes('revenue') || text.includes('scale')) return 'grow'
+  if (text.includes('explore') || text.includes('research') || text.includes('find')) return 'explore'
+  if (text.includes('improve') || text.includes('refactor') || text.includes('optimize') || text.includes('learn')) return 'self-improve'
+  return 'maintain'
+}
+
+function deriveMission(state: BrainState): Mission | null {
+  const activeGoals = state.goals
+    .filter(goal => goal.status === 'active')
+    .sort((a, b) => ({ high: 3, medium: 2, low: 1 }[b.priority] - { high: 3, medium: 2, low: 1 }[a.priority]))
+
+  const topGoal = activeGoals[0]
+  if (!topGoal) return null
+
+  return {
+    id: topGoal.id,
+    type: inferMissionType(topGoal.title),
+    title: topGoal.title,
+    rationale: topGoal.reasoning || 'Highest-priority active goal',
+    progressLabel: `${topGoal.tasks.filter(task => task.status === 'done').length}/${topGoal.tasks.length} tasks`,
+    startedAt: topGoal.createdAt,
+    status: 'active',
+  }
+}
+
+function startCycleRecord(state: BrainState): number {
+  const mission = deriveMission(state)
+  state.currentMission = mission
+  state.currentCycle = {
+    id: randomUUID(),
+    thoughtNumber: state.totalThoughts,
+    startedAt: new Date().toISOString(),
+    mission: mission ?? undefined,
+    actions: [],
+    outcome: '',
+    kpiDeltas: {},
+    lessons: [],
+  }
+  return state.activityLog.length
+}
+
+function finishCycleRecord(state: BrainState, activityStartIndex: number, outcome: string, lessons: string[] = []): void {
+  if (!state.currentCycle) return
+
+  const cycle: WorkCycle = {
+    ...state.currentCycle,
+    completedAt: new Date().toISOString(),
+    actions: state.activityLog
+      .slice(activityStartIndex)
+      .map(entry => entry.message)
+      .filter(Boolean)
+      .slice(0, 12),
+    outcome: outcome.slice(0, 300),
+    lessons: lessons.filter(Boolean).slice(0, 3),
+  }
+
+  state.workCycles = [...(state.workCycles || []), cycle].slice(-12)
+  state.currentCycle = null
+}
+
 // ── Disk Space Check (Phase 3.6) ────────────────────────────────
 
 async function checkDiskSpace(state: BrainState): Promise<void> {
@@ -287,8 +353,12 @@ Respond with a JSON object:
     const dreamPromptPath = join(stateDir, 'dream-prompt.txt')
     writeFileSync(dreamPromptPath, dreamPrompt, 'utf-8')
 
-    const dreamCmd = `cat "${dreamPromptPath}" | timeout --kill-after=15 180 claude -p - --output-format text --max-turns 10 2>&1`
-    const dreamResult = await executeCommand(dreamCmd, { cwd: PI_CHI_DIR, timeout: 240_000 })
+    const dreamResult = await runClaudeCodePrompt({
+      promptPath: dreamPromptPath,
+      cwd: PI_CHI_DIR,
+      maxTurns: 10,
+      timeoutSeconds: 180,
+    })
     try { unlinkSync(dreamPromptPath) } catch { /* ok */ }
 
     const text = (dreamResult.stdout || '').trim()
@@ -377,9 +447,11 @@ Respond with a JSON object:
 async function brainCycle(): Promise<void> {
   const state = loadBrainState()
   const isFirstBoot = state.totalThoughts === 0
+  let cycleActivityStartIndex = 0
 
   state.totalThoughts++
   state.lastWakeAt = new Date().toISOString()
+  cycleActivityStartIndex = startCycleRecord(state)
   saveBrainState(state)
 
   console.log(`[pi-brain] Cycle #${state.totalThoughts} starting... (crash counter: ${state.consecutiveCrashes})`)
@@ -388,6 +460,7 @@ async function brainCycle(): Promise<void> {
   if (isDailyBudgetExceeded(state)) {
     console.log(`[pi-brain] Daily budget exceeded ($${state.dailyCost.toFixed(2)}/$${DAILY_BUDGET}). Sleeping.`)
     addActivity(state, 'system', `Budget exceeded — skipping cycle ($${state.dailyCost.toFixed(2)}/$${DAILY_BUDGET})`)
+    finishCycleRecord(state, cycleActivityStartIndex, 'Skipped due to daily budget guardrail.')
     state.consecutiveCrashes = 0 // Don't count budget skips as crashes
     saveBrainState(state)
     return
@@ -424,6 +497,7 @@ async function brainCycle(): Promise<void> {
     if (vitals.tempCelsius > 80) {
       console.log(`[pi-brain] THERMAL: ${vitals.tempCelsius}°C — skipping cycle`)
       addActivity(state, 'system', `Thermal skip: ${vitals.tempCelsius}°C > 80°C`)
+      finishCycleRecord(state, cycleActivityStartIndex, `Skipped due to thermal protection at ${vitals.tempCelsius}°C.`)
       state.consecutiveCrashes = 0
       saveBrainState(state)
       return
@@ -457,17 +531,19 @@ async function brainCycle(): Promise<void> {
     const fullPrompt = `${seedPrompt}\n\n${dynamicSystemPrompt}\n\n---\n\n${contextMessage}\n\n---\n\nIMPORTANT: You have access to the Pi filesystem via Claude Code tools (Read, Write, Edit, Bash).\nThe brain state file is at: ${join(stateDir, 'brain-state.json')}\nTo save a memory, update a goal, or change mood — modify brain-state.json directly using the Edit tool.\nKeep your response concise — summarize what you did and what you learned.`
     writeFileSync(promptPath, fullPrompt, 'utf-8')
 
-    const cmd = `cat "${promptPath}" | timeout --kill-after=30 480 claude -p - --output-format text --max-turns 50 2>&1; echo "EXIT_CODE:$?"`
+    await enterStandbyDisplay('Autonomous Claude Code cycle')
+    addActivity(state, 'system', 'Display switched to standby mode for heavy autonomous work')
 
-    const result = await callWithRetry(() => executeCommand(cmd, {
+    const result = await callWithRetry(() => runClaudeCodePrompt({
+      promptPath,
       cwd: PI_CHI_DIR,
-      timeout: 600_000, // 10 min — Max OAuth, no cost concern
+      maxTurns: 50,
+      timeoutSeconds: 480,
     }))
 
     const output = (result.stdout || '').trim()
-    const exitMatch = output.match(/EXIT_CODE:(\d+)$/)
-    const exitCode = exitMatch ? parseInt(exitMatch[1], 10) : result.exitCode
-    const responseText = output.replace(/EXIT_CODE:\d+$/, '').trim()
+    const exitCode = result.exitCode
+    const responseText = output.trim()
 
     // Extract a clean summary for the header (not the full verbose output)
     const thoughtLines = responseText.split('\n').filter(l => l.trim() && !l.startsWith('---') && !l.startsWith('==='))
@@ -481,6 +557,11 @@ async function brainCycle(): Promise<void> {
     state.goals = freshState.goals
     state.mood = freshState.mood
     state.growthLog = freshState.growthLog
+    state.currentMission = freshState.currentMission ?? state.currentMission
+    state.stretchGoals = freshState.stretchGoals
+    state.opportunities = freshState.opportunities
+    state.workCycles = freshState.workCycles
+    state.currentCycle = freshState.currentCycle ?? state.currentCycle
 
     // No API cost — Claude Max subscription covers this
     console.log(`[pi-brain] Claude Code cycle complete (exit: ${exitCode}). Response: ${responseText.slice(0, 150)}`)
@@ -490,6 +571,9 @@ async function brainCycle(): Promise<void> {
 
     // Log completion
     addActivity(state, 'thought', responseText.slice(0, 200) || 'Cycle completed with tool use only')
+    finishCycleRecord(state, cycleActivityStartIndex, state.lastThought || 'Cycle completed', [
+      responseText.split('\n').find(line => line.trim().length > 0)?.trim() || '',
+    ])
 
     // Send intro SMS on first boot
     if (isFirstBoot) {
@@ -554,10 +638,13 @@ async function brainCycle(): Promise<void> {
     const errMsg = err instanceof Error ? err.message : String(err)
     console.error(`[pi-brain] API error:`, errMsg)
     addActivity(state, 'error', `Brain cycle failed: ${errMsg.slice(0, 200)}`)
+    finishCycleRecord(state, cycleActivityStartIndex, `Cycle failed: ${errMsg.slice(0, 200)}`)
     // Only count non-transient errors toward crash counter (avoids rollback from API hiccups)
     if (!isTransientError(err)) {
       state.consecutiveCrashes++
     }
+  } finally {
+    await resumeDashboardDisplay('Autonomous work complete')
   }
 
   // ── Post-cycle: Analytics snapshot ──────────────────────────────
@@ -652,6 +739,14 @@ async function main(): Promise<void> {
   const claudeCheck = await executeCommand('which claude', { timeout: 5000 })
   if (claudeCheck.exitCode !== 0) {
     console.error('[pi-brain] FATAL: Claude Code CLI not found. Install with: npm i -g @anthropic-ai/claude-code')
+    process.exit(1)
+  }
+
+  try {
+    const authStatus = await ensureClaudeCodeMaxOAuth()
+    console.log(`[pi-brain] Claude Code auth OK (${authStatus.authMethod}/${authStatus.subscriptionType})`)
+  } catch (err) {
+    console.error(`[pi-brain] FATAL: ${err instanceof Error ? err.message : String(err)}`)
     process.exit(1)
   }
 

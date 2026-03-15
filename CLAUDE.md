@@ -27,6 +27,8 @@ app/
   globals.css              Tailwind v4 + custom pi theme tokens
   api/chat/route.ts        Builder AI endpoint — VirtualFS, 60+ tools, extended thinking, project memory
   api/brain/chat/route.ts  Brain chat endpoint — Pi-Chi personality, brain tools (goals, mood, commands)
+  api/brain/route.ts       Brain state bridge — dashboard reads and mutates ~/.pi-chi/brain-state.json
+  api/brain/stream/route.ts SSE stream — initial brain snapshot + live deltas for activity/chat/goals/cycles
   api/vitals/route.ts      System vitals — CPU, memory, disk, temp, uptime, IP, SSID
   api/projects/route.ts    Project CRUD (GET list, POST create)
   api/projects/[id]/       Project detail (GET with files, PUT save, DELETE)
@@ -35,6 +37,8 @@ components/
   workspace.tsx            3-panel resizable layout, auto-selects first file
   chat-panel.tsx           Builder chat (useChat, tool processing) — used in workspace, NOT in agent dashboard
   agent-dashboard.tsx      Agent dashboard layout — uses BrainChat for Pi-Chi conversation
+  agent/autonomy-strip.tsx Persistent mission strip — now doing, why, next, last cycle
+  agent/context-rail.tsx   Context rail — queue, automation timeline, cycle summaries, deep-inspection launchers
   chat/message-item.tsx    Message rendering — reasoning blocks, inline diffs, command output, cost chips
   approval-card.tsx        Smart approval gates for destructive tool calls
   code-editor.tsx          Monaco editor with Ctrl+S
@@ -156,6 +160,17 @@ The `localFiles` ref maintains a running copy so chained edits resolve correctly
 | `PI_DEPLOY_TOKEN` | Vercel deployments | Vercel only (NOT `VERCEL_TOKEN` — reserved) |
 
 **Important:** All Vercel env vars get `\r\n` appended. Code uses `.trim()` on all tokens.
+
+## Pi Brain Runtime
+
+The Raspberry Pi brain uses a different execution path from the builder UI:
+
+- `scripts/pi-brain.ts` runs the autonomous loop on the Pi.
+- `lib/brain/claude-code.ts` is the shared Claude Code runner for dream cycles, autonomous cycles, and the `claude_code` tool.
+- Brain heavy-lift work uses the local `claude` CLI via **Claude Max OAuth** (`claude.ai` account), not `ANTHROPIC_API_KEY`.
+- The runner explicitly unsets Anthropic API-key env vars before invoking Claude Code so Max OAuth stays authoritative.
+- Brain cycles now persist explicit `currentCycle` / `workCycles` records in `~/.pi-chi/brain-state.json`; the dashboard uses those for the autonomy strip, queue, and cycle history.
+- HDMI output is smart-gated: heavy Claude Code work switches to a standby screen first, then restores the live dashboard when the task completes.
 
 ## Database
 

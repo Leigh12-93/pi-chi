@@ -913,9 +913,21 @@ html.dark [data-sonner-toast] [data-description] {
   padding: 0.5rem 1rem;
   border-bottom: 1px solid var(--color-pi-border);
   background: linear-gradient(to right, var(--color-pi-panel), var(--color-pi-bg), var(--color-pi-panel));
+  position: relative;
+  overflow: hidden;
 }
 @media (max-width: 767px) {
   .hero-band { padding: 0.5rem 0.75rem; gap: 0.5rem; }
+}
+
+.hero-band-live::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: linear-gradient(90deg, transparent 0%, rgba(0, 212, 255, 0.04) 30%, rgba(0, 212, 255, 0.08) 50%, rgba(0, 212, 255, 0.04) 70%, transparent 100%);
+  background-size: 200% 100%;
+  animation: gradientSweep 5s linear infinite;
 }
 
 /* Portfolio progress bar */
@@ -925,6 +937,13 @@ html.dark [data-sonner-toast] [data-description] {
   border-radius: 3px;
   background: var(--color-pi-surface);
   overflow: hidden;
+}
+.portfolio-bar.is-live::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(90deg, transparent, rgba(255,255,255,0.14), transparent);
+  animation: gradientSweep 3.2s linear infinite;
 }
 .portfolio-bar-fill {
   height: 100%;
@@ -949,6 +968,58 @@ html.dark [data-sonner-toast] [data-description] {
 .mission-badge[data-type="explore"] { color: #7c3aed; background: rgba(124,58,237,0.1); border-color: rgba(124,58,237,0.2); }
 .mission-badge[data-type="launch"] { color: #dc2626; background: rgba(220,38,38,0.1); border-color: rgba(220,38,38,0.2); }
 .mission-badge[data-type="self-improve"] { color: #d97706; background: rgba(217,119,6,0.1); border-color: rgba(217,119,6,0.2); }
+
+.alive-panel {
+  position: relative;
+  overflow: hidden;
+}
+.alive-panel::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: radial-gradient(circle at top right, rgba(0, 212, 255, 0.08), transparent 35%);
+  opacity: 0.7;
+}
+
+.dashboard-stage-shell {
+  position: relative;
+}
+
+.dashboard-stage-shell::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background:
+    radial-gradient(circle at top left, rgba(0, 212, 255, 0.07), transparent 28%),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.012), transparent 18%);
+  opacity: 0.9;
+}
+
+.dashboard-stage-tabs {
+  position: relative;
+  z-index: 1;
+}
+
+.context-rail-shell {
+  position: relative;
+  background:
+    linear-gradient(180deg, rgba(255,255,255,0.02), transparent 12%),
+    linear-gradient(180deg, var(--color-pi-panel), color-mix(in srgb, var(--color-pi-panel) 86%, black));
+}
+
+.context-rail-shell::before {
+  content: "";
+  position: sticky;
+  top: 0;
+  display: block;
+  height: 10px;
+  margin-bottom: -10px;
+  background: linear-gradient(180deg, rgba(0, 0, 0, 0.18), transparent);
+  pointer-events: none;
+  z-index: 2;
+}
 
 /* ─── Kiosk / TV Mode Focus Styles ───────────────────────── */
 /* Large TV-friendly focus indicators for CEC remote navigation */

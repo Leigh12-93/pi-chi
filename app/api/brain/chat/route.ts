@@ -245,9 +245,12 @@ export async function POST(req: Request) {
   }
 
   try {
-    const { message } = await req.json()
+    const { message, clientMessageId } = await req.json()
     if (!message || typeof message !== 'string') {
       return NextResponse.json({ error: 'message required' }, { status: 400 })
+    }
+    if (clientMessageId !== undefined && typeof clientMessageId !== 'string') {
+      return NextResponse.json({ error: 'clientMessageId must be a string' }, { status: 400 })
     }
     const MAX_CHAT_MSG_LEN = 5000
     if (message.length > MAX_CHAT_MSG_LEN) {
@@ -260,12 +263,25 @@ export async function POST(req: Request) {
 
     const state = loadBrainState()
 
+    if (clientMessageId && Array.isArray(state.chatMessages)) {
+      const duplicate = state.chatMessages.find((m: BS) =>
+        m.from === 'owner' && m.clientMessageId === clientMessageId
+      )
+      if (duplicate) {
+        return NextResponse.json(
+          { error: 'Message already received. Waiting for sync.' },
+          { status: 409 }
+        )
+      }
+    }
+
     // Save owner message
     if (!state.chatMessages) state.chatMessages = []
     state.chatMessages.push({
       id: randomUUID(),
       from: 'owner',
       message,
+      clientMessageId,
       timestamp: new Date().toISOString(),
       read: false,
     })

@@ -34,8 +34,8 @@ export function OpportunityRadar({ topOpportunity }: OpportunityRadarProps) {
   if (!topOpportunity) {
     return (
       <div className="px-3 py-3">
-        <div className="flex items-center gap-2 text-pi-text-dim">
-          <Radar className="w-4 h-4 opacity-30" />
+        <div className="flex items-center gap-2 text-pi-text-dim alive-panel rounded-lg border border-pi-border/40 bg-pi-surface/30 px-2.5 py-2">
+          <Radar className="w-4 h-4 opacity-50 animate-pulse" />
           <p className="text-[11px] italic">Scanning for opportunities...</p>
         </div>
       </div>
@@ -44,7 +44,7 @@ export function OpportunityRadar({ topOpportunity }: OpportunityRadarProps) {
 
   return (
     <div className="px-3 py-3">
-      <div className="bg-pi-surface/50 rounded-lg px-2.5 py-2 border border-pi-border/50">
+      <div className="bg-pi-surface/50 rounded-lg px-2.5 py-2 border border-pi-border/50 alive-panel">
         <div className="flex items-center justify-between mb-1">
           <span className={cn(
             'text-[9px] px-1.5 py-px rounded-full font-semibold border',
@@ -67,6 +67,9 @@ export function OpportunityRadar({ topOpportunity }: OpportunityRadarProps) {
         <div className="flex items-center justify-between mt-2">
           <span className="text-[9px] text-pi-text-dim">
             Source: {topOpportunity.source}
+          </span>
+          <span className="text-[9px] text-pi-text-dim/80">
+            Live scouting
           </span>
         </div>
       </div>

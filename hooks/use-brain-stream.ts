@@ -18,21 +18,24 @@ export interface ToolCallEvent {
   toolCallId: string
   toolName: string
   args: Record<string, unknown>
+  occurredAt: string
 }
 
 export interface ToolResultEvent {
   toolCallId: string
   toolName: string
   result: string
+  occurredAt: string
 }
 
 interface UseBrainStreamReturn {
-  send: (message: string) => Promise<void>
+  send: (message: string, clientMessageId?: string) => Promise<void>
   streamingText: string
   isStreaming: boolean
   activeToolCall: ToolCallEvent | null
   toolResults: ToolResultEvent[]
   error: string | null
+  canRetry: boolean
   retry: () => void
 }
 
@@ -42,11 +45,14 @@ export function useBrainStream(): UseBrainStreamReturn {
   const [activeToolCall, setActiveToolCall] = useState<ToolCallEvent | null>(null)
   const [toolResults, setToolResults] = useState<ToolResultEvent[]>([])
   const [error, setError] = useState<string | null>(null)
+  const [canRetry, setCanRetry] = useState(false)
 
   const lastMessageRef = useRef<string>('')
+  const lastClientMessageIdRef = useRef<string | undefined>(undefined)
   const textAccRef = useRef('')
   const rafIdRef = useRef<number | null>(null)
   const pendingTextRef = useRef<string | null>(null)
+  const hadResponseActivityRef = useRef(false)
 
   // Batch text updates via requestAnimationFrame
   const scheduleTextUpdate = useCallback((text: string) => {
@@ -76,6 +82,7 @@ export function useBrainStream(): UseBrainStreamReturn {
         try {
           const text = JSON.parse(payload) as string
           textAccRef.current += text
+          hadResponseActivityRef.current = true
           scheduleTextUpdate(textAccRef.current)
         } catch { /* non-JSON text chunk, append raw */ }
         break
@@ -84,10 +91,12 @@ export function useBrainStream(): UseBrainStreamReturn {
         // Tool call start
         try {
           const data = JSON.parse(payload) as { toolCallId: string; toolName: string; args?: Record<string, unknown> }
+          hadResponseActivityRef.current = true
           setActiveToolCall({
             toolCallId: data.toolCallId,
             toolName: data.toolName,
             args: data.args || {},
+            occurredAt: new Date().toISOString(),
           })
         } catch { /* ignore parse errors */ }
         break
@@ -96,10 +105,12 @@ export function useBrainStream(): UseBrainStreamReturn {
         // Tool result
         try {
           const data = JSON.parse(payload) as { toolCallId: string; toolName: string; result: unknown }
+          hadResponseActivityRef.current = true
           setToolResults(prev => [...prev, {
             toolCallId: data.toolCallId,
             toolName: data.toolName,
             result: typeof data.result === 'string' ? data.result : JSON.stringify(data.result),
+            occurredAt: new Date().toISOString(),
           }])
           setActiveToolCall(null)
         } catch { /* ignore */ }
@@ -124,25 +135,33 @@ export function useBrainStream(): UseBrainStreamReturn {
     }
   }, [scheduleTextUpdate])
 
-  const send = useCallback(async (message: string) => {
+  const send = useCallback(async (message: string, clientMessageId?: string) => {
     lastMessageRef.current = message
+    lastClientMessageIdRef.current = clientMessageId
     textAccRef.current = ''
+    hadResponseActivityRef.current = false
     setStreamingText('')
     setIsStreaming(true)
     setActiveToolCall(null)
     setToolResults([])
     setError(null)
+    setCanRetry(false)
 
     try {
       const res = await fetch('/api/brain/chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ message }),
+        body: JSON.stringify({ message, clientMessageId }),
       })
 
       if (!res.ok) {
         const err = await res.json().catch(() => ({ error: `HTTP ${res.status}` }))
-        setError(err.error || `HTTP ${res.status}`)
+        if (res.status === 409) {
+          setError(err.error || 'Message already received. Waiting for sync.')
+        } else {
+          setError(err.error || `HTTP ${res.status}`)
+          setCanRetry(!hadResponseActivityRef.current)
+        }
         setIsStreaming(false)
         return
       }
@@ -183,6 +202,7 @@ export function useBrainStream(): UseBrainStreamReturn {
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Connection failed')
+      setCanRetry(!hadResponseActivityRef.current)
     } finally {
       setIsStreaming(false)
       setActiveToolCall(null)
@@ -195,7 +215,7 @@ export function useBrainStream(): UseBrainStreamReturn {
 
   const retry = useCallback(() => {
     if (lastMessageRef.current) {
-      send(lastMessageRef.current)
+      send(lastMessageRef.current, lastClientMessageIdRef.current)
     }
   }, [send])
 
@@ -206,6 +226,7 @@ export function useBrainStream(): UseBrainStreamReturn {
     activeToolCall,
     toolResults,
     error,
+    canRetry,
     retry,
   }
 }

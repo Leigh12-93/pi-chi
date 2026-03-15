@@ -6,13 +6,15 @@ import type {
   BrainMemory, ResearchThread, GrowthEntry, BrainProject, MoodState,
   PromptEvolution, Achievement, BrainSchedule,
 } from '@/lib/brain/brain-types'
-import type { DashboardSummary, Mission, AttentionItem } from '@/lib/brain/domain-types'
+import type {
+  DashboardSummary, Mission, AttentionItem, WorkQueueItem, AutomationEvent, CycleSummary, WorkCycle,
+} from '@/lib/brain/domain-types'
 
 const MAX_ACTIVITY_ENTRIES = 200
 const STORAGE_KEY = 'pi_agent_goals'
 const MOOD_HISTORY_KEY = 'pi_mood_history'
-const BRAIN_POLL_ACTIVE_MS = 3_000 // Poll every 3s when brain is running
-const BRAIN_POLL_IDLE_MS = 10_000  // Poll every 10s when brain is idle/sleeping/not-running
+const BRAIN_POLL_ACTIVE_MS = 15_000 // Poll every 15s when stream is healthy
+const BRAIN_POLL_IDLE_MS = 45_000  // Poll every 45s when stream is healthy
 const MAX_MOOD_HISTORY = 100
 
 export interface BrainChatMessage {
@@ -21,6 +23,7 @@ export interface BrainChatMessage {
   message: string
   timestamp: string
   read: boolean
+  clientMessageId?: string
 }
 
 interface BrainApiResponse {
@@ -69,8 +72,66 @@ interface BrainApiResponse {
     promptEvolutions?: PromptEvolution[]
     achievements?: Achievement[]
     schedules?: BrainSchedule[]
+    currentMission?: Mission | null
+    currentCycle?: WorkCycle | null
+    workCycles?: WorkCycle[]
   }
   error?: string
+}
+
+interface BrainDeltaResponse {
+  status: 'running' | 'sleeping' | 'not-running' | 'error'
+  hasState: boolean
+  counts: {
+    activity: number
+    chat: number
+    goals: number
+  }
+  goals: Array<{
+    id: string
+    title: string
+    status: string
+    priority: string
+    reasoning?: string
+    tasks: Array<{ id: string; title: string; status: string; result?: string }>
+    createdAt: string
+  }>
+  mood: MoodState | null
+  latestActivity: {
+    id: string
+    time: string
+    type: string
+    message: string
+  } | null
+  latestChat: {
+    id: string
+    from: 'owner' | 'brain'
+    message: string
+    timestamp: string
+    read: boolean
+    clientMessageId?: string
+  } | null
+  currentMission: Mission | null
+  currentCycle: WorkCycle | null
+  recentCycles: WorkCycle[]
+  meta: {
+    totalThoughts: number
+    totalApiCost: number
+    totalToolCalls?: number
+    wakeIntervalMs: number
+    lastThought?: string
+    name?: string
+    birthTimestamp?: string
+    dreamCount?: number
+    consecutiveCrashes?: number
+    lastWakeAt?: string | null
+    smsCount?: number
+    smsTodayCount?: number
+    lastSmsAt?: string | null
+    personalityTraits?: string[]
+    lastDreamAt?: string | null
+    lastSelfEditAt?: string | null
+  }
 }
 
 interface BrainMood {
@@ -128,6 +189,7 @@ interface UseAgentStateReturn {
   promptOverrides: string
   promptEvolutions: PromptEvolution[]
   achievements: Achievement[]
+  workCycles: WorkCycle[]
 
   // Goal management
   addGoal: (goal: Omit<Goal, 'id' | 'createdAt'>) => string
@@ -235,6 +297,7 @@ export function useAgentState(): UseAgentStateReturn {
   const [promptOverrides, setPromptOverrides] = useState<string>('')
   const [promptEvolutions, setPromptEvolutions] = useState<PromptEvolution[]>([])
   const [achievements, setAchievements] = useState<Achievement[]>([])
+  const [workCycles, setWorkCycles] = useState<WorkCycle[]>([])
 
   const [lastFetchedAt, setLastFetchedAt] = useState<number | null>(null)
 
@@ -242,6 +305,12 @@ export function useAgentState(): UseAgentStateReturn {
   const brainActiveRef = useRef(false) // true when brain provides data
   const lastMoodTsRef = useRef(0)
   const pollFnRef = useRef<(() => void) | null>(null)
+  const streamConnectedRef = useRef(false)
+  const lastActivityIdRef = useRef<string | null>(null)
+  const lastChatIdRef = useRef<string | null>(null)
+  const activityCountRef = useRef(0)
+  const chatCountRef = useRef(0)
+  const goalsCountRef = useRef(0)
 
   // Persist goals to localStorage (only when brain is NOT providing them)
   useEffect(() => {
@@ -257,6 +326,226 @@ export function useAgentState(): UseAgentStateReturn {
 
   // ── Brain polling (adaptive frequency + visibility check) ───
   const brainStatusRef = useRef<BrainApiResponse['status']>('not-running')
+
+  const applyBrainData = useCallback((data: BrainApiResponse) => {
+    if (!mountedRef.current) return
+
+    setBrainStatus(data.status)
+    brainStatusRef.current = data.status
+    setLastFetchedAt(Date.now())
+
+    if (data.state && (data.status === 'running' || data.status === 'sleeping')) {
+      brainActiveRef.current = true
+
+      const mappedGoals: Goal[] = data.state.goals.map(g => ({
+        id: g.id,
+        title: g.title,
+        status: mapGoalStatus(g.status),
+        priority: (g.priority as Goal['priority']) || 'medium',
+        reasoning: g.reasoning,
+        tasks: g.tasks.map(t => ({
+          id: t.id,
+          title: t.title,
+          status: mapTaskStatus(t.status),
+          detail: t.result,
+        })),
+        createdAt: g.createdAt,
+      }))
+      setGoals(mappedGoals)
+
+      const mappedActivity: ActivityEntry[] = data.state.activityLog.slice(-50).map(e => ({
+        id: e.id,
+        time: new Date(e.time).toLocaleTimeString('en-AU', { hour: '2-digit', minute: '2-digit', hour12: false }),
+        message: e.message,
+        type: mapActivityType(e.type),
+      }))
+      setActivity(mappedActivity)
+      activityCountRef.current = data.state.activityLog.length
+      lastActivityIdRef.current = data.state.activityLog.at(-1)?.id ?? null
+
+      setAgentStatus(data.status === 'running' ? 'thinking' : 'idle')
+      setChatMessages(data.state.chatMessages || [])
+      chatCountRef.current = data.state.chatMessages?.length || 0
+      lastChatIdRef.current = data.state.chatMessages?.at(-1)?.id ?? null
+      goalsCountRef.current = data.state.goals.length
+
+      const currentMood = data.state.mood || null
+      setMood(currentMood)
+
+      if (currentMood) {
+        const now = Date.now()
+        if (now - lastMoodTsRef.current >= 3000) {
+          lastMoodTsRef.current = now
+          setMoodHistory(prev => {
+            const next = [...prev, { timestamp: now, mood: currentMood }]
+            const capped = next.length > MAX_MOOD_HISTORY ? next.slice(-MAX_MOOD_HISTORY) : next
+            saveMoodHistory(capped)
+            return capped
+          })
+        }
+      }
+
+      setBrainMeta({
+        totalThoughts: data.state.totalThoughts,
+        totalCost: data.state.totalApiCost,
+        wakeInterval: data.state.wakeIntervalMs,
+        lastThought: data.state.lastThought,
+        name: data.state.name,
+        birthTimestamp: data.state.birthTimestamp,
+        dreamCount: data.state.dreamCount,
+        consecutiveCrashes: data.state.consecutiveCrashes,
+        lastWakeAt: data.state.lastWakeAt,
+        smsCount: data.state.smsCount,
+        smsTodayCount: data.state.smsTodayCount,
+        lastSmsAt: data.state.lastSmsAt,
+        personalityTraits: data.state.personalityTraits,
+        lastDreamAt: data.state.lastDreamAt,
+        totalToolCalls: data.state.totalToolCalls,
+        lastSelfEditAt: data.state.lastSelfEditAt,
+      })
+
+      setMemories(data.state.memories || [])
+      setThreads(data.state.threads || [])
+      setGrowthLog(data.state.growthLog || [])
+      setCapabilities(data.state.capabilities || [])
+      setProjects(data.state.projects || [])
+      setPromptOverrides(data.state.promptOverrides || '')
+      setPromptEvolutions(data.state.promptEvolutions || [])
+      setAchievements(data.state.achievements || [])
+      setWorkCycles([
+        ...((data.state.workCycles || []).filter(Boolean)),
+        ...(data.state.currentCycle ? [data.state.currentCycle] : []),
+      ])
+    } else {
+      brainActiveRef.current = false
+      setBrainMeta(null)
+      setMood(null)
+      setChatMessages([])
+      setMemories([])
+      setThreads([])
+      setGrowthLog([])
+      setCapabilities([])
+      setProjects([])
+      setPromptOverrides('')
+      setPromptEvolutions([])
+      setAchievements([])
+      setWorkCycles([])
+      activityCountRef.current = 0
+      chatCountRef.current = 0
+      goalsCountRef.current = 0
+      lastActivityIdRef.current = null
+      lastChatIdRef.current = null
+    }
+  }, [])
+
+  const applyBrainDelta = useCallback((delta: BrainDeltaResponse) => {
+    if (!mountedRef.current) return
+
+    setBrainStatus(delta.status)
+    brainStatusRef.current = delta.status
+    setLastFetchedAt(Date.now())
+
+    if (!delta.hasState) {
+      brainActiveRef.current = false
+      setBrainMeta(null)
+      return
+    }
+
+    brainActiveRef.current = true
+
+    const mappedGoals: Goal[] = delta.goals.map(g => ({
+      id: g.id,
+      title: g.title,
+      status: mapGoalStatus(g.status),
+      priority: (g.priority as Goal['priority']) || 'medium',
+      reasoning: g.reasoning,
+      tasks: g.tasks.map(t => ({
+        id: t.id,
+        title: t.title,
+        status: mapTaskStatus(t.status),
+        detail: t.result,
+      })),
+      createdAt: g.createdAt,
+    }))
+    setGoals(mappedGoals)
+
+    const currentMood = delta.mood || null
+    setMood(currentMood)
+    if (currentMood) {
+      const now = Date.now()
+      if (now - lastMoodTsRef.current >= 3000) {
+        lastMoodTsRef.current = now
+        setMoodHistory(prev => {
+          const next = [...prev, { timestamp: now, mood: currentMood }]
+          const capped = next.length > MAX_MOOD_HISTORY ? next.slice(-MAX_MOOD_HISTORY) : next
+          saveMoodHistory(capped)
+          return capped
+        })
+      }
+    }
+
+    setBrainMeta(prev => ({
+      ...(prev || {}),
+      totalThoughts: delta.meta.totalThoughts,
+      totalCost: delta.meta.totalApiCost,
+      wakeInterval: delta.meta.wakeIntervalMs,
+      lastThought: delta.meta.lastThought,
+      name: delta.meta.name,
+      birthTimestamp: delta.meta.birthTimestamp,
+      dreamCount: delta.meta.dreamCount,
+      consecutiveCrashes: delta.meta.consecutiveCrashes,
+      lastWakeAt: delta.meta.lastWakeAt ?? undefined,
+      smsCount: delta.meta.smsCount,
+      smsTodayCount: delta.meta.smsTodayCount,
+      lastSmsAt: delta.meta.lastSmsAt,
+      personalityTraits: delta.meta.personalityTraits,
+      lastDreamAt: delta.meta.lastDreamAt,
+      totalToolCalls: delta.meta.totalToolCalls,
+      lastSelfEditAt: delta.meta.lastSelfEditAt,
+    }))
+
+    setAgentStatus(delta.status === 'running' ? 'thinking' : 'idle')
+    setWorkCycles([
+      ...((delta.recentCycles || []).filter(Boolean)),
+      ...(delta.currentCycle ? [delta.currentCycle] : []),
+    ])
+
+    if (delta.latestActivity && delta.latestActivity.id !== lastActivityIdRef.current) {
+      const mapped: ActivityEntry = {
+        id: delta.latestActivity.id,
+        time: new Date(delta.latestActivity.time).toLocaleTimeString('en-AU', { hour: '2-digit', minute: '2-digit', hour12: false }),
+        message: delta.latestActivity.message,
+        type: mapActivityType(delta.latestActivity.type),
+      }
+      lastActivityIdRef.current = delta.latestActivity.id
+      setActivity(prev => {
+        const withoutExisting = prev.filter(entry => entry.id !== mapped.id)
+        const next = [...withoutExisting, mapped]
+        return next.length > 50 ? next.slice(-50) : next
+      })
+    }
+
+    if (delta.latestChat && delta.latestChat.id !== lastChatIdRef.current) {
+      lastChatIdRef.current = delta.latestChat.id
+      setChatMessages(prev => {
+        const nextMessage: BrainChatMessage = {
+          id: delta.latestChat!.id,
+          from: delta.latestChat!.from,
+          message: delta.latestChat!.message,
+          timestamp: delta.latestChat!.timestamp,
+          read: delta.latestChat!.read,
+          clientMessageId: delta.latestChat!.clientMessageId,
+        }
+        const withoutExisting = prev.filter(message => message.id !== nextMessage.id)
+        const next = [...withoutExisting, nextMessage]
+        return next.length > 100 ? next.slice(-100) : next
+      })
+    }
+
+    activityCountRef.current = delta.counts.activity
+    chatCountRef.current = delta.counts.chat
+    goalsCountRef.current = delta.counts.goals
+  }, [])
 
   useEffect(() => {
     let timer: ReturnType<typeof setTimeout>
@@ -279,113 +568,7 @@ export function useAgentState(): UseAgentStateReturn {
           return
         }
         const data: BrainApiResponse = await res.json()
-        if (!mountedRef.current) return
-
-        setBrainStatus(data.status)
-        brainStatusRef.current = data.status
-        setLastFetchedAt(Date.now())
-
-        if (data.state && (data.status === 'running' || data.status === 'sleeping')) {
-          brainActiveRef.current = true
-
-          // Map brain goals → dashboard goals
-          const mappedGoals: Goal[] = data.state.goals.map(g => ({
-            id: g.id,
-            title: g.title,
-            status: mapGoalStatus(g.status),
-            priority: (g.priority as Goal['priority']) || 'medium',
-            reasoning: g.reasoning,
-            tasks: g.tasks.map(t => ({
-              id: t.id,
-              title: t.title,
-              status: mapTaskStatus(t.status),
-              detail: t.result,
-            })),
-            createdAt: g.createdAt,
-          }))
-          setGoals(mappedGoals)
-
-          // Map brain activity → dashboard activity (last 50)
-          const mappedActivity: ActivityEntry[] = data.state.activityLog.slice(-50).map(e => ({
-            id: e.id,
-            time: new Date(e.time).toLocaleTimeString('en-AU', { hour: '2-digit', minute: '2-digit', hour12: false }),
-            message: e.message,
-            type: mapActivityType(e.type),
-          }))
-          setActivity(mappedActivity)
-
-          // Derive agent status from brain
-          if (data.status === 'running') {
-            setAgentStatus('thinking')
-          } else {
-            setAgentStatus('idle')
-          }
-
-          // Chat messages
-          setChatMessages(data.state.chatMessages || [])
-
-          // Mood + mood history accumulation
-          const currentMood = data.state.mood || null
-          setMood(currentMood)
-
-          if (currentMood) {
-            const now = Date.now()
-            // Only append if at least 3s since last snapshot
-            if (now - lastMoodTsRef.current >= 3000) {
-              lastMoodTsRef.current = now
-              setMoodHistory(prev => {
-                const next = [...prev, { timestamp: now, mood: currentMood }]
-                const capped = next.length > MAX_MOOD_HISTORY ? next.slice(-MAX_MOOD_HISTORY) : next
-                saveMoodHistory(capped)
-                return capped
-              })
-            }
-          }
-
-          // Store brain metadata (expanded)
-          setBrainMeta({
-            totalThoughts: data.state.totalThoughts,
-            totalCost: data.state.totalApiCost,
-            wakeInterval: data.state.wakeIntervalMs,
-            lastThought: data.state.lastThought,
-            name: data.state.name,
-            birthTimestamp: data.state.birthTimestamp,
-            dreamCount: data.state.dreamCount,
-            consecutiveCrashes: data.state.consecutiveCrashes,
-            lastWakeAt: data.state.lastWakeAt,
-            // New meta fields
-            smsCount: data.state.smsCount,
-            smsTodayCount: data.state.smsTodayCount,
-            lastSmsAt: data.state.lastSmsAt,
-            personalityTraits: data.state.personalityTraits,
-            lastDreamAt: data.state.lastDreamAt,
-            totalToolCalls: data.state.totalToolCalls,
-            lastSelfEditAt: data.state.lastSelfEditAt,
-          })
-
-          // Extract hidden brain data
-          setMemories(data.state.memories || [])
-          setThreads(data.state.threads || [])
-          setGrowthLog(data.state.growthLog || [])
-          setCapabilities(data.state.capabilities || [])
-          setProjects(data.state.projects || [])
-          setPromptOverrides(data.state.promptOverrides || '')
-          setPromptEvolutions(data.state.promptEvolutions || [])
-          setAchievements(data.state.achievements || [])
-        } else {
-          brainActiveRef.current = false
-          setBrainMeta(null)
-          setMood(null)
-          setChatMessages([])
-          setMemories([])
-          setThreads([])
-          setGrowthLog([])
-          setCapabilities([])
-          setProjects([])
-          setPromptOverrides('')
-          setPromptEvolutions([])
-          setAchievements([])
-        }
+        applyBrainData(data)
       } catch {
         // Brain API not available — use localStorage fallback
         brainActiveRef.current = false
@@ -399,7 +582,9 @@ export function useAgentState(): UseAgentStateReturn {
 
     function schedulePoll() {
       if (!mountedRef.current) return
-      const interval = brainStatusRef.current === 'running' ? BRAIN_POLL_ACTIVE_MS : BRAIN_POLL_IDLE_MS
+      const interval = streamConnectedRef.current
+        ? (brainStatusRef.current === 'running' ? BRAIN_POLL_ACTIVE_MS : BRAIN_POLL_IDLE_MS)
+        : (brainStatusRef.current === 'running' ? 5_000 : 12_000)
       timer = setTimeout(pollBrain, interval)
     }
 
@@ -423,7 +608,80 @@ export function useAgentState(): UseAgentStateReturn {
       clearTimeout(timer)
       document.removeEventListener('visibilitychange', handleVisibility)
     }
-  }, [])
+  }, [applyBrainData])
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+
+    let eventSource: EventSource | null = null
+    let reconnectTimer: ReturnType<typeof setTimeout> | null = null
+
+    const connect = () => {
+      if (document.hidden || eventSource) return
+      eventSource = new EventSource('/api/brain/stream')
+
+      eventSource.addEventListener('brain-state', (event) => {
+        streamConnectedRef.current = true
+        try {
+          const data = JSON.parse((event as MessageEvent<string>).data) as BrainApiResponse
+          applyBrainData(data)
+        } catch {
+          // ignore malformed events and let polling reconcile
+        }
+      })
+
+      eventSource.addEventListener('brain-delta', (event) => {
+        streamConnectedRef.current = true
+        try {
+          const data = JSON.parse((event as MessageEvent<string>).data) as BrainDeltaResponse
+          applyBrainDelta(data)
+        } catch {
+          pollFnRef.current?.()
+        }
+      })
+
+      eventSource.addEventListener('brain-error', () => {
+        streamConnectedRef.current = false
+      })
+
+      eventSource.onerror = () => {
+        streamConnectedRef.current = false
+        eventSource?.close()
+        eventSource = null
+        if (!document.hidden && reconnectTimer === null) {
+          reconnectTimer = setTimeout(() => {
+            reconnectTimer = null
+            connect()
+          }, 5_000)
+        }
+      }
+    }
+
+    const disconnect = () => {
+      streamConnectedRef.current = false
+      if (reconnectTimer) {
+        clearTimeout(reconnectTimer)
+        reconnectTimer = null
+      }
+      eventSource?.close()
+      eventSource = null
+    }
+
+    const handleVisibility = () => {
+      if (document.hidden) {
+        disconnect()
+      } else if (!eventSource) {
+        connect()
+      }
+    }
+
+    connect()
+    document.addEventListener('visibilitychange', handleVisibility)
+    return () => {
+      disconnect()
+      document.removeEventListener('visibilitychange', handleVisibility)
+    }
+  }, [applyBrainData, applyBrainDelta])
 
   // ── Goal management ────────────────────────────────────────
 
@@ -565,14 +823,19 @@ export function useAgentState(): UseAgentStateReturn {
 
   // ── Derived DashboardSummary ───────────────────────────────
   const summary = useMemo((): DashboardSummary => {
-    // Current mission — map highest-priority active goal to a Mission
+    const persistedRecentCycles = [...workCycles].reverse()
+    const liveCycle = persistedRecentCycles.find(cycle => !cycle.completedAt) || null
+    const completedCycles = persistedRecentCycles.filter(cycle => cycle.completedAt)
+    const persistedMission = liveCycle?.mission ?? null
+
+    // Current mission — prefer persisted cycle/mission data, then fall back to goals
     const activeGoals = goals.filter(g => g.status === 'active')
     const topGoal = activeGoals.sort((a, b) => {
       const p = { high: 3, medium: 2, low: 1 }
       return (p[b.priority] || 0) - (p[a.priority] || 0)
     })[0]
 
-    const currentMission: Mission | null = topGoal ? {
+    const fallbackMission: Mission | null = topGoal ? {
       id: topGoal.id,
       type: inferMissionType(topGoal.title),
       title: topGoal.title,
@@ -581,15 +844,94 @@ export function useAgentState(): UseAgentStateReturn {
       startedAt: topGoal.createdAt,
       status: 'active',
     } : null
+    const currentMission: Mission | null = persistedMission || fallbackMission
 
-    // Now doing — latest activity entry or last thought
-    const nowDoing = activity.length > 0
+    // Now doing — prefer explicit cycle action, then latest activity entry, then last thought
+    const latestActivity = activity.length > 0 ? activity[activity.length - 1] : null
+    const currentAction = liveCycle?.actions.at(-1) || null
+    const nowDoing = currentAction
+      || (activity.length > 0
       ? activity[activity.length - 1].message
       : brainMeta?.lastThought || 'Idle'
+      )
+
+    const cyclePhase = inferCyclePhase(brainStatus, latestActivity?.type)
 
     // Next up
     const nextGoal = activeGoals[1]
     const nextUp = nextGoal ? nextGoal.title : null
+    const autonomyReason = currentMission?.rationale || inferAutonomyReason(latestActivity, cyclePhase)
+
+    const workQueue: WorkQueueItem[] = []
+    if (currentMission) {
+      workQueue.push({ id: `${currentMission.id}-now`, label: currentMission.title, status: 'now' })
+    }
+    const runningTask = topGoal?.tasks.find(task => task.status === 'running')
+    if (runningTask) {
+      workQueue.push({ id: `${topGoal?.id}-task`, label: runningTask.title, status: 'next' })
+    }
+    const queuedGoals = goals
+      .filter(goal => goal.id !== topGoal?.id && (goal.status === 'active' || goal.status === 'pending' || goal.status === 'paused'))
+      .slice(0, 3)
+    workQueue.push(
+      ...queuedGoals.map((goal, index) => ({
+        id: `${goal.id}-${index}`,
+        label: goal.title,
+        status: goal.tasks.some(task => task.status === 'failed')
+          ? 'blocked' as const
+          : (index === 0 && !runningTask ? 'next' as const : 'queued' as const),
+      }))
+    )
+
+    const backgroundEvents: AutomationEvent[] = liveCycle
+      ? liveCycle.actions.slice(-6).reverse().map((label, index) => ({
+          id: `${liveCycle.id}-${index}`,
+          label,
+          at: liveCycle.startedAt,
+          tone: index === 0 ? 'action' : 'thinking',
+        }))
+      : activity
+          .slice(-6)
+          .map(entry => ({
+            id: entry.id,
+            label: entry.message,
+            at: entry.time,
+            tone: (
+              entry.type === 'error'
+                ? 'warning'
+                : entry.type === 'decision'
+                  ? 'thinking'
+                  : entry.type === 'success'
+                    ? 'result'
+                    : 'action'
+            ) as AutomationEvent['tone'],
+          }))
+          .reverse()
+
+    const lastCycle: CycleSummary | null = completedCycles[0]
+      ? {
+          id: completedCycles[0].id,
+          title: completedCycles[0].mission?.title || 'Autonomous cycle',
+          outcome: completedCycles[0].outcome,
+          nextStep: nextUp,
+        }
+      : latestActivity
+        ? {
+            id: latestActivity.id,
+            title: currentMission?.title || 'Autonomous cycle',
+            outcome: latestActivity.message,
+            nextStep: nextUp,
+          }
+        : null
+
+    const recentCycles: CycleSummary[] = completedCycles
+      .slice(0, 4)
+      .map(cycle => ({
+        id: cycle.id,
+        title: cycle.mission?.title || 'Autonomous cycle',
+        outcome: cycle.outcome,
+        nextStep: cycle.mission?.progressLabel || null,
+      }))
 
     // Attention needed
     const attentionNeeded: AttentionItem[] = []
@@ -611,20 +953,27 @@ export function useAgentState(): UseAgentStateReturn {
     }
 
     // Portfolio — placeholder until real business data flows in
-    const portfolioValue = 0
+    const portfolioValue = null
     const portfolioTarget = 1_000_000
 
     return {
       nowDoing,
+      cyclePhase,
       currentMission,
+      autonomyReason,
       nextUp,
+      lastEventLabel: latestActivity?.message || null,
+      workQueue,
+      backgroundEvents,
+      lastCycle,
+      recentCycles,
       attentionNeeded,
       topBusiness: null,
       topOpportunity: null,
       portfolioValue,
       portfolioTarget,
     }
-  }, [goals, activity, brainMeta, brainStatus])
+  }, [goals, activity, brainMeta, brainStatus, workCycles])
 
   return {
     goals,
@@ -643,6 +992,7 @@ export function useAgentState(): UseAgentStateReturn {
     promptOverrides,
     promptEvolutions,
     achievements,
+    workCycles,
     summary,
     addGoal,
     updateGoal,
@@ -681,6 +1031,31 @@ function inferMissionType(title: string): Mission['type'] {
   if (t.includes('explore') || t.includes('research') || t.includes('investigate') || t.includes('find')) return 'explore'
   if (t.includes('improve') || t.includes('refactor') || t.includes('optimize') || t.includes('learn')) return 'self-improve'
   return 'maintain'
+}
+
+function inferCyclePhase(
+  brainStatus: UseAgentStateReturn['brainStatus'],
+  latestActivityType?: ActivityEntry['type']
+): DashboardSummary['cyclePhase'] {
+  if (brainStatus === 'sleeping') return 'sleeping'
+  if (brainStatus === 'not-running') return 'offline'
+  if (brainStatus === 'error') return 'error'
+  if (latestActivityType === 'action' || latestActivityType === 'system' || latestActivityType === 'success') return 'executing'
+  if (latestActivityType === 'decision') return 'planning'
+  return 'idle'
+}
+
+function inferAutonomyReason(
+  latestActivity: ActivityEntry | null,
+  cyclePhase: DashboardSummary['cyclePhase']
+): string {
+  if (cyclePhase === 'sleeping') return 'The current cycle completed and the brain is waiting for its next wake interval.'
+  if (cyclePhase === 'responding') return 'A direct owner interaction is taking priority over background work.'
+  if (cyclePhase === 'executing') return latestActivity?.message || 'A high-priority action is currently running.'
+  if (cyclePhase === 'planning') return 'Pi-Chi is reviewing recent events and deciding the next best move.'
+  if (cyclePhase === 'error') return 'The brain hit an error path and needs recovery.'
+  if (cyclePhase === 'offline') return 'The background brain process is not currently running.'
+  return 'Pi-Chi is idle but monitoring for the next meaningful task.'
 }
 
 function getToolSummary(invocation: ToolInvocation): string {

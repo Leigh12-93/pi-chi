@@ -1,10 +1,10 @@
 'use client'
 
-import { useState, useRef, useEffect, useCallback, useMemo } from 'react'
+import { memo, useDeferredValue, useState, useRef, useEffect, useCallback, useMemo } from 'react'
 import {
   Send, MessageCircle, Bot, Check, CheckCheck,
   Sparkles, Wifi, WifiOff, ArrowDown, Wrench, Search, X,
-  AlertCircle, RotateCcw, ChevronDown,
+  AlertCircle, RotateCcw, ChevronDown, Activity, HeartPulse, Terminal, Target,
 } from 'lucide-react'
 import { motion, AnimatePresence, useReducedMotion } from 'framer-motion'
 import { cn } from '@/lib/utils'
@@ -101,7 +101,7 @@ const messageVariants = {
   },
 }
 
-function MessageBubble({ msg, name, isStreaming, searchQuery }: {
+const MessageBubble = memo(function MessageBubble({ msg, name, isStreaming, searchQuery }: {
   msg: BrainChatMessage; name: string; isStreaming?: boolean; searchQuery?: string
 }) {
   const isOwner = msg.from === 'owner'
@@ -210,7 +210,7 @@ function MessageBubble({ msg, name, isStreaming, searchQuery }: {
       )}
     </motion.div>
   )
-}
+})
 
 /* ─── Tool call indicator with real names ────────── */
 
@@ -226,6 +226,29 @@ function ToolCallIndicator({ toolName, result }: { toolName: string; result?: st
     set_wake_interval: 'Changing wake interval',
     get_system_info: 'Checking system',
   }
+  const iconMap: Record<string, React.ElementType> = {
+    add_goal: Target,
+    complete_goal: Target,
+    remove_goal: Target,
+    list_goals: Target,
+    update_mood: HeartPulse,
+    run_command: Terminal,
+    set_wake_interval: Activity,
+    get_system_info: Activity,
+  }
+  const toneMap: Record<string, string> = {
+    add_goal: result ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-400' : 'bg-pi-accent/10 border-pi-accent/20 text-pi-accent',
+    complete_goal: result ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-400' : 'bg-pi-accent/10 border-pi-accent/20 text-pi-accent',
+    remove_goal: result ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-400' : 'bg-pi-accent/10 border-pi-accent/20 text-pi-accent',
+    list_goals: result ? 'bg-cyan-500/10 border-cyan-500/20 text-cyan-400' : 'bg-cyan-500/10 border-cyan-500/20 text-cyan-400',
+    update_mood: result ? 'bg-pink-500/10 border-pink-500/20 text-pink-400' : 'bg-pink-500/10 border-pink-500/20 text-pink-400',
+    run_command: result ? 'bg-amber-500/10 border-amber-500/20 text-amber-300' : 'bg-amber-500/10 border-amber-500/20 text-amber-300',
+    set_wake_interval: result ? 'bg-violet-500/10 border-violet-500/20 text-violet-300' : 'bg-violet-500/10 border-violet-500/20 text-violet-300',
+    get_system_info: result ? 'bg-slate-500/10 border-slate-500/20 text-slate-300' : 'bg-slate-500/10 border-slate-500/20 text-slate-300',
+  }
+  const Icon = iconMap[toolName] || Wrench
+  const toneClass = toneMap[toolName] || (result ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-400' : 'bg-pi-accent/10 border-pi-accent/20 text-pi-accent')
+
   return (
     <motion.div
       initial={{ opacity: 0, height: 0 }}
@@ -236,20 +259,23 @@ function ToolCallIndicator({ toolName, result }: { toolName: string; result?: st
       <button
         onClick={() => result && setExpanded(e => !e)}
         className={cn(
-          'flex items-center gap-1.5 px-2.5 py-1 rounded-full border transition-all',
-          result
-            ? 'bg-emerald-500/10 border-emerald-500/20 hover:bg-emerald-500/15 cursor-pointer'
-            : 'bg-pi-accent/10 border-pi-accent/20'
+          'flex w-full items-center gap-2 rounded-2xl border px-3 py-2 text-left transition-all',
+          toneClass,
+          result && 'hover:brightness-110 cursor-pointer'
         )}
       >
-        <Wrench className={cn(
-          'w-3 h-3',
-          result ? 'text-emerald-500' : 'text-pi-accent animate-spin'
-        )} style={result ? undefined : { animationDuration: '2s' }} />
-        <span className={cn('text-[10px] font-medium', result ? 'text-emerald-500' : 'text-pi-accent')}>
-          {labels[toolName] || toolName}
-        </span>
-        {result && <ChevronDown className={cn('w-2.5 h-2.5 text-emerald-500 transition-transform', expanded && 'rotate-180')} />}
+        <div className="rounded-xl bg-black/10 p-1.5">
+          <Icon className={cn('w-3.5 h-3.5', !result && 'animate-spin')} style={result ? undefined : { animationDuration: '2.2s' }} />
+        </div>
+        <div className="min-w-0 flex-1">
+          <div className="text-[10px] font-semibold uppercase tracking-[0.14em] opacity-80">
+            {result ? 'Completed action' : 'Running action'}
+          </div>
+          <div className="truncate text-[11px] font-medium">
+            {labels[toolName] || toolName}
+          </div>
+        </div>
+        {result && <ChevronDown className={cn('w-3 h-3 transition-transform', expanded && 'rotate-180')} />}
       </button>
       {expanded && result && (
         <motion.div
@@ -265,6 +291,36 @@ function ToolCallIndicator({ toolName, result }: { toolName: string; result?: st
   )
 }
 
+function StreamPhaseChip({
+  phase,
+  detail,
+}: {
+  phase: 'idle' | 'thinking' | 'acting' | 'streaming'
+  detail?: string
+}) {
+  const tone = {
+    idle: 'text-pi-text-dim bg-pi-surface/50 border-pi-border',
+    thinking: 'text-cyan-400 bg-cyan-500/10 border-cyan-500/20',
+    acting: 'text-emerald-400 bg-emerald-500/10 border-emerald-500/20',
+    streaming: 'text-pi-accent bg-pi-accent/10 border-pi-accent/20',
+  }[phase]
+
+  return (
+    <div className={cn('flex items-center gap-2 border-b border-pi-border/50 px-3 py-2 text-[10px]', tone)}>
+      <Activity className="h-3 w-3" />
+      <span className="font-semibold uppercase tracking-wide">{phase}</span>
+      {detail && <span className="truncate text-pi-text-dim">{detail}</span>}
+    </div>
+  )
+}
+
+type TimelineItem =
+  | { id: string; type: 'date'; date: string; timestamp: string }
+  | { id: string; type: 'message'; message: BrainChatMessage; streaming?: boolean }
+  | { id: string; type: 'tool-active'; toolName: string; timestamp: string }
+  | { id: string; type: 'tool-result'; toolName: string; result: string; timestamp: string }
+  | { id: string; type: 'typing'; timestamp: string }
+
 /* ─── Main component ───────────────────────────── */
 
 export function BrainChat({
@@ -279,6 +335,7 @@ export function BrainChat({
   const [errorMsg, setErrorMsg] = useState<string | null>(null)
   const [localMessages, setLocalMessages] = useState<BrainChatMessage[]>([])
   const [completedStreamText, setCompletedStreamText] = useState<string | null>(null)
+  const [queuedLiveUpdates, setQueuedLiveUpdates] = useState(0)
   const scrollRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLTextAreaElement>(null)
   const searchInputRef = useRef<HTMLInputElement>(null)
@@ -298,24 +355,39 @@ export function BrainChat({
 
   const name = brainName || 'Pi-Chi'
   const unreadCount = chatMessages.filter(m => m.from === 'brain' && !m.read).length
+  const deferredSearchQuery = useDeferredValue(searchDebounced)
 
   // Merge optimistic local messages with polled messages
   const mergedMessages = useMemo(() => {
-    // Remove local messages that have been confirmed by polling
-    const polledIds = new Set(chatMessages.map(m => m.id))
-    const pending = localMessages.filter(m => !polledIds.has(m.id))
-    // Check if the message text appeared in polled messages (dedup by content)
-    const polledTexts = new Set(chatMessages.map(m => m.message))
-    const reallyPending = pending.filter(m => !polledTexts.has(m.message))
-    return [...chatMessages, ...reallyPending]
+    const confirmedClientIds = new Set(
+      chatMessages
+        .map(m => m.clientMessageId)
+        .filter((id): id is string => Boolean(id))
+    )
+    const pending = localMessages.filter(m =>
+      !(m.clientMessageId && confirmedClientIds.has(m.clientMessageId))
+    )
+    return [...chatMessages, ...pending]
   }, [chatMessages, localMessages])
+
+  useEffect(() => {
+    const confirmedClientIds = new Set(
+      chatMessages
+        .map(m => m.clientMessageId)
+        .filter((id): id is string => Boolean(id))
+    )
+    if (confirmedClientIds.size === 0) return
+    setLocalMessages(prev =>
+      prev.filter(m => !(m.clientMessageId && confirmedClientIds.has(m.clientMessageId)))
+    )
+  }, [chatMessages])
 
   // Filter messages by search
   const displayMessages = useMemo(() => {
-    if (!searchDebounced) return mergedMessages
-    const q = searchDebounced.toLowerCase()
+    if (!deferredSearchQuery) return mergedMessages
+    const q = deferredSearchQuery.toLowerCase()
     return mergedMessages.filter(m => m.message.toLowerCase().includes(q))
-  }, [mergedMessages, searchDebounced])
+  }, [mergedMessages, deferredSearchQuery])
 
   // Keep completedStreamText visible until polled message arrives (streaming gap fix)
   useEffect(() => {
@@ -351,13 +423,23 @@ export function BrainChat({
 
   // Auto-scroll on new messages or streaming text
   useEffect(() => {
-    if ((mergedMessages.length > prevLenRef.current || stream.isStreaming) && scrollRef.current && isAtBottomRef.current) {
+    const hasNewMessages = mergedMessages.length > prevLenRef.current
+    if (hasNewMessages && !isAtBottomRef.current) {
+      setQueuedLiveUpdates(prev => prev + (mergedMessages.length - prevLenRef.current))
+    }
+    if ((hasNewMessages || stream.isStreaming) && scrollRef.current && isAtBottomRef.current) {
       requestAnimationFrame(() => {
         scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: 'smooth' })
       })
     }
     prevLenRef.current = mergedMessages.length
   }, [mergedMessages.length, stream.streamingText, stream.isStreaming])
+
+  useEffect(() => {
+    if (!isAtBottomRef.current && stream.toolResults.length > 0) {
+      setQueuedLiveUpdates(prev => prev + 1)
+    }
+  }, [stream.toolResults.length])
 
   // Scroll tracking
   const handleScroll = useCallback(() => {
@@ -366,6 +448,7 @@ export function BrainChat({
     const atBottom = scrollHeight - scrollTop - clientHeight < 60
     isAtBottomRef.current = atBottom
     setShowScrollBtn(!atBottom && mergedMessages.length > 5)
+    if (atBottom) setQueuedLiveUpdates(0)
   }, [mergedMessages.length])
 
   // Mark brain messages as read
@@ -375,6 +458,7 @@ export function BrainChat({
 
   const scrollToBottom = useCallback(() => {
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: 'smooth' })
+    setQueuedLiveUpdates(0)
   }, [])
 
   const handleSend = useCallback(async () => {
@@ -389,6 +473,7 @@ export function BrainChat({
     // Optimistic user message
     const optimisticMsg: BrainChatMessage = {
       id: `local-${Date.now()}`,
+      clientMessageId: `client-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
       from: 'owner',
       message: msg,
       timestamp: new Date().toISOString(),
@@ -397,7 +482,7 @@ export function BrainChat({
     setLocalMessages(prev => [...prev, optimisticMsg])
 
     // Stream response
-    await stream.send(msg)
+    await stream.send(msg, optimisticMsg.clientMessageId)
 
     inputRef.current?.focus()
     requestAnimationFrame(() => scrollToBottom())
@@ -409,21 +494,6 @@ export function BrainChat({
       handleSend()
     }
   }, [handleSend])
-
-  // Group messages by date
-  const groupedMessages = useMemo(() => {
-    const groups: { date: string; messages: BrainChatMessage[] }[] = []
-    let currentDate = ''
-    for (const msg of displayMessages) {
-      const date = formatDate(msg.timestamp)
-      if (date !== currentDate) {
-        currentDate = date
-        groups.push({ date, messages: [] })
-      }
-      groups[groups.length - 1].messages.push(msg)
-    }
-    return groups
-  }, [displayMessages])
 
   // Create streaming message to show
   const streamingMessage: BrainChatMessage | null = stream.isStreaming && stream.streamingText ? {
@@ -451,6 +521,100 @@ export function BrainChat({
       return !s
     })
   }, [])
+
+  const streamPhase = useMemo<'idle' | 'thinking' | 'acting' | 'streaming'>(() => {
+    if (stream.activeToolCall) return 'acting'
+    if (stream.isStreaming && stream.streamingText) return 'streaming'
+    if (stream.isStreaming) return 'thinking'
+    return 'idle'
+  }, [stream.activeToolCall, stream.isStreaming, stream.streamingText])
+
+  const streamPhaseDetail = stream.activeToolCall
+    ? `Using ${stream.activeToolCall.toolName}`
+    : stream.toolResults.length > 0
+      ? `${stream.toolResults.length} action${stream.toolResults.length > 1 ? 's' : ''} completed`
+      : stream.isStreaming
+        ? 'Generating live response'
+        : brainStatus === 'running'
+          ? 'Ready for the next instruction'
+          : undefined
+
+  const timelineItems = useMemo<TimelineItem[]>(() => {
+    const items: TimelineItem[] = []
+
+    for (const msg of displayMessages) {
+      items.push({
+        id: `msg-${msg.id}`,
+        type: 'message',
+        message: msg,
+      })
+    }
+
+    for (const result of stream.toolResults) {
+      items.push({
+        id: `tool-result-${result.toolCallId}`,
+        type: 'tool-result',
+        toolName: result.toolName,
+        result: result.result,
+        timestamp: result.occurredAt,
+      })
+    }
+
+    if (stream.activeToolCall) {
+      items.push({
+        id: `tool-active-${stream.activeToolCall.toolCallId}`,
+        type: 'tool-active',
+        toolName: stream.activeToolCall.toolName,
+        timestamp: stream.activeToolCall.occurredAt,
+      })
+    }
+
+    if (streamingMessage) {
+      items.push({
+        id: 'streaming-message',
+        type: 'message',
+        message: streamingMessage,
+        streaming: true,
+      })
+    } else if (gapMessage) {
+      items.push({
+        id: 'gap-message',
+        type: 'message',
+        message: gapMessage,
+      })
+    } else if (stream.isStreaming && !stream.activeToolCall) {
+      items.push({
+        id: 'typing-indicator',
+        type: 'typing',
+        timestamp: new Date().toISOString(),
+      })
+    }
+
+    items.sort((a, b) => {
+      const aTs = a.type === 'message' ? a.message.timestamp : a.timestamp
+      const bTs = b.type === 'message' ? b.message.timestamp : b.timestamp
+      return new Date(aTs).getTime() - new Date(bTs).getTime()
+    })
+
+    const withDates: TimelineItem[] = []
+    let currentDate = ''
+    for (const item of items) {
+      const ts = item.type === 'message' ? item.message.timestamp : item.timestamp
+      const date = formatDate(ts)
+      if (date !== currentDate) {
+        currentDate = date
+        withDates.push({
+          id: `date-${date}-${ts}`,
+          type: 'date',
+          date,
+          timestamp: ts,
+        })
+      }
+      withDates.push(item)
+    }
+
+    return withDates
+  }, [displayMessages, gapMessage, stream.activeToolCall, stream.isStreaming, stream.toolResults, streamingMessage])
 
   return (
     <div className={cn('h-full flex flex-col relative', className)}>
@@ -512,6 +676,18 @@ export function BrainChat({
             {showSearch ? <X className="w-3.5 h-3.5" /> : <Search className="w-3.5 h-3.5" />}
           </button>
           <AnimatePresence>
+            {stream.isStreaming && (
+              <motion.span
+                initial={{ opacity: 0, y: -4 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -4 }}
+                className="hidden sm:inline-flex items-center rounded-full border border-pi-accent/20 bg-pi-accent/10 px-2 py-1 text-[9px] font-semibold uppercase tracking-[0.14em] text-pi-accent"
+              >
+                Live stream
+              </motion.span>
+            )}
+          </AnimatePresence>
+          <AnimatePresence>
             {unreadCount > 0 && (
               <motion.span
                 initial={{ scale: 0 }}
@@ -526,6 +702,8 @@ export function BrainChat({
           </AnimatePresence>
         </div>
       </div>
+
+      <StreamPhaseChip phase={streamPhase} detail={streamPhaseDetail} />
 
       {/* Search bar */}
       <AnimatePresence>
@@ -548,7 +726,7 @@ export function BrainChat({
                   className="w-full bg-pi-surface border border-pi-border rounded-lg pl-7 pr-3 py-1.5 text-[11px] text-pi-text placeholder:text-pi-text-dim/40 focus:outline-none focus:ring-1 focus:ring-pi-accent/50"
                 />
               </div>
-              {searchDebounced && (
+              {deferredSearchQuery && (
                 <p className="text-[9px] text-pi-text-dim mt-1">
                   {displayMessages.length} of {mergedMessages.length} messages
                 </p>
@@ -578,14 +756,14 @@ export function BrainChat({
               <MessageCircle className="w-12 h-12 mb-4 opacity-15" />
             </motion.div>
             <p className="text-sm font-semibold text-pi-text">
-              {searchDebounced ? 'No matching messages' : `Chat with ${name}`}
+              {deferredSearchQuery ? 'No matching messages' : `Chat with ${name}`}
             </p>
             <p className="text-[11px] mt-1.5 text-center max-w-[240px] leading-relaxed">
-              {searchDebounced
+              {deferredSearchQuery
                 ? 'Try a different search term.'
                 : `Send a message and ${name} will respond instantly.`}
             </p>
-            {!searchDebounced && (
+            {!deferredSearchQuery && (
               <motion.div
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
@@ -609,55 +787,47 @@ export function BrainChat({
           </motion.div>
         ) : (
           <>
-            {groupedMessages.map(group => (
-              <div key={group.date}>
-                <motion.div
-                  initial={{ opacity: 0, scaleX: 0.5 }}
-                  animate={{ opacity: 1, scaleX: 1 }}
-                  className="flex items-center gap-3 my-4"
-                >
-                  <div className="flex-1 h-px bg-gradient-to-r from-transparent via-pi-border to-transparent" />
-                  <span className="text-[10px] text-pi-text-dim/60 font-medium px-2 bg-pi-bg rounded-full border border-pi-border/50 py-0.5">
-                    {group.date}
-                  </span>
-                  <div className="flex-1 h-px bg-gradient-to-l from-transparent via-pi-border to-transparent" />
-                </motion.div>
+            <AnimatePresence mode="popLayout">
+              {timelineItems.map(item => {
+                if (item.type === 'date') {
+                  return (
+                    <motion.div
+                      key={item.id}
+                      initial={{ opacity: 0, scaleX: 0.5 }}
+                      animate={{ opacity: 1, scaleX: 1 }}
+                      className="flex items-center gap-3 my-4"
+                    >
+                      <div className="flex-1 h-px bg-gradient-to-r from-transparent via-pi-border to-transparent" />
+                      <span className="text-[10px] text-pi-text-dim/60 font-medium px-2 bg-pi-bg rounded-full border border-pi-border/50 py-0.5">
+                        {item.date}
+                      </span>
+                      <div className="flex-1 h-px bg-gradient-to-l from-transparent via-pi-border to-transparent" />
+                    </motion.div>
+                  )
+                }
 
-                <AnimatePresence mode="popLayout">
-                  {group.messages.map(msg => (
-                    <MessageBubble key={msg.id} msg={msg} name={name} searchQuery={searchDebounced} />
-                  ))}
-                </AnimatePresence>
-              </div>
-            ))}
+                if (item.type === 'message') {
+                  return (
+                    <MessageBubble
+                      key={item.id}
+                      msg={item.message}
+                      name={name}
+                      isStreaming={item.streaming}
+                      searchQuery={deferredSearchQuery}
+                    />
+                  )
+                }
 
-            {/* Tool call indicators from data stream */}
-            <AnimatePresence>
-              {stream.activeToolCall && (
-                <ToolCallIndicator toolName={stream.activeToolCall.toolName} />
-              )}
-            </AnimatePresence>
+                if (item.type === 'tool-active') {
+                  return <ToolCallIndicator key={item.id} toolName={item.toolName} />
+                }
 
-            {/* Completed tool results */}
-            {stream.toolResults.map(tr => (
-              <ToolCallIndicator key={tr.toolCallId} toolName={tr.toolName} result={tr.result} />
-            ))}
+                if (item.type === 'tool-result') {
+                  return <ToolCallIndicator key={item.id} toolName={item.toolName} result={item.result} />
+                }
 
-            {/* Streaming message */}
-            <AnimatePresence>
-              {streamingMessage && (
-                <MessageBubble msg={streamingMessage} name={name} isStreaming />
-              )}
-            </AnimatePresence>
-
-            {/* Gap bridge message (completed stream waiting for poll) */}
-            {gapMessage && !streamingMessage && (
-              <MessageBubble msg={gapMessage} name={name} />
-            )}
-
-            {/* Typing indicator (before first text arrives) */}
-            <AnimatePresence>
-              {stream.isStreaming && !stream.streamingText && !stream.activeToolCall && <TypingIndicator />}
+                return <TypingIndicator key={item.id} />
+              })}
             </AnimatePresence>
           </>
         )}
@@ -674,12 +844,14 @@ export function BrainChat({
           >
             <AlertCircle className="w-3.5 h-3.5 text-red-400 shrink-0" />
             <p className="text-[11px] text-red-400 flex-1 truncate">{errorMsg}</p>
-            <button
-              onClick={() => { setErrorMsg(null); stream.retry() }}
-              className="flex items-center gap-1 px-2 py-1 rounded-lg text-[10px] font-medium text-red-400 hover:bg-red-500/10 transition-all"
-            >
-              <RotateCcw className="w-3 h-3" /> Retry
-            </button>
+            {stream.canRetry && (
+              <button
+                onClick={() => { setErrorMsg(null); stream.retry() }}
+                className="flex items-center gap-1 px-2 py-1 rounded-lg text-[10px] font-medium text-red-400 hover:bg-red-500/10 transition-all"
+              >
+                <RotateCcw className="w-3 h-3" /> Retry
+              </button>
+            )}
             <button
               onClick={() => setErrorMsg(null)}
               className="p-1 rounded-lg text-red-400/50 hover:text-red-400 transition-all"
@@ -699,15 +871,32 @@ export function BrainChat({
             exit={{ opacity: 0, scale: 0, y: 10 }}
             transition={{ type: 'spring', stiffness: 500, damping: 30 }}
             onClick={scrollToBottom}
-            className="absolute bottom-20 right-4 w-8 h-8 rounded-full bg-pi-surface border border-pi-border shadow-lg flex items-center justify-center hover:bg-pi-accent hover:text-white hover:border-pi-accent transition-all z-10"
+            className="absolute bottom-20 right-4 flex min-h-8 items-center gap-1 rounded-full bg-pi-surface/95 px-2.5 py-1.5 border border-pi-border shadow-lg backdrop-blur-sm hover:bg-pi-accent hover:text-white hover:border-pi-accent transition-all z-10"
           >
             <ArrowDown className="w-3.5 h-3.5" />
+            {queuedLiveUpdates > 0 && (
+              <span className="text-[10px] font-semibold">{Math.min(queuedLiveUpdates, 9)} new</span>
+            )}
           </motion.button>
         )}
       </AnimatePresence>
 
       {/* ─── Input area ─── */}
       <div className="px-3 py-2.5 border-t border-pi-border bg-pi-panel/80 backdrop-blur-sm">
+        <div className="mb-2 flex items-center justify-between px-1">
+          <div className="text-[10px] text-pi-text-dim">
+            {stream.isStreaming
+              ? stream.activeToolCall
+                ? `Working with ${stream.activeToolCall.toolName}`
+                : 'Receiving live response'
+              : brainStatus === 'running'
+                ? 'Pi-Chi is awake'
+                : 'Pi-Chi is between cycles'}
+          </div>
+          <div className="text-[9px] uppercase tracking-[0.14em] text-pi-text-dim/70">
+            {stream.toolResults.length > 0 ? `${stream.toolResults.length} action${stream.toolResults.length === 1 ? '' : 's'}` : 'Direct line'}
+          </div>
+        </div>
         <div className="flex items-end gap-2">
           <div className="flex-1 relative input-focus-glow rounded-xl">
             <textarea

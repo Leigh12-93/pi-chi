@@ -7,11 +7,9 @@ StartLimitBurst=10
 
 [Service]
 Type=simple
-User=pi
-Environment=XDG_RUNTIME_DIR=/run/user/1000
-Environment=WAYLAND_DISPLAY=wayland-0
+User=root
 ExecStartPre=/bin/sleep 3
-ExecStart=/home/pi/pi-chi/scripts/cec-remote.sh
+ExecStart=/usr/bin/python3 /home/pi/pi-chi/scripts/cec-remote.py
 Restart=always
 RestartSec=5
 StandardOutput=journal

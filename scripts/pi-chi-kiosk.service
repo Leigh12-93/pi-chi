@@ -1,0 +1,26 @@
+[Unit]
+Description=Pi-Chi HDMI Kiosk
+After=systemd-user-sessions.service network-online.target pi-chi-dashboard.service
+Wants=network-online.target pi-chi-dashboard.service
+
+[Service]
+Type=simple
+User=pi
+WorkingDirectory=/home/pi/pi-chi
+Environment=HOME=/home/pi
+Environment=PI_CHI_DASHBOARD_URL=http://127.0.0.1:3333
+PAMName=login
+TTYPath=/dev/tty1
+TTYReset=yes
+TTYVHangup=yes
+TTYVTDisallocate=yes
+StandardInput=tty
+StandardOutput=journal
+StandardError=journal
+ExecStart=/home/pi/pi-chi/scripts/start-kiosk.sh
+Restart=always
+RestartSec=5
+SyslogIdentifier=pi-chi-kiosk
+
+[Install]
+WantedBy=multi-user.target

@@ -1,5 +1,7 @@
 /* ─── Pi-Chi Brain — Type Definitions ─────────────────────────── */
 
+import type { Mission, StretchGoal, Opportunity, WorkCycle } from './domain-types'
+
 export interface BrainState {
   // Identity
   birthTimestamp: string
@@ -22,6 +24,13 @@ export interface BrainState {
 
   // Goals (self-set)
   goals: BrainGoal[]
+
+  // Longer-horizon founder state
+  currentMission?: Mission | null
+  stretchGoals?: StretchGoal[]
+  opportunities?: Opportunity[]
+  currentCycle?: WorkCycle | null
+  workCycles?: WorkCycle[]
 
   // Goal history — completed/abandoned goals archived here
   goalHistory?: BrainGoal[]
@@ -209,6 +218,7 @@ export interface BrainChatMessage {
   message: string
   timestamp: string
   read: boolean
+  clientMessageId?: string
 }
 
 export interface AnalyticsSnapshot {

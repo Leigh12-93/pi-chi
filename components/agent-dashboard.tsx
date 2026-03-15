@@ -15,6 +15,7 @@ import { BrainChat } from '@/components/agent/brain-chat'
 import { GoalsPanel } from '@/components/agent/goals-panel'
 import { ActivityFeed } from '@/components/agent/activity-feed'
 import { BrainHeader } from '@/components/agent/brain-header'
+import { AutonomyStrip } from '@/components/agent/autonomy-strip'
 import { ContextRail } from '@/components/agent/context-rail'
 import { AgentStatusIndicator } from '@/components/agent/agent-status'
 import { BusinessesPanel } from '@/components/agent/businesses-panel'
@@ -23,6 +24,8 @@ import { useSystemVitals } from '@/hooks/use-system-vitals'
 import { useAgentState } from '@/hooks/use-agent-state'
 import { usePiTerminal } from '@/hooks/use-pi-terminal'
 import { useBusinessMetrics } from '@/hooks/use-business-metrics'
+import type { BusinessMetrics } from '@/hooks/use-business-metrics'
+import type { BusinessProfile, DashboardSummary } from '@/lib/brain/domain-types'
 
 // Lazy load panels for Pi 4B performance
 const MemoriesPanel = lazy(() => import('@/components/agent/memories-panel').then(m => ({ default: m.MemoriesPanel })))
@@ -186,6 +189,11 @@ export function AgentDashboard(_props: AgentDashboardProps) {
     [bizMetrics]
   )
 
+  const dashboardSummary = useMemo(
+    () => enhanceSummaryWithBusinessMetrics(agent.summary, bizMetrics),
+    [agent.summary, bizMetrics]
+  )
+
   // Brain status drives agent status indicator
   useEffect(() => {
     agent.setAgentStatus(agent.brainStatus === 'running' ? 'thinking' : 'idle')
@@ -310,10 +318,11 @@ export function AgentDashboard(_props: AgentDashboardProps) {
         brainMeta={agent.brainMeta}
         vitals={vitals}
         lastFetchedAt={agent.lastFetchedAt}
-        summary={agent.summary}
+        summary={dashboardSummary}
         onRefresh={agent.refresh}
         onSettingsOpen={() => setSettingsOpen(true)}
       />
+      <AutonomyStrip summary={dashboardSummary} />
 
       {/* ─── Settings Panel (slide-over) ─── */}
       <Suspense fallback={null}>
@@ -330,9 +339,9 @@ export function AgentDashboard(_props: AgentDashboardProps) {
           <PanelGroup direction="horizontal" autoSaveId="pi-agent-dashboard-v4" className="flex-1">
             {/* ─── Live Stage: Chat + tabbed panels ─── */}
             <Panel defaultSize={65} minSize={45}>
-              <div className="h-full flex flex-col bg-pi-bg">
+              <div className="h-full flex flex-col bg-pi-bg dashboard-stage-shell">
                 {/* Tab bar */}
-                <div className="flex items-center border-b border-pi-border bg-pi-panel/80 backdrop-blur-sm" role="tablist">
+                <div className="flex items-center border-b border-pi-border bg-pi-panel/80 backdrop-blur-sm dashboard-stage-tabs" role="tablist">
                   {centerTabs.map((tab, i) => (
                     <button
                       key={tab.id}
@@ -453,7 +462,7 @@ export function AgentDashboard(_props: AgentDashboardProps) {
             <Panel defaultSize={35} minSize={22} maxSize={45}>
               <PanelErrorBoundary name="Context Rail">
                 <ContextRail
-                  summary={agent.summary}
+                  summary={dashboardSummary}
                   vitals={vitals}
                   devMode={devMode}
                   mood={agent.mood}
@@ -502,7 +511,7 @@ export function AgentDashboard(_props: AgentDashboardProps) {
                   className="absolute inset-0"
                 >
                   <ContextRail
-                    summary={agent.summary}
+                    summary={dashboardSummary}
                     vitals={vitals}
                     devMode={devMode}
                     mood={agent.mood}
@@ -616,4 +625,115 @@ export function AgentDashboard(_props: AgentDashboardProps) {
       )}
     </div>
   )
+}
+
+function enhanceSummaryWithBusinessMetrics(
+  summary: DashboardSummary,
+  businesses: BusinessMetrics[]
+): DashboardSummary {
+  if (businesses.length === 0) return summary
+
+  const scoredBusinesses = businesses.map(mapBusinessMetricsToProfile)
+  const topBusiness = [...scoredBusinesses].sort((a, b) => b.priorityScore - a.priorityScore)[0] ?? null
+  const attentionNeeded = [...summary.attentionNeeded]
+
+  for (const biz of scoredBusinesses) {
+    if (biz.health === 'critical') {
+      attentionNeeded.push({
+        id: `biz-${biz.id}-critical`,
+        level: 'critical',
+        message: `${biz.name} needs attention`,
+      })
+    } else if (biz.health === 'warning') {
+      attentionNeeded.push({
+        id: `biz-${biz.id}-warning`,
+        level: 'warn',
+        message: `${biz.name} has gone stale`,
+      })
+    }
+  }
+
+  return {
+    ...summary,
+    topBusiness,
+    attentionNeeded: dedupeAttention(attentionNeeded),
+  }
+}
+
+function mapBusinessMetricsToProfile(biz: BusinessMetrics): BusinessProfile {
+  const deployAgeDays = biz.lastDeployAt
+    ? (Date.now() - new Date(biz.lastDeployAt).getTime()) / 86_400_000
+    : null
+  const commitAgeDays = biz.lastCommitAt
+    ? (Date.now() - new Date(biz.lastCommitAt).getTime()) / 86_400_000
+    : null
+
+  const momentum = biz.health === 'healthy'
+    ? 20
+    : biz.health === 'warning'
+      ? -10
+      : biz.health === 'critical'
+        ? -35
+        : 0
+
+  return {
+    id: biz.id,
+    name: biz.name,
+    stage: biz.health === 'critical' ? 'declining' : biz.health === 'healthy' ? 'growing' : 'launched',
+    health: biz.health,
+    momentum,
+    activeInitiatives: [],
+    lastAction: biz.lastCommitMessage || biz.deployStatus || 'No recent action',
+    lastActionAt: biz.lastCommitAt || biz.lastDeployAt || new Date(0).toISOString(),
+    nextMilestone: deriveNextMilestone(biz, deployAgeDays, commitAgeDays),
+    riskFlags: deriveRiskFlags(biz, deployAgeDays, commitAgeDays),
+    opportunityScore: biz.health === 'healthy' ? 65 : 35,
+    priorityScore: getPriorityScore(biz, deployAgeDays, commitAgeDays),
+  }
+}
+
+function deriveRiskFlags(
+  biz: BusinessMetrics,
+  deployAgeDays: number | null,
+  commitAgeDays: number | null
+): string[] {
+  const flags: string[] = []
+  if (biz.health === 'critical') flags.push('Critical health')
+  if (biz.deployStatus === 'ERROR' || biz.deployStatus === 'CANCELED') flags.push('Deploy failed')
+  if (deployAgeDays !== null && deployAgeDays > 30) flags.push('No deploy in 30d')
+  if (commitAgeDays !== null && commitAgeDays > 14) flags.push('No commits in 14d')
+  return flags
+}
+
+function deriveNextMilestone(
+  biz: BusinessMetrics,
+  deployAgeDays: number | null,
+  commitAgeDays: number | null
+): string {
+  if (biz.health === 'critical') return 'Stabilize deployment health'
+  if (deployAgeDays !== null && deployAgeDays > 14) return 'Ship a fresh production deploy'
+  if (commitAgeDays !== null && commitAgeDays > 7) return 'Advance the next code change'
+  return 'Monitor growth and reliability'
+}
+
+function getPriorityScore(
+  biz: BusinessMetrics,
+  deployAgeDays: number | null,
+  commitAgeDays: number | null
+): number {
+  let score = 40
+  if (biz.health === 'critical') score += 40
+  if (biz.health === 'warning') score += 20
+  if (deployAgeDays !== null) score += Math.min(20, Math.floor(deployAgeDays))
+  if (commitAgeDays !== null) score += Math.min(15, Math.floor(commitAgeDays / 2))
+  return score
+}
+
+function dedupeAttention(items: DashboardSummary['attentionNeeded']): DashboardSummary['attentionNeeded'] {
+  const seen = new Set<string>()
+  return items.filter(item => {
+    if (seen.has(item.id)) return false
+    seen.add(item.id)
+    return true
+  })
 }
