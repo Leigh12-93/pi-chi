@@ -162,7 +162,7 @@ export function AgentDashboard({
     prevBrainStatusRef.current = newStatus
   }, [agent.brainStatus])
 
-  // ── Keyboard shortcuts ──────────────────────────
+  // ── Keyboard shortcuts (Ctrl+N for tabs) ───────
   useEffect(() => {
     function handleKeyDown(e: KeyboardEvent) {
       if (e.ctrlKey && !e.shiftKey && !e.altKey) {
@@ -177,6 +177,86 @@ export function AgentDashboard({
     window.addEventListener('keydown', handleKeyDown)
     return () => window.removeEventListener('keydown', handleKeyDown)
   }, [])
+
+  // ── Kiosk / CEC remote keyboard navigation ────
+  useEffect(() => {
+    const tabs: CenterTab[] = ['chat', 'businesses', 'activity', 'mind', 'terminal']
+
+    function isInputFocused(): boolean {
+      const el = document.activeElement
+      if (!el) return false
+      const tag = el.tagName.toLowerCase()
+      if (tag === 'input' || tag === 'textarea' || tag === 'select') return true
+      if ((el as HTMLElement).isContentEditable) return true
+      // Terminal xterm.js uses a hidden textarea
+      if (el.closest('.xterm')) return true
+      return false
+    }
+
+    function handleKioskKeyDown(e: KeyboardEvent) {
+      // Skip if modifier keys are held (those are handled by the Ctrl+N handler above)
+      if (e.ctrlKey || e.altKey || e.metaKey) return
+      // Skip if user is typing in an input field
+      if (isInputFocused()) return
+
+      switch (e.key) {
+        case 'ArrowRight':
+        case 'PageUp': {
+          // Next center tab
+          e.preventDefault()
+          setCenterTab(prev => {
+            const idx = tabs.indexOf(prev)
+            return tabs[(idx + 1) % tabs.length]
+          })
+          break
+        }
+        case 'ArrowLeft':
+        case 'PageDown': {
+          // Previous center tab
+          e.preventDefault()
+          setCenterTab(prev => {
+            const idx = tabs.indexOf(prev)
+            return tabs[(idx - 1 + tabs.length) % tabs.length]
+          })
+          break
+        }
+        case 'ArrowUp': {
+          // Scroll active panel up
+          e.preventDefault()
+          const panel = document.querySelector('[data-panel-content="active"]')
+            || document.querySelector('.overflow-y-auto')
+          if (panel) panel.scrollBy({ top: -120, behavior: 'smooth' })
+          break
+        }
+        case 'ArrowDown': {
+          // Scroll active panel down
+          e.preventDefault()
+          const panel = document.querySelector('[data-panel-content="active"]')
+            || document.querySelector('.overflow-y-auto')
+          if (panel) panel.scrollBy({ top: 120, behavior: 'smooth' })
+          break
+        }
+        case 'Escape': {
+          // Close any open modal/dialog/settings
+          if (settingsOpen) {
+            e.preventDefault()
+            setSettingsOpen(false)
+          }
+          break
+        }
+        case 'r': {
+          // Refresh current panel data
+          e.preventDefault()
+          agent.refresh()
+          toast('Refreshing dashboard data...')
+          break
+        }
+      }
+    }
+
+    window.addEventListener('keydown', handleKioskKeyDown)
+    return () => window.removeEventListener('keydown', handleKioskKeyDown)
+  }, [settingsOpen, agent])
 
   /* ─── Center tab config ───────────────────────── */
 

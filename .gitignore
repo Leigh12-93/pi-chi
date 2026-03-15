@@ -8,3 +8,4 @@ next-env.d.ts
 .env.keys
 scripts/.env.keys
 dashboard.log
+BUSINESS-KEYS.md

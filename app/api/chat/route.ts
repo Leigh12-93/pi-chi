@@ -305,10 +305,29 @@ export async function POST(req: Request) {
   // Track whether this request's stream count has been decremented
   let streamCounted = true
 
-  const DESIRED_MAX_TOKENS = MODEL_MAX_OUTPUT[selectedModel] || 64000
+  const MODEL_HARD_MAX = MODEL_MAX_OUTPUT[selectedModel] || 64000
   const MIN_OUTPUT_TOKENS = 4000
   let availableForOutput = contextLimit - estimatedInputTokens
+
+  // The Vercel AI SDK (@ai-sdk/anthropic v3) ADDS thinkingBudget ON TOP of maxOutputTokens:
+  //   sdk sends max_tokens = maxOutputTokens + thinkingBudget to the Anthropic API
+  // The Anthropic API's max_tokens limit (MODEL_HARD_MAX) must not be exceeded.
+  // So: maxOutputTokens = MODEL_HARD_MAX - thinkingBudget
+  const thinkingEnabled = selectedModel === 'claude-opus-4-6' || selectedModel === 'claude-sonnet-4-20250514'
+  const thinkingBudget = thinkingEnabled
+    ? getThinkingBudget(selectedModel, lastUserText, Object.keys(safeFiles).length)
+    : 0
+  const DESIRED_MAX_TOKENS = thinkingBudget > 0
+    ? MODEL_HARD_MAX - thinkingBudget
+    : MODEL_HARD_MAX
   let dynamicMaxTokens = Math.min(DESIRED_MAX_TOKENS, Math.max(MIN_OUTPUT_TOKENS, availableForOutput))
+
+  // Safety: ensure maxOutputTokens + thinkingBudget never exceeds model hard max
+  if (thinkingBudget > 0 && dynamicMaxTokens + thinkingBudget > MODEL_HARD_MAX) {
+    dynamicMaxTokens = MODEL_HARD_MAX - thinkingBudget
+  }
+
+  console.log(`[pi] rid=${requestId} model=${selectedModel} maxOutput=${dynamicMaxTokens} thinking=${thinkingBudget} total=${dynamicMaxTokens + thinkingBudget} hardMax=${MODEL_HARD_MAX}`)
 
   // If even MIN_OUTPUT_TOKENS won't fit, reject early
   if (availableForOutput < MIN_OUTPUT_TOKENS) {

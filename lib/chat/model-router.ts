@@ -23,6 +23,8 @@ export const MODEL_CONTEXT_LIMITS: Record<string, number> = {
 export const MODEL_MAX_OUTPUT: Record<string, number> = {
   'claude-opus-4-6': 128000,
   'claude-opus-4-20250514': 64000,
+  'claude-sonnet-4-20250514': 64000,
+  'claude-haiku-4-5-20251001': 8192,
 }
 
 export const MODEL_MAX_STEPS: Record<string, number> = {

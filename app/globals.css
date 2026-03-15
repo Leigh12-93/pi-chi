@@ -868,3 +868,19 @@ html.dark [data-sonner-toast] [data-description] {
 }
 
 /* Landing page animations extracted to components/landing/landing.css */
+
+/* ─── Kiosk / TV Mode Focus Styles ───────────────────────── */
+/* Large TV-friendly focus indicators for CEC remote navigation */
+@media (min-width: 1920px) {
+  *:focus-visible {
+    outline: 3px solid var(--color-pi-accent) !important;
+    outline-offset: 2px;
+    box-shadow: 0 0 0 6px rgba(0, 212, 255, 0.3) !important;
+  }
+
+  button:focus-visible, [role="tab"]:focus-visible {
+    outline-width: 4px;
+    transform: scale(1.05);
+    transition: transform 0.15s ease;
+  }
+}
