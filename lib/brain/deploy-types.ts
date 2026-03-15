@@ -125,7 +125,3 @@ export const DEFAULT_DEPLOY_CONFIG: DeployConfig = {
   maxDeployHistoryRecords: 30,
   anomalyThresholdMultiplier: 2.0,
 }
-
-// deploy test: 2026-03-15T14:28:53.959Z
-
-// deploy test: 2026-03-15T14:32:04.878Z

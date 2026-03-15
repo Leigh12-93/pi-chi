@@ -121,16 +121,17 @@ export async function runDeployPipeline(
   const record = createEmptyRecord(changedFiles.split('\n'))
   const lockPath = join(getStateDir(), 'deploy.lock')
 
+  // ── Step 2: Acquire deploy lock (before try block to avoid finally deleting another process's lock)
+  if (existsSync(lockPath)) {
+    addActivity(state, 'system', 'Deploy skipped: another deploy in progress')
+    record.outcome = 'skipped'
+    record.completedAt = new Date().toISOString()
+    record.durationMs = Date.now() - new Date(record.timestamp).getTime()
+    return record
+  }
+  writeFileSync(lockPath, `${process.pid}:${new Date().toISOString()}`, 'utf-8')
+
   try {
-    // ── Step 2: Acquire deploy lock ─────────────────────────────
-    if (existsSync(lockPath)) {
-      addActivity(state, 'system', 'Deploy skipped: another deploy in progress')
-      record.outcome = 'skipped'
-      record.completedAt = new Date().toISOString()
-      record.durationMs = Date.now() - new Date(record.timestamp).getTime()
-      return record
-    }
-    writeFileSync(lockPath, `${process.pid}:${new Date().toISOString()}`, 'utf-8')
 
     // ── Step 3: Preflight checks ────────────────────────────────
     const preflight = await runPreflightChecks(config)

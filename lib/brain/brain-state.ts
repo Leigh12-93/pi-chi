@@ -3,7 +3,7 @@
 import {
   writeFileSync, renameSync, readFileSync, copyFileSync,
   mkdirSync, existsSync, appendFileSync, unlinkSync, statSync,
-  openSync, closeSync, fsyncSync,
+  openSync, closeSync, fsyncSync, readdirSync,
 } from 'node:fs'
 import { join } from 'node:path'
 import { homedir } from 'node:os'
@@ -374,7 +374,6 @@ export function loadBrainState(): BrainState {
     // Try dated backups (most recent first)
     if (!recovered) {
       try {
-        const { readdirSync } = require('node:fs') as typeof import('node:fs')
         const datedBackups = readdirSync(STATE_DIR)
           .filter((f: string) => f.startsWith('brain-state-backup-') && f.endsWith('.json'))
           .sort()
@@ -508,11 +507,6 @@ export function saveBrainState(state: BrainState): void {
     state.chatMessages = state.chatMessages.slice(-MAX_CHAT_MESSAGES)
   }
 
-  // Cap mood history
-  if (state.moodHistory.length > MAX_MOOD_HISTORY) {
-    state.moodHistory = state.moodHistory.slice(-MAX_MOOD_HISTORY)
-  }
-
   // Append mood snapshot (throttled to once per 5 minutes to reduce SD writes)
   if (state.mood) {
     const lastSnapshot = state.moodHistory?.[state.moodHistory.length - 1]
@@ -523,6 +517,11 @@ export function saveBrainState(state: BrainState): void {
         mood: { ...state.mood },
       })
     }
+  }
+
+  // Cap mood history (after append to avoid off-by-one)
+  if (state.moodHistory.length > MAX_MOOD_HISTORY) {
+    state.moodHistory = state.moodHistory.slice(-MAX_MOOD_HISTORY)
   }
 
   // Cap learning system arrays
@@ -544,6 +543,34 @@ export function saveBrainState(state: BrainState): void {
       .sort((a, b) => b.occurrences - a.occurrences)
       .slice(0, MAX_ANTI_PATTERNS)
   }
+  // Cap other unbounded arrays
+  const MAX_WORK_CYCLES = 100
+  const MAX_GOAL_HISTORY = 200
+  const MAX_DEPLOY_HISTORY = 100
+  const MAX_PROMPT_EVOLUTIONS = 50
+  const MAX_SKILLS = 50
+  const MAX_THREADS = 50
+  if (state.workCycles && state.workCycles.length > MAX_WORK_CYCLES) {
+    state.workCycles = state.workCycles.slice(-MAX_WORK_CYCLES)
+  }
+  if (state.goalHistory && state.goalHistory.length > MAX_GOAL_HISTORY) {
+    state.goalHistory = state.goalHistory.slice(-MAX_GOAL_HISTORY)
+  }
+  if (state.deployHistory && state.deployHistory.length > MAX_DEPLOY_HISTORY) {
+    state.deployHistory = state.deployHistory.slice(-MAX_DEPLOY_HISTORY)
+  }
+  if (state.promptEvolutions && state.promptEvolutions.length > MAX_PROMPT_EVOLUTIONS) {
+    state.promptEvolutions = state.promptEvolutions.slice(-MAX_PROMPT_EVOLUTIONS)
+  }
+  if (state.skills && state.skills.length > MAX_SKILLS) {
+    state.skills = state.skills.slice(0, MAX_SKILLS)
+  }
+  if (state.threads && state.threads.length > MAX_THREADS) {
+    // Keep active threads, prune oldest completed ones
+    const active = state.threads.filter(t => t.status === 'active')
+    const rest = state.threads.filter(t => t.status !== 'active')
+    state.threads = [...active, ...rest].slice(0, MAX_THREADS)
+  }
   // Cap agent queue — remove completed/failed tasks older than 1 hour, max 20 entries
   if (state.agentQueue && state.agentQueue.length > 0) {
     state.agentQueue = state.agentQueue.filter(t => {
@@ -560,6 +587,10 @@ export function saveBrainState(state: BrainState): void {
 
   // Acquire lock for concurrent write safety
   const locked = acquireLock()
+  if (!locked) {
+    console.warn('[brain-state] Could not acquire lock — skipping save to prevent corruption')
+    return
+  }
 
   try {
     // Backup current state before overwriting
@@ -571,15 +602,20 @@ export function saveBrainState(state: BrainState): void {
 
     // Atomic write with fsync + retry
     for (let attempt = 0; attempt < SAVE_RETRY_COUNT; attempt++) {
+      let fd: number | null = null
       try {
-        const fd = openSync(STATE_TEMP, 'w')
+        fd = openSync(STATE_TEMP, 'w')
         writeFileSync(fd, json)
         fsyncSync(fd)
         closeSync(fd)
+        fd = null // closed successfully
         renameSync(STATE_TEMP, STATE_FILE)
         _lastSaveHash = hash
         return // success
       } catch (err) {
+        if (fd !== null) {
+          try { closeSync(fd) } catch { /* ignore close error */ }
+        }
         if (attempt < SAVE_RETRY_COUNT - 1) {
           syncSleep(SAVE_RETRY_DELAY_MS)
         } else {

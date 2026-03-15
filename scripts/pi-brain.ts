@@ -245,8 +245,8 @@ function deriveMission(state: BrainState): Mission | null {
     .sort((a, b) => ({ high: 3, medium: 2, low: 1 }[b.priority] - { high: 3, medium: 2, low: 1 }[a.priority]))
 
   const topGoal = activeGoals[0]
-  if (!topGoal) return null
 
+  // Fallback to stretch goals if no active goals
   if (!topGoal && state.stretchGoals && state.stretchGoals.length > 0) {
     const topStretchGoal = [...state.stretchGoals].sort((a, b) => {
       const progressA = a.target > 0 ? a.current / a.target : 0
@@ -267,6 +267,7 @@ function deriveMission(state: BrainState): Mission | null {
     }
   }
 
+  // Fallback to opportunities if no active goals or stretch goals
   if (!topGoal && state.opportunities && state.opportunities.length > 0) {
     const topOpportunity = [...state.opportunities]
       .filter(opportunity => opportunity.stage !== 'discarded')
@@ -288,6 +289,9 @@ function deriveMission(state: BrainState): Mission | null {
       }
     }
   }
+
+  // No goals, stretch goals, or opportunities
+  if (!topGoal) return null
 
   return {
     id: topGoal.id,
@@ -399,6 +403,10 @@ function autoRecordCycleJournal(
 
   if (!state.cycleJournal) state.cycleJournal = []
   state.cycleJournal.push(journal)
+  // Cap to prevent unbounded growth (saveBrainState also caps, but defensive here)
+  if (state.cycleJournal.length > 250) {
+    state.cycleJournal = state.cycleJournal.slice(-200)
+  }
 
   // Auto-detect and record failures
   if (errors.length > 0 || exitCode !== 0) {
@@ -441,6 +449,10 @@ function autoRecordFailures(state: BrainState, errors: string[], cycle: number):
       existing.lastOccurrence = now
       if (!existing.occurrenceCycles.includes(cycle)) {
         existing.occurrenceCycles.push(cycle)
+        // Cap occurrence cycles to prevent unbounded growth
+        if (existing.occurrenceCycles.length > 50) {
+          existing.occurrenceCycles = existing.occurrenceCycles.slice(-50)
+        }
       }
     } else {
       state.failureRegistry.push({
@@ -1102,14 +1114,17 @@ async function main(): Promise<void> {
 
   // ── Main Loop ─────────────────────────────────────────────────
   while (true) {
+    let watchdogTimer: ReturnType<typeof setTimeout> | undefined
     try {
-      // Watchdog timeout (Phase 3.7) — kill stuck cycles after 10 minutes
+      // Watchdog timeout (Phase 3.7) — kill stuck cycles after 30 minutes
       await Promise.race([
         brainCycle(),
-        new Promise<void>((_, reject) =>
-          setTimeout(() => reject(new Error('Brain cycle watchdog timeout (20min)')), WATCHDOG_TIMEOUT_MS),
-        ),
-      ])
+        new Promise<void>((_, reject) => {
+          watchdogTimer = setTimeout(() => reject(new Error('Brain cycle watchdog timeout (30min)')), WATCHDOG_TIMEOUT_MS)
+        }),
+      ]).finally(() => {
+        if (watchdogTimer) clearTimeout(watchdogTimer)
+      })
     } catch (err) {
       console.error('[pi-brain] Unexpected error in main loop:', err)
       try {

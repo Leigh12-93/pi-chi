@@ -338,7 +338,7 @@ export function buildDynamicSystemPrompt(state: BrainState): string {
   const parts: string[] = []
 
   // Self-authored additions
-  if (state.promptOverrides.trim()) {
+  if ((state.promptOverrides ?? '').trim()) {
     parts.push(`## Your Evolved Wisdom\n\n${state.promptOverrides.trim()}`)
   }
 
@@ -414,7 +414,7 @@ export function buildDynamicSystemPrompt(state: BrainState): string {
   if (failures.length > 0) {
     const sorted = [...failures].sort((a, b) => b.occurrenceCount - a.occurrenceCount)
     const lines = sorted.slice(0, 10).map(f => {
-      const recurrence = f.occurrenceCount > 1 ? ` (${f.occurrenceCount}x, cycles: ${f.occurrenceCycles.slice(-5).join(',')})` : ''
+      const recurrence = f.occurrenceCount > 1 ? ` (${f.occurrenceCount}x, cycles: ${(f.occurrenceCycles || []).slice(-5).join(',')})` : ''
       const cause = f.rootCause ? `\n  _Root cause:_ ${f.rootCause}` : '\n  _Root cause:_ UNKNOWN — investigate this'
       return `- **[${f.category}]** ${f.description}${recurrence}${cause}`
     })
@@ -451,8 +451,9 @@ export function buildDynamicSystemPrompt(state: BrainState): string {
   if (skills.length > 0) {
     const sorted = [...skills].sort((a, b) => b.attempts - a.attempts)
     const lines = sorted.slice(0, 8).map(s => {
-      const trend = s.recentOutcomes.length >= 3
-        ? (s.recentOutcomes.slice(-3).filter(Boolean).length >= 2 ? '↑' : '↓')
+      const outcomes = s.recentOutcomes || []
+      const trend = outcomes.length >= 3
+        ? (outcomes.slice(-3).filter(Boolean).length >= 2 ? '↑' : '↓')
         : '—'
       return `- ${s.name}: ${s.proficiency}% (${s.successes}/${s.attempts}) ${trend}`
     })
@@ -480,7 +481,7 @@ export function buildContextMessage(
     ? `${Math.round((now.getTime() - new Date(state.lastWakeAt).getTime()) / 60000)} minutes ago`
     : 'first wake'
   lines.push(`Wake cycle #${state.totalThoughts + 1}. Time: ${now.toLocaleString('en-AU', { timeZone: 'Australia/Adelaide' })} ACST. Last wake: ${timeSinceLastWake}.`)
-  lines.push(`Total thoughts: ${state.totalThoughts}. Tool calls: ${state.totalToolCalls}. Estimated API cost: $${state.totalApiCost.toFixed(2)}.`)
+  lines.push(`Total thoughts: ${state.totalThoughts}. Tool calls: ${state.totalToolCalls}. Estimated API cost: $${(state.totalApiCost ?? 0).toFixed(2)}.`)
   lines.push(`Current wake interval: ${state.wakeIntervalMs / 60000} minutes.`)
 
   if (state.totalThoughts === 0) {
@@ -503,12 +504,13 @@ export function buildContextMessage(
     lines.push('')
     lines.push(`Research threads (${activeThreads.length}):`)
     for (const thread of activeThreads) {
-      const doneSteps = thread.steps.filter(s => s.status === 'done').length
-      const nextStep = thread.steps.find(s => s.status === 'pending')
+      const steps = thread.steps || []
+      const doneSteps = steps.filter(s => s.status === 'done').length
+      const nextStep = steps.find(s => s.status === 'pending')
       const next = nextStep ? ` → Next: ${nextStep.description}` : ''
       const scheduled = thread.targetCycle && thread.targetCycle > state.totalThoughts
         ? ` (cycle #${thread.targetCycle})` : ''
-      lines.push(`  - "${thread.title}" (${doneSteps}/${thread.steps.length} steps, ${thread.findings.length} findings)${next}${scheduled}`)
+      lines.push(`  - "${thread.title}" (${doneSteps}/${(thread.steps || []).length} steps, ${(thread.findings || []).length} findings)${next}${scheduled}`)
     }
   }
 
@@ -667,10 +669,11 @@ export function buildContextMessage(
   const unreadChat = (state.chatMessages || []).filter(m => m.from === 'owner' && !m.read)
   if (unreadChat.length > 0) {
     lines.push('')
-    lines.push(`** NEW MESSAGES FROM ${state.ownerName.toUpperCase()} (${unreadChat.length} unread): **`)
+    const owner = state.ownerName || 'Owner'
+    lines.push(`** NEW MESSAGES FROM ${owner.toUpperCase()} (${unreadChat.length} unread): **`)
     for (const msg of unreadChat) {
       const time = new Date(msg.timestamp).toLocaleTimeString('en-AU', { hour: '2-digit', minute: '2-digit', hour12: false, timeZone: 'Australia/Adelaide' })
-      lines.push(`  ${time} ${state.ownerName}: ${msg.message}`)
+      lines.push(`  ${time} ${owner}: ${msg.message}`)
     }
     lines.push(`Reply using the chat_owner tool. Mark as read by responding.`)
   }
@@ -679,7 +682,7 @@ export function buildContextMessage(
   if (unreadChat.length === 0 && (state.chatMessages || []).length > 0) {
     const lastMsg = state.chatMessages[state.chatMessages.length - 1]
     const time = new Date(lastMsg.timestamp).toLocaleTimeString('en-AU', { hour: '2-digit', minute: '2-digit', hour12: false, timeZone: 'Australia/Adelaide' })
-    const sender = lastMsg.from === 'owner' ? state.ownerName : 'You'
+    const sender = lastMsg.from === 'owner' ? (state.ownerName || 'Owner') : 'You'
     lines.push('')
     lines.push(`Last chat: ${time} ${sender}: ${lastMsg.message.slice(0, 120)}`)
   }

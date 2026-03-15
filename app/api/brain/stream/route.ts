@@ -178,9 +178,16 @@ export async function GET(req: Request) {
             controller.enqueue(encoder.encode(`: keepalive ${Date.now()}\n\n`))
           }
         } catch (error) {
-          controller.enqueue(encoder.encode(formatSse('brain-error', {
-            error: error instanceof Error ? error.message : 'Stream failure',
-          })))
+          if (!closed) {
+            try {
+              controller.enqueue(encoder.encode(formatSse('brain-error', {
+                error: error instanceof Error ? error.message : 'Stream failure',
+              })))
+            } catch {
+              // Stream already closed — stop ticking
+              closed = true
+            }
+          }
         }
       }
 
