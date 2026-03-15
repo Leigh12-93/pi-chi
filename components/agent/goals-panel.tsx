@@ -297,7 +297,7 @@ export function GoalsPanel({ goals, onInjectGoal }: GoalsPanelProps) {
                       className={cn(
                         'text-[9px] px-2 py-1 rounded-md font-medium transition-all',
                         injectHorizon === h
-                          ? h === 'short' ? 'bg-emerald-500/20 text-emerald-400 ring-1 ring-emerald-500/30'
+                          ? h === 'short' ? 'bg-cyan-500/20 text-cyan-400 ring-1 ring-cyan-500/30'
                             : h === 'long' ? 'bg-purple-500/20 text-purple-400 ring-1 ring-purple-500/30'
                             : 'bg-amber-500/20 text-amber-400 ring-1 ring-amber-500/30'
                           : 'bg-pi-surface text-pi-text-dim hover:text-pi-text'
@@ -384,7 +384,7 @@ export function GoalsPanel({ goals, onInjectGoal }: GoalsPanelProps) {
                     <div className="flex items-center gap-2 pt-2 pb-1">
                       <span className={cn(
                         'text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded',
-                        goal.horizon === 'short' ? 'text-emerald-400 bg-emerald-500/10' :
+                        goal.horizon === 'short' ? 'text-cyan-400 bg-cyan-500/10' :
                         goal.horizon === 'long' ? 'text-purple-400 bg-purple-500/10' :
                         'text-amber-400 bg-amber-500/10'
                       )}>

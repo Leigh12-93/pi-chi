@@ -15,7 +15,7 @@ interface GoalCardProps {
 }
 
 const statusIcon = {
-  active: <Play className="w-3.5 h-3.5 text-emerald-500" />,
+  active: <Play className="w-3.5 h-3.5 text-pi-accent" />,
   completed: <CheckCircle2 className="w-3.5 h-3.5 text-pi-success" />,
   paused: <Pause className="w-3.5 h-3.5 text-yellow-500" />,
   pending: <Clock className="w-3.5 h-3.5 text-pi-text-dim" />,
@@ -57,7 +57,7 @@ export function GoalCard({ goal, expanded, onToggle }: GoalCardProps) {
             {goal.horizon && (
               <span className={cn(
                 'text-[8px] font-medium px-1 py-0.5 rounded uppercase tracking-wider',
-                goal.horizon === 'short' ? 'text-emerald-400 bg-emerald-500/10' :
+                goal.horizon === 'short' ? 'text-cyan-400 bg-cyan-500/10' :
                 goal.horizon === 'long' ? 'text-purple-400 bg-purple-500/10' :
                 'text-amber-400 bg-amber-500/10'
               )}>
