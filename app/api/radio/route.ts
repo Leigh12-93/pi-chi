@@ -25,8 +25,24 @@ export async function GET(req: NextRequest) {
       const source = data?.icestats?.source
       // source can be an array (multiple mounts) or single object
       const mount = Array.isArray(source) ? source[0] : source
+
+      // Try Icecast title, fall back to now_playing.txt
+      let title = mount?.title || ''
+      if (!title || title === 'Unknown') {
+        try {
+          const { stdout } = await run('cat /home/pi/ai-radio/now_playing.txt 2>/dev/null', { timeout: 2000 })
+          title = stdout.trim() || 'Unknown'
+        } catch { title = title || 'Unknown' }
+      }
+
+      // Clean up title: "genre - genre_20260316_001953" → "Genre - Track 1953"
+      const clean = title.replace(/_\d{8}_\d{4}(\d{2})$/, ' #$1').replace(/_/g, ' ')
+      const displayTitle = clean.split(' ').map((w: string) =>
+        w.length > 1 ? w.charAt(0).toUpperCase() + w.slice(1) : w
+      ).join(' ')
+
       return NextResponse.json({
-        title: mount?.title || 'Unknown',
+        title: displayTitle,
         genre: mount?.genre || '',
         listeners: mount?.listeners || 0,
         bitrate: mount?.audio_bitrate || 192,
