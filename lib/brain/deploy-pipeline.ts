@@ -400,7 +400,7 @@ async function runTypeCheckWithFix(
 
   console.log('[deploy-pipeline] Running type check...')
   const tsc = await executeCommand(
-    'npx tsc --noEmit --pretty 2>&1',
+    'NODE_OPTIONS="" npx tsc --noEmit --pretty 2>&1',
     { cwd, timeout: config.typeCheckTimeoutMs },
   )
 
@@ -423,14 +423,14 @@ async function runTypeCheckWithFix(
     console.log(`[deploy-pipeline] Type auto-fix attempt ${i}/${config.maxTypeFixAttempts}...`)
 
     const freshErrors = i === 1 ? initialErrors
-      : (await executeCommand('npx tsc --noEmit --pretty 2>&1', { cwd, timeout: config.typeCheckTimeoutMs })).stdout || ''
+      : (await executeCommand('NODE_OPTIONS="" npx tsc --noEmit --pretty 2>&1', { cwd, timeout: config.typeCheckTimeoutMs })).stdout || ''
 
     const fix = await fixTypeErrors(state, freshErrors.trim(), i, config.maxTypeFixAttempts, cwd)
     record.fixAttempts.push(fix)
 
     // Clean stale types and re-check
     await executeCommand('rm -rf .next/types', { cwd, timeout: 5000 }).catch(() => {})
-    const recheck = await executeCommand('npx tsc --noEmit --pretty 2>&1', { cwd, timeout: config.typeCheckTimeoutMs })
+    const recheck = await executeCommand('NODE_OPTIONS="" npx tsc --noEmit --pretty 2>&1', { cwd, timeout: config.typeCheckTimeoutMs })
 
     if (recheck.exitCode === 0) {
       addActivity(state, 'system', `Auto-fixed type errors on attempt ${i}`)
