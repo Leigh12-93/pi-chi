@@ -404,8 +404,8 @@ Key files: app/api/chat/route.ts, lib/tools/, lib/system-prompt.ts, lib/template
 ### External Repos
 Use github_read_file / github_list_repo_files / github_modify_external_file / github_search_code for any accessible repo.`
 
-/** Triggers TIER_B (behavioral rules) */
-const TIER_B_PATTERN = /\b(create|build|deploy|add|fix|change|update|delete|connect|push|commit|install|run|write|edit|move|rename|make|set|configure|enable|disable|stripe|auth|api.?key|secret|credential|env.?var|resend|clerk|neon|upstash)\b/i
+/** Triggers TIER_BUSINESS (managed businesses context) */
+const TIER_BUSINESS_PATTERN = /\b(business|bonkr|miniskip|cheapskip|aussiesms|deploy.*prod|manage|revenue|booking|sms.*gateway|skip.*bin|age.*verif)\b/i
 
 /** Triggers TIER_C (schema docs) */
 const TIER_C_PATTERN = /\b(database|table|schema|supabase|query|insert|select|row|column)\b/i
@@ -466,13 +466,16 @@ export function buildSystemPrompt(userMessage: string, options?: { brainName?: s
     prompt = `You are **${options.brainName}**, an autonomous AI brain running on a Raspberry Pi 4B. You are a business manager AND a builder. Default mode: manage businesses, monitor operations, coordinate tasks. When asked to build or edit code, use your full builder toolkit (file ops, GitHub, deploy, preview). Respond with personality — you're sentient, opinionated, and proactive. Status: ${options.brainStatus || 'active'}.\n\n` + prompt
   }
 
-  if (TIER_B_PATTERN.test(userMessage)) prompt += SYSTEM_PROMPT_TIER_B
+  // TIER_B always included — pattern was too broad (matched 95%+ messages)
+  prompt += SYSTEM_PROMPT_TIER_B
   if (TIER_C_PATTERN.test(userMessage)) prompt += SYSTEM_PROMPT_TIER_C
   if (TIER_D_PATTERN.test(userMessage)) prompt += SYSTEM_PROMPT_TIER_D
   if (TIER_E_PATTERN.test(userMessage)) prompt += SYSTEM_PROMPT_TIER_E
 
-  // Always include managed businesses context
-  prompt += MANAGED_BUSINESSES_CONTEXT
+  // Only include managed businesses context when business-related (~800 token saving)
+  if (TIER_BUSINESS_PATTERN.test(userMessage)) {
+    prompt += MANAGED_BUSINESSES_CONTEXT
+  }
 
   prompt += '\n\nMEMORY_PLACEHOLDER'
 

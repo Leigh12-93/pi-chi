@@ -12,25 +12,13 @@ import { TerminalPanel } from './terminal-panel'
 import { Header } from './header'
 import { ActionDialog, TaskPollingDialog } from './action-dialog'
 import { DeployPanel } from './deploy-panel'
-import { CommandPalette } from './command-palette'
 import { StatusBar } from './status-bar'
-import { KeyboardShortcutsOverlay } from './keyboard-shortcuts-overlay'
-import { ProjectSettingsDialog } from './project-settings-dialog'
-import { FileSearch } from './file-search'
 import { ConsolePanel } from './console-panel'
-import { OnboardingTour } from './onboarding-tour'
-import { VersionHistory } from './version-history'
-import { DiffViewer } from './diff-viewer'
 import { NotificationCenter } from './notification-center'
-import { FindReplacePanel } from './find-replace-panel'
 import { PanelErrorBoundary } from './error-boundary'
-import { SettingsDialog } from './settings-dialog'
-import { AuditPanel } from './audit-panel'
-import { DbExplorer } from './db-explorer'
-import { ComponentLibrary } from './component-library'
-import { MCPManager } from './mcp-manager'
 import { PWAInstallPrompt } from './pwa-install-prompt'
 import { OfflineIndicator } from './offline-indicator'
+import { WorkspaceDialogs } from './workspace-dialogs'
 import { useKeyboardShortcuts } from '@/lib/keyboard-shortcuts'
 import { useSwipe } from '@/hooks/use-swipe'
 import { useWebcontainer } from '@/hooks/use-webcontainer'
@@ -38,6 +26,7 @@ import { useWorkspaceState, type MobileTab } from '@/hooks/use-workspace-state'
 import { useWorkspaceActions } from '@/hooks/use-workspace-actions'
 import { useWorkspaceEffects } from '@/hooks/use-workspace-effects'
 import { detectFramework } from '@/lib/vercel'
+import { WorkspaceContext } from '@/lib/workspace-context'
 import { motion, AnimatePresence } from 'framer-motion'
 import {
   MessageSquare, FolderTree, Code2, Eye, Save, Rocket, Upload, GitBranch, Download, ChevronDown,
@@ -290,7 +279,17 @@ export function Workspace(props: WorkspaceProps) {
     { id: 'menu' as MobileTab, label: 'Menu', Icon: Menu },
   ]
 
+  const workspaceCtx = useMemo(() => ({
+    files,
+    projectId,
+    githubRepoUrl: githubRepoUrl || null,
+    vercelProjectId: state.vercelProjectId,
+    onFileChange,
+    onAction: actions.handleAction,
+  }), [files, projectId, githubRepoUrl, state.vercelProjectId, onFileChange, actions.handleAction])
+
   return (
+    <WorkspaceContext.Provider value={workspaceCtx}>
     <div
       className="h-screen-dynamic flex flex-col bg-pi-bg relative"
       onDragEnter={actions.handleDragEnter}
@@ -657,36 +656,20 @@ export function Workspace(props: WorkspaceProps) {
           } else throw new Error('No importable files found in repository')
         }}
       />
-      <CommandPalette open={state.showCommandPalette} onClose={() => state.setShowCommandPalette(false)} commands={paletteCommands} />
-      <KeyboardShortcutsOverlay open={state.showShortcuts} onClose={() => state.setShowShortcuts(false)} />
-      <FileSearch files={files} onResultClick={actions.handleFileSelect} open={state.showFileSearch} onClose={() => state.setShowFileSearch(false)} />
-      <ProjectSettingsDialog open={state.showSettings} onClose={() => state.setShowSettings(false)} projectName={projectName} projectId={projectId} framework={detectFramework(files)} onUpdateSettings={onUpdateSettings || (() => {})} />
-      <VersionHistory open={state.showVersionHistory} onClose={() => state.setShowVersionHistory(false)} snapshots={state.snapshots} currentFiles={files}
-        onRestore={(snap) => { onBulkFileUpdate(snap.files, { replace: true }); toast.success('Snapshot restored', { description: snap.label }) }}
-        onViewDiff={(snapshotId, path) => { const snap = state.snapshots.find(s => s.id === snapshotId); if (snap) state.setDiffState({ open: true, path, oldContent: snap.files[path] || '', newContent: files[path] || '' }) }}
+      <WorkspaceDialogs
+        state={state}
+        files={files}
+        projectName={projectName}
+        projectId={projectId}
+        activeFile={activeFile}
+        onFileChange={onFileChange}
+        onBulkFileUpdate={onBulkFileUpdate}
+        onUpdateSettings={onUpdateSettings}
+        onFileSelect={actions.handleFileSelect}
+        paletteCommands={paletteCommands}
+        snapshots={state.snapshots}
       />
-      {state.diffState && <DiffViewer open={state.diffState.open} onClose={() => state.setDiffState(null)} path={state.diffState.path} oldContent={state.diffState.oldContent} newContent={state.diffState.newContent} oldLabel="Snapshot" newLabel="Current" />}
-      <FindReplacePanel open={state.showFindReplace} onClose={() => state.setShowFindReplace(false)} files={files} onReplace={onFileChange} activeFile={activeFile} />
-      <SettingsDialog open={state.showEditorSettings} onClose={() => { state.setShowEditorSettings(false); state.setSettingsDefaultTab(undefined) }} defaultTab={state.settingsDefaultTab} />
-      {state.auditPlan && (
-        <div className="fixed bottom-16 right-4 z-40 w-[420px] max-h-[70vh] animate-slide-up">
-          <AuditPanel plan={state.auditPlan} onApprove={() => { state.chatSendRef.current?.('[AUDIT APPROVED]'); state.setAuditPlan(prev => prev ? { ...prev, status: 'in_progress' } : null) }} onReplan={(fb) => { state.chatSendRef.current?.(`[REPLAN] feedback: ${fb}`); state.setAuditPlan(null) }} onDismiss={() => state.setAuditPlan(null)} />
-        </div>
-      )}
-      {state.showDbExplorer && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm animate-fade-in" onClick={() => state.setShowDbExplorer(false)}>
-          <div className="w-[900px] h-[600px] max-w-[95vw] max-h-[85vh] rounded-2xl border border-pi-border shadow-xl overflow-hidden" onClick={e => e.stopPropagation()}><DbExplorer /></div>
-        </div>
-      )}
-      {state.showComponentLibrary && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm animate-fade-in" onClick={() => state.setShowComponentLibrary(false)}>
-          <div className="w-[500px] h-[600px] max-w-[95vw] max-h-[85vh] rounded-2xl border border-pi-border shadow-xl overflow-hidden" onClick={e => e.stopPropagation()}>
-            <ComponentLibrary onInsert={(code) => { state.chatSendRef.current?.(code); state.setShowComponentLibrary(false) }} />
-          </div>
-        </div>
-      )}
-      <MCPManager isOpen={state.showMcpManager} onClose={() => state.setShowMcpManager(false)} />
-      <OnboardingTour />
     </div>
+    </WorkspaceContext.Provider>
   )
 }

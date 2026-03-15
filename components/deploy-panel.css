@@ -1,0 +1,104 @@
+/* Deploy Panel — extracted from globals.css */
+
+/* Entry / exit animations */
+@keyframes deployEnter {
+  0% { opacity: 0; transform: translateY(16px) scale(0.96); }
+  100% { opacity: 1; transform: translateY(0) scale(1); }
+}
+@keyframes deployExit {
+  0% { opacity: 1; transform: translateY(0) scale(1); }
+  100% { opacity: 0; transform: translateY(12px) scale(0.97); }
+}
+.deploy-enter { animation: deployEnter 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards; }
+.deploy-exit { animation: deployExit 0.2s ease-in forwards; pointer-events: none; }
+
+/* Slide-up for success/error content */
+@keyframes deploySlideUp {
+  0% { opacity: 0; transform: translateY(8px); }
+  100% { opacity: 1; transform: translateY(0); }
+}
+.deploy-slide-up { animation: deploySlideUp 0.35s cubic-bezier(0.16, 1, 0.3, 1) forwards; }
+
+/* Slide-down for log toggle */
+@keyframes deploySlideDown {
+  0% { opacity: 0; max-height: 0; }
+  100% { opacity: 1; max-height: 200px; }
+}
+.deploy-slide-down { animation: deploySlideDown 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards; overflow: hidden; }
+
+/* Ambient glow around panel */
+.deploy-glow-accent { box-shadow: 0 8px 40px -12px rgba(220, 38, 38, 0.15), 0 4px 12px -4px rgba(0, 0, 0, 0.08); }
+.deploy-glow-success { box-shadow: 0 8px 40px -12px rgba(16, 185, 129, 0.2), 0 4px 12px -4px rgba(0, 0, 0, 0.08); }
+.deploy-glow-error { box-shadow: 0 8px 40px -12px rgba(239, 68, 68, 0.15), 0 4px 12px -4px rgba(0, 0, 0, 0.08); }
+
+:is(.dark) .deploy-glow-accent { box-shadow: 0 8px 40px -12px rgba(220, 38, 38, 0.25), 0 4px 12px -4px rgba(0, 0, 0, 0.3); }
+:is(.dark) .deploy-glow-success { box-shadow: 0 8px 40px -12px rgba(16, 185, 129, 0.3), 0 4px 12px -4px rgba(0, 0, 0, 0.3); }
+:is(.dark) .deploy-glow-error { box-shadow: 0 8px 40px -12px rgba(239, 68, 68, 0.25), 0 4px 12px -4px rgba(0, 0, 0, 0.3); }
+
+/* Animated gradient progress bar at top */
+.deploy-progress-bar {
+  background: linear-gradient(90deg, var(--color-pi-accent), #f87171, #fca5a5, var(--color-pi-accent));
+  background-size: 300% 100%;
+  animation: deployProgressSweep 2s linear infinite;
+}
+@keyframes deployProgressSweep {
+  0% { background-position: 0% 0; }
+  100% { background-position: 300% 0; }
+}
+
+/* Collapsed pill glow */
+.deploy-pill-glow {
+  box-shadow: 0 0 0 0 rgba(220, 38, 38, 0.2);
+  animation: pillGlow 2.5s ease-in-out infinite;
+}
+@keyframes pillGlow {
+  0%, 100% { box-shadow: 0 2px 12px -2px rgba(220, 38, 38, 0.15); }
+  50% { box-shadow: 0 2px 20px -2px rgba(220, 38, 38, 0.3); }
+}
+
+/* Rocket subtle hover animation */
+.deploy-rocket {
+  animation: rocketFloat 3s ease-in-out infinite;
+}
+@keyframes rocketFloat {
+  0%, 100% { transform: translateY(0) rotate(-5deg); }
+  50% { transform: translateY(-1px) rotate(5deg); }
+}
+
+/* Success icon pop-in */
+.deploy-success-pop {
+  animation: successPop 0.4s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
+}
+@keyframes successPop {
+  0% { transform: scale(0); opacity: 0; }
+  60% { transform: scale(1.2); }
+  100% { transform: scale(1); opacity: 1; }
+}
+
+/* Waiting dots */
+@keyframes deployDot {
+  0%, 80%, 100% { transform: scale(0.6); opacity: 0.3; }
+  40% { transform: scale(1.2); opacity: 1; }
+}
+.deploy-dot { animation: deployDot 1.4s ease-in-out infinite; }
+
+/* Terminal styling */
+.deploy-terminal {
+  background: #0a0a0f;
+  border: 1px solid rgba(255, 255, 255, 0.06);
+}
+:is(.dark) .deploy-terminal {
+  background: #08080d;
+  border-color: rgba(255, 255, 255, 0.04);
+}
+
+/* ─── Reduced Motion ──────────────────────────────────────── */
+@media (prefers-reduced-motion: reduce) {
+  .deploy-dot,
+  .deploy-rocket,
+  .deploy-success-pop,
+  .deploy-pill-glow,
+  .deploy-progress-bar {
+    animation: none !important;
+  }
+}

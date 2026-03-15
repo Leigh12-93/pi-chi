@@ -44,7 +44,31 @@ export function Header({
   const { theme, toggleTheme } = useTheme()
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
   const menuRef = useRef<HTMLDivElement>(null)
-  const [piOnline] = useState(true)
+  const [piOnline, setPiOnline] = useState(true)
+
+  // Poll /api/health every 30s to track real connectivity
+  useEffect(() => {
+    let mounted = true
+    const controller = new AbortController()
+
+    async function checkHealth() {
+      try {
+        const res = await fetch('/api/health', { signal: controller.signal })
+        if (mounted) setPiOnline(res.ok)
+      } catch {
+        if (mounted) setPiOnline(false)
+      }
+    }
+
+    checkHealth()
+    const timer = setInterval(checkHealth, 30_000)
+
+    return () => {
+      mounted = false
+      controller.abort()
+      clearInterval(timer)
+    }
+  }, [])
 
   useEffect(() => {
     if (!mobileMenuOpen) return

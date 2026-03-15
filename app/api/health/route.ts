@@ -1,6 +1,8 @@
 import { NextResponse } from 'next/server'
 import { supabase } from '@/lib/supabase'
 
+const VERSION = process.env.npm_package_version || '0.1.2'
+
 /** GET /api/health — liveness + readiness check */
 export async function GET() {
   const checks: Record<string, boolean> = {}
@@ -21,7 +23,7 @@ export async function GET() {
   const healthy = Object.values(checks).every(Boolean)
 
   return NextResponse.json(
-    { status: healthy ? 'ok' : 'degraded', checks, timestamp: new Date().toISOString() },
+    { status: healthy ? 'ok' : 'degraded', version: VERSION, checks, timestamp: new Date().toISOString() },
     { status: healthy ? 200 : 503 },
   )
 }

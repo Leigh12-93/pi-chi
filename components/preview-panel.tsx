@@ -8,6 +8,7 @@ import {
   ChevronLeft, ChevronRight, Home, Search,
 } from 'lucide-react'
 import { PreviewToolbar, type DevicePreset } from './preview-toolbar'
+import './preview-panel.css'
 import { motion, AnimatePresence } from 'framer-motion'
 import { cn, hashFileMapDeep } from '@/lib/utils'
 import {

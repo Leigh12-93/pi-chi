@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import { LandingNav } from './landing-nav'
+import './landing.css'
 import { LandingHero } from './landing-hero'
 import { LandingSocialProof } from './landing-social-proof'
 import { LandingHowItWorks } from './landing-how-it-works'

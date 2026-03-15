@@ -10,7 +10,8 @@ import type {
 const MAX_ACTIVITY_ENTRIES = 200
 const STORAGE_KEY = 'pi_agent_goals'
 const MOOD_HISTORY_KEY = 'pi_mood_history'
-const BRAIN_POLL_MS = 3_000 // Poll every 3s for live updates
+const BRAIN_POLL_ACTIVE_MS = 3_000 // Poll every 3s when brain is running
+const BRAIN_POLL_IDLE_MS = 10_000  // Poll every 10s when brain is idle/sleeping/not-running
 const MAX_MOOD_HISTORY = 100
 
 export interface BrainChatMessage {
@@ -252,22 +253,34 @@ export function useAgentState(): UseAgentStateReturn {
     return () => { mountedRef.current = false }
   }, [])
 
-  // ── Brain polling ────────────────────────────────────────────
+  // ── Brain polling (adaptive frequency + visibility check) ───
+  const brainStatusRef = useRef<BrainApiResponse['status']>('not-running')
+
   useEffect(() => {
-    let timer: ReturnType<typeof setInterval>
+    let timer: ReturnType<typeof setTimeout>
+    let tabVisible = !document.hidden
 
     async function pollBrain() {
+      // Skip polling when tab is not visible
+      if (!tabVisible) {
+        schedulePoll()
+        return
+      }
+
       try {
         const res = await fetch('/api/brain')
         if (!res.ok) {
           setBrainStatus('error')
+          brainStatusRef.current = 'error'
           brainActiveRef.current = false
+          schedulePoll()
           return
         }
         const data: BrainApiResponse = await res.json()
         if (!mountedRef.current) return
 
         setBrainStatus(data.status)
+        brainStatusRef.current = data.status
         setLastFetchedAt(Date.now())
 
         if (data.state && (data.status === 'running' || data.status === 'sleeping')) {
@@ -375,18 +388,39 @@ export function useAgentState(): UseAgentStateReturn {
         // Brain API not available — use localStorage fallback
         brainActiveRef.current = false
         setBrainStatus('not-running')
+        brainStatusRef.current = 'not-running'
         setBrainMeta(null)
       }
+
+      schedulePoll()
     }
+
+    function schedulePoll() {
+      if (!mountedRef.current) return
+      const interval = brainStatusRef.current === 'running' ? BRAIN_POLL_ACTIVE_MS : BRAIN_POLL_IDLE_MS
+      timer = setTimeout(pollBrain, interval)
+    }
+
+    // Pause polling when tab is hidden, resume when visible
+    function handleVisibility() {
+      tabVisible = !document.hidden
+      if (tabVisible) {
+        // Poll immediately on tab return
+        clearTimeout(timer)
+        pollBrain()
+      }
+    }
+    document.addEventListener('visibilitychange', handleVisibility)
 
     // Store for manual refresh
     pollFnRef.current = pollBrain
     // Initial poll
     pollBrain()
-    // Poll every 3s
-    timer = setInterval(pollBrain, BRAIN_POLL_MS)
 
-    return () => clearInterval(timer)
+    return () => {
+      clearTimeout(timer)
+      document.removeEventListener('visibilitychange', handleVisibility)
+    }
   }, [])
 
   // ── Goal management ────────────────────────────────────────

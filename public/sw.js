@@ -1,4 +1,5 @@
-const CACHE_NAME = 'pichi-v21'
+const SW_VERSION = '1.0.1'
+const CACHE_NAME = 'pi-chi-v' + SW_VERSION
 const PRECACHE = ['/', '/icons/icon-192.png', '/icons/icon-512.png']
 const MAX_STATIC_ENTRIES = 50
 
@@ -10,11 +11,15 @@ self.addEventListener('install', (e) => {
 self.addEventListener('activate', (e) => {
   e.waitUntil(
     caches.keys().then(keys =>
-      Promise.all(keys.filter(k => k !== CACHE_NAME).map(k => caches.delete(k)))
+      Promise.all(
+        keys
+          .filter(k => k.startsWith('pi-chi-') && k !== CACHE_NAME)
+          .map(k => caches.delete(k))
+      )
     ).then(() => {
       // Notify all clients that SW updated
       self.clients.matchAll({ type: 'window' }).then(clients => {
-        clients.forEach(client => client.postMessage({ type: 'SW_UPDATED' }))
+        clients.forEach(client => client.postMessage({ type: 'SW_UPDATED', version: SW_VERSION }))
       })
     })
   )

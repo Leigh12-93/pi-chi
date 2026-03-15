@@ -1,0 +1,7 @@
+export { GitHubIcon } from './github'
+export { VercelIcon } from './vercel'
+export { SupabaseIcon } from './supabase'
+export { GoogleIcon } from './google'
+export { StripeIcon } from './stripe'
+export { SmsIcon } from './sms'
+export { AnthropicIcon } from './anthropic'

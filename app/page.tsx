@@ -9,6 +9,11 @@ import { ApiKeyGate } from '@/components/api-key-gate'
 import { hashFileMapDeep } from '@/lib/utils'
 import { toast } from 'sonner'
 
+import { useConcurrentTabGuard } from '@/hooks/use-concurrent-tab-guard'
+import { useProjectRestore } from '@/hooks/use-project-restore'
+import { useProjectPersistence } from '@/hooks/use-project-persistence'
+import { useOfflineSync } from '@/hooks/use-offline-sync'
+
 export default function PiChiPage() {
   const { session, status, refresh } = useSession()
   const [projectId, setProjectId] = useState<string | null>(null)
@@ -16,46 +21,39 @@ export default function PiChiPage() {
   const [files, setFiles] = useState<Record<string, string>>({})
   const [activeFile, setActiveFile] = useState<string | null>(null)
   const agentInitRef = useRef(false)
-  const autoSaveTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
-  const retryTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
-  const lastSavedHash = useRef<string>('')
-  const restoredRef = useRef(false)
-  const savingRef = useRef(false)
-  const saveRetriesRef = useRef(0)
-  const [saveStatus, setSaveStatus] = useState<'idle' | 'pending' | 'saving' | 'saved' | 'error'>('idle')
-  const [autoSaveError, setAutoSaveError] = useState(false)
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
-  const [restoringProject, setRestoringProject] = useState(false)
-  const [concurrentTabWarning, setConcurrentTabWarning] = useState(false)
-  const [isOffline, setIsOffline] = useState(false)
   const [pendingMessage, setPendingMessage] = useState<string | null>(null)
   const [githubRepoUrl, setGithubRepoUrl] = useState<string | null>(null)
   const [vercelUrl, setVercelUrl] = useState<string | null>(null)
   const [currentBranch, setCurrentBranch] = useState<string>('main')
 
-  useEffect(() => {
-    if (typeof BroadcastChannel === 'undefined') return
-    const bc = new BroadcastChannel('pi_project_edit')
-    // Announce when we start editing a project
-    if (projectId) {
-      bc.postMessage({ type: 'editing', projectId })
-    }
-    const handler = (e: MessageEvent) => {
-      if (e.data?.type === 'editing' && e.data.projectId === projectId && projectId) {
-        setConcurrentTabWarning(true)
+  // Extracted hooks
+  const { concurrentTabWarning, setConcurrentTabWarning } = useConcurrentTabGuard(projectId)
+
+  const { restoringProject, setRestoringProject, restoredRef } = useProjectRestore(
+    useCallback((result, hash) => {
+      setProjectId(result.projectId)
+      setProjectName(result.projectName)
+      setFiles(result.files)
+      if (result.activeFile) setActiveFile(result.activeFile)
+      setGithubRepoUrl(result.githubRepoUrl)
+      setVercelUrl(result.vercelUrl)
+      persistence.setLastSavedHash(hash)
+    }, []) // eslint-disable-line react-hooks/exhaustive-deps
+  )
+
+  const persistence = useProjectPersistence(projectId, projectName, files, activeFile)
+
+  const reconnectHandler = useCallback(() => {
+    if (projectId && Object.keys(files).length > 0) {
+      const hash = hashFileMapDeep(files)
+      if (hash !== persistence.lastSavedHash.current) {
+        persistence.handleManualSave()
       }
-      // Other tab is asking who's editing — respond
-      if (e.data?.type === 'ping' && e.data.projectId === projectId && projectId) {
-        bc.postMessage({ type: 'editing', projectId })
-      }
     }
-    bc.addEventListener('message', handler)
-    // Ask if anyone else is already editing this project
-    if (projectId) {
-      bc.postMessage({ type: 'ping', projectId })
-    }
-    return () => { bc.removeEventListener('message', handler); bc.close() }
-  }, [projectId])
+  }, [projectId, files, persistence.handleManualSave]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  const { isOffline } = useOfflineSync(reconnectHandler)
 
   // Show toast for OAuth errors in URL params
   useEffect(() => {
@@ -72,47 +70,6 @@ export default function PiChiPage() {
     window.history.replaceState({}, '', window.location.pathname)
   }, [])
 
-  useEffect(() => {
-    if (restoredRef.current) return
-    restoredRef.current = true
-    try {
-      const raw = sessionStorage.getItem('pi_active_project')
-      if (!raw) return
-      const stored: { id?: string; name?: string; activeFile?: string } = JSON.parse(raw)
-      const { id, name } = stored
-      if (id && name) {
-        // Load the saved project from API
-        setRestoringProject(true)
-        fetch(`/api/projects/${id}`)
-          .then(res => res.ok ? res.json() : null)
-          .then(data => {
-            if (data) {
-              setProjectId(data.id)
-              setProjectName(data.name)
-              setFiles(data.files || {})
-              setGithubRepoUrl(data.github_repo_url || null)
-              setVercelUrl(data.vercel_url || null)
-              lastSavedHash.current = hashFileMapDeep(data.files || {})
-              // Restore active file if it still exists
-              if (stored.activeFile && data.files?.[stored.activeFile]) {
-                setActiveFile(stored.activeFile)
-              }
-              // Auto-scan disabled — user triggers audits manually via chat
-              // Previous behavior silently fired scans on load, spamming the chat
-            } else {
-              // Project was deleted — clear storage
-              sessionStorage.removeItem('pi_active_project')
-            }
-          })
-          .catch(() => sessionStorage.removeItem('pi_active_project'))
-          .finally(() => setRestoringProject(false))
-      } else if (name) {
-        // Unsaved project — just restore the name (files are lost on refresh)
-        setProjectName(name)
-      }
-    } catch { /* ignore corrupt storage */ }
-  }, [])
-
   // Longer timeout for persistent warnings (local-only mode)
   useEffect(() => {
     if (errorMessage) {
@@ -121,21 +78,6 @@ export default function PiChiPage() {
       return () => clearTimeout(t)
     }
   }, [errorMessage])
-
-  // Persist active project to sessionStorage + push history state
-  useEffect(() => {
-    try {
-      if (projectName) {
-        sessionStorage.setItem('pi_active_project', JSON.stringify({ id: projectId, name: projectName, activeFile }))
-        // Push a history entry so browser back goes to project picker, not off-site
-        if (!window.history.state?.piProject) {
-          window.history.pushState({ piProject: true }, '', window.location.href)
-        }
-      } else {
-        sessionStorage.removeItem('pi_active_project')
-      }
-    } catch { /* sessionStorage unavailable (private browsing) — non-fatal */ }
-  }, [projectId, projectName, activeFile])
 
   // Handle browser back button — reset to re-init agent project
   useEffect(() => {
@@ -146,7 +88,7 @@ export default function PiChiPage() {
         setProjectId(null)
         setFiles({})
         setActiveFile(null)
-        agentInitRef.current = false // allow re-init
+        agentInitRef.current = false
       }
     }
     window.addEventListener('popstate', handlePopState)
@@ -156,20 +98,18 @@ export default function PiChiPage() {
   // Auto-create or restore the agent project
   useEffect(() => {
     if (!session?.githubUsername || agentInitRef.current) return
-    if (restoredRef.current && projectName) return // already restored from sessionStorage
-    if (projectName) return // already have a project (restored from session)
+    if (restoredRef.current && projectName) return
+    if (projectName) return
     agentInitRef.current = true
 
     async function initAgentProject() {
       setRestoringProject(true)
       try {
-        // Check for existing projects
         const res = await fetch('/api/projects?page=1&limit=1')
         if (res.ok) {
           const data = await res.json()
           const projects = data.projects || data
           if (projects.length > 0) {
-            // Restore the first (most recent) project
             const proj = projects[0]
             const detailRes = await fetch(`/api/projects/${proj.id}`)
             if (detailRes.ok) {
@@ -179,14 +119,13 @@ export default function PiChiPage() {
               setFiles(detail.files || {})
               setGithubRepoUrl(detail.github_repo_url || null)
               setVercelUrl(detail.vercel_url || null)
-              lastSavedHash.current = hashFileMapDeep(detail.files || {})
+              persistence.setLastSavedHash(hashFileMapDeep(detail.files || {}))
               setRestoringProject(false)
               return
             }
           }
         }
 
-        // No existing project — create the default agent project
         const createRes = await fetch('/api/projects', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -197,7 +136,6 @@ export default function PiChiPage() {
           setProjectId(data.id)
           setProjectName('Pi-Chi Agent')
         } else {
-          // Fallback: work without cloud save
           setProjectName('Pi-Chi Agent')
           setErrorMessage('Cloud save unavailable. Working in local-only mode.')
         }
@@ -211,133 +149,7 @@ export default function PiChiPage() {
     }
 
     initAgentProject()
-  }, [session?.githubUsername, projectName])
-
-  // Auto-save when files change (debounced 5 seconds, with save lock)
-  useEffect(() => {
-    if (!projectId || Object.keys(files).length === 0) return
-
-    const hash = hashFileMapDeep(files)
-    if (hash === lastSavedHash.current) return
-
-    setSaveStatus('pending')
-    if (autoSaveTimer.current) clearTimeout(autoSaveTimer.current)
-    if (retryTimer.current) clearTimeout(retryTimer.current)
-    autoSaveTimer.current = setTimeout(async () => {
-      if (savingRef.current) return // skip if another save is in-flight
-      savingRef.current = true
-      setSaveStatus('saving')
-      try {
-        const res = await fetch(`/api/projects/${projectId}`, {
-          method: 'PUT',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ files }),
-        })
-        if (res.ok) {
-          lastSavedHash.current = hash
-          setAutoSaveError(false)
-          setSaveStatus('saved')
-          saveRetriesRef.current = 0
-          setTimeout(() => setSaveStatus('idle'), 2000)
-        } else {
-          throw new Error(`HTTP ${res.status}`)
-        }
-      } catch {
-        if (saveRetriesRef.current < 3) {
-          saveRetriesRef.current++
-          // Exponential backoff retry
-          savingRef.current = false
-          retryTimer.current = setTimeout(async () => {
-            savingRef.current = true
-            try {
-              const retryRes = await fetch(`/api/projects/${projectId}`, {
-                method: 'PUT',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ files }),
-              })
-              if (retryRes.ok) {
-                lastSavedHash.current = hash
-                setAutoSaveError(false)
-                setSaveStatus('saved')
-                saveRetriesRef.current = 0
-                setTimeout(() => setSaveStatus('idle'), 2000)
-              } else {
-                setAutoSaveError(true)
-                setSaveStatus('error')
-              }
-            } catch {
-              setAutoSaveError(true)
-            } finally {
-              savingRef.current = false
-            }
-          }, 2000 * saveRetriesRef.current)
-          return
-        }
-        setAutoSaveError(true)
-        setSaveStatus('error')
-        // Backup to localStorage as safety net
-        try { localStorage.setItem(`pi-unsaved-${projectId}`, JSON.stringify(files)) } catch (e) { console.warn('[pi:localStorage] Failed to backup unsaved files:', e) }
-      } finally {
-        savingRef.current = false
-      }
-    }, 5000)
-
-    return () => {
-      if (autoSaveTimer.current) clearTimeout(autoSaveTimer.current)
-      if (retryTimer.current) clearTimeout(retryTimer.current)
-    }
-  }, [files, projectId])
-
-  // Manual save — cancels pending auto-save, saves immediately, updates hash
-  const handleManualSave = useCallback(async () => {
-    if (!projectId || Object.keys(files).length === 0) return
-    if (autoSaveTimer.current) clearTimeout(autoSaveTimer.current)
-    if (savingRef.current) return
-    savingRef.current = true
-    setSaveStatus('saving')
-    try {
-      const res = await fetch(`/api/projects/${projectId}`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ files }),
-      })
-      if (res.ok) {
-        lastSavedHash.current = hashFileMapDeep(files)
-        setAutoSaveError(false)
-        setSaveStatus('saved')
-        setTimeout(() => setSaveStatus('idle'), 2000)
-      } else {
-        setAutoSaveError(true)
-        setSaveStatus('error')
-      }
-    } catch {
-      setAutoSaveError(true)
-      setSaveStatus('error')
-    } finally {
-      savingRef.current = false
-    }
-  }, [projectId, files])
-
-  // Offline/reconnection handling — retry save when coming back online
-  useEffect(() => {
-    const goOffline = () => setIsOffline(true)
-    const goOnline = () => {
-      setIsOffline(false)
-      // Retry save on reconnection
-      if (projectId && Object.keys(files).length > 0) {
-        const hash = hashFileMapDeep(files)
-        if (hash !== lastSavedHash.current) {
-          handleManualSave()
-        }
-      }
-    }
-    window.addEventListener('offline', goOffline)
-    window.addEventListener('online', goOnline)
-    return () => {
-      window.removeEventListener('offline', goOffline)
-      window.removeEventListener('online', goOnline)
-    }
-  }, [projectId, files, handleManualSave])
+  }, [session?.githubUsername, projectName]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleFileChange = useCallback((path: string, content: string) => {
     setFiles(prev => ({ ...prev, [path]: content }))
@@ -374,7 +186,6 @@ export default function PiChiPage() {
     return <LandingPage />
   }
 
-  // API key gate: require BYOK before proceeding
   // API key gate disabled for kiosk mode
   if (false) {
     return <ApiKeyGate onKeySet={() => refresh()} />
@@ -423,15 +234,14 @@ export default function PiChiPage() {
         onFileDelete={handleFileDelete}
         onBulkFileUpdate={handleBulkFileUpdate}
         onSwitchProject={() => {
-          // In agent mode, "switch project" just resets state
           setProjectName(null)
           setProjectId(null)
           setFiles({})
           setActiveFile(null)
         }}
-        autoSaveError={autoSaveError}
-        saveStatus={saveStatus}
-        onManualSave={handleManualSave}
+        autoSaveError={persistence.autoSaveError}
+        saveStatus={persistence.saveStatus}
+        onManualSave={persistence.handleManualSave}
         onUpdateSettings={(settings) => {
           if (settings.name) setProjectName(settings.name)
         }}

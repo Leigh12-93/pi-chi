@@ -38,6 +38,7 @@ export async function GET(
     const url = new URL(request.url)
     const limit = Math.min(parseInt(url.searchParams.get('limit') || '50'), 100)
     const cursor = url.searchParams.get('cursor')
+    const before = url.searchParams.get('before')
 
     // Fetch chat messages for this project with cursor-based pagination
     let query = supabase
@@ -47,7 +48,11 @@ export async function GET(
       .order('created_at', { ascending: true })
       .limit(limit)
 
-    if (cursor) {
+    if (before) {
+      // Load older messages (before a given timestamp)
+      query = query.lt('created_at', before)
+    } else if (cursor) {
+      // Load newer messages (after a given timestamp)
       query = query.gt('created_at', cursor)
     }
 

@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef, useMemo, useCallback, Fragment } from 'react'
 import { Loader2, CheckCircle, XCircle, ExternalLink, Copy, Check, ChevronDown, X, RefreshCw, Rocket, Globe, Clock, FileCode, Zap, ArrowUpRight, Minus } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import './deploy-panel.css'
 
 interface DeployProgress {
   stage: string
