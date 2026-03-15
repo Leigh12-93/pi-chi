@@ -648,23 +648,71 @@ async function brainCycle(): Promise<void> {
       }
     }
 
-    // Post-cycle build check — DISABLED: Pi ARM CPU cannot build Next.js reliably.
-    // Builds must be done remotely and deployed via SCP. Source changes are committed
-    // but the dashboard uses the pre-built .next from the last remote build.
-    let dashboardStopped = false
+    // Post-cycle: type-check, commit, push, and self-deploy via GitHub Actions
     try {
       const diffResult = await executeCommand('git diff --name-only HEAD', { cwd: PI_CHI_DIR, timeout: 5000 })
       const changedFiles = (diffResult.stdout || '').trim()
-      if (changedFiles && (changedFiles.includes('.ts') || changedFiles.includes('.tsx') || changedFiles.includes('.css'))) {
-        console.log('[pi-brain] Source files changed — skipping build (ARM CPU cannot build Next.js). Changes committed but dashboard uses pre-built .next.')
-        addActivity(state, 'system', 'Source files changed. Build skipped (ARM limitation). Dashboard unchanged until remote rebuild.')
-        // Git commit changes but do NOT build — ARM CPU limitation
-        await executeCommand('git add -A && git commit -m "pi-chi: source changes (build pending remote)" --no-verify', { cwd: PI_CHI_DIR, timeout: 10000 }).catch(() => {})
+      if (changedFiles) {
+        // Step 1: Type-check before committing (fast, ~2-5s)
+        console.log('[pi-brain] Source files changed — running type check...')
+        const tscResult = await executeCommand('npx tsc --noEmit --pretty 2>&1', { cwd: PI_CHI_DIR, timeout: 30000 })
+        if (tscResult.exitCode !== 0) {
+          const tscErrors = (tscResult.stdout || tscResult.stderr || '').trim()
+          console.error('[pi-brain] Type check FAILED — not committing broken code')
+          addActivity(state, 'error', `Type check failed: ${tscErrors.slice(0, 200)}`)
+          // Revert the changes since they don't compile
+          await executeCommand('git checkout -- .', { cwd: PI_CHI_DIR, timeout: 5000 }).catch(() => {})
+          // Don't proceed — code is broken
+        } else {
+          // Step 2: Commit all changes
+          addActivity(state, 'system', 'Type check passed — committing changes...')
+          await executeCommand(
+            'git add -A && git commit -m "pi-chi: autonomous changes" --no-verify',
+            { cwd: PI_CHI_DIR, timeout: 10000 },
+          ).catch(() => {})
+
+          // Determine if dashboard build is needed
+          const dashboardFiles = changedFiles.split('\n').filter(f =>
+            (f.startsWith('app/') || f.startsWith('components/') || f.startsWith('lib/') || f.includes('globals.css') || f.includes('next.config'))
+            && !f.startsWith('scripts/pi-brain'),
+          )
+
+          // Step 3: Push to GitHub (triggers CI for both dashboard and brain-only changes)
+          console.log('[pi-brain] Pushing to GitHub...')
+          const pushResult = await executeCommand('git push origin master', { cwd: PI_CHI_DIR, timeout: 30000 })
+          if (pushResult.exitCode !== 0) {
+            console.error('[pi-brain] Git push failed:', (pushResult.stderr || '').slice(0, 200))
+            addActivity(state, 'error', `Git push failed: ${(pushResult.stderr || '').slice(0, 150)}`)
+          } else if (dashboardFiles.length > 0) {
+            // Step 4: Wait for GitHub Actions to build, then self-deploy
+            console.log(`[pi-brain] Dashboard files changed (${dashboardFiles.length}) — waiting for CI build + self-deploy...`)
+            addActivity(state, 'system', `Pushed ${dashboardFiles.length} dashboard files — waiting for CI build...`)
+
+            // Wait 30s for GitHub Actions to register the push
+            await new Promise(r => setTimeout(r, 30000))
+
+            const deployResult = await executeCommand(
+              'bash /home/pi/pi-chi/scripts/self-deploy.sh --wait',
+              { cwd: PI_CHI_DIR, timeout: 720000 },  // 12 min timeout (build + deploy)
+            )
+            if (deployResult.exitCode === 0) {
+              addActivity(state, 'system', 'Self-deploy succeeded — dashboard updated with new build')
+              console.log('[pi-brain] Self-deploy succeeded')
+            } else {
+              const output = (deployResult.stderr || deployResult.stdout || '').trim()
+              addActivity(state, 'error', `Self-deploy failed: ${output.slice(0, 200)}`)
+              console.error('[pi-brain] Self-deploy failed:', output.slice(0, 300))
+            }
+          } else {
+            console.log('[pi-brain] Brain-only changes pushed. No dashboard build needed.')
+            addActivity(state, 'system', 'Brain-only changes pushed. Takes effect next cycle restart.')
+          }
+        }
       }
-    } catch (buildErr) {
-      console.error('[pi-brain] Build check error:', buildErr)
+    } catch (deployErr) {
+      console.error('[pi-brain] Deploy check error:', deployErr)
     } finally {
-      // Guarantee dashboard comes back up regardless of what happened (Phase 3.5)
+      // Guarantee dashboard comes back up regardless of what happened
       try {
         const dashCheck = await executeCommand('systemctl is-active pi-chi-dashboard', { timeout: 3000 })
         if ((dashCheck.stdout || '').trim() !== 'active') {
@@ -672,10 +720,7 @@ async function brainCycle(): Promise<void> {
           await executeCommand('sudo systemctl start pi-chi-dashboard', { cwd: PI_CHI_DIR, timeout: 15000 })
         }
       } catch {
-        // Last resort
-        if (dashboardStopped) {
-          await executeCommand('sudo systemctl start pi-chi-dashboard', { cwd: PI_CHI_DIR, timeout: 15000 }).catch(() => {})
-        }
+        await executeCommand('sudo systemctl start pi-chi-dashboard', { cwd: PI_CHI_DIR, timeout: 15000 }).catch(() => {})
       }
     }
 

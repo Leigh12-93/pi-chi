@@ -1,13 +1,13 @@
-name: CI
+name: CI & Deploy
 
 on:
   push:
-    branches: [main]
+    branches: [master]
   pull_request:
-    branches: [main]
+    branches: [master]
 
 jobs:
-  check:
+  build:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -17,20 +17,46 @@ jobs:
           node-version: 20
           cache: npm
 
+      # Cache Next.js build output for fast incremental builds
+      - name: Cache Next.js build
+        uses: actions/cache@v4
+        with:
+          path: |
+            .next/cache
+          key: nextjs-${{ runner.os }}-${{ hashFiles('package-lock.json') }}-${{ hashFiles('**/*.ts', '**/*.tsx', '**/*.css') }}
+          restore-keys: |
+            nextjs-${{ runner.os }}-${{ hashFiles('package-lock.json') }}-
+            nextjs-${{ runner.os }}-
+
       - run: npm ci
 
       - name: Type check
         run: npx tsc --noEmit
 
-      - name: Build
+      - name: Build (standalone)
         run: npm run build
         env:
-          ANTHROPIC_API_KEY: dummy
-          AUTH_SECRET: dummy
-          GITHUB_CLIENT_ID: dummy
-          GITHUB_CLIENT_SECRET: dummy
-          NEXT_PUBLIC_SUPABASE_URL: https://dummy.supabase.co
-          SUPABASE_SERVICE_ROLE_KEY: dummy
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          AUTH_SECRET: ${{ secrets.AUTH_SECRET }}
+          GITHUB_CLIENT_ID: ${{ secrets.GH_OAUTH_CLIENT_ID }}
+          GITHUB_CLIENT_SECRET: ${{ secrets.GH_OAUTH_CLIENT_SECRET }}
+          NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
 
       - name: Test
         run: npx vitest run
+
+      - name: Package standalone deploy artifact
+        if: github.event_name == 'push' && github.ref == 'refs/heads/master'
+        run: |
+          cp -r public .next/standalone/public
+          cp -r .next/static .next/standalone/.next/static
+          tar czf pi-chi-deploy.tar.gz -C .next/standalone .
+
+      - name: Upload deploy artifact
+        if: github.event_name == 'push' && github.ref == 'refs/heads/master'
+        uses: actions/upload-artifact@v4
+        with:
+          name: pi-chi-deploy
+          path: pi-chi-deploy.tar.gz
+          retention-days: 7

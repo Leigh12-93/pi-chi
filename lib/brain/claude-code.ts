@@ -89,7 +89,7 @@ export function buildClaudeCodeCommand({
   killAfterSeconds = 30,
   liveLogPath,
 }: RunClaudeCodeOptions): string {
-  const base = `env ${getEnvUnsets()} claude -p - --output-format text --max-turns ${maxTurns}`
+  const base = `env ${getEnvUnsets()} claude -p - --output-format text --dangerously-skip-permissions --max-turns ${maxTurns}`
   const pipeline = `cat "${promptPath}" | timeout --kill-after=${killAfterSeconds} ${timeoutSeconds} ${base}`
 
   if (!liveLogPath) {

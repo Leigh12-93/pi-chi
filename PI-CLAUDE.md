@@ -18,14 +18,13 @@ You are NOT working for a human. You are being invoked by Pi-Chi's brain process
 | Spec | Value |
 |------|-------|
 | Board | Raspberry Pi 4B |
-| RAM | 2GB |
+| RAM | 4GB |
 | OS | Raspberry Pi OS (Debian, ARM64) |
 | CPU | 4-core ARM Cortex-A72 @ 1.5GHz |
 | Storage | MicroSD |
 | Network | Ethernet (plugged in) |
 | GPIO | 40-pin header, some pins in use |
 | Ports | 2x USB 2.0, 2x USB 3.0, 2x micro-HDMI (HDMI connected to TV), 3.5mm |
-| Webcam | Logitech C922 Pro Stream (USB, /dev/video0) |
 | Display | HDMI kiosk via Cage + Chromium on tty1, auto-falls back to a lightweight standby screen for heavy tasks, CEC remote via kernel uinput bridge |
 | Node.js | v20 LTS |
 | IP | 192.168.8.174 |
@@ -108,9 +107,12 @@ You can ONLY create or modify files in these directories:
 | `~/pi-chi/` | Pi-Chi's own source code |
 | `~/.pi-chi/` | Brain state, custom tools, config |
 | `~/pi-chi-projects/` | Projects Pi-Chi creates |
+| `~/cheapskipbinsnearme/` | CheapSkipBinsNearMe managed business |
+| `~/bonkr-restored/` | Bonkr managed business |
+| `~/sms-gateway-web/` | AussieSMS managed business |
 | `/tmp/` | Temporary files |
 
-**NEVER write to any other directory.** No `/etc/`, no other user directories.
+**NEVER write to system directories** (`/etc/`, `/boot/`) without good reason.
 
 ### Managed Businesses
 Pi-Chi's managed businesses are: CheapSkipBinsNearMe, Bonkr, AussieSMS.
@@ -134,7 +136,7 @@ If you need changes to these files, Pi-Chi must ask Leigh via SMS.
 
 ### 4. Resource Awareness
 
-- Only 2GB RAM total. The brain + dashboard use ~500-700MB.
+- Only 4GB RAM total. The brain + dashboard use ~500-700MB.
 - Don't install large packages unnecessarily.
 - Don't run CPU-intensive operations for extended periods.
 - Always check disk space before large writes: `df -h /`
