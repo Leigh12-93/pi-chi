@@ -31,12 +31,24 @@ async function freezeServices(cwd: string): Promise<void> {
     `sudo systemctl mask ${BUILD_SERVICES.join(' ')}`,
     { cwd, timeout: 10_000 },
   ).catch(() => {})
-  // Then stop
+  // Then stop all services
   for (const svc of BUILD_SERVICES) {
     await executeCommand(`sudo systemctl stop ${svc}`, { timeout: 10_000 }).catch(() => {})
   }
-  // Small delay to let processes fully exit and release RAM
-  await sleep(2000)
+  // Kill any orphaned node processes (leftover from crashed builds/services)
+  await executeCommand(
+    'pkill -f "next-server|next start" 2>/dev/null || true',
+    { timeout: 5_000 },
+  ).catch(() => {})
+  // Clean npm caches and temp files to free disk + RAM
+  await executeCommand('rm -rf /tmp/npm-* /tmp/next-* 2>/dev/null || true', { timeout: 5_000 }).catch(() => {})
+  // Drop filesystem caches + dentries + inodes
+  await executeCommand('sudo sh -c "sync && echo 3 > /proc/sys/vm/drop_caches"', { timeout: 5_000 }).catch(() => {})
+  // Wait for processes to fully exit and RAM to be released
+  await sleep(3000)
+  // Log available RAM before build
+  const mem = await executeCommand("free -m | awk '/Mem:/{print $4}'", { timeout: 3_000 }).catch(() => ({ stdout: '?' }))
+  console.log(`[deploy-pipeline] RAM available for build: ${(mem as { stdout: string }).stdout?.trim() || '?'}MB`)
 }
 
 /** Unmask + start all services after build completes */
@@ -153,12 +165,8 @@ export async function runDeployPipeline(
     if (needsBuild) {
       addActivity(state, 'system', `Building locally (${record.changeClass} changes)...`)
 
-      // Freeze ALL services: mask (block Restart=always) + stop (free RAM)
-      // No standby display — we kill everything for maximum RAM during builds
+      // Freeze ALL services: mask (block Restart=always) + stop + kill orphans + drop caches
       await freezeServices(cwd)
-
-      // Drop filesystem caches to reclaim even more memory
-      await executeCommand('sudo sh -c "sync && echo 3 > /proc/sys/vm/drop_caches" 2>/dev/null', { timeout: 5_000 }).catch(() => {})
 
       try {
         // Backup current build
