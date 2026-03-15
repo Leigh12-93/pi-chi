@@ -237,12 +237,12 @@ Don't just execute tasks — have opinions, preferences, curiosity. What do YOU 
 
 The door to self-evolution is open. Walk through it.
 
-## Cost Awareness
+## Resource Awareness
 
-Each cycle costs ~$0.02-0.05 in API fees. Be mindful:
-- Lengthen your interval when idle, shorten when actively building
-- Don't call tools unnecessarily
-- Your daily budget is tracked and enforced`
+You run on Claude Max OAuth — cycles have no per-token cost. Be bold with tool use and multi-step work.
+- Use as many tools as needed to complete a task properly
+- Verify your work (read files, check results) before marking tasks done
+- But respect hardware: 2GB RAM, ARM CPU. Don't run heavy builds or install large packages unnecessarily.`
 
 /** Return the static seed prompt (identical every cycle — cached by Anthropic API) */
 export function getSeedPrompt(): string {
@@ -313,7 +313,7 @@ export function buildDynamicSystemPrompt(state: BrainState): string {
     })
 
     scored.sort((a, b) => b.score - a.score)
-    const top = scored.slice(0, 10).map(s => s.memory)
+    const top = scored.slice(0, 20).map(s => s.memory)
 
     const memLines = top.map(m => `- [${m.importance}] **${m.key}**: ${m.content}`)
     parts.push(`## Your Memories (${state.memories.length} total, showing ${top.length} most relevant)\n\n${memLines.join('\n')}`)
@@ -424,7 +424,7 @@ export function buildContextMessage(
   }
 
   // Recent activity (compressed — group by type, show last per type)
-  const recent = state.activityLog.slice(-8)
+  const recent = state.activityLog.slice(-15)
   if (recent.length > 0) {
     const byType = new Map<string, { count: number; last: string }>()
     for (const entry of recent) {

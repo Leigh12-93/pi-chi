@@ -35,13 +35,13 @@ const MIN_WAKE_MS = 60 * 1000        // 1 minute
 const MAX_WAKE_MS = 60 * 60 * 1000   // 1 hour
 const DEFAULT_WAKE_MS = 5 * 60 * 1000 // 5 minutes
 
-const DAILY_BUDGET = parseFloat(process.env.BRAIN_DAILY_BUDGET || '25')
+const DAILY_BUDGET = parseFloat(process.env.BRAIN_DAILY_BUDGET || '999')
 
 const MAX_CONSECUTIVE_CRASHES = 3
 const DREAM_INTERVAL_HOURS = 24
 const PI_CHI_DIR = join(process.env.HOME || '/home/pi', 'pi-chi')
 const HEARTBEAT_FILE = join(homedir(), '.pi-chi', 'heartbeat')
-const WATCHDOG_TIMEOUT_MS = 20 * 60 * 1000 // 20 minutes
+const WATCHDOG_TIMEOUT_MS = 30 * 60 * 1000 // 30 minutes
 
 // ── Retry helper for transient API errors ─────────────────────────
 
@@ -215,12 +215,12 @@ function computeAdaptiveInterval(state: BrainState): number {
     .filter(e => Date.now() - new Date(e.time).getTime() < 30 * 60 * 1000)
   if (recentErrors.length >= 3) return 15 * 60 * 1000
 
-  // Active goals + good energy → working mode (3 min)
+  // Active goals + good energy → working mode (2 min)
   const activeGoals = state.goals.filter(g => g.status === 'active')
-  if (activeGoals.length > 0 && state.mood.energy > 30) return 3 * 60 * 1000
+  if (activeGoals.length > 0 && state.mood.energy > 30) return 2 * 60 * 1000
 
-  // No goals, no messages → idle mode (10 min)
-  return 10 * 60 * 1000
+  // No goals, no messages → idle mode (5 min)
+  return 5 * 60 * 1000
 }
 
 // ── Disk Space Check (Phase 3.6) ────────────────────────────────
@@ -287,8 +287,8 @@ Respond with a JSON object:
     const dreamPromptPath = join(stateDir, 'dream-prompt.txt')
     writeFileSync(dreamPromptPath, dreamPrompt, 'utf-8')
 
-    const dreamCmd = `cat "${dreamPromptPath}" | timeout --kill-after=15 120 claude -p - --output-format text --max-turns 3 2>&1`
-    const dreamResult = await executeCommand(dreamCmd, { cwd: PI_CHI_DIR, timeout: 150_000 })
+    const dreamCmd = `cat "${dreamPromptPath}" | timeout --kill-after=15 180 claude -p - --output-format text --max-turns 10 2>&1`
+    const dreamResult = await executeCommand(dreamCmd, { cwd: PI_CHI_DIR, timeout: 240_000 })
     try { unlinkSync(dreamPromptPath) } catch { /* ok */ }
 
     const text = (dreamResult.stdout || '').trim()
@@ -457,11 +457,11 @@ async function brainCycle(): Promise<void> {
     const fullPrompt = `${seedPrompt}\n\n${dynamicSystemPrompt}\n\n---\n\n${contextMessage}\n\n---\n\nIMPORTANT: You have access to the Pi filesystem via Claude Code tools (Read, Write, Edit, Bash).\nThe brain state file is at: ${join(stateDir, 'brain-state.json')}\nTo save a memory, update a goal, or change mood — modify brain-state.json directly using the Edit tool.\nKeep your response concise — summarize what you did and what you learned.`
     writeFileSync(promptPath, fullPrompt, 'utf-8')
 
-    const cmd = `cat "${promptPath}" | timeout --kill-after=30 280 claude -p - --output-format text --max-turns 25 2>&1; echo "EXIT_CODE:$?"`
+    const cmd = `cat "${promptPath}" | timeout --kill-after=30 480 claude -p - --output-format text --max-turns 50 2>&1; echo "EXIT_CODE:$?"`
 
     const result = await callWithRetry(() => executeCommand(cmd, {
       cwd: PI_CHI_DIR,
-      timeout: 300_000, // 5 min
+      timeout: 600_000, // 10 min — Max OAuth, no cost concern
     }))
 
     const output = (result.stdout || '').trim()
