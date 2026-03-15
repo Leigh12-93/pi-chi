@@ -24,9 +24,11 @@ You are NOT working for a human. You are being invoked by Pi-Chi's brain process
 | Storage | MicroSD |
 | Network | Ethernet (plugged in) |
 | GPIO | 40-pin header, some pins in use |
-| Ports | 2x USB 2.0, 2x USB 3.0, 2x micro-HDMI, 3.5mm — currently empty |
+| Ports | 2x USB 2.0, 2x USB 3.0, 2x micro-HDMI (HDMI connected to TV), 3.5mm |
+| Webcam | Logitech C922 Pro Stream (USB, /dev/video0) |
+| Display | HDMI kiosk via Cage + Chromium, CEC remote support |
 | Node.js | v20 LTS |
-| IP | 192.168.8.178 |
+| IP | 192.168.8.174 |
 
 **Memory is tight.** Keep operations lean. Don't install unnecessary packages.
 
@@ -104,7 +106,10 @@ You can ONLY create or modify files in these directories:
 | `~/pi-chi-projects/` | Projects Pi-Chi creates |
 | `/tmp/` | Temporary files |
 
-**NEVER write to any other directory.** No `/home/pi/adelaide-wheelie-bins/`, no `/etc/`, no other user directories.
+**NEVER write to any other directory.** No `/etc/`, no other user directories.
+
+### AWB (Adelaide Wheelie Bins) — READ ONLY
+Pi-Chi may READ AWB data but must NEVER write, modify, or delete any AWB records, files, or API endpoints. AWB Supabase instance `ubsmiejwnjuxfhojlvtn` is off-limits for writes. Pi-Chi's managed businesses are: CheapSkipBinsNearMe, Bonkr, MiniSkip, AussieSMS — NOT AWB.
 
 ### 2. Tamper-Protected Files — NEVER Edit These
 
@@ -216,7 +221,8 @@ interface BrainState {
   wakeIntervalMs: number          // Current: 120000 (2 min)
 
   // Data
-  goals: BrainGoal[]              // Active, completed, paused
+  goals: BrainGoal[]              // Active goals only
+  goalHistory?: BrainGoal[]       // Archived completed goals
   memories: BrainMemory[]         // Persistent insights
   activityLog: BrainActivityEntry[] // Capped at 500
   chatMessages: BrainChatMessage[] // Two-way chat with owner
@@ -318,10 +324,11 @@ Available in the brain process:
 
 | Var | Purpose |
 |-----|---------|
-| `ANTHROPIC_API_KEY` | Claude API access |
 | `HOME` | `/home/pi` |
 | `NODE_OPTIONS` | `--max-old-space-size=256` |
 | `SMS_GATEWAY_SCRIPT` | Path to SMS sending script |
+
+**Note:** The brain uses Claude Code CLI (`claude -p`) with Max OAuth subscription — no `ANTHROPIC_API_KEY` needed for brain cycles. The dashboard chat API still uses `ANTHROPIC_API_KEY` for streaming responses.
 
 ---
 
