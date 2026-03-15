@@ -2,7 +2,7 @@
 
 import { executeCommand } from '@/lib/tools/terminal-tools'
 import { addActivity, getStateDir } from './brain-state'
-import { enterStandbyDisplay, resumeDashboardDisplay } from './display-mode'
+// No display-mode import — we freeze/thaw ALL services directly (including kiosk)
 import { fixTypeErrors, fixBuildErrors } from './deploy-fix'
 import { runHealthSweep, monitorRuntime, captureDeployVitals } from './deploy-health'
 import { rollback } from './deploy-rollback'
@@ -15,6 +15,47 @@ import type { DeployRecord, DeployConfig, PipelineStep, ChangeClass } from './de
 import { DEFAULT_DEPLOY_CONFIG as defaultConfig } from './deploy-types'
 
 const sleep = (ms: number) => new Promise<void>(r => setTimeout(r, ms))
+
+// Services to stop/mask during builds — frees RAM and prevents auto-restart fighting
+const BUILD_SERVICES = [
+  'pi-chi-dashboard',
+  'pi-chi-kiosk',
+  'pi-chi-cec',
+  'pi-chi-mvp-monitor',
+]
+
+/** Mask + stop all services to free RAM and block systemd auto-restart */
+async function freezeServices(cwd: string): Promise<void> {
+  // Mask first — prevents Restart=always from re-spawning stopped services
+  await executeCommand(
+    `sudo systemctl mask ${BUILD_SERVICES.join(' ')}`,
+    { cwd, timeout: 10_000 },
+  ).catch(() => {})
+  // Then stop
+  for (const svc of BUILD_SERVICES) {
+    await executeCommand(`sudo systemctl stop ${svc}`, { timeout: 10_000 }).catch(() => {})
+  }
+  // Small delay to let processes fully exit and release RAM
+  await sleep(2000)
+}
+
+/** Unmask + start all services after build completes */
+async function thawServices(cwd: string): Promise<void> {
+  // Unmask first — re-enables Restart=always
+  await executeCommand(
+    `sudo systemctl unmask ${BUILD_SERVICES.join(' ')}`,
+    { cwd, timeout: 10_000 },
+  ).catch(() => {})
+  // Start dashboard (primary) — others will be started by their own restart policies
+  await executeCommand('sudo systemctl start pi-chi-dashboard', { timeout: 15_000 }).catch(() => {})
+  await sleep(2000)
+  // Start remaining services
+  for (const svc of BUILD_SERVICES) {
+    if (svc !== 'pi-chi-dashboard') {
+      await executeCommand(`sudo systemctl start ${svc}`, { timeout: 10_000 }).catch(() => {})
+    }
+  }
+}
 
 // ── Main entry point ─────────────────────────────────────────────
 
@@ -92,7 +133,19 @@ export async function runDeployPipeline(
     // ── Step 8: Commit ──────────────────────────────────────────
     const commitStep = await commitChanges(cwd, record.changeClass)
     record.steps.push(commitStep)
-    record.commitHash = commitStep.detail || null
+
+    // Always extract build_id from commit — commitChanges already does pre/post hash comparison
+    const buildId = commitStep.detail && commitStep.detail !== 'no-hash' ? commitStep.detail : null
+    record.commitHash = buildId
+    if (!buildId) {
+      // Fallback: try one more dedicated hash extraction
+      const fallbackHash = await executeCommand('git rev-parse HEAD', { cwd, timeout: 5000 })
+      record.commitHash = (fallbackHash.stdout || '').trim().slice(0, 40) || null
+      if (!record.commitHash) {
+        console.log('[deploy-pipeline] WARNING: Could not extract build_id (commit hash)')
+        addActivity(state, 'error', 'Deploy: no build_id — commit may have failed silently')
+      }
+    }
 
     // ── Step 9: Build + deploy if dashboard/config changes ──────
     const needsBuild = ['dashboard', 'config', 'mixed', 'style-only'].includes(record.changeClass)
@@ -100,9 +153,12 @@ export async function runDeployPipeline(
     if (needsBuild) {
       addActivity(state, 'system', `Building locally (${record.changeClass} changes)...`)
 
-      // Stop dashboard + enter standby
-      await executeCommand('sudo systemctl stop pi-chi-dashboard', { timeout: 15_000 })
-      await enterStandbyDisplay('Building code changes...')
+      // Freeze ALL services: mask (block Restart=always) + stop (free RAM)
+      // No standby display — we kill everything for maximum RAM during builds
+      await freezeServices(cwd)
+
+      // Drop filesystem caches to reclaim even more memory
+      await executeCommand('sudo sh -c "sync && echo 3 > /proc/sys/vm/drop_caches" 2>/dev/null', { timeout: 5_000 }).catch(() => {})
 
       try {
         // Backup current build
@@ -111,24 +167,22 @@ export async function runDeployPipeline(
           { cwd, timeout: 30_000 },
         ).catch(() => {})
 
-        // Build
+        // Build with all services stopped — maximum RAM available
         const buildStep = await runBuildWithFix(state, config, cwd, record)
         record.steps.push(buildStep)
         record.buildTimeMs = buildStep.durationMs
 
         if (buildStep.outcome === 'fail') {
-          // Build failed even after fix attempts — rollback
-          await resumeDashboardDisplay('Build failed — rolling back')
+          // thawServices called in finally block — then rollback
           await rollback(state, 2, cwd, record)
           return finalize(record, 'rolled-back', state, config)
         }
       } finally {
-        await resumeDashboardDisplay('Build complete')
+        // ALWAYS thaw services — unmask + start everything back up
+        await thawServices(cwd)
       }
 
-      // Start dashboard
-      await executeCommand('sudo systemctl start pi-chi-dashboard', { timeout: 15_000 })
-      await sleep(5000) // Wait for startup
+      await sleep(5000) // Wait for services to stabilize
 
       // ── Step 10: Health sweep ───────────────────────────────────
       const healthResult = await runHealthSweep(config)
@@ -178,6 +232,8 @@ export async function runDeployPipeline(
     try { unlinkSync(lockPath) } catch { /* already cleaned */ }
   }
 }
+
+// ── Restart services after build ─────────────────────────────────
 
 // ── Preflight checks ─────────────────────────────────────────────
 
@@ -412,21 +468,37 @@ async function commitChanges(cwd: string, changeClass: ChangeClass): Promise<Pip
   const start = Date.now()
   const msg = `pi-chi: ${changeClass} changes`
 
-  await executeCommand(`git add -A && git commit -m "${msg}" --no-verify`, {
+  // Get pre-commit hash to compare
+  const preHash = await executeCommand('git rev-parse HEAD', { cwd, timeout: 5000 })
+  const preCommitHash = (preHash.stdout || '').trim()
+
+  // Attempt commit
+  const commitResult = await executeCommand(`git add -A && git commit -m "${msg}" --no-verify`, {
     cwd,
     timeout: 10_000,
-  }).catch(() => {})
+  })
 
-  // Get commit hash
-  const hashResult = await executeCommand('git rev-parse HEAD', { cwd, timeout: 5000 })
-  const hash = (hashResult.stdout || '').trim()
+  // Get post-commit hash
+  const postHash = await executeCommand('git rev-parse HEAD', { cwd, timeout: 5000 })
+  const postCommitHash = (postHash.stdout || '').trim()
+
+  // Verify commit actually happened by comparing hashes
+  const commitSucceeded = commitResult.exitCode === 0 && postCommitHash && postCommitHash !== preCommitHash
+  const hash = postCommitHash || preCommitHash || null
+
+  if (!commitSucceeded) {
+    const reason = commitResult.exitCode !== 0
+      ? (commitResult.stderr || commitResult.stdout || 'unknown error').slice(0, 200)
+      : 'Hash unchanged — commit may not have created a new revision'
+    console.log(`[deploy-pipeline] Commit issue: ${reason}`)
+  }
 
   return {
     name: 'commit',
     startedAt: new Date(start).toISOString(),
-    outcome: 'pass',
+    outcome: commitSucceeded ? 'pass' : 'warn',
     durationMs: Date.now() - start,
-    detail: hash || undefined,
+    detail: hash || 'no-hash',
   }
 }
 

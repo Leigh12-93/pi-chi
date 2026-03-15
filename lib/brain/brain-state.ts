@@ -350,25 +350,51 @@ export function loadBrainState(): BrainState {
     return initial
   }
 
-  let state: BrainState
+  let state: BrainState = createInitialState()
 
-  // Try loading main file, fall back to backup, then fresh state
+  // Recovery cascade: main → .bak → dated backups → fresh state
   try {
     const raw = readFileSync(STATE_FILE, 'utf-8')
     state = JSON.parse(raw) as BrainState
   } catch (err) {
     console.error('[brain-state] Failed to parse brain-state.json:', err)
-    // Try backup
+
+    // Try .bak
+    let recovered = false
     if (existsSync(STATE_BACKUP)) {
       try {
-        const backupRaw = readFileSync(STATE_BACKUP, 'utf-8')
-        state = JSON.parse(backupRaw) as BrainState
-        console.log('[brain-state] Recovered from backup file')
+        state = JSON.parse(readFileSync(STATE_BACKUP, 'utf-8')) as BrainState
+        console.log('[brain-state] Recovered from .bak file')
+        recovered = true
       } catch {
-        console.error('[brain-state] Backup also corrupt — creating fresh state')
-        state = createInitialState()
+        console.error('[brain-state] .bak also corrupt')
       }
-    } else {
+    }
+
+    // Try dated backups (most recent first)
+    if (!recovered) {
+      try {
+        const { readdirSync } = require('node:fs') as typeof import('node:fs')
+        const datedBackups = readdirSync(STATE_DIR)
+          .filter((f: string) => f.startsWith('brain-state-backup-') && f.endsWith('.json'))
+          .sort()
+          .reverse()
+
+        for (const backup of datedBackups) {
+          try {
+            state = JSON.parse(readFileSync(join(STATE_DIR, backup), 'utf-8')) as BrainState
+            console.log(`[brain-state] Recovered from dated backup: ${backup}`)
+            recovered = true
+            break
+          } catch {
+            console.error(`[brain-state] Dated backup ${backup} also corrupt`)
+          }
+        }
+      } catch { /* dir read failed */ }
+    }
+
+    if (!recovered) {
+      console.error('[brain-state] All backups corrupt — creating fresh state')
       state = createInitialState()
     }
   }

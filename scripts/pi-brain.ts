@@ -670,12 +670,25 @@ async function brainCycle(): Promise<void> {
       console.error('[pi-brain] Deploy pipeline error:', msg)
       addActivity(state, 'error', `Deploy pipeline error: ${msg.slice(0, 150)}`)
     } finally {
-      // GUARANTEE: Dashboard must be running regardless of what happened above
+      // GUARANTEE: All services must be unmasked and running regardless of what happened above.
+      // If the pipeline crashed mid-build, services may still be masked (blocking auto-restart).
+      const criticalServices = ['pi-chi-dashboard', 'pi-chi-kiosk', 'pi-chi-cec', 'pi-chi-mvp-monitor']
       try {
+        // Unmask all — in case pipeline crashed with services still masked
+        await executeCommand(`sudo systemctl unmask ${criticalServices.join(' ')}`, { timeout: 10_000 }).catch(() => {})
+        // Check and start dashboard (most critical)
         const dashCheck = await executeCommand('systemctl is-active pi-chi-dashboard', { timeout: 3000 })
         if ((dashCheck.stdout || '').trim() !== 'active') {
           console.log('[pi-brain] Dashboard not active — emergency restart...')
           await executeCommand('sudo systemctl start pi-chi-dashboard', { cwd: PI_CHI_DIR, timeout: 15000 })
+        }
+        // Start remaining services if not running
+        for (const svc of criticalServices) {
+          if (svc === 'pi-chi-dashboard') continue
+          const check = await executeCommand(`systemctl is-active ${svc}`, { timeout: 3000 }).catch(() => ({ stdout: '' }))
+          if (((check as { stdout: string }).stdout || '').trim() !== 'active') {
+            await executeCommand(`sudo systemctl start ${svc}`, { timeout: 10_000 }).catch(() => {})
+          }
         }
       } catch {
         await executeCommand('sudo systemctl start pi-chi-dashboard', { cwd: PI_CHI_DIR, timeout: 15000 }).catch(() => {})
