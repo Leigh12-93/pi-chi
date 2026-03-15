@@ -5,7 +5,7 @@ import { Panel, PanelGroup, PanelResizeHandle } from 'react-resizable-panels'
 import {
   Activity, Terminal as TerminalIcon,
   Target, Bot, BookOpen,
-  BarChart3, Radio, X,
+  BarChart3, X,
 } from 'lucide-react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { cn } from '@/lib/utils'
@@ -15,8 +15,7 @@ import { BrainChat } from '@/components/agent/brain-chat'
 import { GoalsPanel } from '@/components/agent/goals-panel'
 import { ActivityFeed } from '@/components/agent/activity-feed'
 import { BrainHeader } from '@/components/agent/brain-header'
-import { AutonomyStrip } from '@/components/agent/autonomy-strip'
-import { ContextRail } from '@/components/agent/context-rail'
+import { UnifiedOpsPanel } from '@/components/agent/unified-ops-panel'
 import { DisplayModeBanner } from '@/components/agent/display-mode-banner'
 import { AgentStatusIndicator } from '@/components/agent/agent-status'
 import { BusinessesPanel } from '@/components/agent/businesses-panel'
@@ -42,7 +41,6 @@ const CapabilitiesPanel = lazy(() => import('@/components/agent/capabilities-pan
 const AchievementsPanel = lazy(() => import('@/components/agent/achievements-panel').then(m => ({ default: m.AchievementsPanel })))
 const PromptViewer = lazy(() => import('@/components/agent/prompt-viewer').then(m => ({ default: m.PromptViewer })))
 const SettingsPanel = lazy(() => import('@/components/agent/settings-panel').then(m => ({ default: m.SettingsPanel })))
-const RadioPanel = lazy(() => import('@/components/agent/radio-panel').then(m => ({ default: m.RadioPanel })))
 
 /* ─── Props ─────────────────────────────────────── */
 
@@ -63,7 +61,7 @@ interface AgentDashboardProps {
 /* ─── Tab types ─────────────────────────────────── */
 
 type MobileTab = 'chat' | 'context' | 'goals' | 'activity' | 'terminal'
-type CenterTab = 'chat' | 'businesses' | 'activity' | 'mind' | 'radio' | 'terminal'
+type CenterTab = 'chat' | 'businesses' | 'activity' | 'mind' | 'terminal'
 type MindSubTab = 'memories' | 'research' | 'growth' | 'projects' | 'skills' | 'achievements' | 'prompts'
 type DrawerSection = 'memories' | 'research' | 'growth' | 'projects' | 'skills' | 'achievements' | 'prompts' | 'mission' | 'mood' | 'vitals' | 'queue' | 'mind' | null
 
@@ -253,7 +251,7 @@ export function AgentDashboard(_props: AgentDashboardProps) {
   useEffect(() => {
     function handleKeyDown(e: KeyboardEvent) {
       if (e.ctrlKey && !e.shiftKey && !e.altKey) {
-        const tabs: CenterTab[] = ['chat', 'businesses', 'activity', 'mind', 'radio', 'terminal']
+        const tabs: CenterTab[] = ['chat', 'businesses', 'activity', 'mind', 'terminal']
         const num = parseInt(e.key)
         if (num >= 1 && num <= tabs.length) {
           e.preventDefault()
@@ -267,7 +265,7 @@ export function AgentDashboard(_props: AgentDashboardProps) {
 
   // Kiosk / CEC remote keyboard navigation
   useEffect(() => {
-    const tabs: CenterTab[] = ['chat', 'businesses', 'activity', 'mind', 'radio', 'terminal']
+    const tabs: CenterTab[] = ['chat', 'businesses', 'activity', 'mind', 'terminal']
 
     function isInputFocused(): boolean {
       const el = document.activeElement
@@ -341,7 +339,6 @@ export function AgentDashboard(_props: AgentDashboardProps) {
     { id: 'businesses', icon: BarChart3, label: 'Businesses', badge: bizAlertCount },
     { id: 'activity', icon: Activity, label: 'Activity' },
     { id: 'mind', icon: BookOpen, label: 'Mind' },
-    { id: 'radio', icon: Radio, label: 'Radio' },
     { id: 'terminal', icon: TerminalIcon, label: 'Terminal' },
   ]
 
@@ -359,7 +356,6 @@ export function AgentDashboard(_props: AgentDashboardProps) {
         onRefresh={agent.refresh}
         onSettingsOpen={() => setSettingsOpen(true)}
       />
-      <AutonomyStrip summary={dashboardSummary} />
       <DisplayModeBanner displayMode={dashboardSummary.displayMode} />
 
       {/* ─── Settings Panel (slide-over) ─── */}
@@ -489,15 +485,6 @@ export function AgentDashboard(_props: AgentDashboardProps) {
                     </PanelErrorBoundary>
                   </div>
 
-                  {/* Radio */}
-                  <div className={cn('absolute inset-0', centerTab !== 'radio' && 'hidden')}>
-                    <PanelErrorBoundary name="Radio">
-                      <Suspense fallback={<PanelSkeleton />}>
-                        <RadioPanel />
-                      </Suspense>
-                    </PanelErrorBoundary>
-                  </div>
-
                   {/* Terminal */}
                   {centerTab === 'terminal' && (
                     <PanelErrorBoundary name="Terminal">
@@ -512,10 +499,10 @@ export function AgentDashboard(_props: AgentDashboardProps) {
 
             <PanelResizeHandle className="w-[3px] bg-transparent hover:bg-pi-accent/20 active:bg-pi-accent/40 transition-colors relative cursor-col-resize" />
 
-            {/* ─── Context Rail ─── */}
+            {/* ─── Unified Ops Panel ─── */}
             <Panel defaultSize={35} minSize={22} maxSize={45}>
-              <PanelErrorBoundary name="Context Rail">
-                <ContextRail
+              <PanelErrorBoundary name="Ops Panel">
+                <UnifiedOpsPanel
                   summary={dashboardSummary}
                   vitals={vitals}
                   devMode={devMode}
@@ -555,7 +542,7 @@ export function AgentDashboard(_props: AgentDashboardProps) {
                 </motion.div>
               )}
 
-              {/* Context Rail (mobile) */}
+              {/* Ops Panel (mobile) */}
               {mobileTab === 'context' && (
                 <motion.div
                   key="mobile-context"
@@ -565,7 +552,7 @@ export function AgentDashboard(_props: AgentDashboardProps) {
                   transition={{ type: 'spring', stiffness: 400, damping: 30 }}
                   className="absolute inset-0"
                 >
-                  <ContextRail
+                  <UnifiedOpsPanel
                     summary={dashboardSummary}
                     vitals={vitals}
                     devMode={devMode}
