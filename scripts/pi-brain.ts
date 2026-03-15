@@ -469,7 +469,10 @@ async function brainCycle(): Promise<void> {
     const exitCode = exitMatch ? parseInt(exitMatch[1], 10) : result.exitCode
     const responseText = output.replace(/EXIT_CODE:\d+$/, '').trim()
 
-    state.lastThought = responseText.slice(0, 500)
+    // Extract a clean summary for the header (not the full verbose output)
+    const thoughtLines = responseText.split('\n').filter(l => l.trim() && !l.startsWith('---') && !l.startsWith('==='))
+    const summary = thoughtLines.slice(0, 3).join(' ').replace(/\*\*/g, '').replace(/#+\s*/g, '').trim()
+    state.lastThought = summary.slice(0, 300) || 'Cycle completed'
 
     // Reload state — Claude Code may have modified brain-state.json directly
     const freshState = loadBrainState()
