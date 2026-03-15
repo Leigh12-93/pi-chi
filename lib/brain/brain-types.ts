@@ -107,6 +107,9 @@ export interface BrainState {
   skills?: SkillRecord[]
   // Anti-patterns — things that don't work
   antiPatterns?: AntiPattern[]
+
+  // Multi-agent parallel execution queue
+  agentQueue?: AgentTask[]
 }
 
 export interface CostBreakdown {
@@ -366,4 +369,20 @@ export interface AntiPattern {
   occurrences: number
   lastSeen: string
   category: 'build' | 'deploy' | 'code' | 'architecture' | 'process' | 'other'
+}
+
+/** Queued task for parallel multi-agent execution */
+export interface AgentTask {
+  id: string
+  name: string
+  prompt: string
+  status: 'queued' | 'running' | 'completed' | 'failed'
+  priority: 'high' | 'medium' | 'low'
+  maxTurns: number
+  timeoutSeconds: number
+  result?: string
+  exitCode?: number
+  startedAt?: string
+  completedAt?: string
+  error?: string
 }

@@ -29,7 +29,7 @@ import { randomUUID } from 'node:crypto'
 import { writeFileSync, unlinkSync } from 'node:fs'
 import { join } from 'node:path'
 import { homedir } from 'node:os'
-import type { SystemVitalsSnapshot, BrainState } from '../lib/brain/brain-types'
+import type { SystemVitalsSnapshot, BrainState, CycleJournal, FailureRecord } from '../lib/brain/brain-types'
 import type { Mission, WorkCycle } from '../lib/brain/domain-types'
 
 // ── Constants ─────────────────────────────────────────────────────
@@ -335,6 +335,207 @@ function finishCycleRecord(state: BrainState, activityStartIndex: number, outcom
   state.currentCycle = null
 }
 
+// ── Auto-Learning System ─────────────────────────────────────────
+
+/** Auto-record a cycle journal entry from Claude Code output (no tool call needed) */
+function autoRecordCycleJournal(
+  state: BrainState,
+  cycleNumber: number,
+  startedAt: string,
+  claudeOutput: string,
+  exitCode: number,
+): void {
+  const now = new Date().toISOString()
+  const durationMs = new Date(now).getTime() - new Date(startedAt).getTime()
+
+  // Parse errors from output
+  const outputLines = claudeOutput.split('\n')
+  const errors = outputLines
+    .filter(line => /\b(error|failed|ENOENT|EACCES|OOM|killed|Cannot find|Module not found|SyntaxError)\b/i.test(line))
+    .slice(0, 5)
+    .map(l => l.trim().slice(0, 200))
+
+  // Determine outcome
+  let outcome: CycleJournal['outcome'] = 'productive'
+  if (exitCode !== 0) outcome = 'failed'
+  else if (errors.length > 3) outcome = 'partial'
+  else if (!claudeOutput.trim() || claudeOutput.trim().length < 20) outcome = 'wasted'
+
+  // Extract active goal/task info
+  const activeGoal = state.goals.find(g => g.status === 'active' && g.priority === 'high')
+    || state.goals.find(g => g.status === 'active')
+  const pendingTask = activeGoal?.tasks.find(t => t.status === 'pending' || t.status === 'running')
+
+  // Detect files changed from output mentions
+  const fileMatches = claudeOutput.match(/(?:\/home\/pi\/|~\/|\.\/)[^\s'")\]]+\.[a-z]{1,4}/g) || []
+  const uniqueFiles = [...new Set(fileMatches)].slice(0, 10)
+
+  // Build summary from first meaningful lines
+  const summaryLines = claudeOutput.split('\n').filter(l => l.trim() && !l.startsWith('---') && !l.startsWith('===')).slice(0, 2)
+  const summary = summaryLines.join(' ').replace(/\*\*/g, '').slice(0, 200) || 'Cycle completed'
+
+  const buildAttempted = /npm run build|next build|tsc/i.test(claudeOutput)
+  const deployAttempted = /systemctl.*restart.*dashboard|scp.*\.next/i.test(claudeOutput)
+
+  const journal: CycleJournal = {
+    cycle: cycleNumber,
+    startedAt,
+    completedAt: now,
+    durationMs,
+    goalWorkedOn: activeGoal?.title || null,
+    taskWorkedOn: pendingTask?.title || null,
+    toolsUsed: [],
+    claudeCodeUsed: true,
+    outcome,
+    summary,
+    errors,
+    lessonsLearned: [],
+    filesChanged: uniqueFiles,
+    buildAttempted,
+    buildSucceeded: buildAttempted ? !/build failed|Build error|ERR!/i.test(claudeOutput) : null,
+    deployAttempted,
+    deploySucceeded: deployAttempted ? !/deploy.*failed|deploy.*error/i.test(claudeOutput) : null,
+  }
+
+  if (!state.cycleJournal) state.cycleJournal = []
+  state.cycleJournal.push(journal)
+
+  // Auto-detect and record failures
+  if (errors.length > 0 || exitCode !== 0) {
+    autoRecordFailures(state, errors, cycleNumber)
+  }
+
+  console.log(`[pi-brain] Auto-journal: cycle ${cycleNumber} → ${outcome} (${errors.length} errors, ${uniqueFiles.length} files)`)
+}
+
+/** Auto-detect and record failures from cycle output errors */
+function autoRecordFailures(state: BrainState, errors: string[], cycle: number): void {
+  if (!state.failureRegistry) state.failureRegistry = []
+  const now = new Date().toISOString()
+
+  for (const error of errors) {
+    const errorLower = error.toLowerCase()
+
+    // Categorize
+    let category: FailureRecord['category'] = 'other'
+    if (/build|compile|tsc|typescript/i.test(error)) category = 'build'
+    else if (/deploy|scp|systemctl/i.test(error)) category = 'deploy'
+    else if (/type.*error|ts\(\d+\)/i.test(error)) category = 'type-check'
+    else if (/ENOENT|EACCES|permission/i.test(error)) category = 'permission'
+    else if (/OOM|out of memory|killed/i.test(error)) category = 'memory'
+    else if (/ENOSPC|disk/i.test(error)) category = 'disk'
+    else if (/network|ECONNREFUSED|fetch.*fail|timeout/i.test(error)) category = 'network'
+    else if (/git|merge|conflict/i.test(error)) category = 'git'
+    else if (/service|systemd/i.test(error)) category = 'service'
+
+    // Deduplicate: check for existing similar failure
+    const existing = state.failureRegistry.find(f => {
+      const descWords = new Set(f.description.toLowerCase().split(/\s+/))
+      const errorWords = errorLower.split(/\s+/)
+      const overlap = errorWords.filter(w => w.length > 3 && descWords.has(w)).length
+      return overlap >= 3 && f.category === category
+    })
+
+    if (existing) {
+      existing.occurrenceCount++
+      existing.lastOccurrence = now
+      if (!existing.occurrenceCycles.includes(cycle)) {
+        existing.occurrenceCycles.push(cycle)
+      }
+    } else {
+      state.failureRegistry.push({
+        id: randomUUID(),
+        category,
+        description: error.slice(0, 200),
+        rootCause: null,
+        solution: null,
+        prevention: null,
+        firstOccurrence: now,
+        lastOccurrence: now,
+        occurrenceCount: 1,
+        occurrenceCycles: [cycle],
+        resolved: false,
+        resolvedAt: null,
+        relatedGoal: state.goals.find(g => g.status === 'active')?.title || null,
+      })
+    }
+  }
+}
+
+// ── Multi-Agent Queue Processing ────────────────────────────────
+
+const MAX_PARALLEL_AGENTS = 3
+
+async function processAgentQueue(state: BrainState): Promise<void> {
+  const queued = (state.agentQueue || []).filter(t => t.status === 'queued')
+  if (queued.length === 0) return
+
+  const batch = queued
+    .sort((a, b) => {
+      const p: Record<string, number> = { high: 0, medium: 1, low: 2 }
+      return (p[a.priority] ?? 1) - (p[b.priority] ?? 1)
+    })
+    .slice(0, MAX_PARALLEL_AGENTS)
+
+  addActivity(state, 'system', `Spawning ${batch.length} parallel agents: ${batch.map(t => t.name).join(', ')}`)
+  saveBrainState(state)
+
+  console.log(`[pi-brain] Processing ${batch.length} queued agent tasks in parallel...`)
+
+  const stateDir = getStateDir()
+
+  const results = await Promise.allSettled(
+    batch.map(async (task) => {
+      task.status = 'running'
+      task.startedAt = new Date().toISOString()
+
+      const promptPath = join(stateDir, `agent-${task.id}.txt`)
+      writeFileSync(promptPath, task.prompt, 'utf-8')
+
+      try {
+        const result = await runClaudeCodePrompt({
+          promptPath,
+          cwd: PI_CHI_DIR,
+          maxTurns: task.maxTurns || 20,
+          timeoutSeconds: task.timeoutSeconds || 300,
+        })
+
+        try { unlinkSync(promptPath) } catch { /* ok */ }
+
+        task.status = result.exitCode === 0 ? 'completed' : 'failed'
+        task.result = (result.stdout || '').trim().slice(0, 1000)
+        task.exitCode = result.exitCode
+        task.completedAt = new Date().toISOString()
+        return task
+      } catch (err) {
+        try { unlinkSync(promptPath) } catch { /* ok */ }
+        task.status = 'failed'
+        task.error = err instanceof Error ? err.message : String(err)
+        task.completedAt = new Date().toISOString()
+        throw err
+      }
+    })
+  )
+
+  // Reload state after parallel agents (they may have modified brain-state.json)
+  const freshState = loadBrainState()
+  state.memories = freshState.memories
+  state.goals = freshState.goals
+  state.projects = freshState.projects
+
+  // Log results
+  for (const r of results) {
+    if (r.status === 'fulfilled') {
+      const t = r.value
+      addActivity(state, 'action', `Agent "${t.name}" ${t.status}: ${(t.result || '').slice(0, 150)}`)
+      console.log(`[pi-brain] Agent "${t.name}" completed (exit: ${t.exitCode})`)
+    } else {
+      addActivity(state, 'error', `Agent task failed: ${r.reason}`)
+      console.error(`[pi-brain] Agent task failed:`, r.reason)
+    }
+  }
+}
+
 // ── Disk Space Check (Phase 3.6) ────────────────────────────────
 
 async function checkDiskSpace(state: BrainState): Promise<void> {
@@ -606,7 +807,7 @@ async function brainCycle(): Promise<void> {
 
     // Reload state — Claude Code may have modified brain-state.json directly
     const freshState = loadBrainState()
-    // Merge volatile fields back (Claude Code may have updated memories/goals/mood)
+    // Merge volatile fields back (Claude Code may have updated these)
     state.memories = freshState.memories
     state.goals = freshState.goals
     state.mood = freshState.mood
@@ -616,6 +817,20 @@ async function brainCycle(): Promise<void> {
     state.opportunities = freshState.opportunities
     state.workCycles = freshState.workCycles
     state.currentCycle = freshState.currentCycle ?? state.currentCycle
+    // Learning system fields
+    state.cycleJournal = freshState.cycleJournal
+    state.failureRegistry = freshState.failureRegistry
+    state.operationalConstraints = freshState.operationalConstraints
+    state.skills = freshState.skills
+    state.antiPatterns = freshState.antiPatterns
+    // Agent queue + other mutable fields
+    state.agentQueue = freshState.agentQueue
+    state.projects = freshState.projects
+    state.threads = freshState.threads
+    state.promptOverrides = freshState.promptOverrides
+    state.promptEvolutions = freshState.promptEvolutions
+    state.schedules = freshState.schedules
+    state.chatMessages = freshState.chatMessages
 
     // No API cost — Claude Max subscription covers this
     console.log(`[pi-brain] Claude Code cycle complete (exit: ${exitCode}). Response: ${responseText.slice(0, 150)}`)
@@ -628,6 +843,12 @@ async function brainCycle(): Promise<void> {
     finishCycleRecord(state, cycleActivityStartIndex, state.lastThought || 'Cycle completed', [
       responseText.split('\n').find(line => line.trim().length > 0)?.trim() || '',
     ])
+
+    // Auto-record cycle journal (learning system — no tool call needed)
+    autoRecordCycleJournal(state, state.totalThoughts, state.lastWakeAt || new Date().toISOString(), responseText, exitCode)
+
+    // Process agent queue — run parallel tasks if any were queued
+    await processAgentQueue(state)
 
     // Send intro SMS on first boot
     if (isFirstBoot) {

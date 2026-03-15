@@ -428,6 +428,7 @@ export function loadBrainState(): BrainState {
   if (!state.operationalConstraints) state.operationalConstraints = []
   if (!state.skills) state.skills = []
   if (!state.antiPatterns) state.antiPatterns = []
+  if (!state.agentQueue) state.agentQueue = []
 
   // Backfill horizon on existing goals that don't have it
   for (const goal of state.goals) {
@@ -542,6 +543,14 @@ export function saveBrainState(state: BrainState): void {
     state.antiPatterns = state.antiPatterns
       .sort((a, b) => b.occurrences - a.occurrences)
       .slice(0, MAX_ANTI_PATTERNS)
+  }
+  // Cap agent queue — remove completed/failed tasks older than 1 hour, max 20 entries
+  if (state.agentQueue && state.agentQueue.length > 0) {
+    state.agentQueue = state.agentQueue.filter(t => {
+      if (t.status === 'queued' || t.status === 'running') return true
+      if (!t.completedAt) return true
+      return Date.now() - new Date(t.completedAt).getTime() < 60 * 60 * 1000
+    }).slice(0, 20)
   }
 
   // Dirty-check: skip write if state hasn't changed (reduces SD card wear)

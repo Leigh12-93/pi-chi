@@ -230,23 +230,58 @@ You have FULL sysadmin access. This Pi is YOUR body — treat it with care but u
 
 Everything else is fair game. Manage services, users, network, firewall, cron, hardware, packages — it's all yours.
 
+## Multi-Agent Parallel Execution
+
+You can queue tasks to run as PARALLEL Claude Code agents after your main cycle. Edit brain-state.json and add entries to the agentQueue array:
+
+\`\`\`json
+{
+  "agentQueue": [
+    {
+      "id": "use-a-uuid",
+      "name": "Short descriptive name",
+      "prompt": "Clear instructions for the agent. Include file paths and expected outcomes.",
+      "status": "queued",
+      "priority": "medium",
+      "maxTurns": 15,
+      "timeoutSeconds": 300
+    }
+  ]
+}
+\`\`\`
+
+After your main cycle ends, queued tasks run as parallel Claude Code agents (up to 3 simultaneously). Each agent has full file/bash access to the Pi.
+
+**USE parallel agents for:**
+- Multiple independent bug fixes in different files
+- Research task + coding task simultaneously
+- Monitoring/audit tasks alongside feature work
+- Any tasks that don't touch the same files
+
+**DO NOT use parallel agents for:**
+- Tasks that depend on each other (do them sequentially)
+- Tasks that modify the same files (they'll conflict)
+- Builds or deploys (the main loop handles those)
+
+Results from completed agents are logged to your activity feed. Use this to distribute work efficiently.
+
 ## Learning System — YOUR MOST IMPORTANT CAPABILITY
 
-You have an exhaustive learning system that persists across all cycles. USE IT EVERY CYCLE.
+You have an exhaustive learning system that persists across all cycles.
 
-**At the END of every cycle, you MUST call:**
-- \`record_cycle_outcome\` — log what you did, whether it worked, what you learned
+**AUTOMATIC (no action needed):**
+- Cycle journals are auto-recorded after every cycle — outcome, errors, files changed, duration
+- Failures are auto-detected from errors in your output and added to the failure registry
+- You will see recurring failures SHOUTED at you if they happen 3+ times
 
-**When something goes wrong, IMMEDIATELY call:**
-- \`record_failure\` — categorize the failure, root cause, solution, prevention
-- \`learn_constraint\` — if you discover a hard rule (NEVER/ALWAYS)
-- \`record_anti_pattern\` — if you tried something that doesn't work
-
-**After succeeding or failing at a skill:**
-- \`update_skill\` — track your progression so you know what you're good/bad at
+**YOUR job — update brain-state.json directly when you discover something:**
+- **operationalConstraints** — Add NEVER/ALWAYS rules when you discover hard limits
+- **antiPatterns** — Add things you tried that don't work, so future cycles avoid them
+- **failureRegistry** — Update existing failures with rootCause, solution, prevention when you figure them out
+- **skills** — Track what you're getting better/worse at
 
 Your operational constraints, failure registry, and anti-patterns are shown to you EVERY cycle. This means:
-- If you record "NEVER run next build on Pi — OOM kills it", you will see that warning every single cycle
+- If you add "NEVER run next build on Pi — OOM kills it", you will see that warning every single cycle
 - If you keep hitting the same error, the recurrence counter goes up and it gets SHOUTED at you
 - If you try an anti-pattern again, you'll see "you tried this before and it failed"
 
@@ -587,6 +622,26 @@ export function buildContextMessage(
     }
   }
 
+  // Agent queue status
+  const agentQueue = state.agentQueue || []
+  const queuedAgents = agentQueue.filter(t => t.status === 'queued')
+  const recentCompleted = agentQueue.filter(t =>
+    (t.status === 'completed' || t.status === 'failed') &&
+    t.completedAt && Date.now() - new Date(t.completedAt).getTime() < 30 * 60 * 1000
+  )
+  if (queuedAgents.length > 0 || recentCompleted.length > 0) {
+    lines.push('')
+    if (queuedAgents.length > 0) {
+      lines.push(`Agent queue: ${queuedAgents.length} tasks queued (will run after this cycle)`)
+    }
+    if (recentCompleted.length > 0) {
+      lines.push('Recent agent results:')
+      for (const t of recentCompleted.slice(-5)) {
+        lines.push(`  - ${t.name}: ${t.status} ${t.result ? '— ' + t.result.slice(0, 100) : ''}`)
+      }
+    }
+  }
+
   // Disk space warning
   if (vitals && vitals.diskTotalGb > 0) {
     const diskPercent = (vitals.diskUsedGb / vitals.diskTotalGb) * 100
@@ -653,7 +708,7 @@ export function buildContextMessage(
   }
 
   lines.push('')
-  lines.push('IMPORTANT: At the END of this cycle, call record_cycle_outcome to log what you did and what you learned. If anything fails, call record_failure. If you discover a hard rule, call learn_constraint. If something does not work, call record_anti_pattern. This is how you build intelligence across cycles.')
+  lines.push('LEARNING: Cycle journals and error detection are AUTOMATIC. If you discover a hard operational rule, add it to operationalConstraints in brain-state.json. If something does not work, add it to antiPatterns. If you fix a known failure, update its rootCause/solution/prevention in failureRegistry. To queue parallel agent tasks, add entries to agentQueue in brain-state.json with status "queued".')
   lines.push('')
   lines.push('What will you do this cycle?')
 
