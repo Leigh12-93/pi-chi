@@ -199,4 +199,3 @@ export interface CodeBlockComponent {
   content: string
   action: 'created' | 'edited' | 'read'
 }
-
