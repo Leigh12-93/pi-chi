@@ -112,8 +112,8 @@ You can ONLY create or modify files in these directories:
 
 **NEVER write to any other directory.** No `/etc/`, no other user directories.
 
-### AWB (Adelaide Wheelie Bins) — READ ONLY
-Pi-Chi may READ AWB data but must NEVER write, modify, or delete any AWB records, files, or API endpoints. AWB Supabase instance `ubsmiejwnjuxfhojlvtn` is off-limits for writes. Pi-Chi's managed businesses are: CheapSkipBinsNearMe, Bonkr, MiniSkip, AussieSMS — NOT AWB.
+### Managed Businesses
+Pi-Chi's managed businesses are: CheapSkipBinsNearMe, Bonkr, AussieSMS.
 
 ### 2. Tamper-Protected Files — NEVER Edit These
 

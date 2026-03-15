@@ -2,12 +2,13 @@
 
 import { TrendingUp, TrendingDown, Minus } from 'lucide-react'
 import { cn } from '@/lib/utils'
-import type { BusinessProfile } from '@/lib/brain/domain-types'
+import type { BusinessProfile, StretchGoal } from '@/lib/brain/domain-types'
 
 interface PortfolioSummaryProps {
   topBusiness: BusinessProfile | null
   portfolioValue: number | null
   portfolioTarget: number
+  topStretchGoal: StretchGoal | null
 }
 
 function formatCurrency(val: number): string {
@@ -23,11 +24,14 @@ const healthDots: Record<BusinessProfile['health'], string> = {
   unknown: 'bg-gray-500',
 }
 
-export function PortfolioSummary({ topBusiness, portfolioValue, portfolioTarget }: PortfolioSummaryProps) {
+export function PortfolioSummary({ topBusiness, portfolioValue, portfolioTarget, topStretchGoal }: PortfolioSummaryProps) {
   const progress = portfolioValue !== null && portfolioTarget > 0
     ? Math.min(100, (portfolioValue / portfolioTarget) * 100)
     : null
   const recentlyActive = topBusiness ? Date.now() - new Date(topBusiness.lastActionAt).getTime() < 86_400_000 : false
+  const stretchProgress = topStretchGoal && topStretchGoal.target > 0
+    ? Math.min(100, (topStretchGoal.current / topStretchGoal.target) * 100)
+    : null
 
   return (
     <div className="px-3 py-3 space-y-3">
@@ -50,6 +54,23 @@ export function PortfolioSummary({ topBusiness, portfolioValue, portfolioTarget 
           {progress !== null ? `${progress.toFixed(1)}% to target` : 'Connect a real ARR signal before showing progress'}
         </p>
       </div>
+
+      {topStretchGoal && (
+        <div className="rounded-lg border border-pi-border/50 bg-pi-surface/40 px-2.5 py-2">
+          <div className="flex items-center justify-between gap-2">
+            <span className="text-[10px] font-medium text-pi-text truncate">{topStretchGoal.title}</span>
+            <span className="text-[9px] font-mono text-pi-text-dim">
+              {topStretchGoal.current.toLocaleString()} / {topStretchGoal.target.toLocaleString()}
+            </span>
+          </div>
+          <p className="mt-1 text-[9px] text-pi-text-dim">
+            Ratchets by {topStretchGoal.ratchetFactor.toFixed(2)}x after each hit ({topStretchGoal.unit})
+          </p>
+          <div className="mt-1.5 h-1.5 overflow-hidden rounded-full bg-pi-bg/70">
+            <div className="h-full rounded-full bg-gradient-to-r from-pi-accent/70 to-emerald-400/70" style={{ width: `${stretchProgress ?? 0}%` }} />
+          </div>
+        </div>
+      )}
 
       {/* Top business */}
       {topBusiness && (

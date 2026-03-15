@@ -187,6 +187,13 @@ export function BrainHeader({
 
       {/* Right side: portfolio bar + wake countdown + actions */}
       <div className="flex items-center gap-3 shrink-0 ml-auto">
+        {summary?.topOpportunity && (
+          <div className="hidden xl:flex items-center gap-1 rounded-full border border-pi-border/50 bg-pi-surface/40 px-2 py-1 text-[9px] text-pi-text-dim">
+            <Target className="h-3 w-3 text-pi-accent" />
+            <span className="max-w-[180px] truncate">{summary.topOpportunity.title}</span>
+          </div>
+        )}
+
         {/* Portfolio progress mini */}
         {summary && (
           <div className="hidden sm:flex flex-col items-end gap-0.5 min-w-[100px]">

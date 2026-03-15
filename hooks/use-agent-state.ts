@@ -7,7 +7,7 @@ import type {
   PromptEvolution, Achievement, BrainSchedule,
 } from '@/lib/brain/brain-types'
 import type {
-  DashboardSummary, Mission, AttentionItem, WorkQueueItem, AutomationEvent, CycleSummary, WorkCycle,
+  DashboardSummary, Mission, AttentionItem, WorkQueueItem, AutomationEvent, CycleSummary, WorkCycle, Opportunity, StretchGoal, DisplayModeSnapshot,
 } from '@/lib/brain/domain-types'
 
 const MAX_ACTIVITY_ENTRIES = 200
@@ -28,6 +28,7 @@ export interface BrainChatMessage {
 
 interface BrainApiResponse {
   status: 'running' | 'sleeping' | 'not-running' | 'error'
+  displayMode?: DisplayModeSnapshot | null
   state?: {
     goals: Array<{
       id: string
@@ -75,6 +76,8 @@ interface BrainApiResponse {
     currentMission?: Mission | null
     currentCycle?: WorkCycle | null
     workCycles?: WorkCycle[]
+    opportunities?: Opportunity[]
+    stretchGoals?: StretchGoal[]
   }
   error?: string
 }
@@ -82,6 +85,7 @@ interface BrainApiResponse {
 interface BrainDeltaResponse {
   status: 'running' | 'sleeping' | 'not-running' | 'error'
   hasState: boolean
+  displayMode?: DisplayModeSnapshot | null
   counts: {
     activity: number
     chat: number
@@ -114,6 +118,8 @@ interface BrainDeltaResponse {
   currentMission: Mission | null
   currentCycle: WorkCycle | null
   recentCycles: WorkCycle[]
+  opportunities: Opportunity[]
+  stretchGoals: StretchGoal[]
   meta: {
     totalThoughts: number
     totalApiCost: number
@@ -166,6 +172,7 @@ export interface BrainMetaExtended {
   lastDreamAt?: string | null
   totalToolCalls?: number
   lastSelfEditAt?: string | null
+  displayMode?: DisplayModeSnapshot | null
 }
 
 interface UseAgentStateReturn {
@@ -298,6 +305,8 @@ export function useAgentState(): UseAgentStateReturn {
   const [promptEvolutions, setPromptEvolutions] = useState<PromptEvolution[]>([])
   const [achievements, setAchievements] = useState<Achievement[]>([])
   const [workCycles, setWorkCycles] = useState<WorkCycle[]>([])
+  const [opportunities, setOpportunities] = useState<Opportunity[]>([])
+  const [stretchGoals, setStretchGoals] = useState<StretchGoal[]>([])
 
   const [lastFetchedAt, setLastFetchedAt] = useState<number | null>(null)
 
@@ -402,6 +411,7 @@ export function useAgentState(): UseAgentStateReturn {
         lastDreamAt: data.state.lastDreamAt,
         totalToolCalls: data.state.totalToolCalls,
         lastSelfEditAt: data.state.lastSelfEditAt,
+        displayMode: data.displayMode ?? null,
       })
 
       setMemories(data.state.memories || [])
@@ -416,6 +426,8 @@ export function useAgentState(): UseAgentStateReturn {
         ...((data.state.workCycles || []).filter(Boolean)),
         ...(data.state.currentCycle ? [data.state.currentCycle] : []),
       ])
+      setOpportunities(data.state.opportunities || [])
+      setStretchGoals(data.state.stretchGoals || [])
     } else {
       brainActiveRef.current = false
       setBrainMeta(null)
@@ -430,6 +442,8 @@ export function useAgentState(): UseAgentStateReturn {
       setPromptEvolutions([])
       setAchievements([])
       setWorkCycles([])
+      setOpportunities([])
+      setStretchGoals([])
       activityCountRef.current = 0
       chatCountRef.current = 0
       goalsCountRef.current = 0
@@ -484,9 +498,9 @@ export function useAgentState(): UseAgentStateReturn {
       }
     }
 
-    setBrainMeta(prev => ({
-      ...(prev || {}),
-      totalThoughts: delta.meta.totalThoughts,
+      setBrainMeta(prev => ({
+        ...(prev || {}),
+        totalThoughts: delta.meta.totalThoughts,
       totalCost: delta.meta.totalApiCost,
       wakeInterval: delta.meta.wakeIntervalMs,
       lastThought: delta.meta.lastThought,
@@ -499,16 +513,19 @@ export function useAgentState(): UseAgentStateReturn {
       smsTodayCount: delta.meta.smsTodayCount,
       lastSmsAt: delta.meta.lastSmsAt,
       personalityTraits: delta.meta.personalityTraits,
-      lastDreamAt: delta.meta.lastDreamAt,
-      totalToolCalls: delta.meta.totalToolCalls,
-      lastSelfEditAt: delta.meta.lastSelfEditAt,
-    }))
+        lastDreamAt: delta.meta.lastDreamAt,
+        totalToolCalls: delta.meta.totalToolCalls,
+        lastSelfEditAt: delta.meta.lastSelfEditAt,
+        displayMode: delta.displayMode ?? null,
+      }))
 
     setAgentStatus(delta.status === 'running' ? 'thinking' : 'idle')
     setWorkCycles([
       ...((delta.recentCycles || []).filter(Boolean)),
       ...(delta.currentCycle ? [delta.currentCycle] : []),
     ])
+    setOpportunities(delta.opportunities || [])
+    setStretchGoals(delta.stretchGoals || [])
 
     if (delta.latestActivity && delta.latestActivity.id !== lastActivityIdRef.current) {
       const mapped: ActivityEntry = {
@@ -827,6 +844,13 @@ export function useAgentState(): UseAgentStateReturn {
     const liveCycle = persistedRecentCycles.find(cycle => !cycle.completedAt) || null
     const completedCycles = persistedRecentCycles.filter(cycle => cycle.completedAt)
     const persistedMission = liveCycle?.mission ?? null
+    const displayMode = brainMeta?.displayMode ?? null
+    const topOpportunity = [...opportunities]
+      .sort((a, b) => opportunityRank(b) - opportunityRank(a) || b.confidence - a.confidence)
+      [0] ?? null
+    const topStretchGoal = [...stretchGoals]
+      .sort((a, b) => stretchGoalPriority(b) - stretchGoalPriority(a))
+      [0] ?? null
 
     // Current mission — prefer persisted cycle/mission data, then fall back to goals
     const activeGoals = goals.filter(g => g.status === 'active')
@@ -843,24 +867,41 @@ export function useAgentState(): UseAgentStateReturn {
       progressLabel: `${topGoal.tasks.filter(t => t.status === 'done').length}/${topGoal.tasks.length} tasks`,
       startedAt: topGoal.createdAt,
       status: 'active',
+    } : topOpportunity ? {
+      id: topOpportunity.id,
+      type: topOpportunity.stage === 'launched' ? 'launch' : topOpportunity.stage === 'research' || topOpportunity.stage === 'validation' ? 'explore' : 'grow',
+      title: topOpportunity.title,
+      rationale: `Highest-ranked venture opportunity from ${topOpportunity.source}.`,
+      progressLabel: `${topOpportunity.stage} · ${topOpportunity.confidence}% confidence`,
+      startedAt: topOpportunity.updatedAt,
+      status: topOpportunity.stage === 'discarded' ? 'blocked' : 'active',
     } : null
     const currentMission: Mission | null = persistedMission || fallbackMission
 
     // Now doing — prefer explicit cycle action, then latest activity entry, then last thought
     const latestActivity = activity.length > 0 ? activity[activity.length - 1] : null
     const currentAction = liveCycle?.actions.at(-1) || null
-    const nowDoing = currentAction
+    const nowDoing = displayMode?.mode === 'standby'
+      ? displayMode.reason
+      : currentAction
       || (activity.length > 0
       ? activity[activity.length - 1].message
       : brainMeta?.lastThought || 'Idle'
       )
 
-    const cyclePhase = inferCyclePhase(brainStatus, latestActivity?.type)
+    const cyclePhase = inferCyclePhase(brainStatus, latestActivity?.type, displayMode)
 
     // Next up
     const nextGoal = activeGoals[1]
-    const nextUp = nextGoal ? nextGoal.title : null
-    const autonomyReason = currentMission?.rationale || inferAutonomyReason(latestActivity, cyclePhase)
+    const nextOpportunity = [...opportunities]
+      .filter(opportunity => opportunity.id !== topOpportunity?.id && opportunity.stage !== 'discarded')
+      .sort((a, b) => opportunityRank(b) - opportunityRank(a))
+      [0] ?? null
+    const nextUp = nextGoal?.title
+      || nextOpportunity?.title
+      || topStretchGoal?.title
+      || null
+    const autonomyReason = currentMission?.rationale || inferAutonomyReason(latestActivity, cyclePhase, displayMode)
 
     const workQueue: WorkQueueItem[] = []
     if (currentMission) {
@@ -882,6 +923,26 @@ export function useAgentState(): UseAgentStateReturn {
           : (index === 0 && !runningTask ? 'next' as const : 'queued' as const),
       }))
     )
+    if (!topGoal && topOpportunity) {
+      workQueue.push({
+        id: `${topOpportunity.id}-opportunity`,
+        label: `${topOpportunity.title} · ${topOpportunity.stage}`,
+        status: 'now',
+      })
+    } else if (topOpportunity) {
+      workQueue.push({
+        id: `${topOpportunity.id}-opportunity`,
+        label: `${topOpportunity.title} · ${topOpportunity.stage}`,
+        status: 'next',
+      })
+    }
+    if (topStretchGoal) {
+      workQueue.push({
+        id: `${topStretchGoal.id}-stretch`,
+        label: `${topStretchGoal.title} (${topStretchGoal.current}/${topStretchGoal.target} ${topStretchGoal.unit})`,
+        status: topStretchGoal.current >= topStretchGoal.target ? 'now' : 'queued',
+      })
+    }
 
     const backgroundEvents: AutomationEvent[] = liveCycle
       ? liveCycle.actions.slice(-6).reverse().map((label, index) => ({
@@ -951,9 +1012,39 @@ export function useAgentState(): UseAgentStateReturn {
     if (brainMeta && brainMeta.totalCost > 8) {
       attentionNeeded.push({ id: 'budget', level: 'warn', message: `API cost $${brainMeta.totalCost.toFixed(2)} approaching limit` })
     }
+    if (opportunities.length === 0) {
+      attentionNeeded.push({ id: 'opportunity-pipeline', level: 'info', message: 'No venture opportunities tracked yet' })
+    } else if (topOpportunity) {
+      const staleHours = (Date.now() - new Date(topOpportunity.updatedAt).getTime()) / 3_600_000
+      if (staleHours > 48) {
+        attentionNeeded.push({
+          id: 'opportunity-stale',
+          level: 'warn',
+          message: `Top opportunity "${topOpportunity.title}" has not advanced in ${Math.floor(staleHours)}h`,
+        })
+      }
+    }
+    if (stretchGoals.length === 0) {
+      attentionNeeded.push({ id: 'stretch-goals', level: 'info', message: 'No stretch goals set for the founder OS yet' })
+    } else if (topStretchGoal && topStretchGoal.current / Math.max(1, topStretchGoal.target) > 0.85) {
+      attentionNeeded.push({
+        id: 'stretch-goal-near-hit',
+        level: 'info',
+        message: `Stretch goal "${topStretchGoal.title}" is nearly hit — ratchet the target higher soon`,
+      })
+    }
+    if (displayMode?.mode === 'standby') {
+      attentionNeeded.push({
+        id: 'display-standby',
+        level: 'info',
+        message: `Heavy-task standby mode is active: ${displayMode.reason}`,
+      })
+    }
 
     // Portfolio — placeholder until real business data flows in
-    const portfolioValue = null
+    const portfolioValue = topStretchGoal && /\$|arr|revenue|mrr/i.test(topStretchGoal.unit)
+      ? topStretchGoal.current
+      : null
     const portfolioTarget = 1_000_000
 
     return {
@@ -969,11 +1060,14 @@ export function useAgentState(): UseAgentStateReturn {
       recentCycles,
       attentionNeeded,
       topBusiness: null,
-      topOpportunity: null,
+      topOpportunity,
+      opportunityCount: opportunities.length,
+      topStretchGoal,
       portfolioValue,
       portfolioTarget,
+      displayMode,
     }
-  }, [goals, activity, brainMeta, brainStatus, workCycles])
+  }, [goals, activity, brainMeta, brainStatus, workCycles, opportunities, stretchGoals])
 
   return {
     goals,
@@ -1035,8 +1129,10 @@ function inferMissionType(title: string): Mission['type'] {
 
 function inferCyclePhase(
   brainStatus: UseAgentStateReturn['brainStatus'],
-  latestActivityType?: ActivityEntry['type']
+  latestActivityType?: ActivityEntry['type'],
+  displayMode?: DisplayModeSnapshot | null
 ): DashboardSummary['cyclePhase'] {
+  if (displayMode?.mode === 'standby') return 'executing'
   if (brainStatus === 'sleeping') return 'sleeping'
   if (brainStatus === 'not-running') return 'offline'
   if (brainStatus === 'error') return 'error'
@@ -1047,8 +1143,12 @@ function inferCyclePhase(
 
 function inferAutonomyReason(
   latestActivity: ActivityEntry | null,
-  cyclePhase: DashboardSummary['cyclePhase']
+  cyclePhase: DashboardSummary['cyclePhase'],
+  displayMode?: DisplayModeSnapshot | null
 ): string {
+  if (displayMode?.mode === 'standby') {
+    return displayMode.detail || 'The dashboard renderer is paused so the Pi can stay responsive while a heavy local task runs.'
+  }
   if (cyclePhase === 'sleeping') return 'The current cycle completed and the brain is waiting for its next wake interval.'
   if (cyclePhase === 'responding') return 'A direct owner interaction is taking priority over background work.'
   if (cyclePhase === 'executing') return latestActivity?.message || 'A high-priority action is currently running.'
@@ -1056,6 +1156,31 @@ function inferAutonomyReason(
   if (cyclePhase === 'error') return 'The brain hit an error path and needs recovery.'
   if (cyclePhase === 'offline') return 'The background brain process is not currently running.'
   return 'Pi-Chi is idle but monitoring for the next meaningful task.'
+}
+
+function opportunityRank(opportunity: Opportunity): number {
+  const stageWeight: Record<Opportunity['stage'], number> = {
+    signal: 1,
+    idea: 2,
+    research: 3,
+    validation: 4,
+    candidate: 5,
+    incubation: 6,
+    launched: 7,
+    discarded: 0,
+  }
+  return stageWeight[opportunity.stage] * 100 + opportunity.confidence
+}
+
+function stretchGoalPriority(goal: StretchGoal): number {
+  const domainWeight: Record<StretchGoal['domain'], number> = {
+    business: 4,
+    venture: 3,
+    system: 2,
+    'self-improvement': 1,
+  }
+  const progress = goal.target > 0 ? Math.min(1, goal.current / goal.target) : 0
+  return domainWeight[goal.domain] * 1000 + progress * 100 + goal.target
 }
 
 function getToolSummary(invocation: ToolInvocation): string {

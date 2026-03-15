@@ -85,6 +85,7 @@ export function ContextRail({
           topBusiness={summary.topBusiness}
           portfolioValue={summary.portfolioValue}
           portfolioTarget={summary.portfolioTarget}
+          topStretchGoal={summary.topStretchGoal}
         />
       </CollapsibleSection>
 
@@ -92,7 +93,7 @@ export function ContextRail({
 
       {/* Opportunities */}
       <CollapsibleSection title="Opportunities" icon={Radar} defaultOpen={true}>
-        <OpportunityRadar topOpportunity={summary.topOpportunity} />
+        <OpportunityRadar topOpportunity={summary.topOpportunity} opportunityCount={summary.opportunityCount} />
       </CollapsibleSection>
 
       <div className="mx-3 h-px bg-gradient-to-r from-transparent via-pi-border to-transparent" />

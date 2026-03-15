@@ -35,14 +35,6 @@ const BUSINESS_META: Record<string, BusinessMeta> = {
     hosting: 'Vercel',
     description: 'Australian adult platform — personals/classifieds + YouTube-style video platform with 19,384 embedded videos, 65 channels.',
   },
-  miniskip: {
-    repo: 'Leigh12-93/miniskiphireadelaide',
-    framework: 'Next.js 16',
-    stack: 'React 19 + TypeScript + Tailwind v4 + Square',
-    database: 'Supabase',
-    hosting: 'Vercel',
-    description: 'Skip bin hire booking platform — 326 suburbs, driver app, admin dashboard, automated SMS, capacity system.',
-  },
   aussiesms: {
     repo: 'Leigh12-93/sms-gateway-web',
     framework: 'Next.js 16',
@@ -58,14 +50,6 @@ const BUSINESS_META: Record<string, BusinessMeta> = {
     database: 'Supabase',
     hosting: 'Vercel',
     description: 'AI-powered React website builder with self-modification superpowers.',
-  },
-  awb: {
-    repo: 'Leigh12-93/adelaide-wheelie-bins',
-    framework: 'Next.js 15',
-    stack: 'React 19 + TypeScript + Tailwind + Stripe',
-    database: 'Supabase',
-    hosting: 'Vercel',
-    description: 'Waste collection management — billing automation, customer portal, PWA.',
   },
 }
 

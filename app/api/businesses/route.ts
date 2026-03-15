@@ -26,14 +26,7 @@ interface BusinessConfig {
 }
 
 const BUSINESS_CONFIGS: BusinessConfig[] = [
-  {
-    id: 'miniskip',
-    name: 'MiniSkip Hire Adelaide',
-    domain: 'miniskiphireadelaide.com.au',
-    vercelProject: 'miniskiphireadelaide',
-    githubRepo: 'miniskiphireadelaide',
-  },
-  {
+{
     id: 'bonkr',
     name: 'Bonkr',
     domain: 'bonkr.com.au',
@@ -60,13 +53,6 @@ const BUSINESS_CONFIGS: BusinessConfig[] = [
     domain: 'pi-chi.vercel.app',
     vercelProject: 'pi-chi',
     githubRepo: 'pi-chi',
-  },
-  {
-    id: 'awb',
-    name: 'Adelaide Wheelie Bins',
-    domain: 'adelaidewheeliebins.com.au',
-    vercelProject: 'adelaidewheeliebins',
-    githubRepo: 'adelaide-wheelie-bins',
   },
 ]
 

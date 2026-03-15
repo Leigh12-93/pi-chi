@@ -17,6 +17,7 @@ import { ActivityFeed } from '@/components/agent/activity-feed'
 import { BrainHeader } from '@/components/agent/brain-header'
 import { AutonomyStrip } from '@/components/agent/autonomy-strip'
 import { ContextRail } from '@/components/agent/context-rail'
+import { DisplayModeBanner } from '@/components/agent/display-mode-banner'
 import { AgentStatusIndicator } from '@/components/agent/agent-status'
 import { BusinessesPanel } from '@/components/agent/businesses-panel'
 import { PanelErrorBoundary } from '@/components/error-boundary'
@@ -323,6 +324,7 @@ export function AgentDashboard(_props: AgentDashboardProps) {
         onSettingsOpen={() => setSettingsOpen(true)}
       />
       <AutonomyStrip summary={dashboardSummary} />
+      <DisplayModeBanner displayMode={dashboardSummary.displayMode} />
 
       {/* ─── Settings Panel (slide-over) ─── */}
       <Suspense fallback={null}>
@@ -636,6 +638,9 @@ function enhanceSummaryWithBusinessMetrics(
   const scoredBusinesses = businesses.map(mapBusinessMetricsToProfile)
   const topBusiness = [...scoredBusinesses].sort((a, b) => b.priorityScore - a.priorityScore)[0] ?? null
   const attentionNeeded = [...summary.attentionNeeded]
+  const healthyCount = scoredBusinesses.filter(biz => biz.health === 'healthy').length
+  const warningCount = scoredBusinesses.filter(biz => biz.health === 'warning').length
+  const criticalCount = scoredBusinesses.filter(biz => biz.health === 'critical').length
 
   for (const biz of scoredBusinesses) {
     if (biz.health === 'critical') {
@@ -651,6 +656,27 @@ function enhanceSummaryWithBusinessMetrics(
         message: `${biz.name} has gone stale`,
       })
     }
+  }
+
+  if (healthyCount >= 3) {
+    attentionNeeded.push({
+      id: 'portfolio-health-tailwind',
+      level: 'info',
+      message: `${healthyCount} businesses are currently healthy — lean into growth loops`,
+    })
+  }
+  if (criticalCount >= 2) {
+    attentionNeeded.push({
+      id: 'portfolio-risk-cluster',
+      level: 'critical',
+      message: `${criticalCount} businesses are in critical health — stabilize before expanding`,
+    })
+  } else if (warningCount >= 2) {
+    attentionNeeded.push({
+      id: 'portfolio-warning-cluster',
+      level: 'warn',
+      message: `${warningCount} businesses are drifting stale — refresh deployment and delivery cadence`,
+    })
   }
 
   return {

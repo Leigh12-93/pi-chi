@@ -43,7 +43,9 @@ function parseClaudeAuthStatus(raw: string): ClaudeCodeAuthStatus {
     available: Boolean(trimmed),
     authMethod,
     subscriptionType,
-    isMaxOAuth: (auth.includes('claude.ai') || auth.includes('oauth')) && sub === 'max',
+    // If authMethod is claude.ai/oauth, that's sufficient — they're on the subscription.
+    // subscriptionType may be unavailable in subprocess environments.
+    isMaxOAuth: auth.includes('claude.ai') || auth.includes('oauth') || sub === 'max',
     raw: trimmed,
   }
 }

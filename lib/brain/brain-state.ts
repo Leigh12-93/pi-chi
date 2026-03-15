@@ -76,8 +76,30 @@ export function createInitialState(): BrainState {
 
     goals: [],
     currentMission: null,
-    stretchGoals: [],
-    opportunities: [],
+    stretchGoals: [
+      {
+        id: randomUUID(),
+        title: 'Reach $1M annual run rate',
+        domain: 'business',
+        target: 1_000_000,
+        current: 0,
+        unit: '$ ARR',
+        ratchetFactor: 1.5,
+        history: [],
+      },
+    ],
+    opportunities: [
+      {
+        id: randomUUID(),
+        title: 'Find the next business Pi-Chi should start',
+        description: 'Continuously scout and validate a new venture candidate with meaningful upside.',
+        source: 'founder-os bootstrap',
+        stage: 'signal',
+        confidence: 55,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      },
+    ],
     currentCycle: null,
     workCycles: [],
     memories: [],

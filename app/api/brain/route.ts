@@ -7,6 +7,7 @@ import { homedir } from 'node:os'
 import { randomUUID } from 'node:crypto'
 import { loadBrainState, saveBrainState, addActivity, getStatePath } from '@/lib/brain/brain-state'
 import { requireBrainAuth } from '@/lib/brain/brain-auth'
+import { readDisplayState } from '@/lib/brain/display-mode'
 import { rateLimit } from '@/lib/rate-limit'
 
 const getLimit = rateLimit('brain-get', 60, 60_000)    // 60 req/min
@@ -24,7 +25,7 @@ export async function GET(req: Request) {
 
   try {
     if (!existsSync(getStatePath())) {
-      return NextResponse.json({ status: 'not-running', state: null })
+      return NextResponse.json({ status: 'not-running', state: null, displayMode: readDisplayState() })
     }
 
     const state = loadBrainState()
@@ -47,6 +48,7 @@ export async function GET(req: Request) {
     return NextResponse.json({
       status: isAlive ? 'running' : 'sleeping',
       state,
+      displayMode: readDisplayState(),
     })
   } catch (err) {
     return NextResponse.json(

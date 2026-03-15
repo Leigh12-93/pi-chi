@@ -4,6 +4,7 @@ import { homedir } from 'node:os'
 import { NextResponse } from 'next/server'
 import { loadBrainState, getStatePath } from '@/lib/brain/brain-state'
 import { requireBrainAuth } from '@/lib/brain/brain-auth'
+import { getDisplayStatePath, readDisplayState } from '@/lib/brain/display-mode'
 import { rateLimit } from '@/lib/rate-limit'
 
 const streamLimit = rateLimit('brain-stream', 12, 60_000)
@@ -35,7 +36,8 @@ function getBrainStatus(): 'running' | 'sleeping' | 'not-running' {
 function getSignature(status: string): string {
   const stateMtime = existsSync(getStatePath()) ? statSync(getStatePath()).mtimeMs : 0
   const heartbeatMtime = existsSync(HEARTBEAT_FILE) ? statSync(HEARTBEAT_FILE).mtimeMs : 0
-  return `${status}:${stateMtime}:${heartbeatMtime}`
+  const displayMtime = existsSync(getDisplayStatePath()) ? statSync(getDisplayStatePath()).mtimeMs : 0
+  return `${status}:${stateMtime}:${heartbeatMtime}:${displayMtime}`
 }
 
 function buildPayload() {
@@ -46,6 +48,7 @@ function buildPayload() {
   return {
     status: getBrainStatus(),
     state: loadBrainState(),
+    displayMode: readDisplayState(),
   }
 }
 
@@ -98,6 +101,9 @@ function buildDeltaPayload() {
     currentMission: state.currentMission ?? null,
     currentCycle: state.currentCycle ?? null,
     recentCycles: (state.workCycles || []).slice(-6),
+    opportunities: state.opportunities || [],
+    stretchGoals: state.stretchGoals || [],
+    displayMode: readDisplayState(),
     meta: {
       totalThoughts: state.totalThoughts,
       totalApiCost: state.totalApiCost,

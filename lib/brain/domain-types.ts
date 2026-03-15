@@ -66,6 +66,16 @@ export interface WorkCycle {
   lessons: string[]
 }
 
+export interface DisplayModeSnapshot {
+  mode: 'dashboard' | 'standby'
+  reason: string
+  updatedAt: string
+  missionTitle?: string | null
+  detail?: string | null
+  sinceThought?: number | null
+  taskClass?: 'heavy-autonomous' | 'build' | 'recovery' | 'maintenance'
+}
+
 /** Dashboard summary — derived, not stored */
 export interface DashboardSummary {
   nowDoing: string
@@ -81,8 +91,11 @@ export interface DashboardSummary {
   attentionNeeded: AttentionItem[]
   topBusiness: BusinessProfile | null
   topOpportunity: Opportunity | null
+  opportunityCount: number
+  topStretchGoal: StretchGoal | null
   portfolioValue: number | null
   portfolioTarget: number // 1,000,000
+  displayMode: DisplayModeSnapshot | null
 }
 
 export interface AttentionItem {

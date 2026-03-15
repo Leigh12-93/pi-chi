@@ -21,7 +21,6 @@ const AuditPanel = lazy(() => import('./audit-panel').then(m => ({ default: m.Au
 const DbExplorer = lazy(() => import('./db-explorer').then(m => ({ default: m.DbExplorer })))
 const ComponentLibrary = lazy(() => import('./component-library').then(m => ({ default: m.ComponentLibrary })))
 const MCPManager = lazy(() => import('./mcp-manager').then(m => ({ default: m.MCPManager })))
-const OnboardingTour = lazy(() => import('./onboarding-tour').then(m => ({ default: m.OnboardingTour })))
 
 interface WorkspaceDialogsProps {
   state: WorkspaceStateReturn
@@ -229,9 +228,6 @@ export function WorkspaceDialogs({
         </Suspense>
       )}
 
-      <Suspense fallback={null}>
-        <OnboardingTour />
-      </Suspense>
     </>
   )
 }

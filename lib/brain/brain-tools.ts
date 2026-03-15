@@ -1056,6 +1056,33 @@ export function createBrainTools(state: BrainState) {
       },
     }),
 
+    set_current_mission: tool({
+      description: 'Set or update your current mission explicitly. Use this when you want the dashboard and future cycles to reflect a deliberate focus area.',
+      inputSchema: z.object({
+        title: z.string().describe('Mission title'),
+        type: z.enum(['maintain', 'grow', 'explore', 'launch', 'self-improve']),
+        rationale: z.string().describe('Why this mission is the current priority'),
+        progressLabel: z.string().describe('Short progress/status label'),
+        targetRef: z.string().optional().describe('Optional linked business/opportunity/goal id'),
+        status: z.enum(['active', 'completed', 'blocked']).default('active'),
+      }),
+      execute: async ({ title, type, rationale, progressLabel, targetRef, status }) => {
+        state.totalToolCalls++
+        state.currentMission = {
+          id: targetRef || randomUUID(),
+          title,
+          type,
+          rationale,
+          progressLabel,
+          startedAt: new Date().toISOString(),
+          status,
+          ...(targetRef ? { targetRef } : {}),
+        }
+        addActivity(state, 'decision', `Mission set: ${title} (${type})`)
+        return { success: true, currentMission: state.currentMission }
+      },
+    }),
+
     // ── System Control Tools — Full Pi Autonomy ──────────────────
 
     systemd_control: tool({

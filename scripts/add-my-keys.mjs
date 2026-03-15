@@ -62,28 +62,6 @@ const SUPABASE_KEY = requireEnv('SUPABASE_SERVICE_ROLE_KEY')
 
 // ─── All API keys to store (values from env files) ───
 const variables = [
-  // Stripe (AWB)
-  { key: 'STRIPE_SECRET_KEY', value: optionalEnv('STRIPE_SECRET_KEY') },
-  { key: 'STRIPE_WEBHOOK_SECRET', value: optionalEnv('STRIPE_WEBHOOK_SECRET') },
-
-  // Supabase (AWB) — these may differ from pi-chi's own Supabase
-  { key: 'AWB_SUPABASE_URL', value: optionalEnv('AWB_SUPABASE_URL') || optionalEnv('NEXT_PUBLIC_AWB_SUPABASE_URL') },
-  { key: 'AWB_SUPABASE_SERVICE_ROLE_KEY', value: optionalEnv('AWB_SUPABASE_SERVICE_ROLE_KEY') },
-  { key: 'AWB_SUPABASE_ANON_KEY', value: optionalEnv('AWB_SUPABASE_ANON_KEY') },
-
-  // Square
-  { key: 'SQUARE_ACCESS_TOKEN', value: optionalEnv('SQUARE_ACCESS_TOKEN') },
-  { key: 'SQUARE_LOCATION_ID', value: optionalEnv('SQUARE_LOCATION_ID') },
-  { key: 'SQUARE_APPLICATION_ID', value: optionalEnv('SQUARE_APPLICATION_ID') },
-
-  // AWB Website API
-  { key: 'AWB_API_KEY', value: optionalEnv('AWB_API_KEY') },
-  { key: 'AWB_API_URL', value: optionalEnv('AWB_API_URL') },
-
-  // Supabase (AWB) Postgres
-  { key: 'SUPABASE_DB_HOST', value: optionalEnv('SUPABASE_DB_HOST') },
-  { key: 'SUPABASE_DB_PASSWORD', value: optionalEnv('SUPABASE_DB_PASSWORD') },
-
   // AussieSMS Gateway
   { key: 'AUSSIESMS_API_KEY', value: optionalEnv('AUSSIESMS_API_KEY') },
 

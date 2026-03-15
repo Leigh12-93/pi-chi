@@ -6,6 +6,7 @@ import type { Opportunity } from '@/lib/brain/domain-types'
 
 interface OpportunityRadarProps {
   topOpportunity: Opportunity | null
+  opportunityCount: number
 }
 
 const stageLabels: Record<Opportunity['stage'], string> = {
@@ -30,7 +31,7 @@ const stageColors: Record<Opportunity['stage'], string> = {
   discarded: 'text-red-400 bg-red-500/10 border-red-500/20',
 }
 
-export function OpportunityRadar({ topOpportunity }: OpportunityRadarProps) {
+export function OpportunityRadar({ topOpportunity, opportunityCount }: OpportunityRadarProps) {
   if (!topOpportunity) {
     return (
       <div className="px-3 py-3">
@@ -41,6 +42,8 @@ export function OpportunityRadar({ topOpportunity }: OpportunityRadarProps) {
       </div>
     )
   }
+
+  const freshnessHours = Math.max(0, Math.floor((Date.now() - new Date(topOpportunity.updatedAt).getTime()) / 3_600_000))
 
   return (
     <div className="px-3 py-3">
@@ -69,9 +72,12 @@ export function OpportunityRadar({ topOpportunity }: OpportunityRadarProps) {
             Source: {topOpportunity.source}
           </span>
           <span className="text-[9px] text-pi-text-dim/80">
-            Live scouting
+            {opportunityCount} tracked
           </span>
         </div>
+        <p className="mt-1 text-[9px] text-pi-text-dim/80">
+          {freshnessHours < 1 ? 'Updated this hour' : `Updated ${freshnessHours}h ago`}
+        </p>
       </div>
     </div>
   )

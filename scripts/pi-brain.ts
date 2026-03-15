@@ -236,12 +236,58 @@ function inferMissionType(title: string): Mission['type'] {
 }
 
 function deriveMission(state: BrainState): Mission | null {
+  if (state.currentMission && state.currentMission.status === 'active') {
+    return state.currentMission
+  }
+
   const activeGoals = state.goals
     .filter(goal => goal.status === 'active')
     .sort((a, b) => ({ high: 3, medium: 2, low: 1 }[b.priority] - { high: 3, medium: 2, low: 1 }[a.priority]))
 
   const topGoal = activeGoals[0]
   if (!topGoal) return null
+
+  if (!topGoal && state.stretchGoals && state.stretchGoals.length > 0) {
+    const topStretchGoal = [...state.stretchGoals].sort((a, b) => {
+      const progressA = a.target > 0 ? a.current / a.target : 0
+      const progressB = b.target > 0 ? b.current / b.target : 0
+      return progressB - progressA
+    })[0]
+    if (topStretchGoal) {
+      return {
+        id: topStretchGoal.id,
+        type: topStretchGoal.domain === 'business' ? 'grow' : topStretchGoal.domain === 'venture' ? 'launch' : topStretchGoal.domain === 'self-improvement' ? 'self-improve' : 'maintain',
+        title: topStretchGoal.title,
+        rationale: `Primary stretch target is ${topStretchGoal.current}/${topStretchGoal.target} ${topStretchGoal.unit}.`,
+        progressLabel: `${topStretchGoal.current}/${topStretchGoal.target} ${topStretchGoal.unit}`,
+        startedAt: new Date().toISOString(),
+        status: 'active',
+        targetRef: topStretchGoal.id,
+      }
+    }
+  }
+
+  if (!topGoal && state.opportunities && state.opportunities.length > 0) {
+    const topOpportunity = [...state.opportunities]
+      .filter(opportunity => opportunity.stage !== 'discarded')
+      .sort((a, b) => {
+        const stageScore = (stage: string) => ({ signal: 1, idea: 2, research: 3, validation: 4, candidate: 5, incubation: 6, launched: 7, discarded: 0 }[stage] ?? 0)
+        return stageScore(b.stage) - stageScore(a.stage) || b.confidence - a.confidence
+      })[0]
+
+    if (topOpportunity) {
+      return {
+        id: topOpportunity.id,
+        type: topOpportunity.stage === 'launched' ? 'launch' : topOpportunity.stage === 'research' || topOpportunity.stage === 'validation' ? 'explore' : 'grow',
+        title: topOpportunity.title,
+        rationale: `Highest-ranked opportunity from ${topOpportunity.source}.`,
+        progressLabel: `${topOpportunity.stage} · ${topOpportunity.confidence}% confidence`,
+        startedAt: topOpportunity.updatedAt,
+        status: topOpportunity.stage === 'discarded' ? 'blocked' : 'active',
+        targetRef: topOpportunity.id,
+      }
+    }
+  }
 
   return {
     id: topGoal.id,
@@ -531,7 +577,15 @@ async function brainCycle(): Promise<void> {
     const fullPrompt = `${seedPrompt}\n\n${dynamicSystemPrompt}\n\n---\n\n${contextMessage}\n\n---\n\nIMPORTANT: You have access to the Pi filesystem via Claude Code tools (Read, Write, Edit, Bash).\nThe brain state file is at: ${join(stateDir, 'brain-state.json')}\nTo save a memory, update a goal, or change mood — modify brain-state.json directly using the Edit tool.\nKeep your response concise — summarize what you did and what you learned.`
     writeFileSync(promptPath, fullPrompt, 'utf-8')
 
-    await enterStandbyDisplay('Autonomous Claude Code cycle')
+    const standbyReason = state.currentMission?.title
+      ? `Heavy task mode: ${state.currentMission.title}`
+      : 'Heavy task mode: Autonomous Claude Code cycle'
+    await enterStandbyDisplay(standbyReason, {
+      missionTitle: state.currentMission?.title ?? null,
+      detail: state.currentMission?.progressLabel || activeGoals[0]?.title || 'Claude Code is running a high-load autonomous cycle',
+      sinceThought: state.totalThoughts,
+      taskClass: 'heavy-autonomous',
+    })
     addActivity(state, 'system', 'Display switched to standby mode for heavy autonomous work')
 
     const result = await callWithRetry(() => runClaudeCodePrompt({
@@ -644,7 +698,12 @@ async function brainCycle(): Promise<void> {
       state.consecutiveCrashes++
     }
   } finally {
-    await resumeDashboardDisplay('Autonomous work complete')
+    await resumeDashboardDisplay('Autonomous work complete', {
+      missionTitle: state.currentMission?.title ?? null,
+      detail: state.lastThought || 'Heavy task cycle finished',
+      sinceThought: state.totalThoughts,
+      taskClass: 'heavy-autonomous',
+    })
   }
 
   // ── Post-cycle: Analytics snapshot ──────────────────────────────

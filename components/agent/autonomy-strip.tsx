@@ -32,6 +32,18 @@ export function AutonomyStrip({ summary, className }: { summary: DashboardSummar
         </div>
 
         <div className="flex flex-wrap items-center gap-2 md:justify-end">
+          {summary.topStretchGoal && (
+            <span className="inline-flex items-center gap-1 rounded-full border border-pi-border bg-pi-surface/40 px-2 py-1 text-[10px] text-pi-text-dim">
+              <Activity className="h-3 w-3 text-yellow-400" />
+              Target: {summary.topStretchGoal.current.toLocaleString()} / {summary.topStretchGoal.target.toLocaleString()} {summary.topStretchGoal.unit}
+            </span>
+          )}
+          {summary.topOpportunity && (
+            <span className="inline-flex items-center gap-1 rounded-full border border-pi-border bg-pi-surface/40 px-2 py-1 text-[10px] text-pi-text-dim">
+              <BrainCircuit className="h-3 w-3 text-pi-accent" />
+              Opportunity: {summary.topOpportunity.title}
+            </span>
+          )}
           {summary.currentMission && (
             <span className="inline-flex items-center gap-1 rounded-full border border-pi-border bg-pi-surface/40 px-2 py-1 text-[10px] text-pi-text-dim">
               <Activity className="h-3 w-3 text-pi-accent" />

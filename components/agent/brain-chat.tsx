@@ -314,6 +314,194 @@ function StreamPhaseChip({
   )
 }
 
+function ChatEmptyState({
+  name,
+  brainStatus,
+  streamPhase,
+  onSuggestion,
+  searchMode,
+}: {
+  name: string
+  brainStatus: 'running' | 'sleeping' | 'not-running' | 'error'
+  streamPhase: 'idle' | 'thinking' | 'acting' | 'streaming'
+  onSuggestion: (value: string) => void
+  searchMode: boolean
+}) {
+  if (searchMode) {
+    return (
+      <motion.div
+        initial={{ opacity: 0, y: 12 }}
+        animate={{ opacity: 1, y: 0 }}
+        className="flex h-full items-center justify-center"
+      >
+        <div className="max-w-sm rounded-3xl border border-pi-border bg-pi-panel/70 px-6 py-7 text-center shadow-[0_16px_60px_rgba(0,0,0,0.2)] backdrop-blur-sm">
+          <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-2xl border border-pi-border bg-pi-surface/70">
+            <Search className="h-6 w-6 text-pi-text-dim" />
+          </div>
+          <p className="text-sm font-semibold text-pi-text">No matching messages</p>
+          <p className="mt-2 text-[11px] leading-relaxed text-pi-text-dim">
+            Try a different phrase, a business name, or a tool action like command, goal, or opportunity.
+          </p>
+        </div>
+      </motion.div>
+    )
+  }
+
+  const statusCopy = {
+    running: {
+      badge: 'Autonomous founder online',
+      title: `${name} is awake and managing the founder loop`,
+      detail: 'Use this thread to redirect current work, inspect decisions, or pressure-test what Pi-Chi should build next.',
+    },
+    sleeping: {
+      badge: 'Between work cycles',
+      title: `${name} is resting between autonomous runs`,
+      detail: 'You can still queue direction here. The next wake cycle will pick it up and fold it into the work queue.',
+    },
+    'not-running': {
+      badge: 'Background automation offline',
+      title: `${name} is not currently running`,
+      detail: 'This chat stays available, but founder work will not advance until the brain loop is running again.',
+    },
+    error: {
+      badge: 'Needs recovery',
+      title: `${name} hit a background issue`,
+      detail: 'Use the chat to inspect what failed, ask for recovery steps, or steer the next safe action explicitly.',
+    },
+  }[brainStatus]
+
+  const phaseCopy = {
+    idle: 'Ready for a new instruction or autonomous mission update.',
+    thinking: 'Reasoning through the next response and deciding what matters most.',
+    acting: 'Running actions and waiting for tool results to settle.',
+    streaming: 'Pushing a live response back into the thread now.',
+  }[streamPhase]
+
+  const suggestions = [
+    'What businesses are highest priority right now?',
+    'What should Pi-Chi build next to reach $1M ARR faster?',
+    'Summarise the current mission, why it was chosen, and what happens next.',
+    'Review the portfolio and tell me where growth is stuck.',
+  ]
+
+  const quickStats = [
+    {
+      icon: Activity,
+      label: 'Background loop',
+      value: brainStatus === 'running' ? 'Live' : brainStatus === 'sleeping' ? 'Queued' : 'Paused',
+    },
+    {
+      icon: Target,
+      label: 'Best use of chat',
+      value: 'Mission steering',
+    },
+    {
+      icon: Terminal,
+      label: 'Operational control',
+      value: 'Research, build, recover',
+    },
+  ]
+
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 16 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ type: 'spring', stiffness: 260, damping: 26 }}
+      className="flex min-h-full items-center justify-center"
+    >
+      <div className="w-full max-w-3xl space-y-4 py-4">
+        <div className="overflow-hidden rounded-[28px] border border-pi-border bg-[radial-gradient(circle_at_top,rgba(0,212,255,0.12),transparent_42%),linear-gradient(180deg,rgba(255,255,255,0.03),rgba(255,255,255,0.01))] shadow-[0_24px_80px_rgba(0,0,0,0.28)]">
+          <div className="border-b border-pi-border/70 px-5 py-4">
+            <div className="mb-3 flex items-center gap-2">
+              <span className="inline-flex items-center gap-1 rounded-full border border-pi-accent/20 bg-pi-accent/10 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.16em] text-pi-accent">
+                <Sparkles className="h-3 w-3" />
+                {statusCopy.badge}
+              </span>
+              <span className="inline-flex items-center gap-1 rounded-full border border-pi-border bg-pi-surface/60 px-2.5 py-1 text-[10px] uppercase tracking-[0.14em] text-pi-text-dim">
+                <Activity className="h-3 w-3" />
+                {streamPhase}
+              </span>
+            </div>
+            <div className="flex items-start gap-3">
+              <div className="mt-0.5 flex h-12 w-12 items-center justify-center rounded-2xl border border-pi-accent/20 bg-gradient-to-br from-pi-accent/15 to-pi-accent/5">
+                <Bot className="h-6 w-6 text-pi-accent" />
+              </div>
+              <div className="min-w-0">
+                <h3 className="text-lg font-semibold text-pi-text">{statusCopy.title}</h3>
+                <p className="mt-1 text-sm leading-relaxed text-pi-text-dim">{statusCopy.detail}</p>
+                <p className="mt-2 text-[11px] uppercase tracking-[0.14em] text-pi-text-dim/80">
+                  {phaseCopy}
+                </p>
+              </div>
+            </div>
+          </div>
+
+          <div className="grid gap-3 px-5 py-4 sm:grid-cols-3">
+            {quickStats.map(({ icon: Icon, label, value }) => (
+              <div key={label} className="rounded-2xl border border-pi-border bg-pi-surface/55 px-3.5 py-3">
+                <div className="flex items-center gap-2 text-[10px] font-semibold uppercase tracking-[0.14em] text-pi-text-dim">
+                  <Icon className="h-3.5 w-3.5 text-pi-accent" />
+                  {label}
+                </div>
+                <div className="mt-2 text-sm font-medium text-pi-text">{value}</div>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        <div className="grid gap-4 lg:grid-cols-[1.15fr_0.85fr]">
+          <div className="rounded-[24px] border border-pi-border bg-pi-panel/75 p-4 shadow-[0_10px_30px_rgba(0,0,0,0.14)]">
+            <div className="mb-3 flex items-center gap-2">
+              <MessageCircle className="h-4 w-4 text-pi-accent" />
+              <h4 className="text-sm font-semibold text-pi-text">Start with a higher-leverage instruction</h4>
+            </div>
+            <div className="grid gap-2">
+              {suggestions.map((suggestion, index) => (
+                <motion.button
+                  key={suggestion}
+                  initial={{ opacity: 0, y: 8 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: 0.05 * index, type: 'spring', stiffness: 320, damping: 24 }}
+                  onClick={() => onSuggestion(suggestion)}
+                  className="group flex w-full items-start gap-3 rounded-2xl border border-pi-border bg-pi-surface/60 px-3.5 py-3 text-left transition-all hover:border-pi-accent/35 hover:bg-pi-surface"
+                >
+                  <div className="mt-0.5 flex h-7 w-7 items-center justify-center rounded-xl border border-pi-border bg-pi-panel/70 text-pi-accent">
+                    <ArrowDown className="h-3.5 w-3.5 -rotate-45 transition-transform group-hover:translate-x-0.5 group-hover:-translate-y-0.5" />
+                  </div>
+                  <div>
+                    <div className="text-[12px] font-medium leading-relaxed text-pi-text">{suggestion}</div>
+                    <div className="mt-1 text-[10px] uppercase tracking-[0.12em] text-pi-text-dim/80">
+                      Load into composer
+                    </div>
+                  </div>
+                </motion.button>
+              ))}
+            </div>
+          </div>
+
+          <div className="rounded-[24px] border border-pi-border bg-pi-panel/75 p-4 shadow-[0_10px_30px_rgba(0,0,0,0.14)]">
+            <div className="mb-3 flex items-center gap-2">
+              <Sparkles className="h-4 w-4 text-pi-accent" />
+              <h4 className="text-sm font-semibold text-pi-text">What this thread is for</h4>
+            </div>
+            <div className="space-y-3 text-[11px] leading-relaxed text-pi-text-dim">
+              <div className="rounded-2xl border border-pi-border bg-pi-surface/50 px-3 py-2.5">
+                Direct Pi-Chi toward the highest-value business or opportunity instead of issuing low-level one-off tasks.
+              </div>
+              <div className="rounded-2xl border border-pi-border bg-pi-surface/50 px-3 py-2.5">
+                Ask for rationale, blocked work, or the next compounding move when you want better visibility into background automation.
+              </div>
+              <div className="rounded-2xl border border-pi-border bg-pi-surface/50 px-3 py-2.5">
+                Use the dashboard context rail for mission status, opportunity pressure, and recent cycle history. Use chat to steer it.
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </motion.div>
+  )
+}
+
 type TimelineItem =
   | { id: string; type: 'date'; date: string; timestamp: string }
   | { id: string; type: 'message'; message: BrainChatMessage; streaming?: boolean }
@@ -743,48 +931,13 @@ export function BrainChat({
         className="flex-1 overflow-y-auto px-3 py-3 scroll-smooth"
       >
         {displayMessages.length === 0 && !stream.isStreaming ? (
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.2, type: 'spring', stiffness: 300, damping: 25 }}
-            className="flex flex-col items-center justify-center h-full text-pi-text-dim"
-          >
-            <motion.div
-              animate={{ y: [0, -8, 0] }}
-              transition={{ duration: 3, repeat: Infinity, ease: 'easeInOut' }}
-            >
-              <MessageCircle className="w-12 h-12 mb-4 opacity-15" />
-            </motion.div>
-            <p className="text-sm font-semibold text-pi-text">
-              {deferredSearchQuery ? 'No matching messages' : `Chat with ${name}`}
-            </p>
-            <p className="text-[11px] mt-1.5 text-center max-w-[240px] leading-relaxed">
-              {deferredSearchQuery
-                ? 'Try a different search term.'
-                : `Send a message and ${name} will respond instantly.`}
-            </p>
-            {!deferredSearchQuery && (
-              <motion.div
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                transition={{ delay: 0.5 }}
-                className="mt-4 flex gap-2"
-              >
-                {['Hey!', 'What are you working on?', 'How are you?'].map((q, i) => (
-                  <motion.button
-                    key={q}
-                    initial={{ opacity: 0, y: 10 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ delay: 0.6 + i * 0.1, type: 'spring', stiffness: 400, damping: 25 }}
-                    onClick={() => setInput(q)}
-                    className="text-[10px] px-3 py-1.5 rounded-full bg-pi-surface border border-pi-border hover:border-pi-accent/40 hover:text-pi-accent transition-all hover:shadow-sm active:scale-95"
-                  >
-                    {q}
-                  </motion.button>
-                ))}
-              </motion.div>
-            )}
-          </motion.div>
+          <ChatEmptyState
+            name={name}
+            brainStatus={brainStatus}
+            streamPhase={streamPhase}
+            searchMode={Boolean(deferredSearchQuery)}
+            onSuggestion={setInput}
+          />
         ) : (
           <>
             <AnimatePresence mode="popLayout">
