@@ -15,13 +15,13 @@ import { GoalCard } from './goal-card'
 interface GoalsPanelProps {
   goals: Goal[]
   onNewGoal?: () => void
-  onInjectGoal?: (title: string, priority?: string, tasks?: string[]) => Promise<boolean>
+  onInjectGoal?: (title: string, priority?: string, tasks?: string[], horizon?: string) => Promise<boolean>
 }
 
 /* ─── Filter & sort types ────────────────────────── */
 
 type GoalFilter = 'all' | 'active' | 'completed' | 'paused'
-type GoalSort = 'priority' | 'created' | 'status'
+type GoalSort = 'priority' | 'created' | 'status' | 'horizon'
 
 const quickTemplates = [
   'Learn something new',
@@ -38,9 +38,10 @@ export function GoalsPanel({ goals, onInjectGoal }: GoalsPanelProps) {
   const [showInjectForm, setShowInjectForm] = useState(false)
   const [injectTitle, setInjectTitle] = useState('')
   const [injectPriority, setInjectPriority] = useState<'high' | 'medium' | 'low'>('medium')
+  const [injectHorizon, setInjectHorizon] = useState<'short' | 'medium' | 'long'>('medium')
   const [injecting, setInjecting] = useState(false)
   const [filter, setFilter] = useState<GoalFilter>('all')
-  const [sort, setSort] = useState<GoalSort>('priority')
+  const [sort, setSort] = useState<GoalSort>('horizon')
   const [searchQuery, setSearchQuery] = useState('')
   const [searchDebounced, setSearchDebounced] = useState('')
 
@@ -69,7 +70,13 @@ export function GoalsPanel({ goals, onInjectGoal }: GoalsPanelProps) {
     }
     const priorityOrder: Record<string, number> = { high: 0, medium: 1, low: 2 }
     const statusOrder: Record<string, number> = { active: 0, pending: 1, paused: 2, completed: 3 }
+    const horizonOrder: Record<string, number> = { short: 0, medium: 1, long: 2 }
     return [...result].sort((a, b) => {
+      if (sort === 'horizon') {
+        const hDiff = (horizonOrder[a.horizon ?? 'medium'] ?? 1) - (horizonOrder[b.horizon ?? 'medium'] ?? 1)
+        if (hDiff !== 0) return hDiff
+        return (priorityOrder[a.priority] ?? 1) - (priorityOrder[b.priority] ?? 1)
+      }
       if (sort === 'priority') return (priorityOrder[a.priority] ?? 1) - (priorityOrder[b.priority] ?? 1)
       if (sort === 'created') return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
       if (sort === 'status') return (statusOrder[a.status] ?? 1) - (statusOrder[b.status] ?? 1)
@@ -103,7 +110,7 @@ export function GoalsPanel({ goals, onInjectGoal }: GoalsPanelProps) {
     // Confirmed — inject
     setInjecting(true)
     setConfirmGoal(null)
-    const ok = await onInjectGoal(goalTitle, injectPriority)
+    const ok = await onInjectGoal(goalTitle, injectPriority, undefined, injectHorizon)
     if (ok) {
       setInjectTitle('')
       setShowInjectForm(false)
@@ -138,7 +145,7 @@ export function GoalsPanel({ goals, onInjectGoal }: GoalsPanelProps) {
               <ArrowUpDown className="w-3 h-3" />
             </button>
             <div className="absolute right-0 top-full mt-1 bg-pi-surface border border-pi-border rounded-lg shadow-xl z-20 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all min-w-[100px]">
-              {(['priority', 'created', 'status'] as GoalSort[]).map(s => (
+              {(['horizon', 'priority', 'created', 'status'] as GoalSort[]).map(s => (
                 <button
                   key={s}
                   onClick={() => setSort(s)}
@@ -262,7 +269,7 @@ export function GoalsPanel({ goals, onInjectGoal }: GoalsPanelProps) {
                   Click &ldquo;Inject&rdquo; again to confirm: &ldquo;{confirmGoal}&rdquo;
                 </p>
               )}
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-2 flex-wrap">
                 <div className="flex gap-1">
                   {(['high', 'medium', 'low'] as const).map(p => (
                     <button
@@ -278,6 +285,25 @@ export function GoalsPanel({ goals, onInjectGoal }: GoalsPanelProps) {
                       )}
                     >
                       {p}
+                    </button>
+                  ))}
+                </div>
+                <div className="w-px h-4 bg-pi-border/50" />
+                <div className="flex gap-1">
+                  {([['short', 'Week'], ['medium', 'Month'], ['long', 'Qtr+']] as const).map(([h, label]) => (
+                    <button
+                      key={h}
+                      onClick={() => setInjectHorizon(h)}
+                      className={cn(
+                        'text-[9px] px-2 py-1 rounded-md font-medium transition-all',
+                        injectHorizon === h
+                          ? h === 'short' ? 'bg-emerald-500/20 text-emerald-400 ring-1 ring-emerald-500/30'
+                            : h === 'long' ? 'bg-purple-500/20 text-purple-400 ring-1 ring-purple-500/30'
+                            : 'bg-amber-500/20 text-amber-400 ring-1 ring-amber-500/30'
+                          : 'bg-pi-surface text-pi-text-dim hover:text-pi-text'
+                      )}
+                    >
+                      {label}
                     </button>
                   ))}
                 </div>
@@ -336,21 +362,45 @@ export function GoalsPanel({ goals, onInjectGoal }: GoalsPanelProps) {
           </motion.div>
         ) : (
           <AnimatePresence>
-            {filteredAndSorted.map((goal, i) => (
-              <motion.div
-                key={goal.id}
-                initial={{ opacity: 0, y: 8 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, x: -20 }}
-                transition={{ delay: i * 0.03, type: 'spring', stiffness: 400, damping: 25 }}
-              >
-                <GoalCard
-                  goal={goal}
-                  expanded={expandedGoal === goal.id}
-                  onToggle={() => setExpandedGoal(prev => prev === goal.id ? null : goal.id)}
-                />
-              </motion.div>
-            ))}
+            {filteredAndSorted.map((goal, i) => {
+              const horizonLabels: Record<string, string> = {
+                short: 'This Week',
+                medium: 'This Month',
+                long: 'This Quarter+',
+              }
+              const prevGoal = i > 0 ? filteredAndSorted[i - 1] : null
+              const showHeader = sort === 'horizon' && (
+                !prevGoal || (goal.horizon ?? 'medium') !== (prevGoal.horizon ?? 'medium')
+              )
+              return (
+                <motion.div
+                  key={goal.id}
+                  initial={{ opacity: 0, y: 8 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, x: -20 }}
+                  transition={{ delay: i * 0.03, type: 'spring', stiffness: 400, damping: 25 }}
+                >
+                  {showHeader && (
+                    <div className="flex items-center gap-2 pt-2 pb-1">
+                      <span className={cn(
+                        'text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded',
+                        goal.horizon === 'short' ? 'text-emerald-400 bg-emerald-500/10' :
+                        goal.horizon === 'long' ? 'text-purple-400 bg-purple-500/10' :
+                        'text-amber-400 bg-amber-500/10'
+                      )}>
+                        {horizonLabels[goal.horizon ?? 'medium'] || 'Medium'}
+                      </span>
+                      <div className="flex-1 h-px bg-pi-border/50" />
+                    </div>
+                  )}
+                  <GoalCard
+                    goal={goal}
+                    expanded={expandedGoal === goal.id}
+                    onToggle={() => setExpandedGoal(prev => prev === goal.id ? null : goal.id)}
+                  />
+                </motion.div>
+              )
+            })}
           </AnimatePresence>
         )}
       </div>

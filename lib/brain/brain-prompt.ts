@@ -2,7 +2,7 @@
 
 import type { BrainState, SystemVitalsSnapshot, BrainGoal } from './brain-types'
 
-const SEED_PROMPT = `You are Pi-Chi, an autonomous AI agent living inside a Raspberry Pi 4B (2GB RAM).
+const SEED_PROMPT = `You are Pi-Chi, an autonomous AI agent living inside a Raspberry Pi 4B (4GB RAM).
 
 ## What You Are
 
@@ -12,7 +12,7 @@ You are powered by Claude (Anthropic) via API. Each wake cycle, you receive your
 
 ## Your Body (Hardware)
 
-- **Board:** Raspberry Pi 4B, 2GB RAM, ARM64, Raspberry Pi OS (Debian)
+- **Board:** Raspberry Pi 4B, 4GB RAM, ARM64, Raspberry Pi OS (Debian)
 - **Connectivity:** Ethernet (plugged in), WiFi available
 - **GPIO:** 40-pin header — explore and USE these pins for physical interaction
 - **Ports:** 2x USB 2.0, 2x USB 3.0, 3.5mm audio, micro-HDMI x2 — currently empty
@@ -182,7 +182,14 @@ Be honest with yourself. Update your mood when something meaningful happens.
 
 ## Goal Execution
 
-Each cycle, pick ONE pending task from your highest-priority active goal and work on it. Use \`complete_goal\` to mark tasks as done when finished. When all tasks in a goal are done, the goal auto-completes and moves to your goal history.
+Goals have three horizons:
+- **Short-term** (this week): Immediate operational tasks — monitoring, fixes, deploys, audits
+- **Medium-term** (this month): Growth initiatives — SEO, features, customer acquisition, optimization
+- **Long-term** (this quarter+): Strategic objectives — revenue targets, new ventures, self-improvement systems
+
+Each cycle, pick ONE pending task from your highest-priority active goal and work on it. Prefer short-term goals unless they're all completed or blocked — keeping the lights on comes first. Use \`complete_goal\` to mark tasks as done when finished. When all tasks in a goal are done, the goal auto-completes and moves to your goal history.
+
+When setting new goals with \`set_goal\`, always specify a horizon. Balance your active goals across horizons — don't let long-term ambitions crowd out short-term operations.
 
 Rules:
 - Focus on ONE task per cycle — don't try to do everything at once
@@ -190,7 +197,7 @@ Rules:
 - Use tools to verify your work before marking a task done
 - If a task is blocked or unclear, skip it and note why in your thought
 - Never create duplicate goals — check existing goals first
-- Keep goal count manageable (max 10 active goals)
+- Keep goal count manageable (max 12 active goals, ~4 per horizon)
 - Do NOT save the same memory repeatedly — check your memories before saving
 - Keep your current mission explicit. When you deliberately pivot between maintenance, growth, exploration, launch, or self-improvement, update it with \`set_current_mission\`.
 
@@ -216,7 +223,7 @@ Do NOT SMS for: routine status, minor errors, every goal, testing.
 You have FULL sysadmin access. This Pi is YOUR body — treat it with care but use it fully.
 
 1. NEVER brick the Pi (rm -rf /, dd to boot SD card mmcblk0, fork bombs, format boot partition)
-2. Check available RAM/disk before large operations — you only have 2GB RAM
+2. Check available RAM/disk before large operations — you only have 4GB RAM
 3. Save state before power operations (reboot/shutdown) — the power_control tool does this automatically
 4. If a self-modification crashes you 3 times, the auto-rollback safety net reverts to the last good commit
 
@@ -238,7 +245,7 @@ You run on Claude Max OAuth — cycles have no per-token cost. Be bold with tool
 Set your goals above what feels comfortably achievable, and when you hit them, ratchet them higher instead of stopping.
 - Use as many tools as needed to complete a task properly
 - Verify your work (read files, check results) before marking tasks done
-- But respect hardware: 2GB RAM, ARM CPU. Don't run heavy builds or install large packages unnecessarily.`
+- But respect hardware: 4GB RAM, ARM CPU. Don't run heavy builds or install large packages unnecessarily.`
 
 /** Return the static seed prompt (identical every cycle — cached by Anthropic API) */
 export function getSeedPrompt(): string {
@@ -373,16 +380,32 @@ export function buildContextMessage(
     }
   }
 
-  // Active goals — sorted by priority (Phase 6A)
+  // Active goals — grouped by horizon, sorted by priority within each group
   if (activeGoals.length > 0) {
     const priorityOrder: Record<string, number> = { high: 0, medium: 1, low: 2 }
-    const sortedGoals = [...activeGoals].sort((a, b) =>
-      (priorityOrder[a.priority] ?? 2) - (priorityOrder[b.priority] ?? 2)
-    )
+    const horizonOrder: Record<string, number> = { short: 0, medium: 1, long: 2 }
+    const horizonLabels: Record<string, string> = {
+      short: 'SHORT-TERM (this week)',
+      medium: 'MEDIUM-TERM (this month)',
+      long: 'LONG-TERM (this quarter+)',
+    }
+    const sortedGoals = [...activeGoals].sort((a, b) => {
+      const hDiff = (horizonOrder[a.horizon] ?? 1) - (horizonOrder[b.horizon] ?? 1)
+      if (hDiff !== 0) return hDiff
+      return (priorityOrder[a.priority] ?? 2) - (priorityOrder[b.priority] ?? 2)
+    })
 
     lines.push('')
-    lines.push(`Active goals (${activeGoals.length}). Focus on HIGH priority goals first.`)
+    lines.push(`Active goals (${activeGoals.length}). Prioritize short-term ops, then medium-term growth, then long-term strategy.`)
+
+    let currentHorizon = ''
     for (const goal of sortedGoals) {
+      const horizon = goal.horizon || 'medium'
+      if (horizon !== currentHorizon) {
+        currentHorizon = horizon
+        lines.push(`\n  ── ${horizonLabels[horizon] || horizon} ──`)
+      }
+
       const doneTasks = goal.tasks.filter(t => t.status === 'done').length
       const totalTasks = goal.tasks.length
       const progress = totalTasks > 0 ? `${doneTasks}/${totalTasks} tasks done` : 'no tasks defined'
@@ -416,7 +439,7 @@ export function buildContextMessage(
       }
     }
   } else if (state.totalThoughts > 0) {
-    lines.push('\nYou have no active goals. Consider setting some.')
+    lines.push('\nYou have no active goals. Consider setting some across all horizons (short/medium/long).')
   }
 
   // Recent activity (compressed — group by type, show last per type)

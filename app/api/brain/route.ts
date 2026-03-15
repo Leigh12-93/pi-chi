@@ -84,6 +84,7 @@ export async function POST(req: Request) {
         title: data.title,
         status: 'active',
         priority: data.priority || 'medium',
+        horizon: data.horizon || 'medium',
         reasoning: `Injected by owner via dashboard`,
         tasks: (data.tasks || []).map((t: string) => ({
           id: randomUUID(),

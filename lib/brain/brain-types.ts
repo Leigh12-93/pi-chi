@@ -134,6 +134,7 @@ export interface BrainGoal {
   title: string
   status: 'active' | 'completed' | 'paused' | 'abandoned'
   priority: 'high' | 'medium' | 'low'
+  horizon: 'short' | 'medium' | 'long'  // short=this week, medium=this month, long=this quarter+
   reasoning: string
   tasks: BrainTask[]
   createdAt: string

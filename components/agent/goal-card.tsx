@@ -42,15 +42,29 @@ export function GoalCard({ goal, expanded, onToggle }: GoalCardProps) {
       >
         {statusIcon[goal.status]}
         <div className="flex-1 min-w-0">
-          <p className={cn(
-            'text-xs font-medium',
-            goal.status === 'completed' ? 'text-pi-text-dim line-through' : 'text-pi-text'
-          )}>
-            {goal.title}
-          </p>
-          <p className="text-[10px] text-pi-text-dim mt-0.5">
-            {completedTasks}/{goal.tasks.length} tasks
-          </p>
+          <div className="flex items-center gap-1.5">
+            <p className={cn(
+              'text-xs font-medium',
+              goal.status === 'completed' ? 'text-pi-text-dim line-through' : 'text-pi-text'
+            )}>
+              {goal.title}
+            </p>
+          </div>
+          <div className="flex items-center gap-1.5 mt-0.5">
+            <p className="text-[10px] text-pi-text-dim">
+              {completedTasks}/{goal.tasks.length} tasks
+            </p>
+            {goal.horizon && (
+              <span className={cn(
+                'text-[8px] font-medium px-1 py-0.5 rounded uppercase tracking-wider',
+                goal.horizon === 'short' ? 'text-emerald-400 bg-emerald-500/10' :
+                goal.horizon === 'long' ? 'text-purple-400 bg-purple-500/10' :
+                'text-amber-400 bg-amber-500/10'
+              )}>
+                {goal.horizon === 'short' ? 'week' : goal.horizon === 'long' ? 'qtr' : 'month'}
+              </span>
+            )}
+          </div>
         </div>
         {expanded
           ? <ChevronDown className="w-3 h-3 text-pi-text-dim mt-0.5" />

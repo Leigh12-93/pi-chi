@@ -216,7 +216,7 @@ interface UseAgentStateReturn {
   handleToolInvocation: (invocation: ToolInvocation) => void
 
   // Brain actions
-  injectGoal: (title: string, priority?: string, tasks?: string[]) => Promise<boolean>
+  injectGoal: (title: string, priority?: string, tasks?: string[], horizon?: string) => Promise<boolean>
   injectMessage: (message: string) => Promise<boolean>
   markChatRead: () => Promise<boolean>
   refresh: () => void
@@ -795,12 +795,12 @@ export function useAgentState(): UseAgentStateReturn {
 
   // ── Brain actions (inject via POST /api/brain) ────────────────
 
-  const injectGoal = useCallback(async (title: string, priority?: string, tasks?: string[]): Promise<boolean> => {
+  const injectGoal = useCallback(async (title: string, priority?: string, tasks?: string[], horizon?: string): Promise<boolean> => {
     try {
       const res = await fetch('/api/brain', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ type: 'inject-goal', data: { title, priority: priority || 'medium', tasks: tasks || [] } }),
+        body: JSON.stringify({ type: 'inject-goal', data: { title, priority: priority || 'medium', tasks: tasks || [], horizon: horizon || 'medium' } }),
       })
       return res.ok
     } catch {

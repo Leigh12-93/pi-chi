@@ -154,16 +154,17 @@ export function createBrainTools(state: BrainState) {
     }),
 
     set_goal: tool({
-      description: 'Create a new goal or update an existing one. Goals drive your autonomous behavior.',
+      description: 'Create a new goal or update an existing one. Goals drive your autonomous behavior. Always specify a horizon: short (this week), medium (this month), long (this quarter+).',
       inputSchema: z.object({
         title: z.string().describe('Goal title'),
         priority: z.enum(['high', 'medium', 'low']).default('medium'),
+        horizon: z.enum(['short', 'medium', 'long']).default('medium').describe('Time horizon: short=this week, medium=this month, long=this quarter+'),
         reasoning: z.string().describe('Why are you setting this goal?'),
         tasks: z.array(z.string()).optional().describe('Subtask titles'),
         existingGoalId: z.string().optional().describe('If updating an existing goal, provide its ID'),
         dependsOn: z.array(z.string()).optional().describe('IDs of goals that must complete before this one can start'),
       }),
-      execute: async ({ title, priority, reasoning, tasks, existingGoalId, dependsOn }) => {
+      execute: async ({ title, priority, horizon, reasoning, tasks, existingGoalId, dependsOn }) => {
         state.totalToolCalls++
 
         if (existingGoalId) {
@@ -171,6 +172,7 @@ export function createBrainTools(state: BrainState) {
           if (goal) {
             goal.title = title
             goal.priority = priority
+            goal.horizon = horizon
             goal.reasoning = reasoning
             addActivity(state, 'goal', `Updated goal: ${title}`)
             return { success: true, goalId: existingGoalId, action: 'updated' }
@@ -183,6 +185,7 @@ export function createBrainTools(state: BrainState) {
           title,
           status: 'active',
           priority,
+          horizon,
           reasoning,
           tasks: (tasks || []).map(t => ({
             id: randomUUID(),
@@ -193,7 +196,7 @@ export function createBrainTools(state: BrainState) {
           ...(dependsOn && dependsOn.length > 0 ? { dependsOn } : {}),
         }
         state.goals.push(goal)
-        addActivity(state, 'goal', `New goal: ${title}`)
+        addActivity(state, 'goal', `New ${horizon}-term goal: ${title}`)
         return { success: true, goalId: goal.id, action: 'created' }
       },
     }),

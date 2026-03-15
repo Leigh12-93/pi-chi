@@ -86,20 +86,22 @@ function buildTools() {
       inputSchema: z.object({
         title: z.string(),
         priority: z.enum(['high', 'medium', 'low']),
+        horizon: z.enum(['short', 'medium', 'long']).default('medium').describe('Time horizon: short=this week, medium=this month, long=this quarter+'),
         reasoning: z.string().optional(),
         tasks: z.array(z.string()).optional(),
       }),
-      execute: async ({ title, priority, reasoning, tasks }) => {
+      execute: async ({ title, priority, horizon, reasoning, tasks }) => {
         const state = loadBrainState()
         const goal = {
           id: randomUUID(), title, status: 'active' as const, priority,
+          horizon: horizon || 'medium' as const,
           reasoning: reasoning || 'Added during chat with Leigh',
           tasks: (tasks || []).map((t) => ({ id: randomUUID(), title: t, status: 'pending' as const })),
           createdAt: new Date().toISOString(),
         }
         state.goals.push(goal)
         saveBrainState(state)
-        return `Goal added: "${title}" (${priority} priority, ${(tasks || []).length} tasks)`
+        return `Goal added: "${title}" (${priority} priority, ${horizon}-term, ${(tasks || []).length} tasks)`
       },
     }),
 

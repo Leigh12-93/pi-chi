@@ -74,7 +74,125 @@ export function createInitialState(): BrainState {
     lastThought: '',
     wakeIntervalMs: 5 * 60 * 1000, // 5 minutes
 
-    goals: [],
+    goals: [
+      // Short-term (this week)
+      {
+        id: randomUUID(),
+        title: 'Monitor all 3 business deployments and fix any issues',
+        status: 'active' as const,
+        priority: 'high' as const,
+        horizon: 'short' as const,
+        reasoning: 'Ensure CheapSkipBinsNearMe, Bonkr, and AussieSMS are all healthy and deployed.',
+        tasks: [
+          { id: randomUUID(), title: 'Check Vercel deploy status for all 3 businesses', status: 'pending' as const },
+          { id: randomUUID(), title: 'Verify each site loads correctly', status: 'pending' as const },
+          { id: randomUUID(), title: 'Fix any broken deploys or build errors', status: 'pending' as const },
+        ],
+        createdAt: new Date().toISOString(),
+      },
+      {
+        id: randomUUID(),
+        title: 'Run security audit on Pi and harden configuration',
+        status: 'active' as const,
+        priority: 'medium' as const,
+        horizon: 'short' as const,
+        reasoning: 'Pi has new security tools (lynis, rkhunter, fail2ban). Run audits and fix findings.',
+        tasks: [
+          { id: randomUUID(), title: 'Run lynis audit and review findings', status: 'pending' as const },
+          { id: randomUUID(), title: 'Run rkhunter check', status: 'pending' as const },
+          { id: randomUUID(), title: 'Review fail2ban logs and UFW rules', status: 'pending' as const },
+        ],
+        createdAt: new Date().toISOString(),
+      },
+      // Medium-term (this month)
+      {
+        id: randomUUID(),
+        title: 'Grow CheapSkipBinsNearMe SEO and organic traffic',
+        status: 'active' as const,
+        priority: 'high' as const,
+        horizon: 'medium' as const,
+        reasoning: 'CheapSkipBinsNearMe is in development. Need to build out suburb pages and get indexed.',
+        tasks: [
+          { id: randomUUID(), title: 'Audit current SEO setup and indexing status', status: 'pending' as const },
+          { id: randomUUID(), title: 'Identify top 50 suburbs to target', status: 'pending' as const },
+          { id: randomUUID(), title: 'Generate and deploy suburb landing pages', status: 'pending' as const },
+          { id: randomUUID(), title: 'Submit sitemap to Google Search Console', status: 'pending' as const },
+        ],
+        createdAt: new Date().toISOString(),
+      },
+      {
+        id: randomUUID(),
+        title: 'Optimize Bonkr ad revenue and fix SEO indexing',
+        status: 'active' as const,
+        priority: 'high' as const,
+        horizon: 'medium' as const,
+        reasoning: 'Only 175/132,940 videos indexed. ExoClick revenue needs optimization. Age verification needed.',
+        tasks: [
+          { id: randomUUID(), title: 'Analyze current ExoClick ad performance and zone setup', status: 'pending' as const },
+          { id: randomUUID(), title: 'Implement age verification for Online Safety Act compliance', status: 'pending' as const },
+          { id: randomUUID(), title: 'Fix video indexing — create video sitemaps for Google', status: 'pending' as const },
+          { id: randomUUID(), title: 'Optimize ad placement for higher RPM', status: 'pending' as const },
+        ],
+        createdAt: new Date().toISOString(),
+      },
+      {
+        id: randomUUID(),
+        title: 'Build AussieSMS customer acquisition pipeline',
+        status: 'active' as const,
+        priority: 'medium' as const,
+        horizon: 'medium' as const,
+        reasoning: 'AussieSMS is a SaaS platform that needs paying customers beyond internal use.',
+        tasks: [
+          { id: randomUUID(), title: 'Audit current landing page and signup flow', status: 'pending' as const },
+          { id: randomUUID(), title: 'Create SEO content targeting "SMS API Australia"', status: 'pending' as const },
+          { id: randomUUID(), title: 'Set up basic analytics tracking', status: 'pending' as const },
+        ],
+        createdAt: new Date().toISOString(),
+      },
+      // Long-term (this quarter+)
+      {
+        id: randomUUID(),
+        title: 'Reach $1,000/month combined business revenue',
+        status: 'active' as const,
+        priority: 'high' as const,
+        horizon: 'long' as const,
+        reasoning: 'First milestone toward the $1M ARR north star. Combine revenue from all 3 businesses.',
+        tasks: [
+          { id: randomUUID(), title: 'Establish revenue tracking across all businesses', status: 'pending' as const },
+          { id: randomUUID(), title: 'Identify highest-leverage revenue opportunity', status: 'pending' as const },
+          { id: randomUUID(), title: 'Execute revenue growth plan', status: 'pending' as const },
+        ],
+        createdAt: new Date().toISOString(),
+      },
+      {
+        id: randomUUID(),
+        title: 'Scout and validate a new business venture',
+        status: 'active' as const,
+        priority: 'medium' as const,
+        horizon: 'long' as const,
+        reasoning: 'The opportunity pipeline should always have candidates being evaluated.',
+        tasks: [
+          { id: randomUUID(), title: 'Research trending SaaS niches in Australia', status: 'pending' as const },
+          { id: randomUUID(), title: 'Identify 3 viable candidates with low startup cost', status: 'pending' as const },
+          { id: randomUUID(), title: 'Validate top candidate with landing page + waitlist', status: 'pending' as const },
+        ],
+        createdAt: new Date().toISOString(),
+      },
+      {
+        id: randomUUID(),
+        title: 'Build autonomous self-improvement systems',
+        status: 'active' as const,
+        priority: 'low' as const,
+        horizon: 'long' as const,
+        reasoning: 'Pi-Chi should continuously improve its own prompts, tools, and decision-making.',
+        tasks: [
+          { id: randomUUID(), title: 'Analyze past cycle outcomes to find improvement patterns', status: 'pending' as const },
+          { id: randomUUID(), title: 'Build automated prompt evolution tracking', status: 'pending' as const },
+          { id: randomUUID(), title: 'Create tool effectiveness scoring', status: 'pending' as const },
+        ],
+        createdAt: new Date().toISOString(),
+      },
+    ],
     currentMission: null,
     stretchGoals: [
       {
@@ -277,6 +395,20 @@ export function loadBrainState(): BrainState {
   if (!state.promptEvolutions) state.promptEvolutions = []
   if (!state.achievements) state.achievements = []
   if (!state.schedules) state.schedules = []
+
+  // Backfill horizon on existing goals that don't have it
+  for (const goal of state.goals) {
+    if (!goal.horizon) {
+      goal.horizon = goal.priority === 'high' ? 'short' : goal.priority === 'medium' ? 'medium' : 'long'
+    }
+  }
+  if (state.goalHistory) {
+    for (const goal of state.goalHistory) {
+      if (!goal.horizon) {
+        goal.horizon = goal.priority === 'high' ? 'short' : goal.priority === 'medium' ? 'medium' : 'long'
+      }
+    }
+  }
 
   // Reset daily SMS count if it's a new day (Adelaide timezone)
   const today = getAdelaideDate()

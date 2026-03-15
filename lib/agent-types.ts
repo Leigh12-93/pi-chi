@@ -7,6 +7,7 @@ export interface Goal {
   title: string
   status: 'active' | 'completed' | 'paused' | 'pending'
   priority: 'high' | 'medium' | 'low'
+  horizon?: 'short' | 'medium' | 'long'  // short=this week, medium=this month, long=this quarter+
   tasks: AgentTask[]
   createdAt: string
   reasoning?: string
