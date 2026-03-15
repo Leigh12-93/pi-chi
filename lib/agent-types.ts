@@ -43,7 +43,7 @@ export interface SystemVitals {
 
 export type AgentStatus = 'idle' | 'thinking' | 'executing' | 'error'
 
-export type AppMode = 'agent' | 'ide' | 'terminal'
+export type AppMode = 'agent' | 'ide' | 'terminal' | 'radio' | 'library'
 
 export interface ToolInvocation {
   toolName: string

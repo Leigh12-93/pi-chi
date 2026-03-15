@@ -4,6 +4,8 @@ import { useState, useCallback, useEffect } from 'react'
 import { Header } from '@/components/header'
 import { AgentDashboard } from '@/components/agent-dashboard'
 import { Workspace } from '@/components/workspace'
+import { RadioPanel } from '@/components/agent/radio-panel'
+import { RadioLibrary } from '@/components/agent/radio-library'
 import { usePiTerminal } from '@/hooks/use-pi-terminal'
 import type { AppMode } from '@/lib/agent-types'
 
@@ -80,6 +82,8 @@ export function AgentShell(props: AgentShellProps) {
         if (e.key === '1') { e.preventDefault(); setMode('agent') }
         else if (e.key === '2') { e.preventDefault(); setMode('ide') }
         else if (e.key === '3') { e.preventDefault(); setMode('terminal') }
+        else if (e.key === '4') { e.preventDefault(); setMode('radio') }
+        else if (e.key === '5') { e.preventDefault(); setMode('library') }
       }
     }
     document.addEventListener('keydown', handler)
@@ -160,6 +164,20 @@ export function AgentShell(props: AgentShellProps) {
       {mode === 'terminal' && (
         <div className="flex-1 bg-[#0a0a0f] overflow-hidden">
           <div ref={fullTerminal.containerRef} className="h-full p-2" />
+        </div>
+      )}
+
+      {/* Radio Mode */}
+      {mode === 'radio' && (
+        <div className="flex-1 overflow-hidden">
+          <RadioPanel fullPage />
+        </div>
+      )}
+
+      {/* Library Mode */}
+      {mode === 'library' && (
+        <div className="flex-1 overflow-hidden">
+          <RadioLibrary />
         </div>
       )}
     </div>

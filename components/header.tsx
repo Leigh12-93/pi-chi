@@ -4,7 +4,7 @@ import { useState, useRef, useEffect } from 'react'
 import { useSession } from '@/components/session-provider'
 import {
   Brain, Github, LogOut,
-  Code, Terminal,
+  Code, Terminal, Radio, Library,
   Wifi, WifiOff,
   Sun, Moon,
   Menu, X, Settings,
@@ -34,6 +34,8 @@ const modeTabs: Array<{ id: AppMode; icon: typeof Brain; label: string; shortcut
   { id: 'agent', icon: Brain, label: 'Agent', shortcut: '1' },
   { id: 'ide', icon: Code, label: 'IDE', shortcut: '2' },
   { id: 'terminal', icon: Terminal, label: 'Shell', shortcut: '3' },
+  { id: 'radio', icon: Radio, label: 'Radio', shortcut: '4' },
+  { id: 'library', icon: Library, label: 'Library', shortcut: '5' },
 ]
 
 export function Header({
