@@ -65,6 +65,21 @@ export function GoalCard({ goal, expanded, onToggle }: GoalCardProps) {
               </span>
             )}
           </div>
+          {/* Progress bar */}
+          {goal.tasks.length > 0 && (
+            <div className="mt-1.5 h-1 w-full rounded-full bg-pi-border/40 overflow-hidden">
+              <motion.div
+                className={cn(
+                  'h-full rounded-full',
+                  completedTasks === goal.tasks.length ? 'bg-pi-success' :
+                  completedTasks > 0 ? 'bg-pi-accent' : 'bg-transparent'
+                )}
+                initial={{ width: 0 }}
+                animate={{ width: `${goal.tasks.length > 0 ? (completedTasks / goal.tasks.length) * 100 : 0}%` }}
+                transition={{ duration: 0.5, ease: 'easeOut' }}
+              />
+            </div>
+          )}
         </div>
         {expanded
           ? <ChevronDown className="w-3 h-3 text-pi-text-dim mt-0.5" />
