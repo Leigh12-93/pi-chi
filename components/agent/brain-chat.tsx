@@ -3,7 +3,7 @@
 import { memo, useDeferredValue, useState, useRef, useEffect, useCallback, useMemo } from 'react'
 import {
   Send, MessageCircle, Bot, Check, CheckCheck,
-  Sparkles, Wifi, WifiOff, ArrowDown, Wrench, Search, X,
+  Sparkles, Wifi, WifiOff, ArrowDown, Wrench, Search, X, Trash2,
   AlertCircle, RotateCcw, ChevronDown, Activity, HeartPulse, Terminal, Target,
 } from 'lucide-react'
 import { motion, AnimatePresence, useReducedMotion } from 'framer-motion'
@@ -20,6 +20,7 @@ interface BrainChatProps {
   brainName?: string
   onSendMessage?: (message: string) => Promise<boolean>
   onMarkRead: () => Promise<boolean>
+  onClearChat?: () => Promise<boolean>
   className?: string
 }
 
@@ -513,7 +514,7 @@ type TimelineItem =
 
 export function BrainChat({
   chatMessages, brainStatus, brainName,
-  onMarkRead, className,
+  onMarkRead, onClearChat, className,
 }: BrainChatProps) {
   const [input, setInput] = useState('')
   const [showScrollBtn, setShowScrollBtn] = useState(false)
@@ -863,6 +864,15 @@ export function BrainChat({
           >
             {showSearch ? <X className="w-3.5 h-3.5" /> : <Search className="w-3.5 h-3.5" />}
           </button>
+          {onClearChat && chatMessages.length > 0 && (
+            <button
+              onClick={() => { if (confirm('Clear all chat messages?')) onClearChat() }}
+              className="p-1.5 rounded-lg text-pi-text-dim hover:text-red-400 hover:bg-red-500/10 transition-all"
+              title="Clear messages"
+            >
+              <Trash2 className="w-3.5 h-3.5" />
+            </button>
+          )}
           <AnimatePresence>
             {stream.isStreaming && (
               <motion.span

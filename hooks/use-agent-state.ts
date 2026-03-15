@@ -219,6 +219,7 @@ interface UseAgentStateReturn {
   injectGoal: (title: string, priority?: string, tasks?: string[], horizon?: string) => Promise<boolean>
   injectMessage: (message: string) => Promise<boolean>
   markChatRead: () => Promise<boolean>
+  clearChat: () => Promise<boolean>
   refresh: () => void
 }
 
@@ -834,6 +835,22 @@ export function useAgentState(): UseAgentStateReturn {
     }
   }, [])
 
+  const clearChat = useCallback(async (): Promise<boolean> => {
+    try {
+      const res = await fetch('/api/brain', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ type: 'clear-chat' }),
+      })
+      if (res.ok) {
+        setChatMessages([])
+      }
+      return res.ok
+    } catch {
+      return false
+    }
+  }, [])
+
   const refresh = useCallback(() => {
     if (pollFnRef.current) pollFnRef.current()
   }, [])
@@ -1101,6 +1118,7 @@ export function useAgentState(): UseAgentStateReturn {
     injectGoal,
     injectMessage,
     markChatRead,
+    clearChat,
     refresh,
   }
 }

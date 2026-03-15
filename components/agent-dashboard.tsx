@@ -434,6 +434,7 @@ export function AgentDashboard(_props: AgentDashboardProps) {
                         brainName={agent.brainMeta?.name || 'Pi-Chi'}
                         onSendMessage={agent.injectMessage}
                         onMarkRead={agent.markChatRead}
+                        onClearChat={agent.clearChat}
                       />
                     </PanelErrorBoundary>
                   </div>
@@ -538,6 +539,7 @@ export function AgentDashboard(_props: AgentDashboardProps) {
                     brainName={agent.brainMeta?.name || 'Pi-Chi'}
                     onSendMessage={agent.injectMessage}
                     onMarkRead={agent.markChatRead}
+                    onClearChat={agent.clearChat}
                   />
                 </motion.div>
               )}

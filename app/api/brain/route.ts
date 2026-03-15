@@ -130,6 +130,13 @@ export async function POST(req: Request) {
       return NextResponse.json({ ok: true, action: 'chat-marked-read' })
     }
 
+    if (type === 'clear-chat') {
+      state.chatMessages = []
+      addActivity(state, 'system', 'Owner cleared chat messages')
+      saveBrainState(state)
+      return NextResponse.json({ ok: true, action: 'chat-cleared' })
+    }
+
     if (type === 'update-setting') {
       if (data.wakeIntervalMs !== undefined) {
         const interval = Math.max(60000, Math.min(3600000, Number(data.wakeIntervalMs)))
