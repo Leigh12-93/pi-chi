@@ -20,12 +20,17 @@ import { ContextRail } from '@/components/agent/context-rail'
 import { DisplayModeBanner } from '@/components/agent/display-mode-banner'
 import { AgentStatusIndicator } from '@/components/agent/agent-status'
 import { BusinessesPanel } from '@/components/agent/businesses-panel'
+import { MoodPanel } from '@/components/agent/mood-panel'
+import { VitalsPanel } from '@/components/agent/vitals-panel'
+import { CurrentMissionCard } from '@/components/agent/current-mission-card'
+import { WorkQueueCard } from '@/components/agent/work-queue-card'
 import { PanelErrorBoundary } from '@/components/error-boundary'
 import { useSystemVitals } from '@/hooks/use-system-vitals'
 import { useAgentState } from '@/hooks/use-agent-state'
 import { usePiTerminal } from '@/hooks/use-pi-terminal'
 import { useBusinessMetrics } from '@/hooks/use-business-metrics'
 import type { BusinessMetrics } from '@/hooks/use-business-metrics'
+import type { SystemVitals } from '@/lib/agent-types'
 import type { BusinessProfile, DashboardSummary } from '@/lib/brain/domain-types'
 
 // Lazy load panels for Pi 4B performance
@@ -59,7 +64,7 @@ interface AgentDashboardProps {
 type MobileTab = 'chat' | 'context' | 'goals' | 'activity' | 'terminal'
 type CenterTab = 'chat' | 'businesses' | 'activity' | 'mind' | 'terminal'
 type MindSubTab = 'memories' | 'research' | 'growth' | 'projects' | 'skills' | 'achievements' | 'prompts'
-type DrawerSection = 'memories' | 'research' | 'growth' | 'projects' | 'skills' | 'achievements' | 'prompts' | null
+type DrawerSection = 'memories' | 'research' | 'growth' | 'projects' | 'skills' | 'achievements' | 'prompts' | 'mission' | 'mood' | 'vitals' | 'queue' | 'mind' | null
 
 /* ─── Mobile tab config ─────────────────────────── */
 
@@ -112,10 +117,13 @@ function useMediaQuery(query: string): boolean {
 
 /* ─── Deep Inspection Drawer ──────────────────── */
 
-function DeepDrawer({ section, onClose, agent }: {
+function DeepDrawer({ section, onClose, agent, vitals, devMode, onNavigate }: {
   section: DrawerSection
   onClose: () => void
   agent: ReturnType<typeof useAgentState>
+  vitals?: SystemVitals | null
+  devMode?: boolean
+  onNavigate?: (s: DrawerSection) => void
 }) {
   if (!section) return null
 
@@ -151,6 +159,32 @@ function DeepDrawer({ section, onClose, agent }: {
               {section === 'skills' && <CapabilitiesPanel capabilities={agent.capabilities} />}
               {section === 'achievements' && <AchievementsPanel achievements={agent.achievements} brainMeta={agent.brainMeta} />}
               {section === 'prompts' && <PromptViewer promptOverrides={agent.promptOverrides} promptEvolutions={agent.promptEvolutions} />}
+              {section === 'mission' && (
+                <CurrentMissionCard
+                  mission={agent.summary.currentMission}
+                  nowDoing={agent.summary.nowDoing}
+                  cyclePhase={agent.summary.cyclePhase}
+                  lastEventLabel={agent.summary.lastEventLabel}
+                  autonomyReason={agent.summary.autonomyReason}
+                  nextUp={agent.summary.nextUp}
+                />
+              )}
+              {section === 'mood' && <MoodPanel mood={agent.mood || undefined} moodHistory={agent.moodHistory} />}
+              {section === 'vitals' && vitals && <VitalsPanel vitals={vitals} devMode={devMode} />}
+              {section === 'queue' && <WorkQueueCard items={agent.summary.workQueue} />}
+              {section === 'mind' && (
+                <div className="grid grid-cols-2 gap-2 p-3">
+                  {(['memories', 'research', 'growth', 'projects', 'skills', 'achievements', 'prompts'] as const).map(s => (
+                    <button
+                      key={s}
+                      onClick={() => onNavigate?.(s)}
+                      className="flex items-center gap-2 rounded-lg border border-pi-border bg-pi-surface/40 px-2.5 py-2 text-left text-[11px] text-pi-text-dim transition-all hover:border-pi-accent/30 hover:bg-pi-surface hover:text-pi-text capitalize"
+                    >
+                      {s}
+                    </button>
+                  ))}
+                </div>
+              )}
             </Suspense>
           </div>
         </motion.div>
@@ -332,7 +366,14 @@ export function AgentDashboard(_props: AgentDashboardProps) {
       </Suspense>
 
       {/* ─── Deep Inspection Drawer ─── */}
-      <DeepDrawer section={drawerSection} onClose={() => setDrawerSection(null)} agent={agent} />
+      <DeepDrawer
+        section={drawerSection}
+        onClose={() => setDrawerSection(null)}
+        agent={agent}
+        vitals={vitals}
+        devMode={devMode}
+        onNavigate={(s) => setDrawerSection(s)}
+      />
 
       {/* ─── Conditionally render ONLY the active layout ─── */}
       {isDesktop ? (
@@ -471,6 +512,7 @@ export function AgentDashboard(_props: AgentDashboardProps) {
                   moodHistory={agent.moodHistory}
                   activity={agent.activity}
                   agentStatus={agent.agentStatus}
+                  brainStatus={agent.brainStatus}
                   onOpenDrawer={(section) => setDrawerSection(section as DrawerSection)}
                 />
               </PanelErrorBoundary>
@@ -520,6 +562,7 @@ export function AgentDashboard(_props: AgentDashboardProps) {
                     moodHistory={agent.moodHistory}
                     activity={agent.activity}
                     agentStatus={agent.agentStatus}
+                    brainStatus={agent.brainStatus}
                     onOpenDrawer={(section) => setDrawerSection(section as DrawerSection)}
                   />
                 </motion.div>

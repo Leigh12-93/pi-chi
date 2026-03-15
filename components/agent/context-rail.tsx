@@ -1,28 +1,22 @@
 'use client'
 
-import { useRef, useEffect, useCallback, useState } from 'react'
+import { useRef, useEffect, useCallback, useState, useMemo } from 'react'
 import {
-  Target, Briefcase, Radar, AlertTriangle, Heart, Cpu,
-  Activity, BookOpen, FlaskConical, Trophy, FolderKanban, BrainCircuit, FileText,
+  Target, Briefcase, Heart, Cpu, Activity,
+  BookOpen, BrainCircuit,
+  Zap, AlertTriangle, CheckCircle2, Wifi, Brain, Radar,
+  Moon, Circle, ListChecks, RotateCcw, Pause, Play,
 } from 'lucide-react'
+import { motion } from 'framer-motion'
 import { cn } from '@/lib/utils'
 import type { DashboardSummary } from '@/lib/brain/domain-types'
-import type { SystemVitals } from '@/lib/agent-types'
+import type { SystemVitals, FeedItem } from '@/lib/agent-types'
 import type { MoodState } from '@/lib/brain/brain-types'
-import type { MoodSnapshot } from '@/hooks/use-agent-state'
-import { CurrentMissionCard } from './current-mission-card'
-import { PortfolioSummary } from './portfolio-summary'
-import { OpportunityRadar } from './opportunity-radar'
-import { AttentionPanel } from './attention-panel'
-import { WorkQueueCard } from './work-queue-card'
-import { AutomationTimeline } from './automation-timeline'
-import { CycleSummaryCard } from './cycle-summary-card'
-import { RecentCyclesList } from './recent-cycles-list'
-import { MoodPanel } from './mood-panel'
-import { VitalsPanel } from './vitals-panel'
-import { CollapsibleSection } from './collapsible-section'
-import { ActivityFeed } from './activity-feed'
+import type { MoodSnapshot } from '@/hooks/use-agent-state' // used in props
 import type { ActivityEntry } from '@/lib/agent-types'
+import { useFeedItems } from '@/hooks/use-feed-items'
+
+/* ─── Props ────────────────────────────────────── */
 
 interface ContextRailProps {
   summary: DashboardSummary
@@ -32,23 +26,138 @@ interface ContextRailProps {
   moodHistory: MoodSnapshot[]
   activity: ActivityEntry[]
   agentStatus: 'idle' | 'thinking' | 'executing' | 'error'
+  brainStatus: 'running' | 'sleeping' | 'not-running' | 'error'
   onOpenDrawer?: (_section: string) => void
   className?: string
 }
 
-const SCROLL_SPEED = 0.5 // px per frame (~30px/sec at 60fps)
-const PAUSE_AT_TOP_MS = 3000 // pause when looping back to top
-const PAUSE_AT_BOTTOM_MS = 2000 // pause at bottom before looping
+/* ─── Icon registry (lucide key → component) ──── */
+
+const iconMap: Record<string, React.ElementType> = {
+  Cpu, Target, Zap, Brain, AlertTriangle, CheckCircle2,
+  Activity, Wifi, Heart, Briefcase, Radar, BrainCircuit,
+  Moon, Circle, ListChecks, RotateCcw,
+}
+
+function getIcon(key: string): React.ElementType {
+  return iconMap[key] || Activity
+}
+
+/* ─── Tone color map ───────────────────────────── */
+
+const toneBg: Record<string, string> = {
+  neutral:  '',
+  positive: 'bg-emerald-500/5',
+  warning:  'bg-amber-500/5',
+  critical: 'bg-red-500/5',
+  accent:   'bg-pi-accent/5',
+}
+
+/* ─── Scroll constants ─────────────────────────── */
+
+const SCROLL_SPEED = 0.5        // px per frame
+const HOVER_RESUME_MS = 4000    // resume after hover ends
+const MIN_ITEMS_FOR_CLONE = 20  // below this, don't clone for infinite loop
+
+/* ─── Feed Item Row ────────────────────────────── */
+
+function FeedRow({ item, isNew }: { item: FeedItem; isNew: boolean }) {
+  const Icon = getIcon(item.icon)
+
+  const row = (
+    <div
+      className={cn(
+        'flex items-start gap-2 px-3 py-1.5 transition-colors group',
+        'hover:bg-pi-surface/40',
+        toneBg[item.tone || 'neutral'],
+      )}
+    >
+      {/* Icon */}
+      <div className="relative mt-0.5 shrink-0">
+        <Icon className={cn('w-3 h-3', item.color)} />
+        {item.tone === 'critical' && (
+          <span className="absolute -top-0.5 -right-0.5 w-1.5 h-1.5 bg-red-500 rounded-full animate-pulse" />
+        )}
+      </div>
+
+      {/* Time */}
+      <span className="text-[9px] text-pi-text-dim/40 font-mono shrink-0 mt-px min-w-[32px]">
+        {item.displayTime}
+      </span>
+
+      {/* Content */}
+      <div className="min-w-0 flex-1">
+        <span className={cn(
+          'text-[11px] leading-relaxed block',
+          item.tone === 'critical' ? 'text-red-400' :
+          item.tone === 'positive' ? 'text-emerald-400' :
+          item.tone === 'accent' ? 'text-pi-accent' :
+          item.tone === 'warning' ? 'text-amber-400' :
+          'text-pi-text-dim',
+        )}>
+          {item.headline}
+        </span>
+        {item.detail && (
+          <span className="text-[9px] text-pi-text-dim/50 block truncate">
+            {item.detail}
+          </span>
+        )}
+      </div>
+    </div>
+  )
+
+  if (isNew) {
+    return (
+      <motion.div
+        initial={{ opacity: 0, x: -8, scale: 0.97 }}
+        animate={{ opacity: 1, x: 0, scale: 1 }}
+        transition={{ type: 'spring', stiffness: 500, damping: 30 }}
+      >
+        {row}
+      </motion.div>
+    )
+  }
+
+  return row
+}
+
+/* ─── Main Component ───────────────────────────── */
 
 export function ContextRail({
-  summary, vitals, devMode, mood, moodHistory,
-  activity, agentStatus, onOpenDrawer, className,
+  summary, vitals, mood,
+  activity, brainStatus, onOpenDrawer, className,
 }: ContextRailProps) {
   const scrollRef = useRef<HTMLDivElement>(null)
   const rafRef = useRef<number | null>(null)
   const pausedRef = useRef(false)
   const pauseTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const [autoScrollEnabled, setAutoScrollEnabled] = useState(true)
+  const prevItemCountRef = useRef(0)
+
+  // Build feed items
+  const feedItems = useFeedItems({
+    activity,
+    summary,
+    mood,
+    vitals,
+    brainStatus,
+  })
+
+  // Determine if we should clone for infinite loop
+  const shouldClone = feedItems.length >= MIN_ITEMS_FOR_CLONE
+
+  // Track which items are "new" (last 3 added)
+  const newItemIds = useMemo(() => {
+    if (feedItems.length <= prevItemCountRef.current) return new Set<string>()
+    const newOnes = feedItems.slice(prevItemCountRef.current)
+    return new Set(newOnes.slice(-3).map(i => i.id))
+  }, [feedItems])
+
+  useEffect(() => {
+    prevItemCountRef.current = feedItems.length
+  }, [feedItems.length])
+
+  /* ─── Infinite scroll via clone-and-reset ────── */
 
   const scrollTick = useCallback(() => {
     const el = scrollRef.current
@@ -57,31 +166,35 @@ export function ContextRail({
       return
     }
 
-    const maxScroll = el.scrollHeight - el.clientHeight
-    if (maxScroll <= 0) {
-      rafRef.current = requestAnimationFrame(scrollTick)
-      return
+    if (shouldClone) {
+      // Clone-and-loop: when scrollTop reaches the midpoint (end of first copy), reset to 0
+      const halfHeight = el.scrollHeight / 2
+      if (halfHeight <= 0) {
+        rafRef.current = requestAnimationFrame(scrollTick)
+        return
+      }
+      if (el.scrollTop >= halfHeight) {
+        el.scrollTop = el.scrollTop - halfHeight
+      }
+      el.scrollTop += SCROLL_SPEED
+    } else {
+      // Few items: auto-scroll down, then wait
+      const maxScroll = el.scrollHeight - el.clientHeight
+      if (maxScroll <= 0) {
+        rafRef.current = requestAnimationFrame(scrollTick)
+        return
+      }
+      if (el.scrollTop >= maxScroll - 1) {
+        // At bottom — just wait, don't loop
+        rafRef.current = requestAnimationFrame(scrollTick)
+        return
+      }
+      el.scrollTop += SCROLL_SPEED
     }
 
-    // At bottom — pause then jump to top
-    if (el.scrollTop >= maxScroll - 1) {
-      pausedRef.current = true
-      pauseTimeoutRef.current = setTimeout(() => {
-        el.scrollTo({ top: 0, behavior: 'smooth' })
-        // Pause at top before resuming
-        pauseTimeoutRef.current = setTimeout(() => {
-          pausedRef.current = false
-        }, PAUSE_AT_TOP_MS)
-      }, PAUSE_AT_BOTTOM_MS)
-      rafRef.current = requestAnimationFrame(scrollTick)
-      return
-    }
-
-    el.scrollTop += SCROLL_SPEED
     rafRef.current = requestAnimationFrame(scrollTick)
-  }, [autoScrollEnabled])
+  }, [autoScrollEnabled, shouldClone])
 
-  // Start/stop auto-scroll loop
   useEffect(() => {
     rafRef.current = requestAnimationFrame(scrollTick)
     return () => {
@@ -90,155 +203,115 @@ export function ContextRail({
     }
   }, [scrollTick])
 
-  // Pause on hover/touch, resume after
+  // Pause on hover/touch
   const handleInteractionStart = useCallback(() => {
     pausedRef.current = true
     if (pauseTimeoutRef.current) clearTimeout(pauseTimeoutRef.current)
   }, [])
 
   const handleInteractionEnd = useCallback(() => {
-    // Resume after a short delay so the user can finish reading
     pauseTimeoutRef.current = setTimeout(() => {
       pausedRef.current = false
-    }, 4000)
+    }, HOVER_RESUME_MS)
   }, [])
 
+  /* ─── Render ─────────────────────────────────── */
+
   return (
-    <div
-      ref={scrollRef}
-      onMouseEnter={handleInteractionStart}
-      onMouseLeave={handleInteractionEnd}
-      onTouchStart={handleInteractionStart}
-      onTouchEnd={handleInteractionEnd}
-      className={cn('h-full overflow-y-auto bg-pi-panel border-l border-pi-border alive-panel context-rail-shell', className)}
-    >
-      {/* Active Mission */}
-      <CollapsibleSection title="Mission" icon={Target} defaultOpen={true}>
-        <CurrentMissionCard
-          mission={summary.currentMission}
-          nowDoing={summary.nowDoing}
-          cyclePhase={summary.cyclePhase}
-          lastEventLabel={summary.lastEventLabel}
-          autonomyReason={summary.autonomyReason}
-          nextUp={summary.nextUp}
-        />
-      </CollapsibleSection>
+    <div className={cn('h-full flex flex-col bg-pi-panel border-l border-pi-border alive-panel context-rail-shell', className)}>
 
-      <div className="mx-3 h-px bg-gradient-to-r from-transparent via-pi-border to-transparent" />
-
-      <CollapsibleSection title="Queue" icon={Target} defaultOpen={true} badge={summary.workQueue.length}>
-        <WorkQueueCard items={summary.workQueue} />
-      </CollapsibleSection>
-
-      <div className="mx-3 h-px bg-gradient-to-r from-transparent via-pi-border to-transparent" />
-
-      <CollapsibleSection title="Background Loop" icon={Activity} defaultOpen={true} badge={summary.backgroundEvents.length}>
-        <AutomationTimeline events={summary.backgroundEvents} />
-      </CollapsibleSection>
-
-      <div className="mx-3 h-px bg-gradient-to-r from-transparent via-pi-border to-transparent" />
-
-      <CollapsibleSection title="Last Cycle" icon={Activity} defaultOpen={true}>
-        <CycleSummaryCard cycle={summary.lastCycle} />
-      </CollapsibleSection>
-
-      <div className="mx-3 h-px bg-gradient-to-r from-transparent via-pi-border to-transparent" />
-
-      <CollapsibleSection title="Cycle History" icon={Activity} defaultOpen={false} badge={summary.recentCycles.length}>
-        <RecentCyclesList cycles={summary.recentCycles} />
-      </CollapsibleSection>
-
-      <div className="mx-3 h-px bg-gradient-to-r from-transparent via-pi-border to-transparent" />
-
-      {/* Portfolio */}
-      <CollapsibleSection title="Portfolio" icon={Briefcase} defaultOpen={true}>
-        <PortfolioSummary
-          topBusiness={summary.topBusiness}
-          portfolioValue={summary.portfolioValue}
-          portfolioTarget={summary.portfolioTarget}
-          topStretchGoal={summary.topStretchGoal}
-        />
-      </CollapsibleSection>
-
-      <div className="mx-3 h-px bg-gradient-to-r from-transparent via-pi-border to-transparent" />
-
-      {/* Opportunities */}
-      <CollapsibleSection title="Opportunities" icon={Radar} defaultOpen={true}>
-        <OpportunityRadar topOpportunity={summary.topOpportunity} opportunityCount={summary.opportunityCount} />
-      </CollapsibleSection>
-
-      <div className="mx-3 h-px bg-gradient-to-r from-transparent via-pi-border to-transparent" />
-
-      {/* Mood / Energy */}
-      <CollapsibleSection title="Mood" icon={Heart} defaultOpen={true}>
-        <MoodPanel mood={mood || undefined} moodHistory={moodHistory} />
-      </CollapsibleSection>
-
-      <div className="mx-3 h-px bg-gradient-to-r from-transparent via-pi-border to-transparent" />
-
-      {/* System Vitals */}
-      {vitals && (
-        <CollapsibleSection title="Vitals" icon={Cpu} defaultOpen={false}>
-          <VitalsPanel vitals={vitals} devMode={devMode} />
-        </CollapsibleSection>
-      )}
-
-      <div className="mx-3 h-px bg-gradient-to-r from-transparent via-pi-border to-transparent" />
-
-      {onOpenDrawer && (
-        <>
-          <CollapsibleSection title="Deep Mind" icon={BookOpen} defaultOpen={false}>
-            <div className="grid grid-cols-2 gap-2 px-3 py-3">
-              <DrawerButton label="Memories" icon={BookOpen} onClick={() => onOpenDrawer('memories')} />
-              <DrawerButton label="Research" icon={BrainCircuit} onClick={() => onOpenDrawer('research')} />
-              <DrawerButton label="Growth" icon={FlaskConical} onClick={() => onOpenDrawer('growth')} />
-              <DrawerButton label="Projects" icon={FolderKanban} onClick={() => onOpenDrawer('projects')} />
-              <DrawerButton label="Skills" icon={Cpu} onClick={() => onOpenDrawer('skills')} />
-              <DrawerButton label="Awards" icon={Trophy} onClick={() => onOpenDrawer('achievements')} />
-              <DrawerButton label="Prompts" icon={FileText} onClick={() => onOpenDrawer('prompts')} />
-            </div>
-          </CollapsibleSection>
-
-          <div className="mx-3 h-px bg-gradient-to-r from-transparent via-pi-border to-transparent" />
-        </>
-      )}
-
-      {/* Recent Activity */}
-      <CollapsibleSection title="Recent Actions" icon={Activity} defaultOpen={false}>
-        <div className="max-h-[200px] overflow-y-auto">
-          <ActivityFeed entries={activity.slice(-10)} agentStatus={agentStatus} />
+      {/* ─── Sticky header ─── */}
+      <div className="sticky top-0 z-10 flex items-center justify-between px-3 py-2 border-b border-pi-border bg-pi-panel/95 backdrop-blur-sm">
+        <div className="flex items-center gap-2">
+          <Activity className="w-3.5 h-3.5 text-pi-accent" />
+          <span className="text-xs font-bold text-pi-text tracking-wide uppercase">Ops Feed</span>
+          <span className="text-[10px] text-pi-text-dim font-mono bg-pi-surface px-1.5 py-0.5 rounded-full">
+            {feedItems.length}
+          </span>
         </div>
-      </CollapsibleSection>
-
-      <div className="mx-3 h-px bg-gradient-to-r from-transparent via-pi-border to-transparent" />
-
-      {/* Attention */}
-      {summary.attentionNeeded.length > 0 && (
-        <>
-          <CollapsibleSection title="Attention" icon={AlertTriangle} defaultOpen={true}>
-            <AttentionPanel items={summary.attentionNeeded} />
-          </CollapsibleSection>
-          <div className="mx-3 h-px bg-gradient-to-r from-transparent via-pi-border to-transparent" />
-        </>
-      )}
-
-      {/* Auto-scroll indicator */}
-      <div className="sticky bottom-0 flex items-center justify-center py-1.5 bg-gradient-to-t from-pi-panel via-pi-panel/95 to-transparent">
-        <button
-          onClick={() => setAutoScrollEnabled(s => !s)}
-          className={cn(
-            'text-[9px] px-2 py-0.5 rounded-full font-medium transition-all border',
-            autoScrollEnabled
-              ? 'text-pi-accent/60 border-pi-accent/20 bg-pi-accent/5 hover:bg-pi-accent/10'
-              : 'text-pi-text-dim/40 border-pi-border/50 bg-pi-surface/30 hover:bg-pi-surface/50'
-          )}
-        >
-          {autoScrollEnabled ? 'Auto-scroll on' : 'Auto-scroll off'}
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => setAutoScrollEnabled(s => !s)}
+            className={cn(
+              'p-1 rounded-lg transition-all',
+              autoScrollEnabled ? 'text-pi-text-dim hover:text-pi-text' : 'text-yellow-500 bg-yellow-500/10'
+            )}
+            title={autoScrollEnabled ? 'Pause auto-scroll' : 'Resume auto-scroll'}
+          >
+            {autoScrollEnabled ? <Pause className="w-3 h-3" /> : <Play className="w-3 h-3" />}
+          </button>
+          <span className="flex items-center gap-1 text-[10px] text-pi-text-dim">
+            <motion.span
+              animate={{ opacity: [0.4, 1, 0.4] }}
+              transition={{ duration: 2, repeat: Infinity }}
+              className="w-1.5 h-1.5 rounded-full bg-emerald-500"
+            />
+            Live
+          </span>
+        </div>
       </div>
+
+      {/* ─── Feed content ─── */}
+      <div
+        ref={scrollRef}
+        onMouseEnter={handleInteractionStart}
+        onMouseLeave={handleInteractionEnd}
+        onTouchStart={handleInteractionStart}
+        onTouchEnd={handleInteractionEnd}
+        className="flex-1 overflow-y-auto scrollbar-thin"
+      >
+        {feedItems.length === 0 ? (
+          /* Empty state */
+          <div className="flex flex-col items-center justify-center h-full text-pi-text-dim py-12">
+            <motion.div
+              animate={{ rotate: [0, 5, -5, 0] }}
+              transition={{ duration: 4, repeat: Infinity, ease: 'easeInOut' }}
+            >
+              <BrainCircuit className="w-10 h-10 mb-3 opacity-15" />
+            </motion.div>
+            <p className="text-xs font-medium">Waiting for brain</p>
+            <p className="text-[10px] mt-1 text-center max-w-[200px]">
+              Events will stream here as the brain operates.
+            </p>
+          </div>
+        ) : (
+          <>
+            {/* First copy of feed items */}
+            <div className="py-1">
+              {feedItems.map(item => (
+                <FeedRow key={item.id} item={item} isNew={newItemIds.has(item.id)} />
+              ))}
+            </div>
+
+            {/* Second copy for infinite loop (only when enough items) */}
+            {shouldClone && (
+              <div className="py-1" aria-hidden="true">
+                {feedItems.map(item => (
+                  <FeedRow key={`clone-${item.id}`} item={item} isNew={false} />
+                ))}
+              </div>
+            )}
+          </>
+        )}
+      </div>
+
+      {/* ─── Sticky footer: drawer quick-access ─── */}
+      {onOpenDrawer && (
+        <div className="sticky bottom-0 z-10 border-t border-pi-border bg-pi-panel/95 backdrop-blur-sm px-2 py-2">
+          <div className="flex items-center justify-around gap-1">
+            <DrawerButton icon={Target} label="Mission" onClick={() => onOpenDrawer('mission')} />
+            <DrawerButton icon={Heart} label="Mood" onClick={() => onOpenDrawer('mood')} />
+            <DrawerButton icon={Cpu} label="Vitals" onClick={() => onOpenDrawer('vitals')} />
+            <DrawerButton icon={ListChecks} label="Queue" onClick={() => onOpenDrawer('queue')} />
+            <DrawerButton icon={BookOpen} label="Mind" onClick={() => onOpenDrawer('mind')} />
+          </div>
+        </div>
+      )}
     </div>
   )
 }
+
+/* ─── Drawer Button ────────────────────────────── */
 
 function DrawerButton({
   label,
@@ -252,10 +325,11 @@ function DrawerButton({
   return (
     <button
       onClick={onClick}
-      className="flex items-center gap-2 rounded-lg border border-pi-border bg-pi-surface/40 px-2.5 py-2 text-left text-[11px] text-pi-text-dim transition-all hover:border-pi-accent/30 hover:bg-pi-surface hover:text-pi-text"
+      className="flex flex-col items-center gap-1 rounded-lg px-2 py-1.5 text-[9px] text-pi-text-dim transition-all hover:bg-pi-surface hover:text-pi-text min-w-[44px]"
+      title={label}
     >
       <Icon className="h-3.5 w-3.5 text-pi-accent" />
-      <span>{label}</span>
+      <span className="font-medium">{label}</span>
     </button>
   )
 }

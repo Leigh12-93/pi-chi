@@ -52,3 +52,22 @@ export interface ToolInvocation {
   status: 'running' | 'completed' | 'error'
   timestamp: number
 }
+
+/* ─── Ops Feed Types ──────────────────────────── */
+
+export type FeedItemKind =
+  | 'activity' | 'mission' | 'queue' | 'cycle-complete'
+  | 'mood-shift' | 'attention' | 'opportunity' | 'portfolio'
+  | 'vitals' | 'background' | 'status'
+
+export interface FeedItem {
+  id: string
+  kind: FeedItemKind
+  timestamp: number       // epoch ms for sorting
+  displayTime: string     // "14:32"
+  icon: string            // lucide icon key
+  color: string           // tailwind color class
+  headline: string        // one-line primary text
+  detail?: string         // optional secondary line
+  tone?: 'neutral' | 'positive' | 'warning' | 'critical' | 'accent'
+}
