@@ -4,6 +4,8 @@ import { promisify } from 'util'
 
 const execAsync = promisify(exec)
 
+export const dynamic = 'force-dynamic'
+
 interface VitalsResponse {
   cpu: number
   memory: { used: number; total: number }

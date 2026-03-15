@@ -10,6 +10,8 @@ import { requireBrainAuth } from '@/lib/brain/brain-auth'
 import { readDisplayState } from '@/lib/brain/display-mode'
 import { rateLimit } from '@/lib/rate-limit'
 
+export const dynamic = 'force-dynamic'
+
 const getLimit = rateLimit('brain-get', 60, 60_000)    // 60 req/min
 const postLimit = rateLimit('brain-post', 10, 60_000)   // 10 req/min
 const HEARTBEAT_FILE = join(homedir(), '.pi-chi', 'heartbeat')
@@ -49,6 +51,8 @@ export async function GET(req: Request) {
       status: isAlive ? 'running' : 'sleeping',
       state,
       displayMode: readDisplayState(),
+    }, {
+      headers: { 'Cache-Control': 'no-store, max-age=0' },
     })
   } catch (err) {
     return NextResponse.json(

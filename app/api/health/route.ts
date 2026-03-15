@@ -1,6 +1,8 @@
 import { NextResponse } from 'next/server'
 import { supabase } from '@/lib/supabase'
 
+export const dynamic = 'force-dynamic'
+
 const VERSION = process.env.npm_package_version || '0.1.2'
 
 /** GET /api/health — liveness + readiness check */

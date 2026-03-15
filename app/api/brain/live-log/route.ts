@@ -12,6 +12,8 @@ const MAX_BYTES = 50_000 // Return last 50KB max
 
 const logLimit = rateLimit('brain-live-log', 30, 60_000) // 30 req/min
 
+export const dynamic = 'force-dynamic'
+
 export async function GET(req: Request) {
   // Auth check
   const authErr = requireBrainAuth(req)
@@ -45,6 +47,8 @@ export async function GET(req: Request) {
       active: isActive,
       content,
       size: stat.size,
+    }, {
+      headers: { 'Cache-Control': 'no-store, max-age=0' },
     })
   } catch (err) {
     return NextResponse.json(
