@@ -57,7 +57,6 @@ const toneBg: Record<string, string> = {
 
 const SCROLL_SPEED = 0.5        // px per frame
 const HOVER_RESUME_MS = 4000    // resume after hover ends
-const MIN_ITEMS_FOR_CLONE = 20  // below this, don't clone for infinite loop
 
 /* ─── Feed Item Row ────────────────────────────── */
 
@@ -143,9 +142,6 @@ export function ContextRail({
     brainStatus,
   })
 
-  // Determine if we should clone for infinite loop
-  const shouldClone = feedItems.length >= MIN_ITEMS_FOR_CLONE
-
   // Track which items are "new" (last 3 added)
   const newItemIds = useMemo(() => {
     if (feedItems.length <= prevItemCountRef.current) return new Set<string>()
@@ -166,34 +162,21 @@ export function ContextRail({
       return
     }
 
-    if (shouldClone) {
-      // Clone-and-loop: when scrollTop reaches the midpoint (end of first copy), reset to 0
-      const halfHeight = el.scrollHeight / 2
-      if (halfHeight <= 0) {
-        rafRef.current = requestAnimationFrame(scrollTick)
-        return
-      }
-      if (el.scrollTop >= halfHeight) {
-        el.scrollTop = el.scrollTop - halfHeight
-      }
-      el.scrollTop += SCROLL_SPEED
-    } else {
-      // Few items: auto-scroll down, then wait
-      const maxScroll = el.scrollHeight - el.clientHeight
-      if (maxScroll <= 0) {
-        rafRef.current = requestAnimationFrame(scrollTick)
-        return
-      }
-      if (el.scrollTop >= maxScroll - 1) {
-        // At bottom — just wait, don't loop
-        rafRef.current = requestAnimationFrame(scrollTick)
-        return
-      }
-      el.scrollTop += SCROLL_SPEED
+    // Clone-and-loop: items rendered twice. When scrollTop passes the
+    // first copy's height, snap back by that amount — seamless because
+    // the second copy is identical to the first.
+    const halfHeight = el.scrollHeight / 2
+    if (halfHeight <= 0) {
+      rafRef.current = requestAnimationFrame(scrollTick)
+      return
     }
+    if (el.scrollTop >= halfHeight) {
+      el.scrollTop -= halfHeight
+    }
+    el.scrollTop += SCROLL_SPEED
 
     rafRef.current = requestAnimationFrame(scrollTick)
-  }, [autoScrollEnabled, shouldClone])
+  }, [autoScrollEnabled])
 
   useEffect(() => {
     rafRef.current = requestAnimationFrame(scrollTick)
@@ -283,14 +266,12 @@ export function ContextRail({
               ))}
             </div>
 
-            {/* Second copy for infinite loop (only when enough items) */}
-            {shouldClone && (
-              <div className="py-1" aria-hidden="true">
-                {feedItems.map(item => (
-                  <FeedRow key={`clone-${item.id}`} item={item} isNew={false} />
-                ))}
-              </div>
-            )}
+            {/* Second copy for seamless infinite loop */}
+            <div className="py-1" aria-hidden="true">
+              {feedItems.map(item => (
+                <FeedRow key={`clone-${item.id}`} item={item} isNew={false} />
+              ))}
+            </div>
           </>
         )}
       </div>
