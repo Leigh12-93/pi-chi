@@ -24,8 +24,39 @@ const BUILD_SERVICES = [
   'pi-chi-mvp-monitor',
 ]
 
+/** Cache dashboard state to disk so offline/build mode can show last-known data */
+async function cacheDashboardState(): Promise<void> {
+  try {
+    // Snapshot the brain state SSE endpoint before killing the server
+    const res = await executeCommand(
+      'curl -s --max-time 3 http://localhost:3333/api/brain 2>/dev/null',
+      { timeout: 5_000 },
+    )
+    if (res.stdout && res.stdout.trim().startsWith('{')) {
+      writeFileSync(join(getStateDir(), 'dashboard-cache.json'), res.stdout.trim(), 'utf-8')
+    }
+  } catch { /* non-critical — best effort cache */ }
+}
+
+/** Write a simple "building" status page to framebuffer console */
+async function showBuildBanner(message: string): Promise<void> {
+  // Write build status to a file the kiosk/standby can read on restart
+  try {
+    writeFileSync(join(getStateDir(), 'build-status.txt'), message, 'utf-8')
+  } catch { /* non-critical */ }
+  // Also write to Linux console (visible on HDMI when no GUI running)
+  await executeCommand(
+    `echo -e "\\033[2J\\033[H\\n\\n  Pi-Chi — ${message}\\n\\n  $(date)\\n" | sudo tee /dev/tty1 2>/dev/null`,
+    { timeout: 3_000 },
+  ).catch(() => {})
+}
+
 /** Mask + stop all services to free RAM and block systemd auto-restart */
 async function freezeServices(cwd: string): Promise<void> {
+  // Cache dashboard state before killing services
+  await cacheDashboardState()
+  // Show build banner on console
+  await showBuildBanner('Building...')
   // Mask first — prevents Restart=always from re-spawning stopped services
   await executeCommand(
     `sudo systemctl mask ${BUILD_SERVICES.join(' ')}`,
@@ -170,21 +201,25 @@ export async function runDeployPipeline(
 
       try {
         // Backup current build
+        await showBuildBanner('Backing up current build...')
         await executeCommand(
           'test -d .next/standalone && cp -a .next/standalone .next/standalone.bak || true',
           { cwd, timeout: 30_000 },
         ).catch(() => {})
 
         // Build with all services stopped — maximum RAM available
+        await showBuildBanner('Building Next.js (this takes a few minutes)...')
         const buildStep = await runBuildWithFix(state, config, cwd, record)
         record.steps.push(buildStep)
         record.buildTimeMs = buildStep.durationMs
 
         if (buildStep.outcome === 'fail') {
+          await showBuildBanner('Build FAILED — rolling back...')
           // thawServices called in finally block — then rollback
           await rollback(state, 2, cwd, record)
           return finalize(record, 'rolled-back', state, config)
         }
+        await showBuildBanner('Build OK — restarting services...')
       } finally {
         // ALWAYS thaw services — unmask + start everything back up
         await thawServices(cwd)
