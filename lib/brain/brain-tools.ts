@@ -10,7 +10,7 @@ import { ensureClaudeCodeMaxOAuth, runClaudeCodePrompt } from './claude-code'
 import { enterStandbyDisplay, resumeDashboardDisplay } from './display-mode'
 import { sendSms } from './brain-sms'
 import { addActivity, saveBrainState } from './brain-state'
-import type { BrainState, BrainGoal, ProjectManifest, ProjectOutput, BrainSchedule } from './brain-types'
+import type { BrainState, BrainGoal, ProjectManifest, ProjectOutput, BrainSchedule, FailureRecord, OperationalConstraint, AntiPattern, CycleJournal } from './brain-types'
 import type { Opportunity, StretchGoal } from './domain-types'
 
 const MAX_OUTPUT = 10_000 // Cap shell output at 10KB
@@ -1369,6 +1369,238 @@ export function createBrainTools(state: BrainState) {
 
         const result = await executeCommand(cmd, { timeout: 10000 })
         return { success: result.exitCode === 0, message: `${action} scheduled in ${mins} minutes`, stderr: result.stderr || '' }
+      },
+    }),
+
+    // ── Learning System Tools ──────────────────────────────────────
+
+    record_cycle_outcome: tool({
+      description: 'Record what happened this cycle for the learning journal. Call this at the END of every cycle with a summary of what you did, whether it worked, and what you learned. This is how you build institutional knowledge.',
+      inputSchema: z.object({
+        goalWorkedOn: z.string().nullable().describe('Goal title you worked on'),
+        taskWorkedOn: z.string().nullable().describe('Task title you worked on'),
+        toolsUsed: z.array(z.string()).describe('Tool names you used this cycle'),
+        claudeCodeUsed: z.boolean().describe('Did you use claude_code?'),
+        outcome: z.enum(['productive', 'partial', 'failed', 'wasted', 'blocked']).describe('How productive was this cycle?'),
+        summary: z.string().describe('1-2 sentence summary of what happened'),
+        errors: z.array(z.string()).optional().describe('Error messages encountered'),
+        lessonsLearned: z.array(z.string()).optional().describe('Insights from this cycle'),
+        filesChanged: z.array(z.string()).optional().describe('Files modified'),
+        buildAttempted: z.boolean().optional(),
+        buildSucceeded: z.boolean().nullable().optional(),
+        deployAttempted: z.boolean().optional(),
+        deploySucceeded: z.boolean().nullable().optional(),
+      }),
+      execute: async (input) => {
+        state.totalToolCalls++
+        if (!state.cycleJournal) state.cycleJournal = []
+        const entry: CycleJournal = {
+          cycle: state.totalThoughts,
+          startedAt: state.lastWakeAt || new Date().toISOString(),
+          completedAt: new Date().toISOString(),
+          durationMs: state.lastWakeAt ? Date.now() - new Date(state.lastWakeAt).getTime() : 0,
+          goalWorkedOn: input.goalWorkedOn,
+          taskWorkedOn: input.taskWorkedOn,
+          toolsUsed: input.toolsUsed,
+          claudeCodeUsed: input.claudeCodeUsed,
+          outcome: input.outcome,
+          summary: input.summary,
+          errors: input.errors || [],
+          lessonsLearned: input.lessonsLearned || [],
+          filesChanged: input.filesChanged || [],
+          buildAttempted: input.buildAttempted || false,
+          buildSucceeded: input.buildSucceeded ?? null,
+          deployAttempted: input.deployAttempted || false,
+          deploySucceeded: input.deploySucceeded ?? null,
+        }
+        state.cycleJournal.push(entry)
+        addActivity(state, 'thought', `Cycle ${state.totalThoughts}: ${input.outcome} — ${input.summary.slice(0, 150)}`)
+        if (input.lessonsLearned && input.lessonsLearned.length > 0) {
+          for (const lesson of input.lessonsLearned) {
+            addActivity(state, 'decision', `Learned: ${lesson.slice(0, 150)}`)
+          }
+        }
+        saveBrainState(state)
+        return { success: true, journalEntries: state.cycleJournal.length }
+      },
+    }),
+
+    record_failure: tool({
+      description: 'Record a failure so you never make the same mistake twice. If this failure has happened before, it increments the counter. Include root cause and solution if known. ALWAYS call this when something goes wrong.',
+      inputSchema: z.object({
+        category: z.enum(['build', 'deploy', 'type-check', 'runtime', 'network', 'disk', 'memory', 'permission', 'config', 'code', 'git', 'service', 'other']),
+        description: z.string().describe('What went wrong'),
+        rootCause: z.string().nullable().describe('Why it went wrong (null if unknown)'),
+        solution: z.string().nullable().describe('What fixed it (null if unresolved)'),
+        prevention: z.string().nullable().describe('How to prevent it next time'),
+        relatedGoal: z.string().nullable().optional(),
+      }),
+      execute: async (input) => {
+        state.totalToolCalls++
+        if (!state.failureRegistry) state.failureRegistry = []
+        // Check for existing similar failure (fuzzy match on description)
+        const descLower = input.description.toLowerCase()
+        const existing = state.failureRegistry.find(f =>
+          f.category === input.category &&
+          (f.description.toLowerCase().includes(descLower.slice(0, 40)) ||
+           descLower.includes(f.description.toLowerCase().slice(0, 40)))
+        )
+        if (existing) {
+          existing.occurrenceCount++
+          existing.lastOccurrence = new Date().toISOString()
+          existing.occurrenceCycles.push(state.totalThoughts)
+          if (existing.occurrenceCycles.length > 20) existing.occurrenceCycles = existing.occurrenceCycles.slice(-20)
+          if (input.rootCause && !existing.rootCause) existing.rootCause = input.rootCause
+          if (input.solution && !existing.solution) {
+            existing.solution = input.solution
+            existing.resolved = true
+            existing.resolvedAt = new Date().toISOString()
+          }
+          if (input.prevention && !existing.prevention) existing.prevention = input.prevention
+          addActivity(state, 'error', `Recurring failure (x${existing.occurrenceCount}): ${input.description.slice(0, 120)}`)
+          saveBrainState(state)
+          return { success: true, recurring: true, occurrences: existing.occurrenceCount, message: 'Updated existing failure record. You have seen this before — check the solution/prevention fields.' }
+        }
+        const record: FailureRecord = {
+          id: randomUUID(),
+          category: input.category,
+          description: input.description,
+          rootCause: input.rootCause,
+          solution: input.solution,
+          prevention: input.prevention,
+          firstOccurrence: new Date().toISOString(),
+          lastOccurrence: new Date().toISOString(),
+          occurrenceCount: 1,
+          occurrenceCycles: [state.totalThoughts],
+          resolved: !!input.solution,
+          resolvedAt: input.solution ? new Date().toISOString() : null,
+          relatedGoal: input.relatedGoal || null,
+        }
+        state.failureRegistry.push(record)
+        addActivity(state, 'error', `New failure recorded [${input.category}]: ${input.description.slice(0, 120)}`)
+        saveBrainState(state)
+        return { success: true, recurring: false, failureId: record.id }
+      },
+    }),
+
+    learn_constraint: tool({
+      description: 'Record a hard operational rule you learned from experience. These constraints are shown to you every cycle so you NEVER violate them again. Use for critical lessons like "Pi cannot run next build — not enough RAM" or "ALWAYS restart dashboard after builds".',
+      inputSchema: z.object({
+        category: z.enum(['hardware', 'software', 'network', 'process', 'deployment', 'build', 'git', 'service']),
+        rule: z.string().describe('The rule: "NEVER do X" or "ALWAYS do Y"'),
+        reason: z.string().describe('Why this rule exists'),
+        evidence: z.string().describe('What happened that taught you this'),
+        severity: z.enum(['critical', 'important', 'advisory']),
+      }),
+      execute: async (input) => {
+        state.totalToolCalls++
+        if (!state.operationalConstraints) state.operationalConstraints = []
+        // Check for duplicate
+        const ruleLower = input.rule.toLowerCase()
+        const existing = state.operationalConstraints.find(c =>
+          c.rule.toLowerCase().includes(ruleLower.slice(0, 30)) || ruleLower.includes(c.rule.toLowerCase().slice(0, 30))
+        )
+        if (existing) {
+          existing.violationCount++
+          addActivity(state, 'decision', `Constraint violated again: ${existing.rule.slice(0, 100)}`)
+          saveBrainState(state)
+          return { success: true, duplicate: true, message: `You already know this rule! Violation #${existing.violationCount}. Follow your own constraints.` }
+        }
+        const constraint: OperationalConstraint = {
+          id: randomUUID(),
+          category: input.category,
+          rule: input.rule,
+          reason: input.reason,
+          evidence: input.evidence,
+          learnedAt: new Date().toISOString(),
+          learnedFromCycle: state.totalThoughts,
+          severity: input.severity,
+          active: true,
+          violationCount: 0,
+        }
+        state.operationalConstraints.push(constraint)
+        addActivity(state, 'decision', `New constraint learned [${input.severity}]: ${input.rule.slice(0, 120)}`)
+        saveBrainState(state)
+        return { success: true, constraintId: constraint.id, totalConstraints: state.operationalConstraints.length }
+      },
+    }),
+
+    record_anti_pattern: tool({
+      description: 'Record something you tried that does NOT work, so you never waste a cycle on it again. Include what to do instead.',
+      inputSchema: z.object({
+        description: z.string().describe('What you tried'),
+        whyItFailed: z.string().describe('Why it does not work'),
+        alternative: z.string().nullable().describe('What to do instead'),
+        category: z.enum(['build', 'deploy', 'code', 'architecture', 'process', 'other']),
+      }),
+      execute: async (input) => {
+        state.totalToolCalls++
+        if (!state.antiPatterns) state.antiPatterns = []
+        const descLower = input.description.toLowerCase()
+        const existing = state.antiPatterns.find(a =>
+          a.description.toLowerCase().includes(descLower.slice(0, 30)) || descLower.includes(a.description.toLowerCase().slice(0, 30))
+        )
+        if (existing) {
+          existing.occurrences++
+          existing.lastSeen = new Date().toISOString()
+          saveBrainState(state)
+          return { success: true, duplicate: true, occurrences: existing.occurrences, message: 'You tried this before and it failed. Stop doing it.' }
+        }
+        const pattern: AntiPattern = {
+          id: randomUUID(),
+          description: input.description,
+          whyItFailed: input.whyItFailed,
+          alternative: input.alternative,
+          occurrences: 1,
+          lastSeen: new Date().toISOString(),
+          category: input.category,
+        }
+        state.antiPatterns.push(pattern)
+        addActivity(state, 'decision', `Anti-pattern recorded: ${input.description.slice(0, 100)} → ${input.alternative?.slice(0, 60) || 'no alternative yet'}`)
+        saveBrainState(state)
+        return { success: true, antiPatternId: pattern.id }
+      },
+    }),
+
+    update_skill: tool({
+      description: 'Track your skill progression. Call after attempting something to record success or failure. Your proficiency score auto-adjusts based on recent outcomes.',
+      inputSchema: z.object({
+        name: z.string().describe('Skill name (e.g., "Next.js builds", "TypeScript fixes", "UI design")'),
+        category: z.enum(['coding', 'devops', 'ui-design', 'debugging', 'system-admin', 'self-modification', 'deployment', 'testing']),
+        succeeded: z.boolean().describe('Did you succeed at this skill this cycle?'),
+        notes: z.string().optional().describe('What you learned about this skill'),
+      }),
+      execute: async (input) => {
+        state.totalToolCalls++
+        if (!state.skills) state.skills = []
+        let skill = state.skills.find(s => s.name.toLowerCase() === input.name.toLowerCase())
+        if (!skill) {
+          skill = {
+            id: randomUUID(),
+            name: input.name,
+            category: input.category,
+            proficiency: 50,
+            attempts: 0,
+            successes: 0,
+            failures: 0,
+            lastPracticed: new Date().toISOString(),
+            recentOutcomes: [],
+            notes: '',
+          }
+          state.skills.push(skill)
+        }
+        skill.attempts++
+        if (input.succeeded) skill.successes++
+        else skill.failures++
+        skill.lastPracticed = new Date().toISOString()
+        skill.recentOutcomes.push(input.succeeded)
+        if (skill.recentOutcomes.length > 10) skill.recentOutcomes = skill.recentOutcomes.slice(-10)
+        if (input.notes) skill.notes = input.notes
+        // Recalculate proficiency from recent outcomes
+        const recentRate = skill.recentOutcomes.filter(Boolean).length / skill.recentOutcomes.length
+        skill.proficiency = Math.round(recentRate * 100)
+        saveBrainState(state)
+        return { success: true, proficiency: skill.proficiency, attempts: skill.attempts, trend: recentRate > 0.5 ? 'improving' : 'declining' }
       },
     }),
   }

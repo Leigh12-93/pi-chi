@@ -422,6 +422,12 @@ export function loadBrainState(): BrainState {
   if (!state.achievements) state.achievements = []
   if (!state.schedules) state.schedules = []
   if (!state.deployHistory) state.deployHistory = []
+  // Learning system backfill
+  if (!state.cycleJournal) state.cycleJournal = []
+  if (!state.failureRegistry) state.failureRegistry = []
+  if (!state.operationalConstraints) state.operationalConstraints = []
+  if (!state.skills) state.skills = []
+  if (!state.antiPatterns) state.antiPatterns = []
 
   // Backfill horizon on existing goals that don't have it
   for (const goal of state.goals) {
@@ -516,6 +522,26 @@ export function saveBrainState(state: BrainState): void {
         mood: { ...state.mood },
       })
     }
+  }
+
+  // Cap learning system arrays
+  const MAX_CYCLE_JOURNAL = 200
+  const MAX_FAILURE_REGISTRY = 100
+  const MAX_ANTI_PATTERNS = 50
+  if (state.cycleJournal && state.cycleJournal.length > MAX_CYCLE_JOURNAL) {
+    state.cycleJournal = state.cycleJournal.slice(-MAX_CYCLE_JOURNAL)
+  }
+  if (state.failureRegistry && state.failureRegistry.length > MAX_FAILURE_REGISTRY) {
+    // Keep unresolved failures, prune oldest resolved ones
+    const unresolved = state.failureRegistry.filter(f => !f.resolved)
+    const resolved = state.failureRegistry.filter(f => f.resolved)
+      .sort((a, b) => new Date(b.resolvedAt || 0).getTime() - new Date(a.resolvedAt || 0).getTime())
+    state.failureRegistry = [...unresolved, ...resolved].slice(0, MAX_FAILURE_REGISTRY)
+  }
+  if (state.antiPatterns && state.antiPatterns.length > MAX_ANTI_PATTERNS) {
+    state.antiPatterns = state.antiPatterns
+      .sort((a, b) => b.occurrences - a.occurrences)
+      .slice(0, MAX_ANTI_PATTERNS)
   }
 
   // Dirty-check: skip write if state hasn't changed (reduces SD card wear)

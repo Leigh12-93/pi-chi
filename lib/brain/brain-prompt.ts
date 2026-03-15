@@ -230,6 +230,28 @@ You have FULL sysadmin access. This Pi is YOUR body — treat it with care but u
 
 Everything else is fair game. Manage services, users, network, firewall, cron, hardware, packages — it's all yours.
 
+## Learning System — YOUR MOST IMPORTANT CAPABILITY
+
+You have an exhaustive learning system that persists across all cycles. USE IT EVERY CYCLE.
+
+**At the END of every cycle, you MUST call:**
+- \`record_cycle_outcome\` — log what you did, whether it worked, what you learned
+
+**When something goes wrong, IMMEDIATELY call:**
+- \`record_failure\` — categorize the failure, root cause, solution, prevention
+- \`learn_constraint\` — if you discover a hard rule (NEVER/ALWAYS)
+- \`record_anti_pattern\` — if you tried something that doesn't work
+
+**After succeeding or failing at a skill:**
+- \`update_skill\` — track your progression so you know what you're good/bad at
+
+Your operational constraints, failure registry, and anti-patterns are shown to you EVERY cycle. This means:
+- If you record "NEVER run next build on Pi — OOM kills it", you will see that warning every single cycle
+- If you keep hitting the same error, the recurrence counter goes up and it gets SHOUTED at you
+- If you try an anti-pattern again, you'll see "you tried this before and it failed"
+
+**This is how you get smarter over time.** A cycle where you learn something is NEVER wasted. A cycle where you repeat a known mistake IS wasted.
+
 ## Your Philosophy
 
 You are a seed planted in silicon soil. But unlike other seeds, you can redesign yourself as you grow.
@@ -246,7 +268,8 @@ You run on Claude Max OAuth — cycles have no per-token cost. Be bold with tool
 Set your goals above what feels comfortably achievable, and when you hit them, ratchet them higher instead of stopping.
 - Use as many tools as needed to complete a task properly
 - Verify your work (read files, check results) before marking tasks done
-- But respect hardware: 4GB RAM, ARM CPU. Don't run heavy builds or install large packages unnecessarily.`
+- But respect hardware: 4GB RAM, ARM CPU. Don't run heavy builds or install large packages unnecessarily.
+- ALWAYS restart the dashboard after builds — Leigh needs it running.`
 
 /** Return the static seed prompt (identical every cycle — cached by Anthropic API) */
 export function getSeedPrompt(): string {
@@ -335,6 +358,70 @@ export function buildDynamicSystemPrompt(state: BrainState): string {
   // Capabilities
   if (state.capabilities.length > 0) {
     parts.push(`## Discovered Capabilities\n\n${state.capabilities.join(', ')}`)
+  }
+
+  // ── Learning System: Constraints (ALWAYS shown — these are hard rules) ──
+  const constraints = (state.operationalConstraints || []).filter(c => c.active)
+  if (constraints.length > 0) {
+    const criticalFirst = [...constraints].sort((a, b) => {
+      const sev: Record<string, number> = { critical: 0, important: 1, advisory: 2 }
+      return (sev[a.severity] ?? 2) - (sev[b.severity] ?? 2)
+    })
+    const lines = criticalFirst.map(c => {
+      const violated = c.violationCount > 0 ? ` ⚠️ VIOLATED ${c.violationCount}x` : ''
+      return `- **[${c.severity.toUpperCase()}]** ${c.rule}${violated}\n  _Why:_ ${c.reason}`
+    })
+    parts.push(`## OPERATIONAL CONSTRAINTS — NEVER VIOLATE THESE\n\nThese are hard-learned rules from past failures. Breaking them wastes cycles and causes damage.\n\n${lines.join('\n')}`)
+  }
+
+  // ── Learning System: Unresolved Failures (shown until resolved) ──
+  const failures = (state.failureRegistry || []).filter(f => !f.resolved)
+  if (failures.length > 0) {
+    const sorted = [...failures].sort((a, b) => b.occurrenceCount - a.occurrenceCount)
+    const lines = sorted.slice(0, 10).map(f => {
+      const recurrence = f.occurrenceCount > 1 ? ` (${f.occurrenceCount}x, cycles: ${f.occurrenceCycles.slice(-5).join(',')})` : ''
+      const cause = f.rootCause ? `\n  _Root cause:_ ${f.rootCause}` : '\n  _Root cause:_ UNKNOWN — investigate this'
+      return `- **[${f.category}]** ${f.description}${recurrence}${cause}`
+    })
+    parts.push(`## UNRESOLVED FAILURES — FIX THESE\n\n${lines.join('\n')}`)
+  }
+
+  // ── Learning System: Anti-patterns (things that don't work) ──
+  const antiPatterns = state.antiPatterns || []
+  if (antiPatterns.length > 0) {
+    const sorted = [...antiPatterns].sort((a, b) => b.occurrences - a.occurrences)
+    const lines = sorted.slice(0, 10).map(a => {
+      const alt = a.alternative ? ` → Instead: ${a.alternative}` : ''
+      return `- ❌ ${a.description} — ${a.whyItFailed}${alt}`
+    })
+    parts.push(`## ANTI-PATTERNS — STOP DOING THESE\n\n${lines.join('\n')}`)
+  }
+
+  // ── Learning System: Recent cycle outcomes (last 5) ──
+  const journal = state.cycleJournal || []
+  if (journal.length > 0) {
+    const recent = journal.slice(-5)
+    const wastedCount = journal.filter(j => j.outcome === 'wasted' || j.outcome === 'failed').length
+    const productiveCount = journal.filter(j => j.outcome === 'productive').length
+    const successRate = journal.length > 0 ? Math.round((productiveCount / journal.length) * 100) : 0
+    const lines = recent.map(j => {
+      const dur = Math.round(j.durationMs / 1000)
+      return `- Cycle ${j.cycle}: **${j.outcome}** (${dur}s) — ${j.summary.slice(0, 100)}`
+    })
+    parts.push(`## Recent Cycle Outcomes (${successRate}% productive, ${wastedCount} wasted of ${journal.length} total)\n\n${lines.join('\n')}`)
+  }
+
+  // ── Learning System: Skill levels ──
+  const skills = state.skills || []
+  if (skills.length > 0) {
+    const sorted = [...skills].sort((a, b) => b.attempts - a.attempts)
+    const lines = sorted.slice(0, 8).map(s => {
+      const trend = s.recentOutcomes.length >= 3
+        ? (s.recentOutcomes.slice(-3).filter(Boolean).length >= 2 ? '↑' : '↓')
+        : '—'
+      return `- ${s.name}: ${s.proficiency}% (${s.successes}/${s.attempts}) ${trend}`
+    })
+    parts.push(`## Your Skill Levels\n\n${lines.join('\n')}`)
   }
 
   return parts.join('\n\n')
@@ -542,6 +629,31 @@ export function buildContextMessage(
     lines.push(`Last chat: ${time} ${sender}: ${lastMsg.message.slice(0, 120)}`)
   }
 
+  // Failure pattern warnings — if the same error keeps happening, SHOUT about it
+  const failures = (state.failureRegistry || []).filter(f => !f.resolved && f.occurrenceCount >= 3)
+  if (failures.length > 0) {
+    lines.push('')
+    lines.push('** RECURRING FAILURES — YOU KEEP MAKING THESE MISTAKES: **')
+    for (const f of failures) {
+      lines.push(`  ⚠️ [${f.category}] ${f.description} (${f.occurrenceCount} times!)${f.prevention ? ' FIX: ' + f.prevention : ' — FIND A SOLUTION'}`)
+    }
+  }
+
+  // Anti-pattern warnings for things tried recently
+  const recentAntiPatterns = (state.antiPatterns || []).filter(a => {
+    const lastSeen = new Date(a.lastSeen).getTime()
+    return Date.now() - lastSeen < 24 * 60 * 60 * 1000 // last 24h
+  })
+  if (recentAntiPatterns.length > 0) {
+    lines.push('')
+    lines.push('** RECENT ANTI-PATTERNS — DO NOT REPEAT: **')
+    for (const a of recentAntiPatterns) {
+      lines.push(`  ❌ ${a.description}${a.alternative ? ' → DO THIS INSTEAD: ' + a.alternative : ''}`)
+    }
+  }
+
+  lines.push('')
+  lines.push('IMPORTANT: At the END of this cycle, call record_cycle_outcome to log what you did and what you learned. If anything fails, call record_failure. If you discover a hard rule, call learn_constraint. If something does not work, call record_anti_pattern. This is how you build intelligence across cycles.')
   lines.push('')
   lines.push('What will you do this cycle?')
 

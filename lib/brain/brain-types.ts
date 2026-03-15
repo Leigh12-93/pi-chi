@@ -95,6 +95,18 @@ export interface BrainState {
 
   // Deploy pipeline history (timing, outcomes, anomaly detection)
   deployHistory?: import('./deploy-types').DeployRecord[]
+
+  // ── Exhaustive Learning System ──────────────────────────────────
+  // Cycle-by-cycle journal of what happened
+  cycleJournal?: CycleJournal[]
+  // Categorized failures with root causes and solutions
+  failureRegistry?: FailureRecord[]
+  // Hard-learned operational rules (NEVER/ALWAYS)
+  operationalConstraints?: OperationalConstraint[]
+  // Skill progression tracking
+  skills?: SkillRecord[]
+  // Anti-patterns — things that don't work
+  antiPatterns?: AntiPattern[]
 }
 
 export interface CostBreakdown {
@@ -275,4 +287,83 @@ export interface SystemVitalsSnapshot {
   uptimeSeconds: number
   localIp: string
   timestamp: string
+}
+
+/* ─── Exhaustive Learning System ──────────────────────────────── */
+
+/** Per-cycle outcome — what happened, what was learned, was it productive? */
+export interface CycleJournal {
+  cycle: number
+  startedAt: string
+  completedAt: string
+  durationMs: number
+  goalWorkedOn: string | null    // goal title
+  taskWorkedOn: string | null    // task title
+  toolsUsed: string[]            // tool names invoked
+  claudeCodeUsed: boolean        // did it spawn claude_code?
+  outcome: 'productive' | 'partial' | 'failed' | 'wasted' | 'blocked'
+  summary: string                // 1-2 sentence what happened
+  errors: string[]               // error messages encountered
+  lessonsLearned: string[]       // insights from this cycle
+  filesChanged: string[]         // files modified
+  buildAttempted: boolean
+  buildSucceeded: boolean | null  // null if no build
+  deployAttempted: boolean
+  deploySucceeded: boolean | null
+}
+
+/** Categorized failure with root cause tracking and recurrence detection */
+export interface FailureRecord {
+  id: string
+  category: 'build' | 'deploy' | 'type-check' | 'runtime' | 'network' | 'disk' | 'memory' | 'permission' | 'config' | 'code' | 'git' | 'service' | 'other'
+  description: string            // what went wrong
+  rootCause: string | null       // why it went wrong (filled after analysis)
+  solution: string | null        // what fixed it (filled after resolution)
+  prevention: string | null      // how to prevent it next time
+  firstOccurrence: string        // ISO timestamp
+  lastOccurrence: string
+  occurrenceCount: number
+  occurrenceCycles: number[]     // which cycles it happened in
+  resolved: boolean
+  resolvedAt: string | null
+  relatedGoal: string | null     // goal title it was related to
+}
+
+/** Hard-learned operational constraint — rules the brain must follow */
+export interface OperationalConstraint {
+  id: string
+  category: 'hardware' | 'software' | 'network' | 'process' | 'deployment' | 'build' | 'git' | 'service'
+  rule: string                   // "NEVER do X" or "ALWAYS do Y"
+  reason: string                 // why this rule exists
+  evidence: string               // what happened that taught this lesson
+  learnedAt: string
+  learnedFromCycle: number
+  severity: 'critical' | 'important' | 'advisory'
+  active: boolean
+  violationCount: number         // how many times this was violated after learning
+}
+
+/** Skill progression — what the brain is getting better/worse at */
+export interface SkillRecord {
+  id: string
+  name: string
+  category: 'coding' | 'devops' | 'ui-design' | 'debugging' | 'system-admin' | 'self-modification' | 'deployment' | 'testing'
+  proficiency: number            // 0-100, updated based on success/failure ratio
+  attempts: number
+  successes: number
+  failures: number
+  lastPracticed: string
+  recentOutcomes: boolean[]      // last 10 outcomes (true=success), for trend detection
+  notes: string
+}
+
+/** What the brain tried that didn't work — anti-patterns to avoid */
+export interface AntiPattern {
+  id: string
+  description: string            // what was tried
+  whyItFailed: string            // why it doesn't work
+  alternative: string | null     // what to do instead
+  occurrences: number
+  lastSeen: string
+  category: 'build' | 'deploy' | 'code' | 'architecture' | 'process' | 'other'
 }
