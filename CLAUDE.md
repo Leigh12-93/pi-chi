@@ -25,13 +25,16 @@ app/
   page.tsx                 Main page — project persistence, auto-save, project picker → workspace
   layout.tsx               Root layout (dark theme, SessionProvider)
   globals.css              Tailwind v4 + custom pi theme tokens
-  api/chat/route.ts        AI endpoint — VirtualFS, 60+ tools, extended thinking, project memory, auto-routing
+  api/chat/route.ts        Builder AI endpoint — VirtualFS, 60+ tools, extended thinking, project memory
+  api/brain/chat/route.ts  Brain chat endpoint — Pi-Chi personality, brain tools (goals, mood, commands)
+  api/vitals/route.ts      System vitals — CPU, memory, disk, temp, uptime, IP, SSID
   api/projects/route.ts    Project CRUD (GET list, POST create)
   api/projects/[id]/       Project detail (GET with files, PUT save, DELETE)
   api/auth/login|callback|logout|session  Custom PKCE S256 GitHub OAuth + JWT
 components/
   workspace.tsx            3-panel resizable layout, auto-selects first file
-  chat-panel.tsx           Chat — useChat, live tool processing, step counter, session cost display
+  chat-panel.tsx           Builder chat (useChat, tool processing) — used in workspace, NOT in agent dashboard
+  agent-dashboard.tsx      Agent dashboard layout — uses BrainChat for Pi-Chi conversation
   chat/message-item.tsx    Message rendering — reasoning blocks, inline diffs, command output, cost chips
   approval-card.tsx        Smart approval gates for destructive tool calls
   code-editor.tsx          Monaco editor with Ctrl+S
@@ -211,11 +214,12 @@ When the brain (`scripts/pi-brain.ts`) invokes `claude_code` to modify this code
 ### Component Architecture
 10. **All dashboard UI components go in `components/agent/`.** Do not create components in the root `components/` directory for agent/brain features.
 11. **The dashboard layout is `components/agent-dashboard.tsx`.** To add a new panel/tab, modify the existing dashboard — do not create a separate dashboard component.
-12. **Use the existing design system:** `pi-*` CSS custom properties (pi-bg, pi-text, pi-accent, pi-surface, pi-border, pi-panel). Do NOT use hardcoded slate/zinc colors outside of special cases.
-13. **Use lucide-react for icons, framer-motion for animations, cn() from @/lib/utils for class merging.** These are already installed — do not add new icon or animation libraries.
+12. **Dashboard chat = BrainChat only.** The agent dashboard uses `components/agent/brain-chat.tsx` (→ `/api/brain/chat` with brain tools: goals, mood, commands). Do NOT use `ChatPanel` (→ `/api/chat` with 60+ builder tools) in the dashboard — that is for the workspace/builder only.
+13. **Use the existing design system:** `pi-*` CSS custom properties (pi-bg, pi-text, pi-accent, pi-surface, pi-border, pi-panel). Do NOT use hardcoded slate/zinc colors outside of special cases.
+14. **Use lucide-react for icons, framer-motion for animations, cn() from @/lib/utils for class merging.** These are already installed — do not add new icon or animation libraries.
 
 ### UI Components That Already Exist (do NOT recreate)
-- `brain-chat.tsx` — Owner chat (streaming via /api/brain/chat)
+- `brain-chat.tsx` — **Primary dashboard chat** (streaming via /api/brain/chat, Pi-Chi personality, brain tools)
 - `brain-header.tsx` — Top identity bar with status, stats, countdown timer
 - `brain-stats.tsx` — Compact brain statistics card
 - `mood-panel.tsx` — Mood visualization with bars
