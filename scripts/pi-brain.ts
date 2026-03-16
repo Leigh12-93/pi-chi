@@ -956,7 +956,7 @@ async function brainCycle(): Promise<void> {
     } finally {
       // GUARANTEE: All services must be unmasked and running regardless of what happened above.
       // If the pipeline crashed mid-build, services may still be masked (blocking auto-restart).
-      const criticalServices = ['pi-chi-dashboard', 'pi-chi-kiosk', 'pi-chi-cec', 'pi-chi-mvp-monitor']
+      const criticalServices = ['pi-chi-dashboard', 'pi-chi-kiosk', 'pi-chi-cec', 'pi-chi-mvp-monitor', 'pi-chi-sms']
       try {
         // Unmask all — in case pipeline crashed with services still masked
         await executeCommand(`sudo systemctl unmask ${criticalServices.join(' ')}`, { timeout: 10_000 }).catch(() => {})
