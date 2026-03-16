@@ -34,6 +34,7 @@ export async function POST(req: Request) {
       .insert({
         customer_name,
         phone,
+        email: '',
         postcode,
         bin_size,
         delivery_date: pickup_date,
