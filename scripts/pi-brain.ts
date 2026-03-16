@@ -26,7 +26,7 @@ import { loadCustomTools, resetHttpRequestCounter } from '../lib/brain/brain-too
 import { enterStandbyDisplay, resumeDashboardDisplay } from '../lib/brain/display-mode'
 import { executeCommand } from '../lib/tools/terminal-tools'
 import { randomUUID } from 'node:crypto'
-import { writeFileSync, unlinkSync } from 'node:fs'
+import { writeFileSync, unlinkSync, readdirSync, readFileSync, existsSync } from 'node:fs'
 import { join } from 'node:path'
 import { homedir } from 'node:os'
 import type { SystemVitalsSnapshot, BrainState, CycleJournal, FailureRecord } from '../lib/brain/brain-types'
@@ -574,6 +574,54 @@ async function checkDiskSpace(state: BrainState): Promise<void> {
   } catch { /* non-critical */ }
 }
 
+// ── Incoming SMS (from SIM7600 modem gateway) ────────────────────
+
+const SMS_INBOX_DIR = join(homedir(), '.pi-chi', 'sms', 'inbox')
+
+function readIncomingSms(state: BrainState): void {
+  if (!existsSync(SMS_INBOX_DIR)) return
+
+  let files: string[]
+  try {
+    files = readdirSync(SMS_INBOX_DIR).filter(f => f.endsWith('.json')).sort()
+  } catch {
+    return
+  }
+
+  for (const file of files) {
+    const filePath = join(SMS_INBOX_DIR, file)
+    try {
+      const raw = readFileSync(filePath, 'utf-8')
+      const msg = JSON.parse(raw) as { id: string; from: string; body: string; receivedAt: string }
+
+      if (!msg.from || !msg.body) {
+        unlinkSync(filePath)
+        continue
+      }
+
+      // Inject as a chat message from owner
+      if (!state.chatMessages) state.chatMessages = []
+      state.chatMessages.push({
+        id: randomUUID(),
+        from: 'owner',
+        message: `[SMS from ${msg.from}]: ${msg.body}`,
+        timestamp: msg.receivedAt || new Date().toISOString(),
+        read: false,
+      })
+
+      addActivity(state, 'sms', `Received SMS from ${msg.from}: ${msg.body.slice(0, 100)}`)
+      console.log(`[pi-brain] Incoming SMS from ${msg.from}: ${msg.body.slice(0, 80)}`)
+
+      // Delete processed file
+      unlinkSync(filePath)
+    } catch (err) {
+      console.error(`[pi-brain] Failed to process inbox file ${file}:`, err instanceof Error ? err.message : err)
+      // Delete corrupt files to prevent infinite retries
+      try { unlinkSync(filePath) } catch { /* */ }
+    }
+  }
+}
+
 // ── Dream Cycle ───────────────────────────────────────────────────
 
 async function dreamCycle(state: BrainState): Promise<void> {
@@ -747,6 +795,9 @@ async function brainCycle(): Promise<void> {
 
   // Gather system vitals
   const vitals = await gatherVitals()
+
+  // Read incoming SMS from modem gateway inbox
+  readIncomingSms(state)
 
   // Mood decay (Phase 4.1)
   decayMood(state, vitals)

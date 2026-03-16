@@ -2,9 +2,10 @@
 
 import { execFile } from 'node:child_process'
 import { platform } from 'node:os'
-import { readFileSync, appendFileSync, writeFileSync, existsSync, statSync } from 'node:fs'
+import { readFileSync, appendFileSync, writeFileSync, existsSync, statSync, mkdirSync } from 'node:fs'
 import { join } from 'node:path'
 import { homedir } from 'node:os'
+import { randomUUID } from 'node:crypto'
 import type { BrainState } from './brain-types'
 import { addActivity, getAdelaideDate } from './brain-state'
 
@@ -13,6 +14,13 @@ const MAX_SMS_PER_DAY = 50
 const MIN_SMS_INTERVAL_MS = 2 * 60 * 1000 // 2 minutes
 const SMS_LOG_FILE = join(homedir(), '.pi-chi', 'sms-log.jsonl')
 const SMS_LOG_MAX_BYTES = 100 * 1024 // 100KB
+
+// ── Modem Gateway IPC paths ─────────────────────────────────────
+
+const SMS_DIR = join(homedir(), '.pi-chi', 'sms')
+const OUTBOX_DIR = join(SMS_DIR, 'outbox')
+const HEARTBEAT_FILE = join(homedir(), '.pi-chi', 'sms-heartbeat')
+const MODEM_HEARTBEAT_MAX_AGE_MS = 2 * 60 * 1000 // 2 minutes
 
 interface SmsLogEntry {
   time: string
@@ -61,6 +69,30 @@ function rotateSmsLog(): void {
   } catch { /* non-critical */ }
 }
 
+// ── Modem Gateway (file-based IPC) ───────────────────────────────
+
+export function isModemGatewayAlive(): boolean {
+  try {
+    if (!existsSync(HEARTBEAT_FILE)) return false
+    const raw = readFileSync(HEARTBEAT_FILE, 'utf-8')
+    const heartbeat = JSON.parse(raw) as { timestamp: string; modemStatus: string }
+    if (heartbeat.modemStatus !== 'connected') return false
+    const age = Date.now() - new Date(heartbeat.timestamp).getTime()
+    return age < MODEM_HEARTBEAT_MAX_AGE_MS
+  } catch {
+    return false
+  }
+}
+
+export function queueModemSms(to: string, body: string): void {
+  mkdirSync(OUTBOX_DIR, { recursive: true })
+  const id = randomUUID().slice(0, 8)
+  const timestamp = Date.now()
+  const filename = `${timestamp}-${id}.json`
+  const data = { id, to, body, createdAt: new Date().toISOString(), source: 'brain' }
+  writeFileSync(join(OUTBOX_DIR, filename), JSON.stringify(data))
+}
+
 // ── Rate limit checks ────────────────────────────────────────────
 
 export function canSendSms(state: BrainState): { allowed: boolean; reason?: string } {
@@ -106,8 +138,25 @@ export async function sendSms(state: BrainState, message: string): Promise<SmsRe
 
   const recipient = process.env.SMS_RECIPIENT || 'leigh'
 
+  // Resolve phone number for modem (needs full E.164)
+  const recipientPhone = recipient === 'leigh' ? '+61481274420'
+    : recipient === 'simone' ? '+61457556023'
+    : recipient.startsWith('+') ? recipient
+    : null
+
   try {
-    // Try HTTP gateway first (if configured)
+    // 1. Try SIM7600 modem gateway first (zero cost, 2-way)
+    if (recipientPhone && isModemGatewayAlive()) {
+      try {
+        queueModemSms(recipientPhone, clean)
+        recordSmsSent(state, clean)
+        return { success: true, message: `SMS queued via modem to ${recipient}` }
+      } catch (modemErr) {
+        console.log(`[brain-sms] Modem queue failed, falling back: ${modemErr instanceof Error ? modemErr.message : modemErr}`)
+      }
+    }
+
+    // 2. Fall back to HTTP gateway (if configured)
     const gatewayUrl = process.env.SMS_GATEWAY_URL
     if (gatewayUrl) {
       const res = await fetch(gatewayUrl, {
@@ -117,11 +166,11 @@ export async function sendSms(state: BrainState, message: string): Promise<SmsRe
       })
       if (res.ok) {
         recordSmsSent(state, clean)
-        return { success: true, message: `SMS sent to ${recipient}` }
+        return { success: true, message: `SMS sent to ${recipient} via HTTP gateway` }
       }
     }
 
-    // Fall back to bash script
+    // 3. Fall back to bash script
     const scriptPath = process.env.SMS_GATEWAY_SCRIPT || (
       platform() === 'win32'
         ? 'C:/Users/leigh/scripts/sms.sh'
@@ -137,7 +186,7 @@ export async function sendSms(state: BrainState, message: string): Promise<SmsRe
     })
 
     recordSmsSent(state, clean)
-    return { success: true, message: `SMS sent to ${recipient}` }
+    return { success: true, message: `SMS sent to ${recipient} via script` }
   } catch (err) {
     const errMsg = err instanceof Error ? err.message : String(err)
     addActivity(state, 'error', `SMS failed: ${errMsg}`)

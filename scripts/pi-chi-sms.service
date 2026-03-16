@@ -1,0 +1,21 @@
+[Unit]
+Description=Pi-Chi SMS Gateway (SIM7600)
+After=systemd-user-sessions.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=pi
+WorkingDirectory=/home/pi/pi-chi
+Environment=HOME=/home/pi
+Environment=NODE_OPTIONS=--max-old-space-size=128
+SupplementaryGroups=dialout
+ExecStart=/usr/bin/npx tsx scripts/sms-gateway.ts
+Restart=always
+RestartSec=10
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=pi-chi-sms
+
+[Install]
+WantedBy=multi-user.target
