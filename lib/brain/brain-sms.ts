@@ -24,7 +24,9 @@ const MODEM_HEARTBEAT_MAX_AGE_MS = 2 * 60 * 1000 // 2 minutes
 
 interface SmsLogEntry {
   time: string
+  to: string
   message: string
+  source: string // 'brain' | 'chat' | 'gateway'
 }
 
 interface SmsResult {
@@ -93,6 +95,83 @@ export function queueModemSms(to: string, body: string): void {
   writeFileSync(join(OUTBOX_DIR, filename), JSON.stringify(data))
 }
 
+// ── Deduplication ────────────────────────────────────────────────
+
+const DEDUP_WINDOW_MS = 60 * 60 * 1000 // 1 hour — won't resend same to+body within this window
+const SIMILARITY_THRESHOLD = 0.85 // 85% char overlap = "same message"
+
+function normalizeForDedup(text: string): string {
+  return text.toLowerCase().replace(/[^a-z0-9]/g, '').trim()
+}
+
+function similarity(a: string, b: string): number {
+  const na = normalizeForDedup(a)
+  const nb = normalizeForDedup(b)
+  if (!na || !nb) return 0
+  if (na === nb) return 1
+  const longer = na.length >= nb.length ? na : nb
+  const shorter = na.length < nb.length ? na : nb
+  if (longer.length === 0) return 1
+  // Simple overlap: count matching chars at same position
+  let matches = 0
+  for (let i = 0; i < shorter.length; i++) {
+    if (shorter[i] === longer[i]) matches++
+  }
+  return matches / longer.length
+}
+
+export function isDuplicateSms(to: string, body: string): { duplicate: boolean; reason?: string } {
+  const now = Date.now()
+  const cutoff = now - DEDUP_WINDOW_MS
+  const entries = getSmsLogEntries()
+  const recent = entries.filter(e => new Date(e.time).getTime() > cutoff && e.to === to)
+
+  for (const entry of recent) {
+    const sim = similarity(entry.message, body)
+    if (sim >= SIMILARITY_THRESHOLD) {
+      const minsAgo = Math.round((now - new Date(entry.time).getTime()) / 60000)
+      return {
+        duplicate: true,
+        reason: `Similar SMS to ${to} sent ${minsAgo}m ago (${Math.round(sim * 100)}% match): "${entry.message.slice(0, 60)}"`
+      }
+    }
+  }
+  return { duplicate: false }
+}
+
+// ── Unified SMS queue (used by brain + chat) ─────────────────────
+
+export function queueSmsChecked(to: string, body: string, source: string): { queued: boolean; message: string } {
+  // Sanitize
+  const clean = body
+    .replace(/[\r\n]+/g, ' ')
+    .replace(/[^\x20-\x7E]/g, '')
+    .trim()
+    .slice(0, 160)
+  if (!clean) return { queued: false, message: 'Empty message after sanitization' }
+
+  // Dedup check
+  const dedup = isDuplicateSms(to, clean)
+  if (dedup.duplicate) {
+    console.log(`[brain-sms] BLOCKED duplicate: ${dedup.reason}`)
+    return { queued: false, message: `Duplicate blocked: ${dedup.reason}` }
+  }
+
+  // Queue to modem outbox
+  mkdirSync(OUTBOX_DIR, { recursive: true })
+  const id = randomUUID().slice(0, 8)
+  const timestamp = Date.now()
+  const filename = `${timestamp}-${id}.json`
+  const data = { id, to, body: clean, createdAt: new Date().toISOString(), source }
+  writeFileSync(join(OUTBOX_DIR, filename), JSON.stringify(data))
+
+  // Log immediately (don't wait for gateway confirmation)
+  appendSmsLog({ time: new Date().toISOString(), to, message: clean, source })
+
+  console.log(`[brain-sms] Queued SMS to ${to} via ${source}: ${clean.slice(0, 60)}`)
+  return { queued: true, message: `SMS queued to ${to}: ${clean.slice(0, 50)}...` }
+}
+
 // ── Rate limit checks ────────────────────────────────────────────
 
 export function canSendSms(state: BrainState): { allowed: boolean; reason?: string } {
@@ -144,12 +223,19 @@ export async function sendSms(state: BrainState, message: string): Promise<SmsRe
     : recipient.startsWith('+') ? recipient
     : null
 
+  // Dedup check before any send attempt
+  const effectiveTo = recipientPhone || recipient
+  const dedup = isDuplicateSms(effectiveTo, clean)
+  if (dedup.duplicate) {
+    return { success: false, message: `Blocked: ${dedup.reason}`, rateLimited: true }
+  }
+
   try {
     // 1. Try SIM7600 modem gateway first (zero cost, 2-way)
     if (recipientPhone && isModemGatewayAlive()) {
       try {
         queueModemSms(recipientPhone, clean)
-        recordSmsSent(state, clean)
+        recordSmsSent(state, recipientPhone, clean, 'brain')
         return { success: true, message: `SMS queued via modem to ${recipient}` }
       } catch (modemErr) {
         console.log(`[brain-sms] Modem queue failed, falling back: ${modemErr instanceof Error ? modemErr.message : modemErr}`)
@@ -165,7 +251,7 @@ export async function sendSms(state: BrainState, message: string): Promise<SmsRe
         body: JSON.stringify({ recipient, message: clean }),
       })
       if (res.ok) {
-        recordSmsSent(state, clean)
+        recordSmsSent(state, effectiveTo, clean, 'brain-http')
         return { success: true, message: `SMS sent to ${recipient} via HTTP gateway` }
       }
     }
@@ -185,7 +271,7 @@ export async function sendSms(state: BrainState, message: string): Promise<SmsRe
       })
     })
 
-    recordSmsSent(state, clean)
+    recordSmsSent(state, effectiveTo, clean, 'brain-script')
     return { success: true, message: `SMS sent to ${recipient} via script` }
   } catch (err) {
     const errMsg = err instanceof Error ? err.message : String(err)
@@ -194,7 +280,7 @@ export async function sendSms(state: BrainState, message: string): Promise<SmsRe
   }
 }
 
-function recordSmsSent(state: BrainState, message: string): void {
+function recordSmsSent(state: BrainState, to: string, message: string, source: string): void {
   const today = getAdelaideDate()
   state.lastSmsAt = new Date().toISOString()
   state.smsCount++
@@ -204,9 +290,9 @@ function recordSmsSent(state: BrainState, message: string): void {
   } else {
     state.smsTodayCount++
   }
-  addActivity(state, 'sms', `Sent SMS: ${message.slice(0, 100)}`)
+  addActivity(state, 'sms', `Sent SMS to ${to}: ${message.slice(0, 80)}`)
 
   // Persist to SMS log file (survives state resets)
-  appendSmsLog({ time: new Date().toISOString(), message: message.slice(0, 100) })
+  appendSmsLog({ time: new Date().toISOString(), to, message: message.slice(0, 160), source })
   rotateSmsLog()
 }

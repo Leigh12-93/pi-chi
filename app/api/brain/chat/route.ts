@@ -4,7 +4,7 @@
 import { streamText, tool, stepCountIs } from 'ai'
 import { anthropic } from '@ai-sdk/anthropic'
 import { NextResponse } from 'next/server'
-import { existsSync, writeFileSync, unlinkSync, mkdirSync } from 'node:fs'
+import { existsSync, writeFileSync, unlinkSync } from 'node:fs'
 import { randomUUID } from 'node:crypto'
 import { join } from 'node:path'
 import { z } from 'zod'
@@ -13,6 +13,7 @@ import { executeCommand, isBlocked } from '@/lib/tools/terminal-tools'
 import { requireBrainAuth } from '@/lib/brain/brain-auth'
 import { rateLimit } from '@/lib/rate-limit'
 import { runClaudeCodePrompt, ensureClaudeCodeMaxOAuth } from '@/lib/brain/claude-code'
+import { queueSmsChecked } from '@/lib/brain/brain-sms'
 
 const chatRateLimiter = rateLimit('brain-chat', 10, 60_000) // 10 req/min
 
@@ -240,20 +241,18 @@ function buildTools() {
     }),
 
     send_sms: tool({
-      description: 'Send an SMS via the SIM7600 modem (zero cost). Max 160 chars.',
+      description: 'Send an SMS via the SIM7600 modem (zero cost). Max 160 chars. Has built-in dedup — will reject if a similar message was sent to the same number within the last hour.',
       inputSchema: z.object({
         to: z.string().describe('Phone number in E.164 format (e.g. +61481274420). Use +61481274420 for Leigh.'),
         body: z.string().max(160),
       }),
       execute: async ({ to, body }) => {
         try {
-          const smsDir = join(process.env.HOME || '/home/pi', '.pi-chi', 'sms', 'outbox')
-          mkdirSync(smsDir, { recursive: true })
-          const id = randomUUID().slice(0, 8)
-          const filename = `${Date.now()}-${id}.json`
-          const data = { id, to, body, createdAt: new Date().toISOString(), source: 'chat' }
-          writeFileSync(join(smsDir, filename), JSON.stringify(data))
-          return `SMS queued to ${to}: ${body}`
+          const result = queueSmsChecked(to, body, 'chat')
+          if (!result.queued) {
+            return `SMS BLOCKED: ${result.message}`
+          }
+          return result.message
         } catch (err: unknown) {
           return `SMS failed: ${err instanceof Error ? err.message : 'Unknown error'}`
         }

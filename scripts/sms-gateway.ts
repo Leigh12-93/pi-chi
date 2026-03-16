@@ -10,7 +10,7 @@
  * Service: pi-chi-sms.service
  * ═══════════════════════════════════════════════════════════════════ */
 
-import { mkdirSync, readdirSync, readFileSync, writeFileSync, renameSync, unlinkSync } from 'node:fs'
+import { mkdirSync, readdirSync, readFileSync, writeFileSync, appendFileSync, renameSync, unlinkSync } from 'node:fs'
 import { join } from 'node:path'
 import { homedir } from 'node:os'
 import { randomUUID } from 'node:crypto'
@@ -25,12 +25,22 @@ const INBOX_DIR = join(SMS_DIR, 'inbox')
 const SENT_DIR = join(SMS_DIR, 'sent')
 const HEARTBEAT_FILE = join(homedir(), '.pi-chi', 'sms-heartbeat')
 
+const SMS_LOG_FILE = join(homedir(), '.pi-chi', 'sms-log.jsonl')
 const OUTBOX_POLL_MS = 2_000
 const HEARTBEAT_INTERVAL_MS = 30_000
 const MAX_SENT_FILES = 100
 const MAX_SEND_FAILURES = 3
 const MAX_CONNECT_RETRIES = 10
 const CONNECT_RETRY_DELAY_MS = 5_000
+
+// ── SMS Log (shared with brain-sms.ts) ──────────────────────────
+
+function logSentSms(to: string, body: string): void {
+  try {
+    const entry = { time: new Date().toISOString(), to, message: body.slice(0, 160), source: 'gateway' }
+    appendFileSync(SMS_LOG_FILE, JSON.stringify(entry) + '\n')
+  } catch { /* non-critical */ }
+}
 
 // ── Ensure directories ────────────────────────────────────────────
 
@@ -105,6 +115,7 @@ async function processOutbox(modem: Sim7600): Promise<void> {
         unlinkSync(filePath)
       }
 
+      logSentSms(msg.to, msg.body)
       console.log(`[sms-gw] Sent: ${msg.to} — ${msg.body.slice(0, 50)}`)
     } catch (err) {
       const failures = (msg._failures || 0) + 1
@@ -227,8 +238,11 @@ async function main(): Promise<void> {
 
   const loopPromise = outboxLoop()
 
-  // Graceful shutdown
+  // Graceful shutdown (idempotent — systemd sends SIGTERM to entire cgroup)
+  let shuttingDown = false
   const shutdown = async (signal: string) => {
+    if (shuttingDown) return
+    shuttingDown = true
     console.log(`\n[sms-gw] Received ${signal}. Shutting down...`)
     running = false
     clearInterval(heartbeatTimer)
