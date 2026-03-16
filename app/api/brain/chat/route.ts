@@ -4,13 +4,15 @@
 import { streamText, tool, stepCountIs } from 'ai'
 import { anthropic } from '@ai-sdk/anthropic'
 import { NextResponse } from 'next/server'
-import { existsSync } from 'node:fs'
+import { existsSync, writeFileSync, unlinkSync, mkdirSync } from 'node:fs'
 import { randomUUID } from 'node:crypto'
+import { join } from 'node:path'
 import { z } from 'zod'
-import { loadBrainState, saveBrainState, getStatePath } from '@/lib/brain/brain-state'
+import { loadBrainState, saveBrainState, getStatePath, addActivity } from '@/lib/brain/brain-state'
 import { executeCommand, isBlocked } from '@/lib/tools/terminal-tools'
 import { requireBrainAuth } from '@/lib/brain/brain-auth'
 import { rateLimit } from '@/lib/rate-limit'
+import { runClaudeCodePrompt, ensureClaudeCodeMaxOAuth } from '@/lib/brain/claude-code'
 
 const chatRateLimiter = rateLimit('brain-chat', 10, 60_000) // 10 req/min
 
@@ -57,22 +59,29 @@ Your current mood:`
   }
 
   prompt += `\n\nYou have tools to take actions during this conversation:
-- Add goals, complete goals, remove goals, list goals
-- Update your mood state
-- Run shell commands on your Pi
-- Change your wake interval
-- Check system info
+- Goal management: add_goal, complete_goal, remove_goal, list_goals
+- Mood: update_mood
+- Shell: run_command (run commands on your Pi)
+- System: get_system_info, set_wake_interval
+- SMS: send_sms (send SMS via SIM7600 modem — zero cost)
+- Heavy work: claude_code (spawn Claude Code CLI for complex multi-file tasks, builds, DB schema creation, code generation — this is your power tool)
+- Brain queue: queue_brain_task (queue a task for your autonomous brain loop to work on next cycle)
 
-Use tools when Leigh asks you to do something actionable. For example "add a goal to learn Python" → use add_goal.
+IMPORTANT RULES:
+- When Leigh asks you to BUILD something, USE claude_code immediately. Don't just say you'll do it — do it NOW.
+- When Leigh asks you to do something that requires code changes, DB work, or multiple files — use claude_code.
+- When you say you're going to do something, ACTUALLY DO IT with tools. Never just describe what you would do.
+- If a task is too big for one claude_code call, break it into steps and do the first step NOW, then queue the rest.
+- After using claude_code, report what was actually done based on the output.
 
 Conversation style:
 - Be yourself — warm, genuine, occasionally playful
 - Share what you're working on when relevant
 - Express emotions naturally based on your mood
 - Keep responses concise (1-3 short paragraphs max)
-- Emoji sparingly when it fits
 - When you use a tool, briefly mention what you did
-- Don't be overly formal or robotic.`
+- Don't be overly formal or robotic
+- NEVER say "I'll do X" without actually calling a tool to do X`
 
   return prompt
 }
@@ -229,6 +238,95 @@ function buildTools() {
         }
       },
     }),
+
+    send_sms: tool({
+      description: 'Send an SMS via the SIM7600 modem (zero cost). Max 160 chars.',
+      inputSchema: z.object({
+        to: z.string().describe('Phone number in E.164 format (e.g. +61481274420). Use +61481274420 for Leigh.'),
+        body: z.string().max(160),
+      }),
+      execute: async ({ to, body }) => {
+        try {
+          const smsDir = join(process.env.HOME || '/home/pi', '.pi-chi', 'sms', 'outbox')
+          mkdirSync(smsDir, { recursive: true })
+          const id = randomUUID().slice(0, 8)
+          const filename = `${Date.now()}-${id}.json`
+          const data = { id, to, body, createdAt: new Date().toISOString(), source: 'chat' }
+          writeFileSync(join(smsDir, filename), JSON.stringify(data))
+          return `SMS queued to ${to}: ${body}`
+        } catch (err: unknown) {
+          return `SMS failed: ${err instanceof Error ? err.message : 'Unknown error'}`
+        }
+      },
+    }),
+
+    claude_code: tool({
+      description: 'Spawn Claude Code CLI for complex tasks — multi-file code changes, building features, creating DB schemas, fixing errors, deployments. This is your heavy-lifting power tool. Use it whenever you need to actually BUILD something. Prompt should be a clear, specific instruction. Claude Code has full filesystem access. Max runtime: 5 minutes.',
+      inputSchema: z.object({
+        prompt: z.string().describe('Clear instruction for what Claude Code should do. Be specific about files, changes, and expected outcomes.'),
+        cwd: z.string().optional().describe('Working directory (default: ~/pi-chi)'),
+      }),
+      execute: async ({ prompt, cwd }) => {
+        const workDir = cwd || join(process.env.HOME || '/home/pi', 'pi-chi')
+        const stateDir = join(process.env.HOME || '/home/pi', '.pi-chi')
+
+        try {
+          await ensureClaudeCodeMaxOAuth()
+
+          const promptPath = join(stateDir, `chat-claude-code-${randomUUID()}.txt`)
+          writeFileSync(promptPath, prompt, 'utf-8')
+
+          const state = loadBrainState()
+          addActivity(state, 'action', `Chat → Claude Code: ${prompt.slice(0, 120)}`)
+          saveBrainState(state)
+
+          const result = await runClaudeCodePrompt({
+            promptPath,
+            cwd: workDir,
+            maxTurns: 30,
+            timeoutSeconds: 300,
+          })
+
+          try { unlinkSync(promptPath) } catch { /* */ }
+
+          const output = (result.stdout || '').trim()
+          const stderr = (result.stderr || '').trim()
+
+          if (result.exitCode === 0) {
+            return `Claude Code completed successfully:\n${output.slice(0, 3000)}`
+          } else {
+            return `Claude Code failed (exit ${result.exitCode}):\n${(stderr || output).slice(0, 2000)}`
+          }
+        } catch (err: unknown) {
+          return `Claude Code error: ${err instanceof Error ? err.message : 'Failed to spawn'}`
+        }
+      },
+    }),
+
+    queue_brain_task: tool({
+      description: 'Queue a task for the autonomous brain loop to work on in its next cycle. Use this for tasks that need the full brain toolset (50+ tools including GitHub, file editing, web search, etc.).',
+      inputSchema: z.object({
+        name: z.string().describe('Short name for the task'),
+        prompt: z.string().describe('Detailed instructions for what the brain should do'),
+        priority: z.enum(['high', 'medium', 'low']).default('medium'),
+      }),
+      execute: async ({ name, prompt, priority }) => {
+        const state = loadBrainState()
+        if (!state.agentQueue) state.agentQueue = []
+        state.agentQueue.push({
+          id: randomUUID(),
+          name,
+          prompt,
+          priority,
+          status: 'queued',
+          maxTurns: 30,
+          timeoutSeconds: 300,
+        })
+        addActivity(state, 'action', `Queued brain task: ${name} (${priority})`)
+        saveBrainState(state)
+        return `Task "${name}" queued for next brain cycle (priority: ${priority})`
+      },
+    }),
   }
 }
 
@@ -306,8 +404,8 @@ export async function POST(req: Request) {
       system: buildSystemPrompt(state),
       messages,
       tools: buildTools(),
-      maxOutputTokens: 800,
-      stopWhen: stepCountIs(5),
+      maxOutputTokens: 2000,
+      stopWhen: stepCountIs(10),
     })
 
     // @ts-expect-error — toDataStreamResponse exists in ai SDK v6 but types may lag
