@@ -423,6 +423,7 @@ function autoRecordFailures(state: BrainState, errors: string[], cycle: number):
   const now = new Date().toISOString()
 
   for (const error of errors) {
+    if (!error || typeof error !== 'string') continue
     const errorLower = error.toLowerCase()
 
     // Categorize
