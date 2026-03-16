@@ -1,7 +1,7 @@
-/* ─── Send Booking API — SMS to skip provider ────────────────── */
+/* ─── Send Booking API — capture lead + SMS to skip provider ─── */
 
 import { NextResponse } from 'next/server'
-import { supabase } from '@/lib/supabase'
+import { cheapskipSupabase } from '@/lib/cheapskip-supabase'
 import { queueSmsChecked } from '@/lib/brain/brain-sms'
 
 export const dynamic = 'force-dynamic'
@@ -14,7 +14,7 @@ interface BookingPayload {
   bin_size: string
   pickup_date: string
   provider_id: string
-  provider_mobile: string
+  provider_phone: string
   provider_name: string
 }
 
@@ -22,25 +22,24 @@ export async function POST(req: Request) {
   try {
     const body = (await req.json()) as BookingPayload
 
-    const { customer_name, phone, address, bin_size, pickup_date, provider_id, provider_mobile, provider_name } = body
+    const { customer_name, phone, address, postcode, bin_size, pickup_date, provider_id, provider_phone } = body
 
-    if (!customer_name || !phone || !address || !bin_size || !pickup_date || !provider_id || !provider_mobile) {
+    if (!customer_name || !phone || !address || !bin_size || !pickup_date || !provider_id) {
       return NextResponse.json({ error: 'Missing required fields' }, { status: 400 })
     }
 
-    // Insert lead into skip_leads
-    const { data: lead, error: leadErr } = await supabase
-      .from('skip_leads')
+    // Insert lead into quote_requests table
+    const { data: lead, error: leadErr } = await cheapskipSupabase
+      .from('quote_requests')
       .insert({
         customer_name,
         phone,
-        address,
-        postcode: body.postcode,
+        postcode,
         bin_size,
-        pickup_date,
-        provider_id,
-        provider_name: provider_name || '',
-        status: 'pending',
+        delivery_date: pickup_date,
+        suburb: address,
+        status: 'new',
+        state: 'SA',
       })
       .select('id')
       .single()
@@ -50,16 +49,18 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: 'Failed to save booking', detail: leadErr.message }, { status: 500 })
     }
 
-    // Format and send SMS to provider
-    const sms = `New booking from ${customer_name} ${phone} ${address} - ${bin_size} bin pickup ${pickup_date}. Reply to confirm or call customer.`
-
-    const result = queueSmsChecked(provider_mobile, sms, 'booking')
+    // SMS the provider if we have their phone number
+    let smsResult = { queued: false, message: 'No provider phone number' }
+    if (provider_phone) {
+      const sms = `New skip bin enquiry via CheapSkipBinsNearMe: ${customer_name} (${phone}) needs ${bin_size} bin at ${address} ${postcode}, pickup ${pickup_date}. Call to confirm.`
+      smsResult = queueSmsChecked(provider_phone, sms, 'booking')
+    }
 
     return NextResponse.json({
       ok: true,
       lead_id: lead?.id,
-      sms_queued: result.queued,
-      sms_message: result.message,
+      sms_queued: smsResult.queued,
+      sms_message: smsResult.message,
     })
   } catch (err) {
     console.error('[send-booking] Error:', err)

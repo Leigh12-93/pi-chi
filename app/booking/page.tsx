@@ -6,8 +6,8 @@ import { cn } from '@/lib/utils'
 interface Provider {
   id: string
   name: string
-  mobile_number: string
-  postcodes: string[]
+  phone: string | null
+  slug: string
 }
 
 const BIN_SIZES = ['2m³', '4m³', '6m³', '8m³', '10m³']
@@ -66,7 +66,7 @@ export default function BookingPage() {
         body: JSON.stringify({
           ...form,
           provider_id: selectedProvider.id,
-          provider_mobile: selectedProvider.mobile_number,
+          provider_phone: selectedProvider.phone || '',
           provider_name: selectedProvider.name,
         }),
       })
