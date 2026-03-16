@@ -90,13 +90,27 @@ export class Sim7600 extends EventEmitter {
     const clean = body.replace(/[\r\n]+/g, ' ').trim().slice(0, 300)
     if (!clean) throw new Error('Empty message')
 
-    // AT+CMGS="<number>"
-    const response = await this.sendCommandRaw(`AT+CMGS="${to}"\r\n`, SEND_PROMPT_TIMEOUT_MS, '>')
-    if (!response.includes('>')) {
-      throw new Error('Modem did not send > prompt')
-    }
+    // AT+CMGS="<number>" — wait for `> ` prompt via raw data (not line-based)
+    await new Promise<void>((resolve, reject) => {
+      let buf = ''
+      const timer = setTimeout(() => {
+        this.port!.removeListener('data', onData)
+        reject(new Error('No > prompt from modem'))
+      }, SEND_PROMPT_TIMEOUT_MS)
 
-    // Write body + Ctrl-Z
+      const onData = (chunk: Buffer) => {
+        buf += chunk.toString()
+        if (buf.includes('>')) {
+          clearTimeout(timer)
+          this.port!.removeListener('data', onData)
+          resolve()
+        }
+      }
+      this.port!.on('data', onData)
+      this.port!.write(`AT+CMGS="${to}"\r\n`)
+    })
+
+    // Write body + Ctrl-Z, wait for +CMGS: response via line parser
     const sendResult = await new Promise<string[]>((resolve, reject) => {
       const timer = setTimeout(() => {
         this.pending = null
