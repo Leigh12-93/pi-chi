@@ -584,7 +584,7 @@ export function buildContextMessage(
       const prev = byType.get(entry.type)
       byType.set(entry.type, {
         count: (prev?.count || 0) + 1,
-        last: entry.message.slice(0, 100),
+        last: (entry.message || '').slice(0, 100),
       })
     }
     const summary = Array.from(byType.entries())
