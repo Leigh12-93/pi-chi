@@ -124,7 +124,7 @@ function getDailySmsCount(phone: string): number {
       if (!line) continue
       try {
         const entry = JSON.parse(line) as AuditEntry
-        if (entry.action === 'sent' && entry.timestamp.startsWith(today) && normalizePhone(entry.to) === norm) {
+        if (entry.action === 'sent' && entry.timestamp.startsWith(today) && entry.to && normalizePhone(entry.to) === norm) {
           count++
         }
       } catch { /* skip bad lines */ }
@@ -204,9 +204,9 @@ export function checkSmsGuardrails(
     return { allowed: false, reason: 'SMS blocked: quiet hours (8pm-8am Adelaide time)' }
   }
 
-  // 2. Known number check
+  // 2. Known number check (bypass for booking leads — providers are in the database)
   const known = isKnownNumber(norm)
-  if (!known.known) {
+  if (!known.known && source !== 'booking') {
     logAudit({ timestamp: new Date().toISOString(), to: norm, message, action: 'blocked', reason: 'unknown-number', source })
     return { allowed: false, reason: `SMS blocked: ${norm} is not a known contact or provider` }
   }

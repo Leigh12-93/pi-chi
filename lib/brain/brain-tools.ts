@@ -974,7 +974,7 @@ export function createBrainTools(state: BrainState) {
         const now = new Date().toISOString()
         const existing = existingOpportunityId
           ? state.opportunities.find(opportunity => opportunity.id === existingOpportunityId)
-          : state.opportunities.find(opportunity => opportunity.title.toLowerCase() === title.toLowerCase())
+          : state.opportunities.find(opportunity => (opportunity.title || '').toLowerCase() === title.toLowerCase())
 
         if (existing) {
           existing.title = title
@@ -1020,7 +1020,7 @@ export function createBrainTools(state: BrainState) {
 
         const existing = existingStretchGoalId
           ? state.stretchGoals.find(goal => goal.id === existingStretchGoalId)
-          : state.stretchGoals.find(goal => goal.title.toLowerCase() === title.toLowerCase())
+          : state.stretchGoals.find(goal => (goal.title || '').toLowerCase() === title.toLowerCase())
 
         const applyRatcheting = (goal: StretchGoal) => {
           while (goal.current >= goal.target) {
@@ -1441,7 +1441,7 @@ export function createBrainTools(state: BrainState) {
         // Check for existing similar failure (fuzzy match on description)
         const descLower = input.description.toLowerCase()
         const existing = state.failureRegistry.find(f =>
-          f.category === input.category &&
+          f.category === input.category && f.description &&
           (f.description.toLowerCase().includes(descLower.slice(0, 40)) ||
            descLower.includes(f.description.toLowerCase().slice(0, 40)))
         )
@@ -1498,7 +1498,7 @@ export function createBrainTools(state: BrainState) {
         // Check for duplicate
         const ruleLower = input.rule.toLowerCase()
         const existing = state.operationalConstraints.find(c =>
-          c.rule.toLowerCase().includes(ruleLower.slice(0, 30)) || ruleLower.includes(c.rule.toLowerCase().slice(0, 30))
+          c.rule && (c.rule.toLowerCase().includes(ruleLower.slice(0, 30)) || ruleLower.includes(c.rule.toLowerCase().slice(0, 30)))
         )
         if (existing) {
           existing.violationCount++
@@ -1538,7 +1538,7 @@ export function createBrainTools(state: BrainState) {
         if (!state.antiPatterns) state.antiPatterns = []
         const descLower = input.description.toLowerCase()
         const existing = state.antiPatterns.find(a =>
-          a.description.toLowerCase().includes(descLower.slice(0, 30)) || descLower.includes(a.description.toLowerCase().slice(0, 30))
+          a.description && (a.description.toLowerCase().includes(descLower.slice(0, 30)) || descLower.includes(a.description.toLowerCase().slice(0, 30)))
         )
         if (existing) {
           existing.occurrences++
@@ -1573,7 +1573,7 @@ export function createBrainTools(state: BrainState) {
       execute: async (input) => {
         state.totalToolCalls++
         if (!state.skills) state.skills = []
-        let skill = state.skills.find(s => s.name.toLowerCase() === input.name.toLowerCase())
+        let skill = state.skills.find(s => s.name && s.name.toLowerCase() === input.name.toLowerCase())
         if (!skill) {
           skill = {
             id: randomUUID(),

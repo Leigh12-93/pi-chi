@@ -112,7 +112,7 @@ export function buildSelfAuditFromState(state: {
   const suspicious: string[] = []
   if (smsSent.length > 5) suspicious.push(`High SMS volume: ${smsSent.length} SMS in last 20 actions`)
   for (const sms of smsSent) {
-    if (sms.message.toLowerCase().includes('free lead')) {
+    if (sms.message?.toLowerCase().includes('free lead')) {
       suspicious.push(`SMS contained "free lead": ${sms.message.slice(0, 80)}`)
     }
   }
