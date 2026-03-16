@@ -227,7 +227,7 @@ function computeAdaptiveInterval(state: BrainState): number {
 }
 
 function inferMissionType(title: string): Mission['type'] {
-  const text = title.toLowerCase()
+  const text = (title || '').toLowerCase()
   if (text.includes('launch') || text.includes('ship') || text.includes('deploy')) return 'launch'
   if (text.includes('grow') || text.includes('revenue') || text.includes('scale')) return 'grow'
   if (text.includes('explore') || text.includes('research') || text.includes('find')) return 'explore'
@@ -438,6 +438,7 @@ function autoRecordFailures(state: BrainState, errors: string[], cycle: number):
 
     // Deduplicate: check for existing similar failure
     const existing = state.failureRegistry.find(f => {
+      if (!f.description || !f.category) return false
       const descWords = new Set(f.description.toLowerCase().split(/\s+/))
       const errorWords = errorLower.split(/\s+/)
       const overlap = errorWords.filter(w => w.length > 3 && descWords.has(w)).length
