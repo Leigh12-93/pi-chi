@@ -86,8 +86,12 @@ export class Sim7600 extends EventEmitter {
       throw new Error('Modem not connected')
     }
 
-    // Sanitize: single line, max 160 chars for single SMS
-    const clean = body.replace(/[\r\n]+/g, ' ').trim().slice(0, 300)
+    // Sanitize: single line, GSM-safe chars only, max 160 for single SMS
+    const clean = body
+      .replace(/[\r\n]+/g, ' ')
+      .replace(/[^\x20-\x7E]/g, '') // Strip non-ASCII (em dashes, smart quotes, etc.)
+      .trim()
+      .slice(0, 160)
     if (!clean) throw new Error('Empty message')
 
     // AT+CMGS="<number>" — wait for `> ` prompt via raw data (not line-based)
