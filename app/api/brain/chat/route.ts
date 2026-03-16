@@ -12,7 +12,7 @@ import { loadBrainState, saveBrainState, getStatePath, addActivity } from '@/lib
 import { executeCommand, isBlocked } from '@/lib/tools/terminal-tools'
 import { requireBrainAuth } from '@/lib/brain/brain-auth'
 import { rateLimit } from '@/lib/rate-limit'
-import { runClaudeCodePrompt, ensureClaudeCodeMaxOAuth } from '@/lib/brain/claude-code'
+import { runClaudeCodePrompt, runClaudeCodeParallel, ensureClaudeCodeMaxOAuth } from '@/lib/brain/claude-code'
 import { queueSmsChecked } from '@/lib/brain/brain-sms'
 
 const chatRateLimiter = rateLimit('brain-chat', 10, 60_000) // 10 req/min
@@ -65,7 +65,8 @@ Your current mood:`
 - Shell: run_command (run commands on your Pi)
 - System: get_system_info, set_wake_interval
 - SMS: send_sms (send SMS via SIM7600 modem — zero cost)
-- Heavy work: claude_code (spawn Claude Code CLI for complex multi-file tasks, builds, DB schema creation, code generation — this is your power tool)
+- Heavy work: claude_code (spawn Claude Code CLI for complex tasks — your power tool)
+- Parallel work: claude_code_parallel (spawn 2-4 Claude Code terminals simultaneously for independent tasks — 3-5x faster)
 - Brain queue: queue_brain_task (queue a task for your autonomous brain loop to work on next cycle)
 
 IMPORTANT RULES:
@@ -298,6 +299,43 @@ function buildTools() {
           }
         } catch (err: unknown) {
           return `Claude Code error: ${err instanceof Error ? err.message : 'Failed to spawn'}`
+        }
+      },
+    }),
+
+    claude_code_parallel: tool({
+      description: 'Spawn MULTIPLE Claude Code instances in parallel for independent tasks. Each runs concurrently — 3-5x faster than sequential. Use when you have independent work items (e.g. build guardrails + write tests + create API endpoint simultaneously). Max 4 parallel tasks on Pi (RAM limit). Each task gets its own Claude Code terminal.',
+      inputSchema: z.object({
+        tasks: z.array(z.object({
+          name: z.string().describe('Short label for this task'),
+          prompt: z.string().describe('Full instructions for this Claude Code instance'),
+          cwd: z.string().optional().describe('Working directory (default: ~/pi-chi)'),
+        })).min(2).max(4),
+      }),
+      execute: async ({ tasks }) => {
+        try {
+          await ensureClaudeCodeMaxOAuth()
+
+          const state = loadBrainState()
+          addActivity(state, 'action', `Chat → Parallel Claude Code: ${tasks.map(t => t.name).join(', ')}`)
+          saveBrainState(state)
+
+          const results = await runClaudeCodeParallel(
+            tasks.map(t => ({
+              name: t.name,
+              prompt: t.prompt,
+              cwd: t.cwd,
+              maxTurns: 20,
+              timeoutSeconds: 180,
+            })),
+            { cwd: join(process.env.HOME || '/home/pi', 'pi-chi') },
+          )
+
+          return results.map(r =>
+            `[${r.name}] ${r.success ? 'OK' : 'FAILED'} (${Math.round(r.durationMs / 1000)}s):\n${r.output.slice(0, 1500)}`
+          ).join('\n\n---\n\n')
+        } catch (err: unknown) {
+          return `Parallel execution error: ${err instanceof Error ? err.message : 'Failed'}`
         }
       },
     }),

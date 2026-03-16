@@ -117,3 +117,73 @@ export async function runClaudeCodePrompt(options: RunClaudeCodeOptions): Promis
     },
   })
 }
+
+// ── Parallel Runner ──────────────────────────────────────────────
+// Spawn multiple Claude Code instances concurrently for independent tasks.
+// Each gets its own prompt file and runs in parallel. Results collected.
+
+export interface ParallelTask {
+  name: string
+  prompt: string
+  cwd?: string
+  maxTurns?: number
+  timeoutSeconds?: number
+}
+
+export interface ParallelResult {
+  name: string
+  success: boolean
+  output: string
+  exitCode: number
+  durationMs: number
+}
+
+export async function runClaudeCodeParallel(
+  tasks: ParallelTask[],
+  defaults?: { cwd?: string; maxTurns?: number; timeoutSeconds?: number },
+): Promise<ParallelResult[]> {
+  if (tasks.length === 0) return []
+
+  await ensureClaudeCodeMaxOAuth()
+
+  const { writeFileSync, unlinkSync } = await import('node:fs')
+  const { join } = await import('node:path')
+  const { randomUUID } = await import('node:crypto')
+  const stateDir = join(process.env.HOME || '/home/pi', '.pi-chi')
+
+  const promises = tasks.map(async (task): Promise<ParallelResult> => {
+    const start = Date.now()
+    const promptPath = join(stateDir, `parallel-${randomUUID().slice(0, 8)}.txt`)
+
+    try {
+      writeFileSync(promptPath, task.prompt, 'utf-8')
+
+      const result = await runClaudeCodePrompt({
+        promptPath,
+        cwd: task.cwd || defaults?.cwd || join(process.env.HOME || '/home/pi', 'pi-chi'),
+        maxTurns: task.maxTurns || defaults?.maxTurns || 20,
+        timeoutSeconds: task.timeoutSeconds || defaults?.timeoutSeconds || 180,
+      })
+
+      return {
+        name: task.name,
+        success: result.exitCode === 0,
+        output: ((result.stdout || '') + '\n' + (result.stderr || '')).trim().slice(0, 3000),
+        exitCode: result.exitCode ?? 1,
+        durationMs: Date.now() - start,
+      }
+    } catch (err) {
+      return {
+        name: task.name,
+        success: false,
+        output: err instanceof Error ? err.message : String(err),
+        exitCode: 1,
+        durationMs: Date.now() - start,
+      }
+    } finally {
+      try { unlinkSync(promptPath) } catch { /* */ }
+    }
+  })
+
+  return Promise.all(promises)
+}
