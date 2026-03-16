@@ -8,6 +8,7 @@ import { homedir } from 'node:os'
 import { randomUUID } from 'node:crypto'
 import type { BrainState } from './brain-types'
 import { addActivity, getAdelaideDate } from './brain-state'
+import { checkSmsGuardrails } from './sms-guardrails'
 
 const MAX_SMS_PER_HOUR = 10
 const MAX_SMS_PER_DAY = 50
@@ -141,7 +142,7 @@ export function isDuplicateSms(to: string, body: string): { duplicate: boolean; 
 
 // ── Unified SMS queue (used by brain + chat) ─────────────────────
 
-export function queueSmsChecked(to: string, body: string, source: string): { queued: boolean; message: string } {
+export function queueSmsChecked(to: string, body: string, source: string, isOutreach: boolean = false): { queued: boolean; message: string } {
   // Sanitize
   const clean = body
     .replace(/[\r\n]+/g, ' ')
@@ -149,6 +150,13 @@ export function queueSmsChecked(to: string, body: string, source: string): { que
     .trim()
     .slice(0, 160)
   if (!clean) return { queued: false, message: 'Empty message after sanitization' }
+
+  // ── GUARDRAILS CHECK (added cycle 229) ──
+  const guardrail = checkSmsGuardrails(to, clean, source, isOutreach)
+  if (!guardrail.allowed) {
+    console.log(`[brain-sms] GUARDRAIL BLOCKED: ${guardrail.reason}`)
+    return { queued: false, message: guardrail.reason }
+  }
 
   // Dedup check
   const dedup = isDuplicateSms(to, clean)
@@ -223,8 +231,14 @@ export async function sendSms(state: BrainState, message: string): Promise<SmsRe
     : recipient.startsWith('+') ? recipient
     : null
 
-  // Dedup check before any send attempt
+  // Guardrails check
   const effectiveTo = recipientPhone || recipient
+  const guardrail = checkSmsGuardrails(effectiveTo, clean, 'brain-sendSms')
+  if (!guardrail.allowed) {
+    return { success: false, message: guardrail.reason, rateLimited: true }
+  }
+
+  // Dedup check before any send attempt
   const dedup = isDuplicateSms(effectiveTo, clean)
   if (dedup.duplicate) {
     return { success: false, message: `Blocked: ${dedup.reason}`, rateLimited: true }

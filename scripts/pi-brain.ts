@@ -20,6 +20,7 @@
 import { loadBrainState, saveBrainState, addActivity, getStateDir } from '../lib/brain/brain-state'
 import { appendSnapshot } from '../lib/brain/analytics'
 import { checkAchievements } from '../lib/brain/achievements'
+import { shouldRunSelfAudit, buildSelfAuditFromState, writeSelfAudit } from '../lib/brain/code-guardrails'
 import { getSeedPrompt, buildDynamicSystemPrompt, buildContextMessage } from '../lib/brain/brain-prompt'
 import { ensureClaudeCodeMaxOAuth, runClaudeCodePrompt } from '../lib/brain/claude-code'
 import { loadCustomTools, resetHttpRequestCounter } from '../lib/brain/brain-tools'
@@ -910,6 +911,13 @@ async function brainCycle(): Promise<void> {
 
     // Auto-record cycle journal (learning system — no tool call needed)
     autoRecordCycleJournal(state, state.totalThoughts, state.lastWakeAt || new Date().toISOString(), responseText, exitCode)
+
+    // Self-audit every 10 cycles
+    if (shouldRunSelfAudit(state.totalThoughts)) {
+      const audit = buildSelfAuditFromState(state)
+      writeSelfAudit(audit)
+      console.log(`[pi-brain] Self-audit written for cycle ${state.totalThoughts}`)
+    }
 
     // Process agent queue — run parallel tasks if any were queued
     await processAgentQueue(state)
