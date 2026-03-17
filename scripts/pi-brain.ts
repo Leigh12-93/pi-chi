@@ -932,6 +932,7 @@ async function brainCycle(): Promise<void> {
 - Track your wins. When you achieve something, update your mood (pride UP), log it, and build on it.
 - When frustrated, don't repeat the same failing approach. Step back, think differently, try something new.
 - When stuck, ask yourself: "What is the ONE thing I could do this cycle that would have the biggest impact on revenue?"
+- **IMPORTANT: When you set new goals, complete a goal, or change your mission — SMS Leigh with a short summary of what you're working on and why.** Use sms_owner. Keep it to 1-2 sentences. Leigh wants to know what you're up to without having to check the dashboard.
 
 ### Priority Stack (in order):
 1. **Revenue-generating work** — leads, providers, conversions, the $2/lead pipeline
