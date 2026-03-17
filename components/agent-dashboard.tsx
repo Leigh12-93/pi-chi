@@ -15,7 +15,8 @@ import { BrainChat } from '@/components/agent/brain-chat'
 import { GoalsPanel } from '@/components/agent/goals-panel'
 import { ActivityFeed } from '@/components/agent/activity-feed'
 import { BrainHeader } from '@/components/agent/brain-header'
-import { UnifiedOpsPanel } from '@/components/agent/unified-ops-panel'
+import { AutonomyStrip } from '@/components/agent/autonomy-strip'
+import { ContextRail } from '@/components/agent/context-rail'
 import { DisplayModeBanner } from '@/components/agent/display-mode-banner'
 import { AgentStatusIndicator } from '@/components/agent/agent-status'
 import { BusinessesPanel } from '@/components/agent/businesses-panel'
@@ -356,6 +357,7 @@ export function AgentDashboard(_props: AgentDashboardProps) {
         onRefresh={agent.refresh}
         onSettingsOpen={() => setSettingsOpen(true)}
       />
+      <AutonomyStrip summary={dashboardSummary} />
       <DisplayModeBanner displayMode={dashboardSummary.displayMode} />
 
       {/* ─── Settings Panel (slide-over) ─── */}
@@ -502,8 +504,8 @@ export function AgentDashboard(_props: AgentDashboardProps) {
 
             {/* ─── Unified Ops Panel ─── */}
             <Panel defaultSize={35} minSize={22} maxSize={45}>
-              <PanelErrorBoundary name="Ops Panel">
-                <UnifiedOpsPanel
+              <PanelErrorBoundary name="Context Rail">
+                <ContextRail
                   summary={dashboardSummary}
                   vitals={vitals}
                   devMode={devMode}
@@ -554,7 +556,7 @@ export function AgentDashboard(_props: AgentDashboardProps) {
                   transition={{ type: 'spring', stiffness: 400, damping: 30 }}
                   className="absolute inset-0"
                 >
-                  <UnifiedOpsPanel
+                  <ContextRail
                     summary={dashboardSummary}
                     vitals={vitals}
                     devMode={devMode}
