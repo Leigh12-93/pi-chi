@@ -19,7 +19,7 @@ echo "=== Uploading to Pi ==="
 scp "$TMP_TAR" "$PI_HOST:/tmp/"
 
 echo "=== Deploying on Pi ==="
-ssh "$PI_HOST" "cd $PI_DIR && git stash -q 2>/dev/null; git pull --rebase origin master && rm -rf .next && tar xzf /tmp/pi-chi-next.tar.gz && sudo systemctl restart pi-chi-dashboard && echo 'Dashboard restarted' && sudo systemctl restart pi-chi-sms && echo 'SMS gateway restarted'"
+ssh "$PI_HOST" "cd $PI_DIR && git stash -q 2>/dev/null; git pull --rebase origin master && rm -rf .next && tar xzf /tmp/pi-chi-next.tar.gz && cp -r .next/static .next/standalone/.next/static/ 2>/dev/null; cp -r public .next/standalone/public 2>/dev/null; sudo systemctl restart pi-chi-dashboard && echo 'Dashboard restarted'"
 
 rm -f "$TMP_TAR"
 echo "=== Done ==="

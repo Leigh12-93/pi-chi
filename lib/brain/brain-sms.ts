@@ -1,11 +1,9 @@
-/* ─── Pi-Chi Brain — SMS Gateway with Rate Limiting ──────────── */
+/* ─── Pi-Chi Brain — SMS via Gammu (SIM7600 modem) ───────────── */
 
 import { execFile } from 'node:child_process'
-import { platform } from 'node:os'
-import { readFileSync, appendFileSync, writeFileSync, existsSync, statSync, mkdirSync } from 'node:fs'
+import { readFileSync, appendFileSync, writeFileSync, existsSync, statSync } from 'node:fs'
 import { join } from 'node:path'
 import { homedir } from 'node:os'
-import { randomUUID } from 'node:crypto'
 import type { BrainState } from './brain-types'
 import { addActivity, getAdelaideDate } from './brain-state'
 import { checkSmsGuardrails } from './sms-guardrails'
@@ -15,25 +13,26 @@ const MAX_SMS_PER_DAY = 50
 const MIN_SMS_INTERVAL_MS = 2 * 60 * 1000 // 2 minutes
 const SMS_LOG_FILE = join(homedir(), '.pi-chi', 'sms-log.jsonl')
 const SMS_LOG_MAX_BYTES = 100 * 1024 // 100KB
-
-// ── Modem Gateway IPC paths ─────────────────────────────────────
-
-const SMS_DIR = join(homedir(), '.pi-chi', 'sms')
-const OUTBOX_DIR = join(SMS_DIR, 'outbox')
-const HEARTBEAT_FILE = join(homedir(), '.pi-chi', 'sms-heartbeat')
-const MODEM_HEARTBEAT_MAX_AGE_MS = 2 * 60 * 1000 // 2 minutes
+const GAMMU_TIMEOUT_MS = 30_000
 
 interface SmsLogEntry {
   time: string
   to: string
   message: string
-  source: string // 'brain' | 'chat' | 'gateway'
+  source: string // 'brain' | 'chat' | 'outreach'
 }
 
 interface SmsResult {
   success: boolean
   message: string
   rateLimited?: boolean
+}
+
+interface ReceivedSms {
+  from: string
+  text: string
+  date: string
+  location: number
 }
 
 // ── Persistent SMS log ───────────────────────────────────────────
@@ -63,8 +62,6 @@ function rotateSmsLog(): void {
     if (!existsSync(SMS_LOG_FILE)) return
     const size = statSync(SMS_LOG_FILE).size
     if (size <= SMS_LOG_MAX_BYTES) return
-
-    // Keep only today's entries
     const today = getAdelaideDate()
     const entries = getSmsLogEntries()
     const todayEntries = entries.filter(e => e.time.startsWith(today))
@@ -72,34 +69,74 @@ function rotateSmsLog(): void {
   } catch { /* non-critical */ }
 }
 
-// ── Modem Gateway (file-based IPC) ───────────────────────────────
+// ── Gammu — send SMS directly via modem ──────────────────────────
 
-export function isModemGatewayAlive(): boolean {
-  try {
-    if (!existsSync(HEARTBEAT_FILE)) return false
-    const raw = readFileSync(HEARTBEAT_FILE, 'utf-8')
-    const heartbeat = JSON.parse(raw) as { timestamp: string; modemStatus: string }
-    if (heartbeat.modemStatus !== 'connected') return false
-    const age = Date.now() - new Date(heartbeat.timestamp).getTime()
-    return age < MODEM_HEARTBEAT_MAX_AGE_MS
-  } catch {
-    return false
-  }
+function gammuSend(to: string, body: string): Promise<{ success: boolean; output: string }> {
+  return new Promise((resolve) => {
+    execFile('gammu', ['sendsms', 'TEXT', to, '-text', body], { timeout: GAMMU_TIMEOUT_MS }, (err, stdout, stderr) => {
+      const output = (stdout + '\n' + stderr).trim()
+      if (err) {
+        resolve({ success: false, output: output || err.message })
+      } else {
+        resolve({ success: output.includes('OK'), output })
+      }
+    })
+  })
 }
 
-export function queueModemSms(to: string, body: string): void {
-  mkdirSync(OUTBOX_DIR, { recursive: true })
-  const id = randomUUID().slice(0, 8)
-  const timestamp = Date.now()
-  const filename = `${timestamp}-${id}.json`
-  const data = { id, to, body, createdAt: new Date().toISOString(), source: 'brain' }
-  writeFileSync(join(OUTBOX_DIR, filename), JSON.stringify(data))
+// ── Gammu — check modem is reachable ─────────────────────────────
+
+export function isModemAvailable(): Promise<boolean> {
+  return new Promise((resolve) => {
+    execFile('gammu', ['identify'], { timeout: 10_000 }, (err) => {
+      resolve(!err)
+    })
+  })
+}
+
+// ── Gammu — read all inbox SMS ───────────────────────────────────
+
+export function readInboxSms(): Promise<ReceivedSms[]> {
+  return new Promise((resolve) => {
+    execFile('gammu', ['--getallsms'], { timeout: GAMMU_TIMEOUT_MS }, (err, stdout) => {
+      if (err) { resolve([]); return }
+      const messages: ReceivedSms[] = []
+      const blocks = stdout.split(/^Location /m)
+      for (const block of blocks) {
+        if (!block.trim()) continue
+        const locMatch = block.match(/^(\d+)/)
+        const fromMatch = block.match(/Remote number\s*:\s*"([^"]+)"/)
+        const dateMatch = block.match(/Sent\s*:\s*(.+)/)
+        // Extract user data (text after the last header line)
+        const lines = block.split('\n')
+        const textLines: string[] = []
+        let pastHeaders = false
+        for (const line of lines) {
+          if (pastHeaders) {
+            textLines.push(line)
+          } else if (line.trim() === '' && fromMatch) {
+            pastHeaders = true
+          }
+        }
+        const text = textLines.join('\n').trim()
+        if (fromMatch && text) {
+          messages.push({
+            location: locMatch ? parseInt(locMatch[1]) : 0,
+            from: fromMatch[1],
+            text,
+            date: dateMatch ? dateMatch[1].trim() : '',
+          })
+        }
+      }
+      resolve(messages)
+    })
+  })
 }
 
 // ── Deduplication ────────────────────────────────────────────────
 
-const DEDUP_WINDOW_MS = 60 * 60 * 1000 // 1 hour — won't resend same to+body within this window
-const SIMILARITY_THRESHOLD = 0.85 // 85% char overlap = "same message"
+const DEDUP_WINDOW_MS = 60 * 60 * 1000 // 1 hour
+const SIMILARITY_THRESHOLD = 0.85
 
 function normalizeForDedup(text: string): string {
   return text.toLowerCase().replace(/[^a-z0-9]/g, '').trim()
@@ -113,7 +150,6 @@ function similarity(a: string, b: string): number {
   const longer = na.length >= nb.length ? na : nb
   const shorter = na.length < nb.length ? na : nb
   if (longer.length === 0) return 1
-  // Simple overlap: count matching chars at same position
   let matches = 0
   for (let i = 0; i < shorter.length; i++) {
     if (shorter[i] === longer[i]) matches++
@@ -140,9 +176,9 @@ export function isDuplicateSms(to: string, body: string): { duplicate: boolean; 
   return { duplicate: false }
 }
 
-// ── Unified SMS queue (used by brain + chat) ─────────────────────
+// ── Unified SMS send (used by brain + chat + outreach) ───────────
 
-export function queueSmsChecked(to: string, body: string, source: string, isOutreach: boolean = false): { queued: boolean; message: string } {
+export async function queueSmsChecked(to: string, body: string, source: string, isOutreach: boolean = false): Promise<{ queued: boolean; message: string }> {
   // Sanitize
   const clean = body
     .replace(/[\r\n]+/g, ' ')
@@ -151,33 +187,30 @@ export function queueSmsChecked(to: string, body: string, source: string, isOutr
     .slice(0, 160)
   if (!clean) return { queued: false, message: 'Empty message after sanitization' }
 
-  // ── GUARDRAILS CHECK (added cycle 229) ──
+  // Guardrails
   const guardrail = checkSmsGuardrails(to, clean, source, isOutreach)
   if (!guardrail.allowed) {
     console.log(`[brain-sms] GUARDRAIL BLOCKED: ${guardrail.reason}`)
     return { queued: false, message: guardrail.reason }
   }
 
-  // Dedup check
+  // Dedup
   const dedup = isDuplicateSms(to, clean)
   if (dedup.duplicate) {
     console.log(`[brain-sms] BLOCKED duplicate: ${dedup.reason}`)
     return { queued: false, message: `Duplicate blocked: ${dedup.reason}` }
   }
 
-  // Queue to modem outbox
-  mkdirSync(OUTBOX_DIR, { recursive: true })
-  const id = randomUUID().slice(0, 8)
-  const timestamp = Date.now()
-  const filename = `${timestamp}-${id}.json`
-  const data = { id, to, body: clean, createdAt: new Date().toISOString(), source }
-  writeFileSync(join(OUTBOX_DIR, filename), JSON.stringify(data))
+  // Send via gammu
+  const result = await gammuSend(to, clean)
+  if (!result.success) {
+    console.log(`[brain-sms] Gammu send failed: ${result.output}`)
+    return { queued: false, message: `Gammu send failed: ${result.output}` }
+  }
 
-  // Log immediately (don't wait for gateway confirmation)
   appendSmsLog({ time: new Date().toISOString(), to, message: clean, source })
-
-  console.log(`[brain-sms] Queued SMS to ${to} via ${source}: ${clean.slice(0, 60)}`)
-  return { queued: true, message: `SMS queued to ${to}: ${clean.slice(0, 50)}...` }
+  console.log(`[brain-sms] Sent SMS to ${to} via gammu (${source}): ${clean.slice(0, 60)}`)
+  return { queued: true, message: `SMS sent to ${to}: ${clean.slice(0, 50)}...` }
 }
 
 // ── Rate limit checks ────────────────────────────────────────────
@@ -185,13 +218,11 @@ export function queueSmsChecked(to: string, body: string, source: string, isOutr
 export function canSendSms(state: BrainState): { allowed: boolean; reason?: string } {
   const now = Date.now()
 
-  // Check daily limit (Adelaide timezone)
   const today = getAdelaideDate()
   if (state.smsTodayDate === today && state.smsTodayCount >= MAX_SMS_PER_DAY) {
     return { allowed: false, reason: `Daily SMS limit reached (${MAX_SMS_PER_DAY}/day)` }
   }
 
-  // Check minimum interval
   if (state.lastSmsAt) {
     const elapsed = now - new Date(state.lastSmsAt).getTime()
     if (elapsed < MIN_SMS_INTERVAL_MS) {
@@ -200,7 +231,6 @@ export function canSendSms(state: BrainState): { allowed: boolean; reason?: stri
     }
   }
 
-  // Check hourly limit from persistent SMS log (survives state resets)
   const oneHourAgo = now - 60 * 60 * 1000
   const logEntries = getSmsLogEntries()
   const recentSms = logEntries.filter(e => new Date(e.time).getTime() > oneHourAgo)
@@ -211,13 +241,14 @@ export function canSendSms(state: BrainState): { allowed: boolean; reason?: stri
   return { allowed: true }
 }
 
+// ── Main send function (brain → owner) ───────────────────────────
+
 export async function sendSms(state: BrainState, message: string): Promise<SmsResult> {
   const check = canSendSms(state)
   if (!check.allowed) {
     return { success: false, message: check.reason!, rateLimited: true }
   }
 
-  // Sanitize message — single line, no newlines, max 300 chars
   const clean = message.replace(/[\r\n]+/g, ' ').trim().slice(0, 300)
   if (!clean) {
     return { success: false, message: 'Empty message' }
@@ -225,68 +256,34 @@ export async function sendSms(state: BrainState, message: string): Promise<SmsRe
 
   const recipient = process.env.SMS_RECIPIENT || 'leigh'
 
-  // Resolve phone number for modem (needs full E.164)
   const recipientPhone = recipient === 'leigh' ? '+61481274420'
     : recipient === 'simone' ? '+61457556023'
     : recipient.startsWith('+') ? recipient
     : null
 
-  // Guardrails check
-  const effectiveTo = recipientPhone || recipient
-  const guardrail = checkSmsGuardrails(effectiveTo, clean, 'brain-sendSms')
+  if (!recipientPhone) {
+    return { success: false, message: `Cannot resolve phone for "${recipient}"` }
+  }
+
+  const guardrail = checkSmsGuardrails(recipientPhone, clean, 'brain-sendSms')
   if (!guardrail.allowed) {
     return { success: false, message: guardrail.reason, rateLimited: true }
   }
 
-  // Dedup check before any send attempt
-  const dedup = isDuplicateSms(effectiveTo, clean)
+  const dedup = isDuplicateSms(recipientPhone, clean)
   if (dedup.duplicate) {
     return { success: false, message: `Blocked: ${dedup.reason}`, rateLimited: true }
   }
 
   try {
-    // 1. Try SIM7600 modem gateway first (zero cost, 2-way)
-    if (recipientPhone && isModemGatewayAlive()) {
-      try {
-        queueModemSms(recipientPhone, clean)
-        recordSmsSent(state, recipientPhone, clean, 'brain')
-        return { success: true, message: `SMS queued via modem to ${recipient}` }
-      } catch (modemErr) {
-        console.log(`[brain-sms] Modem queue failed, falling back: ${modemErr instanceof Error ? modemErr.message : modemErr}`)
-      }
+    const result = await gammuSend(recipientPhone, clean)
+    if (!result.success) {
+      addActivity(state, 'error', `SMS failed (gammu): ${result.output}`)
+      return { success: false, message: `Gammu failed: ${result.output}` }
     }
 
-    // 2. Fall back to HTTP gateway (if configured)
-    const gatewayUrl = process.env.SMS_GATEWAY_URL
-    if (gatewayUrl) {
-      const res = await fetch(gatewayUrl, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ recipient, message: clean }),
-      })
-      if (res.ok) {
-        recordSmsSent(state, effectiveTo, clean, 'brain-http')
-        return { success: true, message: `SMS sent to ${recipient} via HTTP gateway` }
-      }
-    }
-
-    // 3. Fall back to bash script
-    const scriptPath = process.env.SMS_GATEWAY_SCRIPT || (
-      platform() === 'win32'
-        ? 'C:/Users/leigh/scripts/sms.sh'
-        : '/home/pi/scripts/sms.sh'
-    )
-
-    await new Promise<void>((resolve, reject) => {
-      const shell = platform() === 'win32' ? 'bash' : '/bin/bash'
-      execFile(shell, [scriptPath, recipient, clean], { timeout: 30000 }, (err, _stdout, stderr) => {
-        if (err) reject(new Error(stderr || err.message))
-        else resolve()
-      })
-    })
-
-    recordSmsSent(state, effectiveTo, clean, 'brain-script')
-    return { success: true, message: `SMS sent to ${recipient} via script` }
+    recordSmsSent(state, recipientPhone, clean, 'brain')
+    return { success: true, message: `SMS sent to ${recipient} via gammu` }
   } catch (err) {
     const errMsg = err instanceof Error ? err.message : String(err)
     addActivity(state, 'error', `SMS failed: ${errMsg}`)
@@ -305,8 +302,6 @@ function recordSmsSent(state: BrainState, to: string, message: string, source: s
     state.smsTodayCount++
   }
   addActivity(state, 'sms', `Sent SMS to ${to}: ${message.slice(0, 80)}`)
-
-  // Persist to SMS log file (survives state resets)
   appendSmsLog({ time: new Date().toISOString(), to, message: message.slice(0, 160), source })
   rotateSmsLog()
 }

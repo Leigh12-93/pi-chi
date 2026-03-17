@@ -63,7 +63,7 @@ export async function POST(req: Request) {
     let smsResult = { queued: false, message: 'No provider phone number' }
     if (provider_phone) {
       const sms = `New skip bin enquiry via CheapSkipBinsNearMe: ${customer_name} (${phone}) needs ${bin_size} bin at ${address} ${postcode}, pickup ${pickup_date}. Call to confirm.`
-      smsResult = queueSmsChecked(provider_phone, sms, 'booking')
+      smsResult = await queueSmsChecked(provider_phone, sms, 'booking')
     }
 
     return NextResponse.json({

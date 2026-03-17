@@ -36,7 +36,7 @@ git pull --rebase origin master 2>&1 || {
 # ── 2. Restart services ───────────────────────────────────────
 echo "[deploy] Restarting dashboard..."
 sudo systemctl restart pi-chi-dashboard
-sudo systemctl restart pi-chi-sms 2>/dev/null || true
+# SMS now uses gammu directly — no separate service needed
 
 echo "[deploy] Health check..."
 for i in $(seq 1 $HEALTH_RETRIES); do

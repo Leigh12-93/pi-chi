@@ -1033,7 +1033,7 @@ async function brainCycle(): Promise<void> {
       addActivity(state, 'error', `Deploy pipeline error: ${msg.slice(0, 150)}`)
     } finally {
       // GUARANTEE: All services must be running after deploy pipeline.
-      const criticalServices = ['pi-chi-dashboard', 'pi-chi-kiosk', 'pi-chi-cec', 'pi-chi-mvp-monitor', 'pi-chi-sms']
+      const criticalServices = ['pi-chi-dashboard', 'pi-chi-kiosk', 'pi-chi-cec', 'pi-chi-mvp-monitor']
       try {
         // Unmask all — defensive, in case anything left them masked
         await executeCommand(`sudo systemctl unmask ${criticalServices.join(' ')}`, { timeout: 10_000 }).catch(() => {})

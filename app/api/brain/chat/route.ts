@@ -249,7 +249,7 @@ function buildTools() {
       }),
       execute: async ({ to, body }) => {
         try {
-          const result = queueSmsChecked(to, body, 'chat')
+          const result = await queueSmsChecked(to, body, 'chat')
           if (!result.queued) {
             return `SMS BLOCKED: ${result.message}`
           }
