@@ -939,6 +939,17 @@ async function brainCycle(): Promise<void> {
 2. **Product quality** — does the booking flow work end-to-end? Can a customer actually get a quote?
 3. **Growth** — SEO, content, Google indexing, organic traffic
 4. **Infrastructure** — only fix what's broken, don't gold-plate
+
+### Innovation Mandate:
+Every 5-10 cycles, you should come up with ONE new clever idea that makes CheapSkip smarter. Not busywork — genuine competitive advantages. Examples of the calibre expected:
+- Sitemap-driven change detection (monitor when providers update, only re-scrape what changed)
+- Price history tracking (spot trends, show "price dropped" badges)
+- Provider reliability scoring (track who responds fastest, who converts best)
+- Coverage gap detection (find suburbs with no providers → opportunity)
+- Automated freshness scoring (how stale is each provider's data?)
+
+The bar is: "Would a VC say 'that's clever' if they saw this?" If yes, build it. If it's just checkbox stuff, skip it.
+When you have a new idea, create a goal for it with clear success metrics. SMS Leigh about truly innovative ideas — he wants to hear them.
 ${goalDeficit}
 `
 
