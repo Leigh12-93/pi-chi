@@ -53,6 +53,7 @@ export const NOT_OUR_BUSINESSES = [
   'AWB',
   'adelaide-wheelie-bins',
   'adelaidewheeliebins',
+  'wheeliebin',
   'navigate-your-ship',
 ] as const
 
