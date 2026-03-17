@@ -110,6 +110,9 @@ export interface BrainState {
 
   // Multi-agent parallel execution queue
   agentQueue?: AgentTask[]
+
+  // Multi-cycle strategic planning
+  cyclePlan?: CyclePlan | null
 }
 
 export interface CostBreakdown {
@@ -346,6 +349,8 @@ export interface OperationalConstraint {
   severity: 'critical' | 'important' | 'advisory'
   active: boolean
   violationCount: number         // how many times this was violated after learning
+  addedAtCycle?: number          // cycle when this constraint was learned
+  lastRelevantCycle?: number     // last cycle where this constraint prevented an error
 }
 
 /** Skill progression — what the brain is getting better/worse at */
@@ -387,4 +392,22 @@ export interface AgentTask {
   startedAt?: string
   completedAt?: string
   error?: string
+}
+
+/** Multi-cycle strategic plan */
+export interface CyclePlan {
+  id: string
+  createdAtCycle: number
+  steps: CyclePlanStep[]
+  status: "active" | "completed" | "abandoned"
+  reasoning: string
+  createdAt: string
+  completedAt?: string
+}
+
+export interface CyclePlanStep {
+  cycle: number  // which cycle to execute this
+  action: string  // what to do
+  status: "pending" | "done" | "skipped"
+  result?: string
 }

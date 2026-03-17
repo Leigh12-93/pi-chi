@@ -64,6 +64,7 @@ export interface WorkCycle {
   outcome: string
   kpiDeltas: Record<string, number>
   lessons: string[]
+  reflection?: string  // post-cycle self-evaluation
 }
 
 export interface DisplayModeSnapshot {

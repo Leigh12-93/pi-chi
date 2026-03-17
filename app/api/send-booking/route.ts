@@ -30,23 +30,22 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: 'Missing required fields' }, { status: 400 })
     }
 
-    const leadSource = source || 'direct'
-
     // Insert lead into quote_requests table
+    const insertPayload: Record<string, string> = {
+      customer_name,
+      phone,
+      email: '',
+      postcode,
+      bin_size,
+      delivery_date: pickup_date,
+      suburb: address,
+      status: 'new',
+      state: 'SA',
+    }
+
     const { data: lead, error: leadErr } = await cheapskipSupabase
       .from('quote_requests')
-      .insert({
-        customer_name,
-        phone,
-        email: '',
-        postcode,
-        bin_size,
-        delivery_date: pickup_date,
-        suburb: address,
-        status: 'new',
-        state: 'SA',
-        source: leadSource,
-      })
+      .insert(insertPayload)
       .select('id')
       .single()
 
@@ -56,7 +55,7 @@ export async function POST(req: Request) {
     }
 
     // Track lead for analytics (non-blocking — don't fail the booking if tracking fails)
-    trackLead(provider_id, leadSource, lead?.id).catch(err =>
+    trackLead(provider_id, source || 'direct', lead?.id?.toString()).catch(err =>
       console.error('[send-booking] Lead tracking error:', err)
     )
 
