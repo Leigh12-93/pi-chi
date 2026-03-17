@@ -184,6 +184,16 @@ function isQuietHours(): boolean {
   return hour >= 20 || hour < 8
 }
 
+// ── Check 6: Business hours for outreach ────────────────────────
+
+function isBusinessHours(): boolean {
+  const now = new Date(new Date().toLocaleString('en-US', { timeZone: 'Australia/Adelaide' }))
+  const hour = now.getHours()
+  const day = now.getDay() // 0=Sun, 6=Sat
+  // Mon-Fri 9am-5pm Adelaide time only
+  return day >= 1 && day <= 5 && hour >= 9 && hour < 17
+}
+
 // ── Main guardrail check ────────────────────────────────────────
 
 export interface GuardrailResult {
@@ -203,6 +213,12 @@ export function checkSmsGuardrails(
   if (isQuietHours()) {
     logAudit({ timestamp: new Date().toISOString(), to: norm, message, action: 'blocked', reason: 'quiet-hours', source })
     return { allowed: false, reason: 'SMS blocked: quiet hours (8pm-8am Adelaide time)' }
+  }
+
+  // 1b. Outreach restricted to business hours (Mon-Fri 9am-5pm Adelaide)
+  if (isOutreach && !isBusinessHours()) {
+    logAudit({ timestamp: new Date().toISOString(), to: norm, message, action: 'blocked', reason: 'outside-business-hours', source })
+    return { allowed: false, reason: 'SMS blocked: outreach only allowed Mon-Fri 9am-5pm Adelaide time' }
   }
 
   // 2. Known number check (bypass for booking leads — providers are in the database)
