@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { VERCEL_TOKEN, VERCEL_TEAM } from '@/lib/vercel'
+import { cheapskipSupabase } from '@/lib/cheapskip-supabase'
 
 /* ─── Types ──────────────────────────────────────── */
 
@@ -13,6 +14,11 @@ export interface BusinessMetrics {
   lastCommitAt: string | null
   lastCommitMessage: string | null
   vercelProjectId: string | null
+  httpStatus: number | null
+  responseTimeMs: number | null
+  siteUp: boolean | null
+  leadCount: number | null
+  leadCountToday: number | null
 }
 
 /* ─── Business registry ──────────────────────────── */
@@ -42,8 +48,8 @@ const BUSINESS_CONFIGS: BusinessConfig[] = [
   },
   {
     id: 'cheapskips',
-    name: 'CheapSkipBinsNearMe',
-    domain: 'cheapskipbinsnearme.com.au',
+    name: 'Bin Hire Australia',
+    domain: 'binhireaustralia.com.au',
     vercelProject: 'cheapskipbinsnearme',
     githubRepo: 'cheapskipbinsnearme',
   },
@@ -64,7 +70,14 @@ const CACHE_TTL = 60_000 // 60 seconds
 
 /* ─── Health logic ───────────────────────────────── */
 
-function computeHealth(deployAt: string | null, deployStatus: string | null): BusinessMetrics['health'] {
+function computeHealth(
+  deployAt: string | null,
+  deployStatus: string | null,
+  siteUp: boolean | null,
+): BusinessMetrics['health'] {
+  // Site is actively down — critical regardless of deploy age
+  if (siteUp === false) return 'critical'
+
   if (!deployAt) return 'unknown'
 
   // Failed or errored deploys are critical
@@ -76,6 +89,29 @@ function computeHealth(deployAt: string | null, deployStatus: string | null): Bu
   if (days <= 7) return 'healthy'
   if (days <= 30) return 'warning'
   return 'critical'
+}
+
+/* ─── HTTP: health check ─────────────────────────── */
+
+async function checkSiteHealth(
+  domain: string,
+): Promise<{ httpStatus: number | null; responseTimeMs: number | null; siteUp: boolean | null }> {
+  const url = `https://${domain}`
+  const start = Date.now()
+
+  try {
+    const res = await fetch(url, {
+      method: 'HEAD',
+      signal: AbortSignal.timeout(5_000),
+      redirect: 'follow',
+    })
+    const responseTimeMs = Date.now() - start
+    const httpStatus = res.status
+    const siteUp = httpStatus >= 200 && httpStatus < 500
+    return { httpStatus, responseTimeMs, siteUp }
+  } catch {
+    return { httpStatus: null, responseTimeMs: null, siteUp: false }
+  }
 }
 
 /* ─── Vercel: fetch latest deploy ────────────────── */
@@ -164,6 +200,36 @@ async function fetchLatestCommit(
   }
 }
 
+/* ─── CheapSkip: fetch lead counts ────────────────── */
+
+async function fetchLeadCounts(): Promise<{ total: number; today: number }> {
+  try {
+    // Total leads (exclude test entries)
+    const { count: total } = await cheapskipSupabase
+      .from('quote_requests')
+      .select('*', { count: 'exact', head: true })
+      .neq('status', 'test')
+
+    // Today's leads (ACST = UTC+9:30)
+    const now = new Date()
+    const acstOffset = 9.5 * 60 * 60 * 1000
+    const acstNow = new Date(now.getTime() + acstOffset)
+    const todayStart = new Date(acstNow)
+    todayStart.setUTCHours(0, 0, 0, 0)
+    const todayStartUtc = new Date(todayStart.getTime() - acstOffset)
+
+    const { count: today } = await cheapskipSupabase
+      .from('quote_requests')
+      .select('*', { count: 'exact', head: true })
+      .neq('status', 'test')
+      .gte('created_at', todayStartUtc.toISOString())
+
+    return { total: total ?? 0, today: today ?? 0 }
+  } catch {
+    return { total: 0, today: 0 }
+  }
+}
+
 /* ─── GET /api/businesses ────────────────────────── */
 
 export async function GET() {
@@ -175,6 +241,9 @@ export async function GET() {
   const vercelToken = VERCEL_TOKEN
   const githubToken = (process.env.GITHUB_TOKEN || '').trim()
 
+  // Fetch lead counts in parallel with business metrics
+  const leadCountsPromise = fetchLeadCounts()
+
   const results: BusinessMetrics[] = await Promise.all(
     BUSINESS_CONFIGS.map(async (biz) => {
       let deployAt: string | null = null
@@ -182,43 +251,60 @@ export async function GET() {
       let vercelProjectId: string | null = null
       let commitAt: string | null = null
       let commitMessage: string | null = null
+      let httpStatus: number | null = null
+      let responseTimeMs: number | null = null
+      let siteUp: boolean | null = null
 
-      // Fetch Vercel deploy info
-      if (vercelToken) {
-        try {
-          const deploy = await fetchLatestDeploy(biz.vercelProject, vercelToken)
-          deployAt = deploy.deployAt
-          deployStatus = deploy.status
-          vercelProjectId = deploy.projectId
-        } catch {
-          // Vercel fetch failed — health will be 'unknown'
-        }
+      // Run Vercel, GitHub, and HTTP health check in parallel
+      const [vercelResult, commitResult, healthResult] = await Promise.allSettled([
+        vercelToken ? fetchLatestDeploy(biz.vercelProject, vercelToken) : Promise.resolve(null),
+        githubToken ? fetchLatestCommit(biz.githubRepo, githubToken) : Promise.resolve(null),
+        checkSiteHealth(biz.domain),
+      ])
+
+      if (vercelResult.status === 'fulfilled' && vercelResult.value) {
+        deployAt = vercelResult.value.deployAt
+        deployStatus = vercelResult.value.status
+        vercelProjectId = vercelResult.value.projectId
       }
 
-      // Fetch GitHub commit info
-      if (githubToken) {
-        try {
-          const commit = await fetchLatestCommit(biz.githubRepo, githubToken)
-          commitAt = commit.commitAt
-          commitMessage = commit.message
-        } catch {
-          // GitHub fetch failed — commit fields stay null
-        }
+      if (commitResult.status === 'fulfilled' && commitResult.value) {
+        commitAt = commitResult.value.commitAt
+        commitMessage = commitResult.value.message
+      }
+
+      if (healthResult.status === 'fulfilled') {
+        httpStatus = healthResult.value.httpStatus
+        responseTimeMs = healthResult.value.responseTimeMs
+        siteUp = healthResult.value.siteUp
       }
 
       return {
         id: biz.id,
         name: biz.name,
         domain: biz.domain,
-        health: computeHealth(deployAt, deployStatus),
+        health: computeHealth(deployAt, deployStatus, siteUp),
         lastDeployAt: deployAt,
         deployStatus: deployStatus,
         lastCommitAt: commitAt,
         lastCommitMessage: commitMessage,
         vercelProjectId: vercelProjectId,
+        httpStatus,
+        responseTimeMs,
+        siteUp,
+        leadCount: null as number | null,
+        leadCountToday: null as number | null,
       }
     }),
   )
+
+  // Attach lead counts to the cheapskips business
+  const leadCounts = await leadCountsPromise
+  const cheapskips = results.find(r => r.id === 'cheapskips')
+  if (cheapskips) {
+    cheapskips.leadCount = leadCounts.total
+    cheapskips.leadCountToday = leadCounts.today
+  }
 
   // Cache the response
   cachedResponse = results

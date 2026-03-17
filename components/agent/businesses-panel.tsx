@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { ExternalLink, GitBranch, Globe, ChevronRight, RefreshCw, Rocket, Clock, GitCommit } from 'lucide-react'
+import { ExternalLink, GitBranch, Globe, ChevronRight, RefreshCw, Rocket, Clock, GitCommit, AlertTriangle, Wifi, WifiOff, Activity, Users } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { formatRelative } from '@/lib/utils'
 import { motion, AnimatePresence } from 'framer-motion'
@@ -25,7 +25,7 @@ const BUSINESS_META: Record<string, BusinessMeta> = {
     stack: 'React 19 + TypeScript + Tailwind v4',
     database: 'Supabase',
     hosting: 'Vercel',
-    description: 'AI-powered skip bin comparison/finder with chat agent, suburb-based search, per-suburb SEO pages.',
+    description: 'Waste management comparison platform — skip bins, recycling, organic, medical waste, grease trap & more. Ask Kerry AI assistant, suburb-based search, per-suburb SEO pages.',
   },
   bonkr: {
     repo: 'Leigh12-93/Bonkr',
@@ -121,6 +121,11 @@ export function BusinessesPanel({ onSelectBusiness, activeBusiness }: Businesses
           </div>
         </div>
 
+        {/* Portfolio health summary bar */}
+        {!loading && businesses.length > 0 && (
+          <PortfolioHealthBar businesses={businesses} />
+        )}
+
         {/* Error state */}
         {error && !loading && businesses.length === 0 && (
           <div className="text-[10px] text-red-400 bg-red-500/10 border border-red-500/20 rounded-lg px-3 py-2">
@@ -209,6 +214,17 @@ export function BusinessesPanel({ onSelectBusiness, activeBusiness }: Businesses
                       </span>
                     </div>
                   )}
+                  {biz.leadCount !== null && (
+                    <div className="flex items-center gap-1.5 mt-0.5">
+                      <Users className="w-2.5 h-2.5 text-pi-accent/60 shrink-0" />
+                      <span className="text-[9px] text-pi-accent/80 font-medium">
+                        {biz.leadCount} lead{biz.leadCount !== 1 ? 's' : ''}
+                        {biz.leadCountToday !== null && biz.leadCountToday > 0 && (
+                          <span className="text-emerald-400 ml-1">+{biz.leadCountToday} today</span>
+                        )}
+                      </span>
+                    </div>
+                  )}
                 </div>
                 <ChevronRight className={cn(
                   'w-3.5 h-3.5 text-pi-text-dim/50 transition-transform',
@@ -236,6 +252,33 @@ export function BusinessesPanel({ onSelectBusiness, activeBusiness }: Businesses
                         )}
                         {biz.lastCommitAt && (
                           <span>Commit: {formatRelative(biz.lastCommitAt)}</span>
+                        )}
+                      </div>
+
+                      {/* HTTP health info */}
+                      <div className="flex items-center gap-3 text-[9px]">
+                        {biz.siteUp !== null ? (
+                          <div className={cn(
+                            'flex items-center gap-1',
+                            biz.siteUp ? 'text-emerald-400' : 'text-red-400',
+                          )}>
+                            {biz.siteUp
+                              ? <Wifi className="w-2.5 h-2.5" />
+                              : <WifiOff className="w-2.5 h-2.5" />
+                            }
+                            <span>
+                              {biz.siteUp ? 'Site up' : 'Site down'}
+                              {biz.httpStatus !== null && ` (HTTP ${biz.httpStatus})`}
+                            </span>
+                          </div>
+                        ) : (
+                          <span className="text-pi-text-dim/50">HTTP check pending</span>
+                        )}
+                        {biz.responseTimeMs !== null && (
+                          <div className="flex items-center gap-1 text-pi-text-dim/60">
+                            <Activity className="w-2.5 h-2.5" />
+                            <span>{biz.responseTimeMs}ms</span>
+                          </div>
                         )}
                       </div>
 
@@ -304,6 +347,68 @@ export function BusinessesPanel({ onSelectBusiness, activeBusiness }: Businesses
             </motion.div>
           )
         })}
+      </div>
+    </div>
+  )
+}
+
+/* ─── Portfolio health summary bar ───────────────── */
+
+function PortfolioHealthBar({ businesses }: { businesses: BusinessMetrics[] }) {
+  const total = businesses.length
+  const upCount = businesses.filter((b) => b.siteUp === true).length
+  const downCount = businesses.filter((b) => b.siteUp === false).length
+  const anyDown = downCount > 0
+
+  // Average response time for sites that responded
+  const responseTimes = businesses
+    .map((b) => b.responseTimeMs)
+    .filter((t): t is number => t !== null)
+  const avgResponseMs = responseTimes.length > 0
+    ? Math.round(responseTimes.reduce((a, b) => a + b, 0) / responseTimes.length)
+    : null
+
+  return (
+    <div className={cn(
+      'rounded-lg border px-3 py-2 mb-3 space-y-2',
+      anyDown
+        ? 'border-red-500/30 bg-red-500/5'
+        : 'border-pi-border bg-pi-surface/50',
+    )}>
+      {/* Top row: up/down counts + avg response */}
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-3 text-[10px]">
+          <span className="text-emerald-400 font-medium">{upCount}/{total} up</span>
+          {avgResponseMs !== null && (
+            <span className="text-pi-text-dim/70 flex items-center gap-1">
+              <Activity className="w-2.5 h-2.5" />
+              avg {avgResponseMs}ms
+            </span>
+          )}
+        </div>
+        {anyDown && (
+          <div className="flex items-center gap-1 text-red-400 text-[10px] font-medium">
+            <AlertTriangle className="w-3 h-3" />
+            <span>{downCount} site{downCount > 1 ? 's' : ''} down</span>
+          </div>
+        )}
+      </div>
+
+      {/* Dot row: one dot per business */}
+      <div className="flex items-center gap-1.5">
+        {businesses.map((biz) => (
+          <div
+            key={biz.id}
+            title={`${biz.name}: ${biz.siteUp === null ? 'unknown' : biz.siteUp ? 'up' : 'down'}${biz.responseTimeMs !== null ? ` (${biz.responseTimeMs}ms)` : ''}`}
+            className={cn(
+              'w-2.5 h-2.5 rounded-full transition-colors',
+              biz.siteUp === true && 'bg-emerald-500',
+              biz.siteUp === false && 'bg-red-500',
+              biz.siteUp === null && 'bg-zinc-600',
+            )}
+          />
+        ))}
+        <span className="text-[9px] text-pi-text-dim/50 ml-1">HTTP checks</span>
       </div>
     </div>
   )
