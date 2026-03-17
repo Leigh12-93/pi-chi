@@ -953,7 +953,7 @@ When you have a new idea, create a goal for it with clear success metrics. SMS L
 ${goalDeficit}
 `
 
-    const fullPrompt = `${seedPrompt}\n\n${dynamicSystemPrompt}\n\n${businessRules}\n\n${missionLockDirective}${approvalNotice}${goalReminder}\n---\n\n${contextMessage}\n\n${leadStats}\n\n---\n\nIMPORTANT: You have access to the Pi filesystem via Claude Code tools (Read, Write, Edit, Bash).\nThe brain state file is at: ${join(stateDir, 'brain-state.json')}\nTo save a memory, update a goal, or change mood — modify brain-state.json directly using the Edit tool.\nKeep your response concise — summarize what you did and what you learned.\n\nNow — what will you do THIS cycle to move closer to revenue? Be specific. Execute with determination.`
+    const fullPrompt = `${seedPrompt}\n\n${dynamicSystemPrompt}\n\n${businessRules}\n\n${missionLockDirective}${approvalNotice}${goalReminder}\n---\n\n${contextMessage}\n\n${leadStats}\n\n---\n\nIMPORTANT: You have access to the Pi filesystem via Claude Code tools (Read, Write, Edit, Bash).\nThe brain state file is at: ${join(stateDir, 'brain-state.json')}\nTo save a memory, update a goal, or change mood — modify brain-state.json directly using the Edit tool.\nTo SMS Leigh: gammu sendsms TEXT +61481274420 -text 'your message here' (max 300 chars, single line, use sparingly — achievements, goal changes, innovative ideas, blockers).\nKeep your response concise — summarize what you did and what you learned.\n\nNow — what will you do THIS cycle to move closer to revenue? Be specific. Execute with determination.`
     writeFileSync(promptPath, fullPrompt, 'utf-8')
 
     const standbyReason = state.currentMission?.title
