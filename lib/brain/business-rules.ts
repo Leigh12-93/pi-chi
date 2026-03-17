@@ -22,15 +22,15 @@ export const BUSINESSES: readonly BusinessDefinition[] = [
     type: 'skip bin price comparison aggregator with AI chatbot',
     pricing: '$2 AUD per verified lead, no upfront fees, monthly invoicing',
     supabaseProjectId: 'pocoystpkrdmobplazhd',
-    vercelProject: 'cheapskipbinsnearme',
-    codebase: '~/pi-chi',
+    vercelProject: 'skipbin-marketplace',
+    codebase: '~/cheapskipbinsnearme',
   },
   {
     id: 'aussiesms',
     name: 'AussieSMS',
     domain: 'aussiesms.com.au',
     type: 'SMS gateway SaaS service',
-    pricing: null, // pricing TBD
+    pricing: null,
     supabaseProjectId: null,
     vercelProject: null,
     codebase: '~/pi-chi-projects/aussiesms',
@@ -57,6 +57,9 @@ export const NOT_OUR_BUSINESSES = [
   'navigate-your-ship',
 ] as const
 
+/** Pi-Chi modem phone number */
+export const PI_CHI_PHONE = '0468908299'
+
 /** Per-lead price in dollars — the one true pricing constant */
 export const LEAD_PRICE_AUD = 2
 
@@ -65,17 +68,16 @@ export function getBusinessByDomain(domain: string): BusinessDefinition | undefi
   return BUSINESSES.find(b => b.domain === d)
 }
 
-export function getBusinessById(id: string): BusinessDefinition | undefined {
-  return BUSINESSES.find(b => b.id === id)
+export function getBusinessByName(name: string): BusinessDefinition | undefined {
+  const lower = name.toLowerCase().replace(/[\s_-]/g, '')
+  return BUSINESSES.find(b =>
+    b.id === lower ||
+    b.name.toLowerCase().replace(/[\s_-]/g, '') === lower,
+  )
 }
 
 export function isOurBusiness(name: string): boolean {
-  const lower = name.toLowerCase().replace(/[\s_-]/g, '')
-  return BUSINESSES.some(b =>
-    b.id === lower ||
-    b.name.toLowerCase().replace(/[\s_-]/g, '') === lower ||
-    b.domain.replace(/\./g, '') === lower.replace(/\./g, ''),
-  )
+  return getBusinessByName(name) !== undefined
 }
 
 export function isNotOurBusiness(name: string): boolean {

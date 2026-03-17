@@ -3,7 +3,6 @@
 import { NextResponse } from 'next/server'
 import { cheapskipSupabase } from '@/lib/cheapskip-supabase'
 import { queueSmsChecked } from '@/lib/brain/brain-sms'
-import { trackLead } from '@/lib/brain/lead-tracker'
 
 export const dynamic = 'force-dynamic'
 
@@ -24,7 +23,7 @@ export async function POST(req: Request) {
   try {
     const body = (await req.json()) as BookingPayload
 
-    const { customer_name, phone, address, postcode, bin_size, pickup_date, provider_id, provider_phone, source } = body
+    const { customer_name, phone, address, postcode, bin_size, pickup_date, provider_id, provider_phone } = body
 
     if (!customer_name || !phone || !address || !bin_size || !pickup_date || !provider_id) {
       return NextResponse.json({ error: 'Missing required fields' }, { status: 400 })
@@ -53,11 +52,6 @@ export async function POST(req: Request) {
       console.error('[send-booking] Failed to insert lead:', leadErr)
       return NextResponse.json({ error: 'Failed to save booking', detail: leadErr.message }, { status: 500 })
     }
-
-    // Track lead for analytics (non-blocking — don't fail the booking if tracking fails)
-    trackLead(provider_id, source || 'direct', lead?.id?.toString()).catch(err =>
-      console.error('[send-booking] Lead tracking error:', err)
-    )
 
     // SMS the provider if we have their phone number
     let smsResult = { queued: false, message: 'No provider phone number' }

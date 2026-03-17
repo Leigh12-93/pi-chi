@@ -26,7 +26,7 @@ import { ensureClaudeCodeMaxOAuth, runClaudeCodePrompt } from '../lib/brain/clau
 import { loadCustomTools, resetHttpRequestCounter } from '../lib/brain/brain-tools'
 import { enterStandbyDisplay, resumeDashboardDisplay } from '../lib/brain/display-mode'
 import { BUSINESSES, NOT_OUR_BUSINESSES, LEAD_PRICE_AUD, getPricingStatement } from '../lib/brain/business-rules'
-import { getRevenueSnapshotString } from '../lib/brain/lead-tracker'
+import { getLeadSummary } from '../lib/brain/lead-tracker'
 import { getPendingCount } from '../lib/brain/escalation'
 import { executeCommand } from '../lib/tools/terminal-tools'
 import { randomUUID } from 'node:crypto'
@@ -889,7 +889,7 @@ async function brainCycle(): Promise<void> {
     // Lead stats (real metrics from CheapSkip Supabase)
     let leadStats = ''
     try {
-      leadStats = await getRevenueSnapshotString()
+      leadStats = await getLeadSummary()
     } catch { leadStats = 'CheapSkip lead tracking: unavailable' }
 
     // Mission lock enforcement

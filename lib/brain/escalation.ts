@@ -1,22 +1,23 @@
-/* ─── Pi-Chi Escalation System ────────────────────────────────
- * Some actions are too risky for Pi-Chi to take autonomously.
- * This module classifies actions and blocks/defers high-risk ones.
+/* ─── Pi-Chi Decision Escalation System ───────────────────────
+ * Classifies actions into safe / review / blocked categories.
+ * High-risk actions are blocked or queued for owner approval.
  * ─────────────────────────────────────────────────────────── */
 
 import { existsSync, readFileSync, writeFileSync, mkdirSync } from 'node:fs'
 import { join } from 'node:path'
 import { homedir } from 'node:os'
 import { randomUUID } from 'node:crypto'
-import { isNotOurBusiness } from './business-rules'
 
 const PENDING_FILE = join(homedir(), '.pi-chi', 'pending-approvals.json')
 
-export type ActionLevel = 'safe' | 'review' | 'blocked'
+export type Category = 'safe' | 'review' | 'blocked'
 
 export interface EscalationResult {
   proceed: boolean
-  level: ActionLevel
-  reason: string
+  reason?: string
+  category: Category
+  /** @deprecated use category */
+  level: Category
   approvalId?: string
 }
 
@@ -24,48 +25,74 @@ export interface PendingApproval {
   id: string
   action: string
   details: string
-  level: ActionLevel
+  level: Category
   createdAt: string
   status: 'pending' | 'approved' | 'denied'
   resolvedAt?: string
 }
 
-/** Classify an action and determine if it needs escalation */
-export function checkEscalation(action: string, details: string): EscalationResult {
-  const lowerAction = action.toLowerCase()
-  const lowerDetails = details.toLowerCase()
+// ── Keyword lists ────────────────────────────────────────────
 
-  // ── BLOCKED: Hard-stop actions ────────────────────────────
-  if (isNotOurBusiness(details)) {
-    return { proceed: false, level: 'blocked', reason: `Action targets a business we don't own: ${details}` }
-  }
-  if (lowerAction.includes('bulk') && (lowerAction.includes('sms') || lowerAction.includes('outreach'))) {
-    return { proceed: false, level: 'blocked', reason: 'Bulk SMS/outreach is blocked. Use targeted sends.' }
-  }
-  if (lowerAction.includes('delete') && (lowerDetails.includes('database') || lowerDetails.includes('supabase') || lowerDetails.includes('table'))) {
-    return { proceed: false, level: 'blocked', reason: 'Database deletions require owner approval.' }
-  }
+const SAFE_KEYWORDS = ['read', 'health', 'check', 'status', 'build', 'type-check', 'lint']
 
-  // ── REVIEW: Needs owner approval before proceeding ────────
-  if (lowerAction.includes('outreach') || lowerAction.includes('contact provider')) {
-    const approval = writePendingApproval(action, details, 'review')
-    return { proceed: false, level: 'review', reason: 'Provider outreach requires owner approval.', approvalId: approval.id }
-  }
-  if (lowerAction.includes('pricing') && (lowerAction.includes('change') || lowerAction.includes('update'))) {
-    const approval = writePendingApproval(action, details, 'review')
-    return { proceed: false, level: 'review', reason: 'Pricing changes require owner approval.', approvalId: approval.id }
-  }
-  if (lowerAction.includes('evolve_prompt') || lowerAction.includes('prompt change')) {
-    const approval = writePendingApproval(action, details, 'review')
-    return { proceed: false, level: 'review', reason: 'Prompt evolution requires owner approval.', approvalId: approval.id }
-  }
+const REVIEW_KEYWORDS = ['outreach', 'sms', 'pricing', 'deploy', 'evolve_prompt', 'create_tool']
 
-  // ── SAFE: Proceed without approval ────────────────────────
-  return { proceed: true, level: 'safe', reason: 'Action is safe to proceed.' }
+const BLOCKED_KEYWORDS = [
+  'binhire', 'adelaide-wheelie', 'awb', 'navigate-your-ship',
+  'bulk', 'delete_all', 'drop',
+]
+
+// ── Classification ───────────────────────────────────────────
+
+function classify(action: string, details: string): Category {
+  const text = `${action} ${details}`.toLowerCase()
+
+  // Blocked checks first — highest priority
+  if (BLOCKED_KEYWORDS.some(kw => text.includes(kw))) return 'blocked'
+
+  // Review checks
+  if (REVIEW_KEYWORDS.some(kw => text.includes(kw))) return 'review'
+
+  // Safe checks
+  if (SAFE_KEYWORDS.some(kw => text.includes(kw))) return 'safe'
+
+  // Unknown actions default to review (safe-by-default is dangerous)
+  return 'review'
 }
 
-/** Write a pending approval to disk for the dashboard to show */
-function writePendingApproval(action: string, details: string, level: ActionLevel): PendingApproval {
+// ── Main entry point ─────────────────────────────────────────
+
+export function checkEscalation(action: string, details: string): EscalationResult {
+  const category = classify(action, details)
+
+  switch (category) {
+    case 'safe':
+      return { proceed: true, category, level: category, reason: 'Action is safe to proceed.' }
+
+    case 'review': {
+      const approval = writePendingApproval(action, details, 'review')
+      return {
+        proceed: false,
+        category,
+        level: category,
+        reason: `Action "${action}" requires owner approval. Written to pending-approvals.json.`,
+        approvalId: approval.id,
+      }
+    }
+
+    case 'blocked':
+      return {
+        proceed: false,
+        category,
+        level: category,
+        reason: `Action "${action}" is blocked. Pi-Chi must not touch other businesses or perform destructive bulk operations.`,
+      }
+  }
+}
+
+// ── Pending approval persistence ─────────────────────────────
+
+function writePendingApproval(action: string, details: string, level: Category): PendingApproval {
   const approval: PendingApproval = {
     id: randomUUID(),
     action,
@@ -77,7 +104,6 @@ function writePendingApproval(action: string, details: string, level: ActionLeve
 
   const approvals = loadPendingApprovals()
   approvals.push(approval)
-  // Keep last 50 approvals
   const trimmed = approvals.slice(-50)
   try {
     mkdirSync(join(homedir(), '.pi-chi'), { recursive: true })
@@ -87,7 +113,6 @@ function writePendingApproval(action: string, details: string, level: ActionLeve
   return approval
 }
 
-/** Load all pending approvals from disk */
 export function loadPendingApprovals(): PendingApproval[] {
   try {
     if (!existsSync(PENDING_FILE)) return []
@@ -97,7 +122,6 @@ export function loadPendingApprovals(): PendingApproval[] {
   }
 }
 
-/** Resolve a pending approval (approve or deny). Returns the approval if found, null otherwise. */
 export function resolveApproval(approvalId: string, decision: 'approved' | 'denied'): PendingApproval | null {
   const approvals = loadPendingApprovals()
   const idx = approvals.findIndex(a => a.id === approvalId)
@@ -113,7 +137,6 @@ export function resolveApproval(approvalId: string, decision: 'approved' | 'deni
   }
 }
 
-/** Get count of unresolved pending approvals */
 export function getPendingCount(): number {
   return loadPendingApprovals().filter(a => a.status === 'pending').length
 }

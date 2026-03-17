@@ -2,7 +2,7 @@
 
 import { NextResponse } from 'next/server'
 import { readSnapshots } from '@/lib/brain/analytics'
-import { getLeadStats, getProviderPerformance } from '@/lib/brain/lead-tracker'
+import { getLeadStats, getProviderCount } from '@/lib/brain/lead-tracker'
 import { LEAD_PRICE_AUD } from '@/lib/brain/business-rules'
 
 export const dynamic = 'force-dynamic'
@@ -15,18 +15,17 @@ export async function GET(req: Request) {
     if (type === 'leads') {
       const [stats, providers] = await Promise.all([
         getLeadStats(),
-        getProviderPerformance(),
+        getProviderCount(),
       ])
       return NextResponse.json({
         leads: stats,
         providers,
         pricePerLead: LEAD_PRICE_AUD,
-        revenue: stats ? {
+        revenue: {
           today: stats.today * LEAD_PRICE_AUD,
           thisWeek: stats.thisWeek * LEAD_PRICE_AUD,
           thisMonth: stats.thisMonth * LEAD_PRICE_AUD,
-          total: stats.total * LEAD_PRICE_AUD,
-        } : null,
+        },
       }, {
         headers: { 'Cache-Control': 'no-store, max-age=0' },
       })

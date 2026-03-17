@@ -1,173 +1,139 @@
 /* ─── Pi-Chi Lead Tracker — CheapSkip Revenue Analytics ───────
- * Tracks leads, revenue, and provider performance against
- * CheapSkip Supabase quote_requests table.
+ * Tracks leads, revenue, and provider stats for CheapSkipBinsNearMe
+ * via direct PostgREST fetch to CheapSkip's Supabase project.
+ *
+ * CheapSkip Supabase: pocoystpkrdmobplazhd
  * ─────────────────────────────────────────────────────────── */
 
 import { LEAD_PRICE_AUD } from './business-rules'
 
-// Dynamic import to avoid build-time env issues on Pi
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-let _supabase: any = null
+// ── Config ───────────────────────────────────────────────────
 
-async function getSupabase() {
-  if (_supabase) return _supabase
-  try {
-    const { cheapskipSupabase } = await import('@/lib/cheapskip-supabase')
-    _supabase = cheapskipSupabase
-    return _supabase
-  } catch {
-    return null
-  }
+const CHEAPSKIP_SUPABASE_URL = 'https://pocoystpkrdmobplazhd.supabase.co'
+
+function getServiceRoleKey(): string | null {
+  const key =
+    process.env.CHEAPSKIP_SERVICE_ROLE_KEY ||
+    process.env.SUPABASE_SERVICE_ROLE_KEY ||
+    null
+  return key?.trim() ?? null
 }
+
+// ── PostgREST helper ─────────────────────────────────────────
+
+async function cheapskipFetch(table: string, params?: string): Promise<Response> {
+  const key = getServiceRoleKey()
+  if (!key) throw new Error('CheapSkip service role key not configured')
+
+  const url = `${CHEAPSKIP_SUPABASE_URL}/rest/v1/${table}${params ? `?${params}` : ''}`
+  return fetch(url, {
+    headers: {
+      apikey: key,
+      Authorization: `Bearer ${key}`,
+      'Content-Type': 'application/json',
+      Prefer: 'count=exact',
+    },
+  })
+}
+
+// ── Types ────────────────────────────────────────────────────
 
 export interface LeadStats {
   today: number
   thisWeek: number
   thisMonth: number
+}
+
+export interface ProviderCount {
   total: number
-  revenueToday: number
-  revenueThisWeek: number
-  revenueThisMonth: number
-  revenueTotal: number
+  active: number
 }
 
-export interface ProviderStats {
-  providerId: string
-  providerName: string
-  totalLeads: number
-  respondedLeads: number
-  responseRate: number
-  revenue: number
+export interface RevenueSnapshot {
+  today: number
+  thisWeek: number
+  thisMonth: number
 }
 
-/** Track a new lead (call after inserting into Supabase) */
-export async function trackLead(
-  _providerId: string,
-  source: string,
-  leadId?: string,
-): Promise<{ success: boolean; error?: string }> {
-  const supabase = await getSupabase()
-  if (!supabase) return { success: false, error: 'CheapSkip Supabase not configured' }
+// ── Date helpers ─────────────────────────────────────────────
 
-  try {
-    // Update the lead's source if we have a leadId
-    if (leadId) {
-      await supabase
-        .from('quote_requests')
-        .update({ source })
-        .eq('id', leadId)
-    }
-    return { success: true }
-  } catch (err) {
-    return { success: false, error: err instanceof Error ? err.message : String(err) }
+function todayISO(): string {
+  return new Date().toISOString().slice(0, 10)
+}
+
+function daysAgoISO(days: number): string {
+  return new Date(Date.now() - days * 86_400_000).toISOString()
+}
+
+// ── Exported functions ───────────────────────────────────────
+
+/** Count of quote_requests: today / this week (7d) / this month (30d) */
+export async function getLeadStats(): Promise<LeadStats> {
+  const today = todayISO()
+  const weekAgo = daysAgoISO(7)
+  const monthAgo = daysAgoISO(30)
+
+  const [rToday, rWeek, rMonth] = await Promise.all([
+    cheapskipFetch('quote_requests', `select=id&created_at=gte.${today}`),
+    cheapskipFetch('quote_requests', `select=id&created_at=gte.${weekAgo}`),
+    cheapskipFetch('quote_requests', `select=id&created_at=gte.${monthAgo}`),
+  ])
+
+  const countFrom = (r: Response) => {
+    const range = r.headers.get('content-range') // e.g. "0-4/5" or "*/0"
+    if (!range) return 0
+    const total = range.split('/')[1]
+    return total === '*' ? 0 : parseInt(total, 10) || 0
+  }
+
+  return {
+    today: countFrom(rToday),
+    thisWeek: countFrom(rWeek),
+    thisMonth: countFrom(rMonth),
   }
 }
 
-/** Get lead stats for dashboard and brain context */
-export async function getLeadStats(): Promise<LeadStats | null> {
-  const supabase = await getSupabase()
-  if (!supabase) return null
+/** Total and active (published=true) skip providers */
+export async function getProviderCount(): Promise<ProviderCount> {
+  const [rTotal, rActive] = await Promise.all([
+    cheapskipFetch('skip_providers', 'select=id'),
+    cheapskipFetch('skip_providers', 'select=id&published=eq.true'),
+  ])
 
-  try {
-    const now = new Date()
-    const todayStr = now.toISOString().slice(0, 10)
-    const weekAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000).toISOString()
-    const monthAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000).toISOString()
+  const countFrom = (r: Response) => {
+    const range = r.headers.get('content-range')
+    if (!range) return 0
+    const total = range.split('/')[1]
+    return total === '*' ? 0 : parseInt(total, 10) || 0
+  }
 
-    // Total count
-    const { count: total } = await supabase
-      .from('quote_requests')
-      .select('*', { count: 'exact', head: true })
-
-    // Today
-    const { count: today } = await supabase
-      .from('quote_requests')
-      .select('*', { count: 'exact', head: true })
-      .gte('created_at', todayStr)
-
-    // This week
-    const { count: thisWeek } = await supabase
-      .from('quote_requests')
-      .select('*', { count: 'exact', head: true })
-      .gte('created_at', weekAgo)
-
-    // This month
-    const { count: thisMonth } = await supabase
-      .from('quote_requests')
-      .select('*', { count: 'exact', head: true })
-      .gte('created_at', monthAgo)
-
-    const t = total ?? 0
-    const d = today ?? 0
-    const w = thisWeek ?? 0
-    const m = thisMonth ?? 0
-
-    return {
-      today: d,
-      thisWeek: w,
-      thisMonth: m,
-      total: t,
-      revenueToday: d * LEAD_PRICE_AUD,
-      revenueThisWeek: w * LEAD_PRICE_AUD,
-      revenueThisMonth: m * LEAD_PRICE_AUD,
-      revenueTotal: t * LEAD_PRICE_AUD,
-    }
-  } catch (err) {
-    console.error('[lead-tracker] Failed to get lead stats:', err)
-    return null
+  return {
+    total: countFrom(rTotal),
+    active: countFrom(rActive),
   }
 }
 
-/** Get provider-level performance */
-export async function getProviderPerformance(): Promise<ProviderStats[]> {
-  const supabase = await getSupabase()
-  if (!supabase) return []
-
-  try {
-    // Get all providers
-    const { data: providers } = await supabase
-      .from('providers')
-      .select('id, business_name')
-
-    if (!providers || providers.length === 0) return []
-
-    const stats: ProviderStats[] = []
-    for (const provider of providers.slice(0, 20)) { // Cap at 20 to avoid excessive queries
-      const { count: totalLeads } = await supabase
-        .from('quote_requests')
-        .select('*', { count: 'exact', head: true })
-        .eq('provider_id', provider.id)
-
-      const { count: respondedLeads } = await supabase
-        .from('quote_requests')
-        .select('*', { count: 'exact', head: true })
-        .eq('provider_id', provider.id)
-        .eq('status', 'responded')
-
-      const t = totalLeads ?? 0
-      const r = respondedLeads ?? 0
-
-      stats.push({
-        providerId: provider.id,
-        providerName: provider.business_name || 'Unknown',
-        totalLeads: t,
-        respondedLeads: r,
-        responseRate: t > 0 ? Math.round((r / t) * 100) : 0,
-        revenue: t * LEAD_PRICE_AUD,
-      })
-    }
-
-    return stats.sort((a, b) => b.totalLeads - a.totalLeads)
-  } catch (err) {
-    console.error('[lead-tracker] Failed to get provider performance:', err)
-    return []
-  }
-}
-
-/** Get a revenue snapshot string for brain cycle context */
-export async function getRevenueSnapshotString(): Promise<string> {
+/** Revenue estimate: leads * $2 AUD, grouped by period */
+export async function getRevenueSnapshot(): Promise<RevenueSnapshot> {
   const stats = await getLeadStats()
-  if (!stats) return 'Lead tracking unavailable (CheapSkip Supabase not configured)'
+  return {
+    today: stats.today * LEAD_PRICE_AUD,
+    thisWeek: stats.thisWeek * LEAD_PRICE_AUD,
+    thisMonth: stats.thisMonth * LEAD_PRICE_AUD,
+  }
+}
 
-  return `Leads today: ${stats.today} ($${stats.revenueToday}) | This week: ${stats.thisWeek} ($${stats.revenueThisWeek}) | This month: ${stats.thisMonth} ($${stats.revenueThisMonth}) | Total: ${stats.total} ($${stats.revenueTotal})`
+/** Single-line summary string for brain context / dashboard */
+export async function getLeadSummary(): Promise<string> {
+  try {
+    const [stats, providers] = await Promise.all([
+      getLeadStats(),
+      getProviderCount(),
+    ])
+    const rev = stats.thisMonth * LEAD_PRICE_AUD
+    return `Leads: ${stats.today} today / ${stats.thisWeek} week / ${stats.thisMonth} month | Revenue: $${rev} | Providers: ${providers.active} active`
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err)
+    return `Lead tracking unavailable: ${msg}`
+  }
 }
