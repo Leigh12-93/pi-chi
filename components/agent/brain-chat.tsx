@@ -782,7 +782,12 @@ export function BrainChat({
     items.sort((a, b) => {
       const aTs = a.type === 'message' ? a.message.timestamp : a.timestamp
       const bTs = b.type === 'message' ? b.message.timestamp : b.timestamp
-      return new Date(aTs).getTime() - new Date(bTs).getTime()
+      const aTime = aTs ? new Date(aTs).getTime() : 0
+      const bTime = bTs ? new Date(bTs).getTime() : 0
+      // NaN-safe: push items with invalid timestamps to the end
+      if (Number.isNaN(aTime)) return 1
+      if (Number.isNaN(bTime)) return -1
+      return aTime - bTime
     })
 
     const withDates: TimelineItem[] = []

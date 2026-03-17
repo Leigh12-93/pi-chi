@@ -107,14 +107,14 @@ interface BrainDeltaResponse {
     type: string
     message: string
   } | null
-  latestChat: {
+  recentChat: Array<{
     id: string
     from: 'owner' | 'brain'
     message: string
     timestamp: string
     read: boolean
     clientMessageId?: string
-  } | null
+  }>
   currentMission: Mission | null
   currentCycle: WorkCycle | null
   recentCycles: WorkCycle[]
@@ -543,21 +543,27 @@ export function useAgentState(): UseAgentStateReturn {
       })
     }
 
-    if (delta.latestChat && delta.latestChat.id !== lastChatIdRef.current) {
-      lastChatIdRef.current = delta.latestChat.id
-      setChatMessages(prev => {
-        const nextMessage: BrainChatMessage = {
-          id: delta.latestChat!.id,
-          from: delta.latestChat!.from,
-          message: delta.latestChat!.message,
-          timestamp: delta.latestChat!.timestamp,
-          read: delta.latestChat!.read,
-          clientMessageId: delta.latestChat!.clientMessageId,
-        }
-        const withoutExisting = prev.filter(message => message.id !== nextMessage.id)
-        const next = [...withoutExisting, nextMessage]
-        return next.length > 100 ? next.slice(-100) : next
-      })
+    if (delta.recentChat.length > 0) {
+      const latestId = delta.recentChat.at(-1)!.id
+      if (latestId !== lastChatIdRef.current) {
+        lastChatIdRef.current = latestId
+        setChatMessages(prev => {
+          const existingIds = new Set(prev.map(m => m.id))
+          const newMessages: BrainChatMessage[] = delta.recentChat
+            .filter(m => !existingIds.has(m.id))
+            .map(m => ({
+              id: m.id,
+              from: m.from,
+              message: m.message,
+              timestamp: m.timestamp,
+              read: m.read,
+              clientMessageId: m.clientMessageId,
+            }))
+          if (newMessages.length === 0) return prev
+          const next = [...prev, ...newMessages]
+          return next.length > 100 ? next.slice(-100) : next
+        })
+      }
     }
 
     activityCountRef.current = delta.counts.activity

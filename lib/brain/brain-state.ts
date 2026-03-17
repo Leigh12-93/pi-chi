@@ -19,7 +19,7 @@ const STATE_LOCK = join(STATE_DIR, 'brain-state.lock')
 const ARCHIVE_FILE = join(STATE_DIR, 'activity-archive.jsonl')
 const CHAT_ARCHIVE_FILE = join(STATE_DIR, 'chat-archive.jsonl')
 
-const MAX_ACTIVITY_ENTRIES = 500
+const MAX_ACTIVITY_ENTRIES = 200
 const MAX_MEMORIES = 200
 const MAX_GROWTH_LOG = 500
 const MAX_CHAT_MESSAGES = 100
@@ -639,4 +639,64 @@ export function addActivity(state: BrainState, type: BrainActivityEntry['type'],
 
 export function generateId(): string {
   return randomUUID()
+}
+
+// ── State Validation ──────────────────────────────────────────────
+
+export function validateBrainState(state: unknown): { valid: boolean; issues: string[] } {
+  const issues: string[] = []
+
+  if (!state || typeof state !== 'object') {
+    return { valid: false, issues: ['State is not an object'] }
+  }
+
+  const s = state as Record<string, unknown>
+
+  // Required fields
+  if (typeof s.totalThoughts !== 'number') issues.push('totalThoughts is not a number')
+  if (typeof s.totalToolCalls !== 'number') issues.push('totalToolCalls is not a number')
+  if (!Array.isArray(s.goals)) issues.push('goals is not an array')
+  if (!Array.isArray(s.memories)) issues.push('memories is not an array')
+  if (!Array.isArray(s.activityLog)) issues.push('activityLog is not an array')
+  if (!s.mood || typeof s.mood !== 'object') issues.push('mood is missing or not an object')
+  if (typeof s.wakeIntervalMs !== 'number') issues.push('wakeIntervalMs is not a number')
+
+  // Sanity checks
+  if (typeof s.totalThoughts === 'number' && s.totalThoughts < 0) issues.push('totalThoughts is negative')
+  if (typeof s.wakeIntervalMs === 'number' && (s.wakeIntervalMs < 60000 || s.wakeIntervalMs > 3600000)) {
+    issues.push(`wakeIntervalMs out of range: ${s.wakeIntervalMs}`)
+  }
+
+  // Array size sanity
+  if (Array.isArray(s.goals) && s.goals.length > 500) issues.push(`goals array suspiciously large: ${s.goals.length}`)
+  if (Array.isArray(s.memories) && s.memories.length > 1000) issues.push(`memories array suspiciously large: ${s.memories.length}`)
+
+  return { valid: issues.length === 0, issues }
+}
+
+export function repairBrainState(state: Record<string, unknown>): BrainState {
+  const defaults = createInitialState()
+
+  // Fix null/undefined arrays
+  if (!Array.isArray(state.goals)) state.goals = defaults.goals
+  if (!Array.isArray(state.memories)) state.memories = defaults.memories
+  if (!Array.isArray(state.activityLog)) state.activityLog = defaults.activityLog
+  if (!Array.isArray(state.growthLog)) state.growthLog = defaults.growthLog
+  if (!Array.isArray(state.chatMessages)) state.chatMessages = defaults.chatMessages
+  if (!Array.isArray(state.threads)) state.threads = defaults.threads
+
+  // Fix null/undefined numbers
+  if (typeof state.totalThoughts !== 'number' || state.totalThoughts < 0) state.totalThoughts = 0
+  if (typeof state.totalToolCalls !== 'number') state.totalToolCalls = 0
+  if (typeof state.totalApiCost !== 'number') state.totalApiCost = 0
+  if (typeof state.wakeIntervalMs !== 'number' || state.wakeIntervalMs < 60000) {
+    state.wakeIntervalMs = defaults.wakeIntervalMs
+  }
+
+  // Fix mood
+  if (!state.mood || typeof state.mood !== 'object') {
+    state.mood = defaults.mood
+  }
+
+  return state as unknown as BrainState
 }

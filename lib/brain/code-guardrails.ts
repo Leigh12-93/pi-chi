@@ -23,6 +23,13 @@ const PROTECTED_FILES = [
   'package.json',
 ]
 
+// ── Protected directories — NEVER delete or build into on Pi ───
+
+const PROTECTED_DIRS = [
+  '.next',       // Build output — brain must NEVER touch this. Pi can't rebuild (2GB RAM).
+  'node_modules', // Dependencies — don't wipe without reinstall plan
+]
+
 // ── Type check before commit ────────────────────────────────────
 
 export function runTypeCheck(): { passed: boolean; errors?: string } {
@@ -64,6 +71,23 @@ export function isBuildCommand(command: string): boolean {
     lower.includes('next build') ||
     (lower.includes('npm') && lower.includes('build') && !lower.includes('--no-build'))
   )
+}
+
+// ── Check if command touches protected directories ────────────
+
+export function touchesProtectedDir(command: string): { blocked: boolean; dir?: string } {
+  const lower = command.toLowerCase().trim()
+  for (const dir of PROTECTED_DIRS) {
+    // Block rm -rf .next, rm -rf node_modules, etc.
+    if (lower.includes(`rm `) && lower.includes(dir)) {
+      return { blocked: true, dir }
+    }
+    // Block direct deletion patterns
+    if (lower.includes(`rm -rf ${dir}`) || lower.includes(`rm -r ${dir}`)) {
+      return { blocked: true, dir }
+    }
+  }
+  return { blocked: false }
 }
 
 // ── Self-audit ──────────────────────────────────────────────────

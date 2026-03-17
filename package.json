@@ -13,12 +13,14 @@
     "analyze": "ANALYZE=true next build",
     "prepare": "husky",
     "brain": "tsx scripts/pi-brain.ts",
-    "brain:dev": "tsx watch scripts/pi-brain.ts"
+    "brain:dev": "tsx watch scripts/pi-brain.ts",
+    "deploy": "bash scripts/deploy.sh"
   },
   "dependencies": {
     "@ai-sdk/anthropic": "^3.0.0",
     "@ai-sdk/react": "^3.0.0",
     "@monaco-editor/react": "^4.7.0",
+    "@serialport/parser-readline": "^13.0.0",
     "@supabase/supabase-js": "^2.97.0",
     "@webcontainer/api": "^1.6.1",
     "@xterm/addon-fit": "^0.11.0",
@@ -33,9 +35,11 @@
     "lucide-react": "^0.511.0",
     "monaco-editor": "^0.55.0",
     "next": "^15.3.3",
+    "pg": "^8.18.0",
     "react": "^19.1.0",
     "react-dom": "^19.1.0",
     "react-resizable-panels": "^3.0.2",
+    "serialport": "^13.0.0",
     "sonner": "^2.0.3",
     "tailwind-merge": "^3.3.0",
     "v0-sdk": "^0.16.2",

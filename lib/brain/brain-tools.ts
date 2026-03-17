@@ -10,6 +10,9 @@ import { ensureClaudeCodeMaxOAuth, runClaudeCodePrompt } from './claude-code'
 import { enterStandbyDisplay, resumeDashboardDisplay } from './display-mode'
 import { sendSms } from './brain-sms'
 import { addActivity, saveBrainState } from './brain-state'
+import { isNotOurBusiness } from './business-rules'
+import { checkEscalation } from './escalation'
+import { isBuildCommand, touchesProtectedDir } from './code-guardrails'
 import type { BrainState, BrainGoal, ProjectManifest, ProjectOutput, BrainSchedule, FailureRecord, OperationalConstraint, AntiPattern, CycleJournal } from './brain-types'
 import type { Opportunity, StretchGoal } from './domain-types'
 
@@ -48,6 +51,20 @@ export function createBrainTools(state: BrainState) {
         if (blocked) {
           addActivity(state, 'error', `Blocked command: ${command.slice(0, 80)}`)
           return { success: false, error: blocked }
+        }
+
+        // Block build commands on Pi — builds happen on Windows/Vercel
+        if (isBuildCommand(command)) {
+          addActivity(state, 'error', `Build blocked: Pi cannot run builds (not enough RAM). Push to git and let Vercel build.`)
+          return { success: false, error: 'Build commands are blocked on Pi. Push changes to git — Vercel will build automatically.' }
+        }
+
+        // Block operations on protected directories (.next/, node_modules/)
+        const dirCheck = touchesProtectedDir(command)
+        if (dirCheck.blocked) {
+          const reason = `Cannot delete ${dirCheck.dir}/ — this is a protected directory`
+          addActivity(state, 'error', `Protected dir operation blocked: ${reason}`)
+          return { success: false, error: reason }
         }
 
         state.totalToolCalls++
@@ -154,17 +171,19 @@ export function createBrainTools(state: BrainState) {
     }),
 
     set_goal: tool({
-      description: 'Create a new goal or update an existing one. Goals drive your autonomous behavior. Always specify a horizon: short (this week), medium (this month), long (this quarter+).',
+      description: 'Create a new goal or update an existing one. Goals drive your autonomous behavior. Always specify a horizon: short (this week), medium (this month), long (this quarter+). REQUIRED: successMetric (how you know it is done) and verificationMethod (how to check).',
       inputSchema: z.object({
         title: z.string().describe('Goal title'),
         priority: z.enum(['high', 'medium', 'low']).default('medium'),
         horizon: z.enum(['short', 'medium', 'long']).default('medium').describe('Time horizon: short=this week, medium=this month, long=this quarter+'),
         reasoning: z.string().describe('Why are you setting this goal?'),
+        successMetric: z.string().describe('Measurable acceptance criteria, e.g. "3 providers respond" or "10 organic leads captured"'),
+        verificationMethod: z.string().describe('How to programmatically verify, e.g. "check quote_requests table count" or "curl the URL and check status 200"'),
         tasks: z.array(z.string()).optional().describe('Subtask titles'),
         existingGoalId: z.string().optional().describe('If updating an existing goal, provide its ID'),
         dependsOn: z.array(z.string()).optional().describe('IDs of goals that must complete before this one can start'),
       }),
-      execute: async ({ title, priority, horizon, reasoning, tasks, existingGoalId, dependsOn }) => {
+      execute: async ({ title, priority, horizon, reasoning, successMetric, verificationMethod, tasks, existingGoalId, dependsOn }) => {
         state.totalToolCalls++
 
         if (existingGoalId) {
@@ -187,6 +206,8 @@ export function createBrainTools(state: BrainState) {
           priority,
           horizon,
           reasoning,
+          successMetric,
+          verificationMethod,
           tasks: (tasks || []).map(t => ({
             id: randomUUID(),
             title: t,
@@ -440,6 +461,14 @@ export function createBrainTools(state: BrainState) {
       }),
       execute: async ({ addition, reasoning, mode, replaceMatch }) => {
         state.totalToolCalls++
+
+        // Escalation check — prompt changes are high-risk
+        const escalation = checkEscalation('evolve_prompt', `${reasoning}: ${addition.slice(0, 100)}`)
+        if (!escalation.proceed) {
+          addActivity(state, 'system', `Prompt evolution blocked: ${escalation.reason}`)
+          return { success: false, error: escalation.reason, approvalId: escalation.approvalId }
+        }
+
         const MAX_PROMPT_OVERRIDES = 10000
 
         if (mode === 'replace' && replaceMatch) {
@@ -792,6 +821,16 @@ export function createBrainTools(state: BrainState) {
         if (++_httpRequestCount > MAX_HTTP_REQUESTS_PER_CYCLE) {
           return { success: false, error: `Rate limit: max ${MAX_HTTP_REQUESTS_PER_CYCLE} HTTP requests per cycle` }
         }
+
+        // Block requests to businesses we don't own
+        try {
+          const hostname = new URL(url).hostname
+          if (isNotOurBusiness(hostname)) {
+            addActivity(state, 'error', `HTTP blocked: ${hostname} is not our business`)
+            return { success: false, error: `Blocked: ${hostname} is not a business we own. Check business-rules.ts.` }
+          }
+        } catch { /* invalid URL — will fail naturally below */ }
+
         state.totalToolCalls++
         addActivity(state, 'action', `HTTP ${method}: ${url.slice(0, 80)}`)
 
@@ -1620,10 +1659,18 @@ export function loadCustomTools(state: BrainState): Record<string, any> {
 
   if (!existsSync(toolsDir)) return customTools
 
+  const MAX_CUSTOM_TOOLS = 15
+
   try {
     const entries = readdirSync(toolsDir, { withFileTypes: true })
+    let toolCount = 0
+
     for (const entry of entries) {
       if (!entry.isDirectory()) continue
+      if (toolCount >= MAX_CUSTOM_TOOLS) {
+        console.warn(`[brain-tools] Max custom tools (${MAX_CUSTOM_TOOLS}) reached — skipping rest`)
+        break
+      }
       const manifestPath = join(toolsDir, entry.name, 'manifest.json')
       if (!existsSync(manifestPath)) continue
 
@@ -1653,6 +1700,14 @@ export function loadCustomTools(state: BrainState): Record<string, any> {
           continue // Name must be alphanumeric
         }
 
+        // Reject tools for businesses we don't own
+        if (isNotOurBusiness(manifest.name) || isNotOurBusiness(manifest.description || '')) {
+          console.warn(`[brain-tools] Rejected custom tool "${manifest.name}": references a business we don't own`)
+          addActivity(state, 'error', `Custom tool "${manifest.name}" rejected: references wrong business`)
+          continue
+        }
+
+        toolCount++
         customTools[`custom_${manifest.name}`] = tool({
           description: `[Custom Tool] ${manifest.description}`,
           inputSchema: z.object(schemaShape),

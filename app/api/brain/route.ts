@@ -8,6 +8,7 @@ import { randomUUID } from 'node:crypto'
 import { loadBrainState, saveBrainState, addActivity, getStatePath } from '@/lib/brain/brain-state'
 import { requireBrainAuth } from '@/lib/brain/brain-auth'
 import { readDisplayState } from '@/lib/brain/display-mode'
+import { loadPendingApprovals, resolveApproval } from '@/lib/brain/escalation'
 import { rateLimit } from '@/lib/rate-limit'
 
 export const dynamic = 'force-dynamic'
@@ -47,10 +48,18 @@ export async function GET(req: Request) {
       isAlive = Date.now() - lastWake < intervalMs * 3
     }
 
+    // Include pending approval count for dashboard badge
+    let pendingApprovalCount = 0
+    try {
+      const approvals = loadPendingApprovals()
+      pendingApprovalCount = approvals.filter(a => a.status === 'pending').length
+    } catch { /* non-critical */ }
+
     return NextResponse.json({
       status: isAlive ? 'running' : 'sleeping',
       state,
       displayMode: readDisplayState(),
+      pendingApprovalCount,
     }, {
       headers: { 'Cache-Control': 'no-store, max-age=0' },
     })
@@ -169,6 +178,27 @@ export async function POST(req: Request) {
       addActivity(state, 'system', `Owner deleted goal: ${removed[0].title}`)
       saveBrainState(state)
       return NextResponse.json({ ok: true, action: 'goal-deleted' })
+    }
+
+    if (type === 'approve-action') {
+      const approval = resolveApproval(data.approvalId, 'approved')
+      if (!approval) return NextResponse.json({ error: 'Approval not found' }, { status: 404 })
+      addActivity(state, 'system', `Owner approved action: ${approval.action} — ${approval.details.slice(0, 80)}`)
+      saveBrainState(state)
+      return NextResponse.json({ ok: true, action: 'action-approved', approval })
+    }
+
+    if (type === 'deny-action') {
+      const approval = resolveApproval(data.approvalId, 'denied')
+      if (!approval) return NextResponse.json({ error: 'Approval not found' }, { status: 404 })
+      addActivity(state, 'system', `Owner denied action: ${approval.action} — ${approval.details.slice(0, 80)}`)
+      saveBrainState(state)
+      return NextResponse.json({ ok: true, action: 'action-denied', approval })
+    }
+
+    if (type === 'get-pending-approvals') {
+      const approvals = loadPendingApprovals()
+      return NextResponse.json({ ok: true, approvals })
     }
 
     return NextResponse.json({ error: `Unknown type: ${type}` }, { status: 400 })

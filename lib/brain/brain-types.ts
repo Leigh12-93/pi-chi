@@ -155,6 +155,8 @@ export interface BrainGoal {
   horizon: 'short' | 'medium' | 'long'  // short=this week, medium=this month, long=this quarter+
   reasoning: string
   tasks: BrainTask[]
+  successMetric?: string   // Measurable acceptance criteria
+  verificationMethod?: string  // How to programmatically verify completion
   createdAt: string
   completedAt?: string
   dependsOn?: string[]  // IDs of goals that must complete first

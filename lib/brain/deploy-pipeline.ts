@@ -1,11 +1,15 @@
-/* ─── Pi-Chi Deploy Pipeline — Full Autonomous Build/Deploy/Fix ── */
+/* ─── Pi-Chi Deploy Pipeline — Commit + Push + Restart (NO BUILD)
+ *
+ * The Pi does NOT have enough RAM to build. Building happens on
+ * Windows via `npm run deploy` or Vercel auto-deploys from git push.
+ *
+ * This pipeline: detect changes → type-check → commit → push → restart.
+ * ─────────────────────────────────────────────────────────────── */
 
 import { executeCommand } from '@/lib/tools/terminal-tools'
 import { addActivity, getStateDir } from './brain-state'
-// No display-mode import — we freeze/thaw ALL services directly (including kiosk)
-import { fixTypeErrors, fixBuildErrors } from './deploy-fix'
-import { runHealthSweep, monitorRuntime, captureDeployVitals } from './deploy-health'
-import { rollback } from './deploy-rollback'
+import { fixTypeErrors } from './deploy-fix'
+import { captureDeployVitals } from './deploy-health'
 import { recordDeploy, checkBuildAnomaly } from './deploy-history'
 import { randomUUID } from 'node:crypto'
 import { existsSync, writeFileSync, unlinkSync } from 'node:fs'
@@ -14,96 +18,11 @@ import type { BrainState } from './brain-types'
 import type { DeployRecord, DeployConfig, PipelineStep, ChangeClass } from './deploy-types'
 import { DEFAULT_DEPLOY_CONFIG as defaultConfig } from './deploy-types'
 
-const sleep = (ms: number) => new Promise<void>(r => setTimeout(r, ms))
-
-// Services to stop/mask during builds — frees RAM and prevents auto-restart fighting
-const BUILD_SERVICES = [
-  'pi-chi-dashboard',
-  'pi-chi-kiosk',
-  'pi-chi-cec',
-  'pi-chi-mvp-monitor',
-]
-
-/** Cache dashboard state to disk so offline/build mode can show last-known data */
-async function cacheDashboardState(): Promise<void> {
-  try {
-    // Snapshot the brain state SSE endpoint before killing the server
-    const res = await executeCommand(
-      'curl -s --max-time 3 http://localhost:3333/api/brain 2>/dev/null',
-      { timeout: 5_000 },
-    )
-    if (res.stdout && res.stdout.trim().startsWith('{')) {
-      writeFileSync(join(getStateDir(), 'dashboard-cache.json'), res.stdout.trim(), 'utf-8')
-    }
-  } catch { /* non-critical — best effort cache */ }
-}
-
-/** Write a simple "building" status page to framebuffer console */
-async function showBuildBanner(message: string): Promise<void> {
-  // Write build status to a file the kiosk/standby can read on restart
-  try {
-    writeFileSync(join(getStateDir(), 'build-status.txt'), message, 'utf-8')
-  } catch { /* non-critical */ }
-  // Also write to Linux console (visible on HDMI when no GUI running)
-  await executeCommand(
-    `echo -e "\\033[2J\\033[H\\n\\n  Pi-Chi — ${message}\\n\\n  $(date)\\n" | sudo tee /dev/tty1 2>/dev/null`,
-    { timeout: 3_000 },
-  ).catch(() => {})
-}
-
-/** Mask + stop all services to free RAM and block systemd auto-restart */
-async function freezeServices(cwd: string): Promise<void> {
-  // Cache dashboard state before killing services
-  await cacheDashboardState()
-  // Show build banner on console
-  await showBuildBanner('Building...')
-  // Mask first — prevents Restart=always from re-spawning stopped services
-  await executeCommand(
-    `sudo systemctl mask ${BUILD_SERVICES.join(' ')}`,
-    { cwd, timeout: 10_000 },
-  ).catch(() => {})
-  // Then stop all services
-  for (const svc of BUILD_SERVICES) {
-    await executeCommand(`sudo systemctl stop ${svc}`, { timeout: 10_000 }).catch(() => {})
-  }
-  // Kill any orphaned node processes (leftover from crashed builds/services)
-  await executeCommand(
-    'pkill -f "next-server|next start" 2>/dev/null || true',
-    { timeout: 5_000 },
-  ).catch(() => {})
-  // Clean npm caches and temp files to free disk + RAM
-  await executeCommand('rm -rf /tmp/npm-* /tmp/next-* 2>/dev/null || true', { timeout: 5_000 }).catch(() => {})
-  // Drop filesystem caches + dentries + inodes
-  await executeCommand('sudo sh -c "sync && echo 3 > /proc/sys/vm/drop_caches"', { timeout: 5_000 }).catch(() => {})
-  // Wait for processes to fully exit and RAM to be released
-  await sleep(3000)
-  // Log available RAM before build
-  const mem = await executeCommand("free -m | awk '/Mem:/{print $4}'", { timeout: 3_000 }).catch(() => ({ stdout: '?' }))
-  console.log(`[deploy-pipeline] RAM available for build: ${(mem as { stdout: string }).stdout?.trim() || '?'}MB`)
-}
-
-/** Unmask + start all services after build completes */
-async function thawServices(cwd: string): Promise<void> {
-  // Unmask first — re-enables Restart=always
-  await executeCommand(
-    `sudo systemctl unmask ${BUILD_SERVICES.join(' ')}`,
-    { cwd, timeout: 10_000 },
-  ).catch(() => {})
-  // Start dashboard (primary) — others will be started by their own restart policies
-  await executeCommand('sudo systemctl start pi-chi-dashboard', { timeout: 15_000 }).catch(() => {})
-  await sleep(2000)
-  // Start remaining services
-  for (const svc of BUILD_SERVICES) {
-    if (svc !== 'pi-chi-dashboard') {
-      await executeCommand(`sudo systemctl start ${svc}`, { timeout: 10_000 }).catch(() => {})
-    }
-  }
-}
-
 // ── Main entry point ─────────────────────────────────────────────
 
 /**
- * Run the full deploy pipeline. Called after each brain cycle.
+ * Run the deploy pipeline. Called after each brain cycle.
+ * NO builds. Only: detect → type-check → commit → push → restart dashboard.
  * Returns null if no changes detected, or a DeployRecord with outcome.
  */
 export async function runDeployPipeline(
@@ -121,7 +40,7 @@ export async function runDeployPipeline(
   const record = createEmptyRecord(changedFiles.split('\n'))
   const lockPath = join(getStateDir(), 'deploy.lock')
 
-  // ── Step 2: Acquire deploy lock (before try block to avoid finally deleting another process's lock)
+  // ── Step 2: Acquire deploy lock
   if (existsSync(lockPath)) {
     addActivity(state, 'system', 'Deploy skipped: another deploy in progress')
     record.outcome = 'skipped'
@@ -146,24 +65,10 @@ export async function runDeployPipeline(
     record.changeClass = classifyChanges(record.changedFiles)
     console.log(`[deploy-pipeline] Changes classified as: ${record.changeClass} (${record.changedFiles.length} files)`)
 
-    // ── Step 5: Clean stale types ───────────────────────────────
+    // ── Step 5: Type check with auto-fix ────────────────────────
+    // Clean stale types first (safe — only removes type cache, not build output)
     await executeCommand('rm -rf .next/types', { cwd, timeout: 5000 }).catch(() => {})
 
-    // ── Step 6: Check for dependency changes ────────────────────
-    const hasDepChanges = record.changedFiles.some(f =>
-      f === 'package.json' || f === 'package-lock.json',
-    )
-    if (hasDepChanges) {
-      const depStep = await installDependencies(cwd)
-      record.steps.push(depStep)
-      if (depStep.outcome === 'fail') {
-        addActivity(state, 'error', 'Dependency install failed — reverting changes')
-        await executeCommand('git checkout -- .', { cwd, timeout: 5000 }).catch(() => {})
-        return finalize(record, 'reverted', state, config)
-      }
-    }
-
-    // ── Step 7: Type check with auto-fix ────────────────────────
     const typeResult = await runTypeCheckWithFix(state, config, cwd, record)
     record.steps.push(typeResult.step)
     record.typeCheckTimeMs = typeResult.step.durationMs
@@ -174,99 +79,33 @@ export async function runDeployPipeline(
       return finalize(record, 'reverted', state, config)
     }
 
-    // ── Step 8: Commit ──────────────────────────────────────────
+    // ── Step 6: Commit ──────────────────────────────────────────
     const commitStep = await commitChanges(cwd, record.changeClass)
     record.steps.push(commitStep)
 
-    // Always extract build_id from commit — commitChanges already does pre/post hash comparison
     const buildId = commitStep.detail && commitStep.detail !== 'no-hash' ? commitStep.detail : null
     record.commitHash = buildId
     if (!buildId) {
-      // Fallback: try one more dedicated hash extraction
       const fallbackHash = await executeCommand('git rev-parse HEAD', { cwd, timeout: 5000 })
       record.commitHash = (fallbackHash.stdout || '').trim().slice(0, 40) || null
-      if (!record.commitHash) {
-        console.log('[deploy-pipeline] WARNING: Could not extract build_id (commit hash)')
-        addActivity(state, 'error', 'Deploy: no build_id — commit may have failed silently')
-      }
     }
 
-    // ── Step 9: Build + deploy if dashboard/config changes ──────
-    const needsBuild = ['dashboard', 'config', 'mixed', 'style-only'].includes(record.changeClass)
-
-    if (needsBuild) {
-      addActivity(state, 'system', `Building locally (${record.changeClass} changes)...`)
-
-      // Freeze ALL services: mask (block Restart=always) + stop + kill orphans + drop caches
-      await freezeServices(cwd)
-
-      try {
-        // Backup current build
-        await showBuildBanner('Backing up current build...')
-        await executeCommand(
-          'test -d .next/standalone && cp -a .next/standalone .next/standalone.bak || true',
-          { cwd, timeout: 30_000 },
-        ).catch(() => {})
-
-        // Build with all services stopped — maximum RAM available
-        await showBuildBanner('Building Next.js (this takes a few minutes)...')
-        const buildStep = await runBuildWithFix(state, config, cwd, record)
-        record.steps.push(buildStep)
-        record.buildTimeMs = buildStep.durationMs
-
-        if (buildStep.outcome === 'fail') {
-          await showBuildBanner('Build FAILED — rolling back...')
-          // thawServices called in finally block — then rollback
-          await rollback(state, 2, cwd, record)
-          return finalize(record, 'rolled-back', state, config)
-        }
-        await showBuildBanner('Build OK — restarting services...')
-      } finally {
-        // ALWAYS thaw services — unmask + start everything back up
-        await thawServices(cwd)
-      }
-
-      await sleep(5000) // Wait for services to stabilize
-
-      // ── Step 10: Health sweep ───────────────────────────────────
-      const healthResult = await runHealthSweep(config)
-      record.steps.push(healthResult.step)
-      record.healthResults = healthResult.results
-
-      if (healthResult.step.outcome === 'fail') {
-        addActivity(state, 'error', `Health sweep failed: ${healthResult.step.detail}`)
-        await rollback(state, 2, cwd, record)
-        return finalize(record, 'rolled-back', state, config)
-      }
-
-      // ── Step 11: Runtime monitoring ─────────────────────────────
-      const runtimeResult = await monitorRuntime(config)
-      record.steps.push(runtimeResult.step)
-      record.runtimeErrors = runtimeResult.errors
-
-      if (runtimeResult.step.outcome === 'fail') {
-        addActivity(state, 'error', `Runtime errors detected: ${runtimeResult.step.detail}`)
-        const restartOk = await rollback(state, 1, cwd, record)
-        if (!restartOk) {
-          await rollback(state, 2, cwd, record)
-        }
-        return finalize(record, 'rolled-back', state, config)
-      }
-
-      // ── Step 12: Post-deploy vitals ─────────────────────────────
-      record.vitalsAfter = await captureDeployVitals()
-
-      addActivity(state, 'system',
-        `Deploy succeeded — build ${Math.round((record.buildTimeMs || 0) / 1000)}s, total ${Math.round((Date.now() - new Date(record.timestamp).getTime()) / 1000)}s`)
-    } else {
-      addActivity(state, 'system', `${record.changeClass} changes committed. No build needed.`)
-    }
-
-    // ── Step 13: Push to GitHub ───────────────────────────────────
+    // ── Step 7: Push to GitHub ──────────────────────────────────
+    // Vercel auto-deploys from git push — this IS the deploy mechanism
     const pushStep = await pushToRemote(cwd)
     record.steps.push(pushStep)
 
-    // ── Step 14: Anomaly detection ────────────────────────────────
+    // ── Step 8: Restart dashboard if brain-lib/brain-script changed
+    const needsRestart = ['brain-lib', 'brain-script', 'config'].includes(record.changeClass)
+    if (needsRestart) {
+      const restartStep = await restartDashboard(cwd)
+      record.steps.push(restartStep)
+    }
+
+    addActivity(state, 'system',
+      `Deploy: ${record.changeClass} changes committed + pushed (${record.changedFiles.length} files)`)
+
+    // ── Step 9: Anomaly detection ───────────────────────────────
     checkBuildAnomaly(state, record, config)
 
     return finalize(record, 'success', state, config)
@@ -276,8 +115,6 @@ export async function runDeployPipeline(
     try { unlinkSync(lockPath) } catch { /* already cleaned */ }
   }
 }
-
-// ── Restart services after build ─────────────────────────────────
 
 // ── Preflight checks ─────────────────────────────────────────────
 
@@ -290,7 +127,6 @@ async function runPreflightChecks(config: DeployConfig): Promise<{
 
   // Check disk space
   if (vitals.diskFreeMb !== null && vitals.diskFreeMb < config.minDiskFreeMb) {
-    // Try cleanup first
     await executeCommand('npm cache clean --force 2>/dev/null', { timeout: 30_000 }).catch(() => {})
     await executeCommand('sudo journalctl --vacuum-size=50M 2>/dev/null', { timeout: 10_000 }).catch(() => {})
 
@@ -362,33 +198,6 @@ function classifyChanges(files: string[]): ChangeClass {
   return 'mixed'
 }
 
-// ── Dependency installation ──────────────────────────────────────
-
-async function installDependencies(cwd: string): Promise<PipelineStep> {
-  const start = Date.now()
-  console.log('[deploy-pipeline] package.json changed — running npm ci...')
-
-  const result = await executeCommand('npm ci --production=false', { cwd, timeout: 120_000 })
-  if (result.exitCode !== 0) {
-    // Fallback to npm install
-    const fallback = await executeCommand('npm install', { cwd, timeout: 120_000 })
-    return {
-      name: 'install-deps',
-      startedAt: new Date(start).toISOString(),
-      outcome: fallback.exitCode === 0 ? 'pass' : 'fail',
-      durationMs: Date.now() - start,
-      detail: fallback.exitCode !== 0 ? (fallback.stderr || '').slice(0, 300) : undefined,
-    }
-  }
-
-  return {
-    name: 'install-deps',
-    startedAt: new Date(start).toISOString(),
-    outcome: 'pass',
-    durationMs: Date.now() - start,
-  }
-}
-
 // ── Type check with auto-fix loop ────────────────────────────────
 
 async function runTypeCheckWithFix(
@@ -429,7 +238,6 @@ async function runTypeCheckWithFix(
     const fix = await fixTypeErrors(state, freshErrors.trim(), i, config.maxTypeFixAttempts, cwd)
     record.fixAttempts.push(fix)
 
-    // Clean stale types and re-check
     await executeCommand('rm -rf .next/types', { cwd, timeout: 5000 }).catch(() => {})
     const recheck = await executeCommand('NODE_OPTIONS="" npx tsc --noEmit --pretty 2>&1', { cwd, timeout: config.typeCheckTimeoutMs })
 
@@ -458,75 +266,23 @@ async function runTypeCheckWithFix(
   }
 }
 
-// ── Build with auto-fix ──────────────────────────────────────────
-
-async function runBuildWithFix(
-  state: BrainState,
-  config: DeployConfig,
-  cwd: string,
-  record: DeployRecord,
-): Promise<PipelineStep> {
-  const start = Date.now()
-
-  for (let attempt = 0; attempt <= config.maxBuildFixAttempts; attempt++) {
-    console.log(`[deploy-pipeline] Build attempt ${attempt + 1}...`)
-    const buildCmd = `NODE_OPTIONS="--max-old-space-size=${config.buildMaxHeapMb}" npm run build`
-    const result = await executeCommand(buildCmd, { cwd, timeout: config.buildTimeoutMs })
-
-    if (result.exitCode === 0) {
-      return {
-        name: 'build',
-        startedAt: new Date(start).toISOString(),
-        outcome: 'pass',
-        durationMs: Date.now() - start,
-        detail: attempt > 0 ? `Succeeded on attempt ${attempt + 1}` : undefined,
-      }
-    }
-
-    // Try to fix if we have attempts remaining
-    if (attempt < config.maxBuildFixAttempts) {
-      const errors = (result.stderr || result.stdout || '').trim()
-      addActivity(state, 'error', `Build failed — attempting fix: ${errors.slice(0, 150)}`)
-
-      const fix = await fixBuildErrors(
-        state, errors, attempt + 1, config.maxBuildFixAttempts, cwd, config,
-      )
-      record.fixAttempts.push(fix)
-
-      if (fix.outcome === 'failed' || fix.outcome === 'crashed') break
-    }
-  }
-
-  return {
-    name: 'build',
-    startedAt: new Date(start).toISOString(),
-    outcome: 'fail',
-    durationMs: Date.now() - start,
-    detail: 'Build failed after all fix attempts',
-  }
-}
-
 // ── Commit changes ───────────────────────────────────────────────
 
 async function commitChanges(cwd: string, changeClass: ChangeClass): Promise<PipelineStep> {
   const start = Date.now()
   const msg = `pi-chi: ${changeClass} changes`
 
-  // Get pre-commit hash to compare
   const preHash = await executeCommand('git rev-parse HEAD', { cwd, timeout: 5000 })
   const preCommitHash = (preHash.stdout || '').trim()
 
-  // Attempt commit
   const commitResult = await executeCommand(`git add -A && git commit -m "${msg}" --no-verify`, {
     cwd,
     timeout: 10_000,
   })
 
-  // Get post-commit hash
   const postHash = await executeCommand('git rev-parse HEAD', { cwd, timeout: 5000 })
   const postCommitHash = (postHash.stdout || '').trim()
 
-  // Verify commit actually happened by comparing hashes
   const commitSucceeded = commitResult.exitCode === 0 && postCommitHash && postCommitHash !== preCommitHash
   const hash = postCommitHash || preCommitHash || null
 
@@ -552,7 +308,6 @@ async function pushToRemote(cwd: string): Promise<PipelineStep> {
   const start = Date.now()
   const result = await executeCommand('git push origin master 2>&1', { cwd, timeout: 30_000 })
 
-  // Downgrade push failures to warning (local deploy already succeeded)
   const outcome = result.exitCode === 0 ? 'pass' as const : 'warn' as const
   if (result.exitCode !== 0) {
     console.log('[deploy-pipeline] Git push failed (non-critical) — will retry next cycle')
@@ -564,6 +319,21 @@ async function pushToRemote(cwd: string): Promise<PipelineStep> {
     outcome,
     durationMs: Date.now() - start,
     detail: outcome === 'warn' ? 'Push deferred: network or auth issue' : undefined,
+  }
+}
+
+// ── Restart dashboard service (no build) ─────────────────────────
+
+async function restartDashboard(cwd: string): Promise<PipelineStep> {
+  const start = Date.now()
+  const result = await executeCommand('sudo systemctl restart pi-chi-dashboard', { cwd, timeout: 15_000 })
+
+  return {
+    name: 'restart-dashboard',
+    startedAt: new Date(start).toISOString(),
+    outcome: result.exitCode === 0 ? 'pass' : 'warn',
+    durationMs: Date.now() - start,
+    detail: result.exitCode !== 0 ? 'Dashboard restart failed — may need manual intervention' : undefined,
   }
 }
 
@@ -602,7 +372,6 @@ function finalize(
   record.completedAt = new Date().toISOString()
   record.durationMs = Date.now() - new Date(record.timestamp).getTime()
 
-  // Record in state
   recordDeploy(state, record, config.maxDeployHistoryRecords)
 
   console.log(`[deploy-pipeline] Pipeline complete: ${outcome} in ${Math.round(record.durationMs / 1000)}s`)

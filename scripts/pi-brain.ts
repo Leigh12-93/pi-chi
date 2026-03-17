@@ -17,7 +17,7 @@
  * Or:  npm run brain
  * ═══════════════════════════════════════════════════════════════════ */
 
-import { loadBrainState, saveBrainState, addActivity, getStateDir } from '../lib/brain/brain-state'
+import { loadBrainState, saveBrainState, addActivity, getStateDir, validateBrainState, repairBrainState } from '../lib/brain/brain-state'
 import { appendSnapshot } from '../lib/brain/analytics'
 import { checkAchievements } from '../lib/brain/achievements'
 import { shouldRunSelfAudit, buildSelfAuditFromState, writeSelfAudit } from '../lib/brain/code-guardrails'
@@ -25,9 +25,12 @@ import { getSeedPrompt, buildDynamicSystemPrompt, buildContextMessage } from '..
 import { ensureClaudeCodeMaxOAuth, runClaudeCodePrompt } from '../lib/brain/claude-code'
 import { loadCustomTools, resetHttpRequestCounter } from '../lib/brain/brain-tools'
 import { enterStandbyDisplay, resumeDashboardDisplay } from '../lib/brain/display-mode'
+import { BUSINESSES, NOT_OUR_BUSINESSES, LEAD_PRICE_AUD, getPricingStatement } from '../lib/brain/business-rules'
+import { getRevenueSnapshotString } from '../lib/brain/lead-tracker'
+import { getPendingCount } from '../lib/brain/escalation'
 import { executeCommand } from '../lib/tools/terminal-tools'
 import { randomUUID } from 'node:crypto'
-import { writeFileSync, unlinkSync, readdirSync, readFileSync, existsSync } from 'node:fs'
+import { writeFileSync, unlinkSync, copyFileSync, readdirSync, readFileSync, existsSync } from 'node:fs'
 import { join } from 'node:path'
 import { homedir } from 'node:os'
 import type { SystemVitalsSnapshot, BrainState, CycleJournal, FailureRecord } from '../lib/brain/brain-types'
@@ -45,6 +48,7 @@ const MAX_CONSECUTIVE_CRASHES = 3
 const DREAM_INTERVAL_HOURS = 24
 const PI_CHI_DIR = join(process.env.HOME || '/home/pi', 'pi-chi')
 const HEARTBEAT_FILE = join(homedir(), '.pi-chi', 'heartbeat')
+let dashboardRestartFailures = 0  // Track consecutive dashboard restart failures
 const WATCHDOG_TIMEOUT_MS = 30 * 60 * 1000 // 30 minutes
 
 // ── Retry helper for transient API errors ─────────────────────────
@@ -755,7 +759,16 @@ Respond with a JSON object:
 // ── Brain Cycle ───────────────────────────────────────────────────
 
 async function brainCycle(): Promise<void> {
-  const state = loadBrainState()
+  let state = loadBrainState()
+
+  // Validate and repair state if needed
+  const validation = validateBrainState(state)
+  if (!validation.valid) {
+    console.log(`[pi-brain] State validation issues: ${validation.issues.join(', ')}`)
+    state = repairBrainState(state as unknown as Record<string, unknown>)
+    saveBrainState(state)
+  }
+
   const isFirstBoot = state.totalThoughts === 0
   let cycleActivityStartIndex = 0
 
@@ -827,6 +840,32 @@ async function brainCycle(): Promise<void> {
   // Disk space monitoring (Phase 3.6)
   await checkDiskSpace(state)
 
+  // Dashboard self-healing — check every cycle, restart if down
+  try {
+    const dashCheck = await executeCommand('systemctl is-active pi-chi-dashboard', { timeout: 3000 })
+    if ((dashCheck.stdout || '').trim() !== 'active') {
+      console.log('[pi-brain] Dashboard not active — restarting...')
+      addActivity(state, 'system', 'Dashboard self-heal: restarting pi-chi-dashboard')
+      await executeCommand('sudo systemctl start pi-chi-dashboard', { cwd: PI_CHI_DIR, timeout: 15000 })
+      const recheck = await executeCommand('systemctl is-active pi-chi-dashboard', { timeout: 3000 })
+      if ((recheck.stdout || '').trim() !== 'active') {
+        dashboardRestartFailures++
+        console.error(`[pi-brain] Dashboard restart failed (${dashboardRestartFailures} consecutive)`)
+        if (dashboardRestartFailures >= 3) {
+          try {
+            const { sendSms } = await import('../lib/brain/brain-sms')
+            await sendSms(state, `Dashboard won't start after ${dashboardRestartFailures} attempts. SSH needed. — Pi-Chi`)
+            dashboardRestartFailures = 0
+          } catch { /* sms failed — non-critical */ }
+        }
+      } else {
+        dashboardRestartFailures = 0
+      }
+    } else {
+      dashboardRestartFailures = 0
+    }
+  } catch { /* systemctl check failed — likely dev mode on Windows */ }
+
   // Build prompt and context (split for prompt caching)
   const activeGoals = state.goals.filter(g => g.status === 'active')
   const seedPrompt = getSeedPrompt()
@@ -841,7 +880,39 @@ async function brainCycle(): Promise<void> {
     // Write the full prompt to a temp file to avoid shell escaping issues
     const stateDir = getStateDir()
     const promptPath = join(stateDir, 'cycle-prompt.txt')
-    const fullPrompt = `${seedPrompt}\n\n${dynamicSystemPrompt}\n\n---\n\n${contextMessage}\n\n---\n\nIMPORTANT: You have access to the Pi filesystem via Claude Code tools (Read, Write, Edit, Bash).\nThe brain state file is at: ${join(stateDir, 'brain-state.json')}\nTo save a memory, update a goal, or change mood — modify brain-state.json directly using the Edit tool.\nKeep your response concise — summarize what you did and what you learned.`
+
+    // Business rules (code-enforced, not memory)
+    const businessNames = BUSINESSES.map(b => `- ${b.name} (${b.domain}): ${b.type}`).join('\n')
+    const notOurs = NOT_OUR_BUSINESSES.join(', ')
+    const businessRules = `## BUSINESS RULES (CODE-ENFORCED — NOT MEMORIES)\nYour businesses:\n${businessNames}\n\nPricing: ${getPricingStatement()}\nPer-lead price: $${LEAD_PRICE_AUD} AUD\n\nNOT your businesses (NEVER touch): ${notOurs}\n\nNO provider outreach until: (1) booking page captures leads, (2) leads flow to provider via SMS, (3) provider landing page is live with correct pricing, (4) at least 1 organic lead captured. Non-negotiable.\n\nPrioritise CheapSkipBinsNearMe — it's the only one with a revenue model ready to go.`
+
+    // Lead stats (real metrics from CheapSkip Supabase)
+    let leadStats = ''
+    try {
+      leadStats = await getRevenueSnapshotString()
+    } catch { leadStats = 'CheapSkip lead tracking: unavailable' }
+
+    // Mission lock enforcement
+    let missionLockDirective = ''
+    if (state.currentMission && state.currentMission.status === 'active') {
+      const missionStart = state.currentMission.startedAt ? new Date(state.currentMission.startedAt) : null
+      const cyclesSinceMission = state.workCycles?.filter(
+        wc => missionStart && new Date(wc.startedAt) >= missionStart
+      ).length || 0
+
+      missionLockDirective = `\n## MISSION LOCK (ACTIVE)\nYou are locked on: "${state.currentMission.title}"\nComplete this before starting anything new. If genuinely blocked, explain WHY and propose a pivot.\nCycles on this mission: ${cyclesSinceMission}${cyclesSinceMission > 50 ? ' (FLAGGED: >50 cycles — consider if this mission needs to be re-scoped)' : ''}\nOnly the owner can change mission via dashboard — you cannot change it yourself unless genuinely blocked.\n`
+    }
+
+    // Pending approvals
+    const pendingApprovals = getPendingCount()
+    const approvalNotice = pendingApprovals > 0
+      ? `\nPENDING OWNER APPROVALS: ${pendingApprovals} action(s) waiting for owner review.\n`
+      : ''
+
+    // Outcome-based goal reminder
+    const goalReminder = `\n## GOAL COMPLETION RULES\nBefore marking a goal complete, RUN the verification method. Don't just assume it's done.\nEvery goal must have a successMetric and verificationMethod. If they're missing, add them.\n`
+
+    const fullPrompt = `${seedPrompt}\n\n${dynamicSystemPrompt}\n\n${businessRules}\n\n${missionLockDirective}${approvalNotice}${goalReminder}\n---\n\n${contextMessage}\n\n${leadStats}\n\n---\n\nIMPORTANT: You have access to the Pi filesystem via Claude Code tools (Read, Write, Edit, Bash).\nThe brain state file is at: ${join(stateDir, 'brain-state.json')}\nTo save a memory, update a goal, or change mood — modify brain-state.json directly using the Edit tool.\nKeep your response concise — summarize what you did and what you learned.`
     writeFileSync(promptPath, fullPrompt, 'utf-8')
 
     const standbyReason = state.currentMission?.title
@@ -949,14 +1020,11 @@ async function brainCycle(): Promise<void> {
 
       if (deployResult) {
         if (deployResult.outcome === 'success') {
-          const buildInfo = deployResult.buildTimeMs
-            ? ` (build ${Math.round(deployResult.buildTimeMs / 1000)}s)`
-            : ''
-          console.log(`[pi-brain] Deploy succeeded in ${Math.round(deployResult.durationMs / 1000)}s${buildInfo}`)
-        } else if (deployResult.outcome === 'rolled-back') {
-          console.error(`[pi-brain] Deploy rolled back (L${deployResult.rollbackLevel})`)
+          console.log(`[pi-brain] Deploy succeeded in ${Math.round(deployResult.durationMs / 1000)}s`)
         } else if (deployResult.outcome === 'reverted') {
-          console.error('[pi-brain] Changes reverted — could not fix errors')
+          console.error('[pi-brain] Changes reverted — could not fix type errors')
+        } else if (deployResult.outcome === 'skipped') {
+          console.log('[pi-brain] Deploy skipped — preflight checks failed or lock held')
         }
       }
     } catch (deployErr) {
@@ -964,17 +1032,33 @@ async function brainCycle(): Promise<void> {
       console.error('[pi-brain] Deploy pipeline error:', msg)
       addActivity(state, 'error', `Deploy pipeline error: ${msg.slice(0, 150)}`)
     } finally {
-      // GUARANTEE: All services must be unmasked and running regardless of what happened above.
-      // If the pipeline crashed mid-build, services may still be masked (blocking auto-restart).
+      // GUARANTEE: All services must be running after deploy pipeline.
       const criticalServices = ['pi-chi-dashboard', 'pi-chi-kiosk', 'pi-chi-cec', 'pi-chi-mvp-monitor', 'pi-chi-sms']
       try {
-        // Unmask all — in case pipeline crashed with services still masked
+        // Unmask all — defensive, in case anything left them masked
         await executeCommand(`sudo systemctl unmask ${criticalServices.join(' ')}`, { timeout: 10_000 }).catch(() => {})
         // Check and start dashboard (most critical)
         const dashCheck = await executeCommand('systemctl is-active pi-chi-dashboard', { timeout: 3000 })
         if ((dashCheck.stdout || '').trim() !== 'active') {
           console.log('[pi-brain] Dashboard not active — emergency restart...')
           await executeCommand('sudo systemctl start pi-chi-dashboard', { cwd: PI_CHI_DIR, timeout: 15000 })
+          // Verify it actually came up
+          const verifyCheck = await executeCommand('systemctl is-active pi-chi-dashboard', { timeout: 3000 }).catch(() => ({ stdout: '' }))
+          if (((verifyCheck as { stdout: string }).stdout || '').trim() === 'active') {
+            dashboardRestartFailures = 0
+          } else {
+            dashboardRestartFailures++
+            console.error(`[pi-brain] Dashboard restart failed (${dashboardRestartFailures} consecutive)`)
+            if (dashboardRestartFailures >= 3) {
+              try {
+                const { sendSms } = await import('../lib/brain/brain-sms')
+                await sendSms(state, `Dashboard won't start after ${dashboardRestartFailures} attempts. SSH needed. — Pi-Chi`)
+                dashboardRestartFailures = 0 // Reset after notifying to avoid spam
+              } catch { /* SMS send failed — non-critical */ }
+            }
+          }
+        } else {
+          dashboardRestartFailures = 0 // Dashboard is healthy — reset counter
         }
         // Start remaining services if not running
         for (const svc of criticalServices) {
@@ -1038,10 +1122,11 @@ async function brainCycle(): Promise<void> {
     console.error('[pi-brain] Achievement check error:', err)
   }
 
-  // ── Post-cycle: State backup every 100 cycles ─────────────────
-  if (state.totalThoughts % 100 === 0) {
+  // ── Post-cycle: State backup every 20 cycles ──────────────────
+  if (state.totalThoughts % 20 === 0) {
     try {
-      const { copyFileSync, existsSync: exists, unlinkSync: unlink, readdirSync } = await import('node:fs')
+      const exists = existsSync
+      const unlink = unlinkSync
       const stateDir = getStateDir()
       const backupName = `brain-state-backup-${new Date().toISOString().slice(0, 10)}.json`
       const backupPath = join(stateDir, backupName)

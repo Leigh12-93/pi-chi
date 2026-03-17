@@ -11,6 +11,7 @@
 import { existsSync, readFileSync, readdirSync, appendFileSync, mkdirSync } from 'node:fs'
 import { join } from 'node:path'
 import { homedir } from 'node:os'
+import { LEAD_PRICE_AUD, getPricingStatement, isNotOurBusiness } from './business-rules'
 
 const SMS_DIR = join(homedir(), '.pi-chi', 'sms')
 const SENT_DIR = join(SMS_DIR, 'sent')
@@ -239,23 +240,29 @@ export function checkSmsGuardrails(
   return { allowed: true, reason: 'OK' }
 }
 
-// ── Financial guardrails ────────────────────────────────────────
+// ── Financial guardrails (sourced from business-rules.ts) ──────
 
 export const HARD_CODED_PRICING = {
-  perLeadCost: 2, // $2 per verified lead — DO NOT CHANGE without Leigh's approval
+  perLeadCost: LEAD_PRICE_AUD,
   currency: 'AUD',
-  model: 'pay-per-lead, monthly invoicing, no upfront fees',
+  model: getPricingStatement(),
 }
 
 export function validatePricingInMessage(message: string): { valid: boolean; issue?: string } {
   const lower = message.toLowerCase()
+  const correctPrice = `$${LEAD_PRICE_AUD}/lead`
 
   // Check for wrong prices
   if (lower.includes('$5/lead') || lower.includes('$5 per lead')) {
-    return { valid: false, issue: 'Message says $5/lead — correct price is $2/lead' }
+    return { valid: false, issue: `Message says $5/lead — correct price is ${correctPrice}` }
   }
   if (lower.includes('free lead') || lower.includes('no cost')) {
-    return { valid: false, issue: 'Message says free — correct price is $2/lead' }
+    return { valid: false, issue: `Message says free — correct price is ${correctPrice}` }
+  }
+
+  // Check for mentions of businesses we don't own
+  if (isNotOurBusiness(message)) {
+    return { valid: false, issue: 'Message references a business that is NOT ours' }
   }
 
   return { valid: true }

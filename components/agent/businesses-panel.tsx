@@ -1,7 +1,7 @@
 'use client'
 
-import { useState } from 'react'
-import { ExternalLink, GitBranch, Globe, ChevronRight, RefreshCw, Rocket, Clock, GitCommit, AlertTriangle, Wifi, WifiOff, Activity, Users } from 'lucide-react'
+import { useState, useEffect } from 'react'
+import { ExternalLink, GitBranch, Globe, ChevronRight, RefreshCw, Rocket, Clock, GitCommit, AlertTriangle, Wifi, WifiOff, Activity, TrendingUp, Users } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { formatRelative } from '@/lib/utils'
 import { motion, AnimatePresence } from 'framer-motion'
@@ -76,10 +76,44 @@ interface BusinessesPanelProps {
   activeBusiness?: string | null
 }
 
+interface LeadMetrics {
+  today: number
+  thisWeek: number
+  thisMonth: number
+  total: number
+  revenue: { today: number; thisWeek: number; thisMonth: number; total: number }
+  providerCount: number
+}
+
 export function BusinessesPanel({ onSelectBusiness, activeBusiness }: BusinessesPanelProps) {
   const [expanded, setExpanded] = useState<string | null>(null)
   const [deploying, setDeploying] = useState<string | null>(null)
   const { businesses, loading, error, refresh } = useBusinessMetrics()
+  const [leadMetrics, setLeadMetrics] = useState<LeadMetrics | null>(null)
+
+  // Fetch CheapSkip lead metrics
+  useEffect(() => {
+    async function fetchLeads() {
+      try {
+        const res = await fetch('/api/brain/analytics?type=leads', { signal: AbortSignal.timeout(10_000) })
+        if (!res.ok) return
+        const data = await res.json()
+        if (data.leads) {
+          setLeadMetrics({
+            today: data.leads.today || 0,
+            thisWeek: data.leads.thisWeek || 0,
+            thisMonth: data.leads.thisMonth || 0,
+            total: data.leads.total || 0,
+            revenue: data.revenue || { today: 0, thisWeek: 0, thisMonth: 0, total: 0 },
+            providerCount: data.providers?.length || 0,
+          })
+        }
+      } catch { /* non-critical */ }
+    }
+    fetchLeads()
+    const timer = setInterval(fetchLeads, 60_000)
+    return () => clearInterval(timer)
+  }, [])
 
   const handleDeploy = async (bizId: string) => {
     setDeploying(bizId)
@@ -244,6 +278,32 @@ export function BusinessesPanel({ onSelectBusiness, activeBusiness }: Businesses
                   >
                     <div className="px-3 pb-3 space-y-2 border-t border-pi-border/50 pt-2">
                       <p className="text-[10px] text-pi-text-dim leading-relaxed">{meta.description}</p>
+
+                      {/* CheapSkip lead metrics */}
+                      {biz.id === 'cheapskips' && leadMetrics && (
+                        <div className="bg-emerald-500/5 border border-emerald-500/20 rounded-lg p-2 space-y-1.5">
+                          <div className="flex items-center gap-1.5">
+                            <TrendingUp className="w-3 h-3 text-emerald-400" />
+                            <span className="text-[10px] font-medium text-emerald-400">Lead Pipeline</span>
+                          </div>
+                          <div className="grid grid-cols-4 gap-1">
+                            <MetricChip label="Today" value={String(leadMetrics.today)} sub={`$${leadMetrics.revenue.today}`} />
+                            <MetricChip label="Week" value={String(leadMetrics.thisWeek)} sub={`$${leadMetrics.revenue.thisWeek}`} />
+                            <MetricChip label="Month" value={String(leadMetrics.thisMonth)} sub={`$${leadMetrics.revenue.thisMonth}`} />
+                            <MetricChip label="Total" value={String(leadMetrics.total)} sub={`$${leadMetrics.revenue.total}`} />
+                          </div>
+                          <div className="flex items-center gap-3 text-[9px] text-pi-text-dim/70">
+                            <span className="flex items-center gap-1">
+                              <Users className="w-2.5 h-2.5" />
+                              {leadMetrics.providerCount} providers
+                            </span>
+                            <span className="flex items-center gap-1">
+                              <TrendingUp className="w-2.5 h-2.5" />
+                              $2/lead
+                            </span>
+                          </div>
+                        </div>
+                      )}
 
                       {/* Deploy & commit info */}
                       <div className="flex items-center gap-3 text-[9px] text-pi-text-dim/70">
@@ -420,6 +480,16 @@ function InfoChip({ label, value }: { label: string; value: string }) {
       <span className="text-[9px] text-pi-text-dim truncate">
         <span className="text-pi-text-dim/50">{label}:</span> {value}
       </span>
+    </div>
+  )
+}
+
+function MetricChip({ label, value, sub }: { label: string; value: string; sub?: string }) {
+  return (
+    <div className="text-center py-1">
+      <div className="text-xs font-semibold text-pi-text">{value}</div>
+      {sub && <div className="text-[9px] text-emerald-400">{sub}</div>}
+      <div className="text-[8px] text-pi-text-dim/50 uppercase">{label}</div>
     </div>
   )
 }

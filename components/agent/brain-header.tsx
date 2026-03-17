@@ -3,7 +3,7 @@
 import { useMemo, useEffect, useState } from 'react'
 import {
   Brain, Clock, RefreshCw, Settings, Sparkles,
-  Target, Zap, Search, Rocket, Wrench, Activity,
+  Target, Zap, Search, Rocket, Wrench, Activity, MessageSquare,
 } from 'lucide-react'
 import type { SystemVitals } from '@/lib/agent-types'
 import { motion } from 'framer-motion'
@@ -271,6 +271,14 @@ export function BrainHeader({
         ) : null}
 
         {/* Actions */}
+        <a
+          href="/sms"
+          className="p-1 rounded-lg text-pi-text-dim hover:text-pi-accent hover:bg-pi-accent/10 transition-all"
+          title="SMS Log"
+          aria-label="View SMS log"
+        >
+          <MessageSquare className="w-3 h-3" />
+        </a>
         {onRefresh && (
           <button
             onClick={onRefresh}
