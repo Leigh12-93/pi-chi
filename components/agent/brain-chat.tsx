@@ -140,7 +140,7 @@ const MessageBubble = memo(function MessageBubble({ msg, name, isStreaming, sear
         </motion.div>
       )}
 
-      <div className={cn('max-w-[80%] relative group', isOwner ? 'order-1' : 'order-2')}>
+      <div className={cn('max-w-[90%] md:max-w-[80%] relative group', isOwner ? 'order-1' : 'order-2')}>
         <div className={cn(
           'rounded-2xl px-3.5 py-2.5 shadow-sm transition-shadow duration-300',
           isOwner
@@ -307,7 +307,7 @@ function StreamPhaseChip({
   }[phase]
 
   return (
-    <div className={cn('flex items-center gap-2 border-b border-pi-border/50 px-3 py-2 text-[10px]', tone)}>
+    <div className={cn('flex items-center gap-2 border-b border-pi-border/50 px-3 py-1 md:py-2 text-[10px]', tone)}>
       <Activity className="h-3 w-3" />
       <span className="font-semibold uppercase tracking-wide">{phase}</span>
       {detail && <span className="truncate text-pi-text-dim">{detail}</span>}
@@ -410,9 +410,9 @@ function ChatEmptyState({
       transition={{ type: 'spring', stiffness: 260, damping: 26 }}
       className="flex min-h-full items-center justify-center"
     >
-      <div className="w-full max-w-3xl space-y-4 py-4">
-        <div className="overflow-hidden rounded-[28px] border border-pi-border bg-[radial-gradient(circle_at_top,rgba(0,212,255,0.12),transparent_42%),linear-gradient(180deg,rgba(255,255,255,0.03),rgba(255,255,255,0.01))] shadow-[0_24px_80px_rgba(0,0,0,0.28)]">
-          <div className="border-b border-pi-border/70 px-5 py-4">
+      <div className="w-full max-w-lg md:max-w-3xl space-y-3 py-2 md:space-y-4 md:py-4">
+        <div className="overflow-hidden rounded-2xl md:rounded-[28px] border border-pi-border bg-[radial-gradient(circle_at_top,rgba(0,212,255,0.12),transparent_42%),linear-gradient(180deg,rgba(255,255,255,0.03),rgba(255,255,255,0.01))] shadow-[0_24px_80px_rgba(0,0,0,0.28)]">
+          <div className="border-b border-pi-border/70 px-3 py-3 md:px-5 md:py-4">
             <div className="mb-3 flex items-center gap-2">
               <span className="inline-flex items-center gap-1 rounded-full border border-pi-accent/20 bg-pi-accent/10 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.16em] text-pi-accent">
                 <Sparkles className="h-3 w-3" />
@@ -437,7 +437,7 @@ function ChatEmptyState({
             </div>
           </div>
 
-          <div className="grid gap-3 px-5 py-4 sm:grid-cols-3">
+          <div className="grid gap-3 px-3 py-3 md:px-5 md:py-4 sm:grid-cols-3">
             {quickStats.map(({ icon: Icon, label, value }) => (
               <div key={label} className="rounded-2xl border border-pi-border bg-pi-surface/55 px-3.5 py-3">
                 <div className="flex items-center gap-2 text-[10px] font-semibold uppercase tracking-[0.14em] text-pi-text-dim">
@@ -451,7 +451,7 @@ function ChatEmptyState({
         </div>
 
         <div className="grid gap-4 lg:grid-cols-[1.15fr_0.85fr]">
-          <div className="rounded-[24px] border border-pi-border bg-pi-panel/75 p-4 shadow-[0_10px_30px_rgba(0,0,0,0.14)]">
+          <div className="rounded-xl md:rounded-[24px] border border-pi-border bg-pi-panel/75 p-4 shadow-[0_10px_30px_rgba(0,0,0,0.14)]">
             <div className="mb-3 flex items-center gap-2">
               <MessageCircle className="h-4 w-4 text-pi-accent" />
               <h4 className="text-sm font-semibold text-pi-text">Start with a higher-leverage instruction</h4>
@@ -480,7 +480,7 @@ function ChatEmptyState({
             </div>
           </div>
 
-          <div className="rounded-[24px] border border-pi-border bg-pi-panel/75 p-4 shadow-[0_10px_30px_rgba(0,0,0,0.14)]">
+          <div className="hidden lg:block rounded-xl md:rounded-[24px] border border-pi-border bg-pi-panel/75 p-4 shadow-[0_10px_30px_rgba(0,0,0,0.14)]">
             <div className="mb-3 flex items-center gap-2">
               <Sparkles className="h-4 w-4 text-pi-accent" />
               <h4 className="text-sm font-semibold text-pi-text">What this thread is for</h4>
@@ -815,7 +815,7 @@ export function BrainChat({
       {/* ─── Header ─── */}
       <div className="flex items-center justify-between px-4 py-2.5 border-b border-pi-border bg-pi-panel/80 backdrop-blur-sm">
         <div className="flex items-center gap-2.5">
-          <div className="relative">
+          <div className="relative hidden md:block">
             <div className={cn(
               'w-8 h-8 rounded-full flex items-center justify-center',
               'bg-gradient-to-br from-pi-accent/20 to-purple-500/20 border border-pi-accent/30',
@@ -844,7 +844,7 @@ export function BrainChat({
                 <Sparkles className="w-3 h-3 text-pi-accent animate-pulse" />
               )}
             </div>
-            <div className="flex items-center gap-1">
+            <div className="hidden md:flex items-center gap-1">
               {brainStatus === 'running' || brainStatus === 'sleeping'
                 ? <Wifi className="w-2.5 h-2.5 text-emerald-500" />
                 : <WifiOff className="w-2.5 h-2.5 text-red-400" />}
@@ -1051,7 +1051,7 @@ export function BrainChat({
 
       {/* ─── Input area ─── */}
       <div className="px-3 py-2.5 border-t border-pi-border bg-pi-panel/80 backdrop-blur-sm">
-        <div className="mb-2 flex items-center justify-between px-1">
+        <div className="mb-2 hidden md:flex items-center justify-between px-1">
           <div className="text-[10px] text-pi-text-dim">
             {stream.isStreaming
               ? stream.activeToolCall

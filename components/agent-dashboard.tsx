@@ -357,7 +357,7 @@ export function AgentDashboard(_props: AgentDashboardProps) {
         onRefresh={agent.refresh}
         onSettingsOpen={() => setSettingsOpen(true)}
       />
-      <AutonomyStrip summary={dashboardSummary} />
+      <AutonomyStrip summary={dashboardSummary} className="hidden md:block" />
       <DisplayModeBanner displayMode={dashboardSummary.displayMode} />
 
       {/* ─── Settings Panel (slide-over) ─── */}
