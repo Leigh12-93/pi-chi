@@ -25,7 +25,7 @@ if [ -z "$RESPONSE" ] || [ "$RESPONSE" = "[]" ]; then
 fi
 
 # Process each pending SMS
-echo "$RESPONSE" | python3 -c "
+echo "$RESPONSE" | OUTBOX_DIR="$OUTBOX_DIR" SUPABASE_URL="$SUPABASE_URL" SUPABASE_KEY="$SUPABASE_KEY" python3 -c '
 import json, sys, os, uuid
 from datetime import datetime, timezone
 
@@ -33,14 +33,14 @@ data = json.load(sys.stdin)
 if not isinstance(data, list):
     sys.exit(0)
 
-outbox = os.environ.get('OUTBOX_DIR', os.path.expanduser('~/.pi-chi/sms/outbox'))
-supabase_url = '${SUPABASE_URL}'
-supabase_key = '${SUPABASE_KEY}'"
+outbox = os.environ.get("OUTBOX_DIR", os.path.expanduser("~/.pi-chi/sms/outbox"))
+supabase_url = os.environ["SUPABASE_URL"]
+supabase_key = os.environ["SUPABASE_KEY"]
 
 for sms in data:
-    sms_id = sms.get('id', '')
-    phone = sms.get('phone', '')
-    message = sms.get('message', '')
+    sms_id = sms.get("id", "")
+    phone = sms.get("phone", "")
+    message = sms.get("message", "")
 
     if not phone or not message:
         continue
@@ -49,33 +49,33 @@ for sms in data:
     outbox_id = str(uuid.uuid4())
     now = datetime.now(timezone.utc).isoformat()
     payload = {
-        'id': outbox_id,
-        'to': phone,
-        'body': message[:1600],
-        'createdAt': now,
-        'source': 'cheapskip-queue'
+        "id": outbox_id,
+        "to": phone,
+        "body": message[:1600],
+        "createdAt": now,
+        "source": "cheapskip-queue"
     }
 
-    outbox_file = os.path.join(outbox, f'{outbox_id}.json')
-    with open(outbox_file, 'w') as f:
+    outbox_file = os.path.join(outbox, f"{outbox_id}.json")
+    with open(outbox_file, "w") as f:
         json.dump(payload, f, indent=2)
 
     # Mark as sent in Supabase
     import urllib.request
     req = urllib.request.Request(
-        f'{supabase_url}/rest/v1/pending_sms?id=eq.{sms_id}',
-        data=json.dumps({'status': 'sent', 'sent_at': now}).encode(),
+        f"{supabase_url}/rest/v1/pending_sms?id=eq.{sms_id}",
+        data=json.dumps({"status": "sent", "sent_at": now}).encode(),
         headers={
-            'apikey': supabase_key,
-            'Authorization': f'Bearer {supabase_key}',
-            'Content-Type': 'application/json',
-            'Prefer': 'return=minimal'
+            "apikey": supabase_key,
+            "Authorization": f"Bearer {supabase_key}",
+            "Content-Type": "application/json",
+            "Prefer": "return=minimal"
         },
-        method='PATCH'
+        method="PATCH"
     )
     try:
         urllib.request.urlopen(req)
-        print(f'Queued SMS to {phone} ({outbox_id})')
+        print(f"Queued SMS to {phone} ({outbox_id})")
     except Exception as e:
-        print(f'Failed to update status for {sms_id}: {e}')
-"
+        print(f"Failed to update status for {sms_id}: {e}")
+'
