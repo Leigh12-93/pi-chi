@@ -73,7 +73,7 @@ function rotateSmsLog(): void {
 
 function gammuSend(to: string, body: string): Promise<{ success: boolean; output: string }> {
   return new Promise((resolve) => {
-    execFile('gammu', ['sendsms', 'TEXT', to, '-text', body], { timeout: GAMMU_TIMEOUT_MS }, (err, stdout, stderr) => {
+    execFile('gammu', ['sendsms', 'TEXT', to, '-text', body, '-autolen', '1'], { timeout: GAMMU_TIMEOUT_MS }, (err, stdout, stderr) => {
       const output = (stdout + '\n' + stderr).trim()
       if (err) {
         resolve({ success: false, output: output || err.message })
@@ -184,7 +184,7 @@ export async function queueSmsChecked(to: string, body: string, source: string, 
     .replace(/[\r\n]+/g, ' ')
     .replace(/[^\x20-\x7E]/g, '')
     .trim()
-    .slice(0, 160)
+    .slice(0, 600)
   if (!clean) return { queued: false, message: 'Empty message after sanitization' }
 
   // Guardrails
@@ -249,7 +249,7 @@ export async function sendSms(state: BrainState, message: string): Promise<SmsRe
     return { success: false, message: check.reason!, rateLimited: true }
   }
 
-  const clean = message.replace(/[\r\n]+/g, ' ').trim().slice(0, 300)
+  const clean = message.replace(/[\r\n]+/g, ' ').trim().slice(0, 600)
   if (!clean) {
     return { success: false, message: 'Empty message' }
   }
@@ -302,6 +302,6 @@ function recordSmsSent(state: BrainState, to: string, message: string, source: s
     state.smsTodayCount++
   }
   addActivity(state, 'sms', `Sent SMS to ${to}: ${message.slice(0, 80)}`)
-  appendSmsLog({ time: new Date().toISOString(), to, message: message.slice(0, 160), source })
+  appendSmsLog({ time: new Date().toISOString(), to, message: message.slice(0, 600), source })
   rotateSmsLog()
 }

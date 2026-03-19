@@ -116,10 +116,10 @@ export function BrainHeader({
               ],
             } : {}}
             transition={{ duration: 2.5, repeat: Infinity, ease: 'easeInOut' }}
-            className="w-8 h-8 rounded-full bg-gradient-to-br from-pi-accent/15 to-purple-500/15 border border-pi-accent/25 flex items-center justify-center"
+            className="w-7 h-7 md:w-8 md:h-8 rounded-full bg-gradient-to-br from-pi-accent/15 to-purple-500/15 border border-pi-accent/25 flex items-center justify-center"
           >
             <Brain className={cn(
-              'w-4 h-4',
+              'w-3.5 h-3.5 md:w-4 md:h-4',
               brainStatus === 'running' ? 'text-pi-accent' :
               brainStatus === 'sleeping' ? 'text-yellow-500' :
               'text-pi-text-dim'

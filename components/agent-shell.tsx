@@ -2,6 +2,7 @@
 
 import { useState, useCallback, useEffect } from 'react'
 import { Header } from '@/components/header'
+import { cn } from '@/lib/utils'
 import { AgentDashboard } from '@/components/agent-dashboard'
 import { Workspace } from '@/components/workspace'
 import { RadioPanel } from '@/components/agent/radio-panel'
@@ -96,19 +97,21 @@ export function AgentShell(props: AgentShellProps) {
   }, [onSwitchProject])
 
   return (
-    <div className="h-screen flex flex-col bg-pi-bg">
-      <Header
-        projectName={projectName}
-        onSwitchProject={handleSwitchProject}
-        fileCount={Object.keys(files).length}
-        saveStatus={saveStatus === 'pending' ? 'saving' : saveStatus === 'error' ? 'error' : saveStatus === 'saved' ? 'saved' : 'idle'}
-        mode={mode}
-        onModeChange={setMode}
-        githubRepoUrl={githubRepoUrl}
-        vercelUrl={vercelUrl}
-        currentBranch={currentBranch}
-        onBranchChange={onBranchChange}
-      />
+    <div className="h-screen-dynamic flex flex-col bg-pi-bg">
+      <div className={cn(mode === 'agent' ? 'hidden md:block' : '')}>
+        <Header
+          projectName={projectName}
+          onSwitchProject={handleSwitchProject}
+          fileCount={Object.keys(files).length}
+          saveStatus={saveStatus === 'pending' ? 'saving' : saveStatus === 'error' ? 'error' : saveStatus === 'saved' ? 'saved' : 'idle'}
+          mode={mode}
+          onModeChange={setMode}
+          githubRepoUrl={githubRepoUrl}
+          vercelUrl={vercelUrl}
+          currentBranch={currentBranch}
+          onBranchChange={onBranchChange}
+        />
+      </div>
 
       {/* Agent Mode */}
       {mode === 'agent' && (

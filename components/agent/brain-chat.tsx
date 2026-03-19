@@ -813,7 +813,7 @@ export function BrainChat({
   return (
     <div className={cn('h-full flex flex-col relative', className)}>
       {/* ─── Header ─── */}
-      <div className="flex items-center justify-between px-4 py-2.5 border-b border-pi-border bg-pi-panel/80 backdrop-blur-sm">
+      <div className="flex items-center justify-between px-3 py-1.5 md:px-4 md:py-2.5 border-b border-pi-border bg-pi-panel/80 backdrop-blur-sm">
         <div className="flex items-center gap-2.5">
           <div className="relative hidden md:block">
             <div className={cn(
@@ -1050,7 +1050,7 @@ export function BrainChat({
       </AnimatePresence>
 
       {/* ─── Input area ─── */}
-      <div className="px-3 py-2.5 border-t border-pi-border bg-pi-panel/80 backdrop-blur-sm">
+      <div className="px-2 py-1.5 md:px-3 md:py-2.5 border-t border-pi-border bg-pi-panel/80 backdrop-blur-sm">
         <div className="mb-2 hidden md:flex items-center justify-between px-1">
           <div className="text-[10px] text-pi-text-dim">
             {stream.isStreaming

@@ -67,8 +67,7 @@ html.dark ::selection { background: rgba(0, 212, 255, 0.3); }
 
 /* Touch device improvements */
 @media (pointer: coarse) {
-  ::-webkit-scrollbar { width: 14px; height: 14px; }
-  button, [role="button"], a[href], summary { min-height: 44px; min-width: 44px; }
+  ::-webkit-scrollbar { width: 4px; height: 4px; }
   button:focus-visible, [role="button"]:focus-visible, a[href]:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-visible {
     box-shadow: 0 0 0 3px var(--color-pi-ring);
   }

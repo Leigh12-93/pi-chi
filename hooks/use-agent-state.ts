@@ -371,7 +371,7 @@ export function useAgentState(): UseAgentStateReturn {
       }))
       setActivity(mappedActivity)
       activityCountRef.current = data.state.activityLog.length
-      lastActivityIdRef.current = data.state.activityLog.at(-1)?.id ?? null
+      lastActivityIdRef.current = data.state.activityLog?.at(-1)?.id ?? null
 
       setAgentStatus(data.status === 'running' ? 'thinking' : 'idle')
       setChatMessages(data.state.chatMessages || [])
@@ -544,7 +544,7 @@ export function useAgentState(): UseAgentStateReturn {
     }
 
     if (delta.recentChat.length > 0) {
-      const latestId = delta.recentChat.at(-1)!.id
+      const latestId = delta.recentChat?.at(-1)!.id
       if (latestId !== lastChatIdRef.current) {
         lastChatIdRef.current = latestId
         setChatMessages(prev => {
@@ -903,7 +903,7 @@ export function useAgentState(): UseAgentStateReturn {
 
     // Now doing — prefer explicit cycle action, then latest activity entry, then last thought
     const latestActivity = activity.length > 0 ? activity[activity.length - 1] : null
-    const currentAction = liveCycle?.actions.at(-1) || null
+    const currentAction = liveCycle?.actions?.at(-1) || null
     const nowDoing = displayMode?.mode === 'standby'
       ? displayMode.reason
       : currentAction

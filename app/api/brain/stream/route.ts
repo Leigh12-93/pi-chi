@@ -58,7 +58,7 @@ function buildDeltaPayload() {
   }
 
   const state = loadBrainState()
-  const latestActivity = state.activityLog.at(-1) ?? null
+  const latestActivity = state.activityLog?.at(-1) ?? null
   // Send last 10 chat messages so the client can catch up on missed messages
   const recentChat = state.chatMessages.slice(-10).map(m => ({
     id: m.id,

@@ -1,0 +1,1214 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width,height=device-height,initial-scale=1,maximum-scale=1,user-scalable=no">
+  <title>seed</title>
+  <style>
+    :root {
+      --bg: #090a0f;
+      --surface: rgba(255,255,255,0.03);
+      --surface-hover: rgba(255,255,255,0.06);
+      --border: rgba(255,255,255,0.06);
+      --text: rgba(255,255,255,0.87);
+      --text-dim: rgba(255,255,255,0.45);
+      --text-faint: rgba(255,255,255,0.25);
+      --accent: #7ecba1;
+      --warm: #d4b896;
+      --tab-bg: #0c0d12;
+      --tab-h: 56px;
+      --mood-h: 150;
+      --mood-s: 40%;
+      --mood-l: 55%;
+      --mood-color: hsl(var(--mood-h), var(--mood-s), var(--mood-l));
+      --mood-glow: hsla(var(--mood-h), var(--mood-s), var(--mood-l), 0.25);
+    }
+    *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+    html, body {
+      width: 100%; height: 100%; overflow: hidden;
+      background: var(--bg); color: var(--text);
+      font-family: 'SF Mono','Fira Code','Consolas','Liberation Mono',monospace;
+      font-size: 16px; line-height: 1.5;
+      -webkit-font-smoothing: antialiased;
+      touch-action: pan-y;
+      user-select: none;
+      -webkit-user-select: none;
+    }
+    .serif { font-family: Georgia,'Times New Roman',serif; }
+
+    /* ── Panels ─────────────────────────────────── */
+    #panels {
+      position: fixed; top: 0; left: 0; right: 0;
+      bottom: var(--tab-h);
+      overflow: hidden;
+    }
+    .panel {
+      position: absolute; inset: 0;
+      opacity: 0; visibility: hidden;
+      transition: opacity 300ms ease-out, transform 300ms ease-out;
+      transform: translateX(40px);
+      overflow-y: auto; overflow-x: hidden;
+      -webkit-overflow-scrolling: touch;
+      padding: 20px 24px;
+    }
+    .panel.active {
+      opacity: 1; visibility: visible;
+      transform: translateX(0);
+    }
+    .panel.exit-left { transform: translateX(-40px); }
+
+    /* ── Tab Bar ─────────────────────────────────── */
+    #tabbar {
+      position: fixed; bottom: 0; left: 0; right: 0;
+      height: var(--tab-h);
+      background: var(--tab-bg);
+      border-top: 1px solid var(--border);
+      display: flex;
+      z-index: 100;
+    }
+    .tab {
+      flex: 1; display: flex; flex-direction: column;
+      align-items: center; justify-content: center;
+      gap: 2px;
+      background: none; border: none; color: var(--text-dim);
+      cursor: pointer; transition: all 200ms ease;
+      min-height: 48px;
+      -webkit-tap-highlight-color: transparent;
+    }
+    .tab.active { color: var(--mood-color); }
+    .tab .tab-icon { font-size: 20px; line-height: 1; }
+    .tab .tab-label {
+      font-size: 10px; text-transform: uppercase;
+      letter-spacing: 1.5px;
+      font-family: inherit;
+    }
+    .tab::after {
+      content: ''; position: absolute; top: 0; left: 20%; right: 20%;
+      height: 2px; background: var(--mood-color);
+      opacity: 0; transition: opacity 200ms;
+    }
+    .tab.active::after { opacity: 1; }
+
+    /* ── Pulse Panel ─────────────────────────────── */
+    .pulse-layout {
+      display: flex; height: 100%; align-items: center; gap: 16px;
+    }
+    .pulse-left {
+      flex: 0 0 280px; display: flex; flex-direction: column;
+      align-items: center; justify-content: center; gap: 16px;
+    }
+    .pulse-center {
+      flex: 1; display: flex; flex-direction: column;
+      justify-content: center; gap: 14px;
+      min-width: 0;
+    }
+    .pulse-right {
+      flex: 0 0 260px; display: flex; flex-direction: column;
+      align-items: flex-end; justify-content: center; gap: 16px;
+      text-align: right;
+    }
+
+    /* Mood Orb */
+    .orb-wrap { position: relative; width: 180px; height: 180px; }
+    .mood-orb {
+      width: 180px; height: 180px; border-radius: 50%;
+      background: radial-gradient(circle at 38% 38%,
+        hsla(var(--mood-h), var(--mood-s), calc(var(--mood-l) + 20%), 0.5),
+        hsla(var(--mood-h), var(--mood-s), var(--mood-l), 0.6),
+        hsla(var(--mood-h), var(--mood-s), calc(var(--mood-l) - 15%), 0.25)
+      );
+      box-shadow:
+        0 0 50px var(--mood-glow),
+        0 0 100px hsla(var(--mood-h), var(--mood-s), var(--mood-l), 0.12),
+        inset 0 0 40px hsla(var(--mood-h), var(--mood-s), var(--mood-l), 0.1);
+      animation: breathe 4s ease-in-out infinite;
+      will-change: transform;
+    }
+    .orb-ring {
+      position: absolute; inset: -12px; border-radius: 50%;
+      border: 1px solid hsla(var(--mood-h), var(--mood-s), var(--mood-l), 0.15);
+      animation: ring-pulse 4s ease-in-out infinite 0.5s;
+      will-change: transform, opacity;
+    }
+    @keyframes breathe {
+      0%, 100% { transform: scale(0.97); }
+      50% { transform: scale(1.03); }
+    }
+    @keyframes ring-pulse {
+      0%, 100% { transform: scale(0.98); opacity: 0.4; }
+      50% { transform: scale(1.04); opacity: 0.8; }
+    }
+
+    .mood-label {
+      font-family: Georgia,serif; font-size: 26px; font-style: italic;
+      color: var(--mood-color); text-align: center;
+      letter-spacing: 0.5px;
+    }
+    .mood-pills {
+      display: flex; flex-wrap: wrap; gap: 6px; justify-content: center;
+    }
+    .mood-pill {
+      font-size: 11px; padding: 3px 8px; border-radius: 10px;
+      background: var(--surface); color: var(--text-dim);
+      border: 1px solid var(--border);
+    }
+
+    .status-badge {
+      display: inline-flex; align-items: center; gap: 6px;
+      font-size: 12px; text-transform: uppercase; letter-spacing: 2px;
+      color: var(--accent); padding: 4px 12px;
+      border: 1px solid rgba(126,203,161,0.2);
+      border-radius: 12px; width: fit-content;
+    }
+    .status-badge::before {
+      content: ''; width: 6px; height: 6px; border-radius: 50%;
+      background: currentColor;
+      animation: status-dot 2s ease-in-out infinite;
+    }
+    .status-badge.sleeping { color: var(--warm); border-color: rgba(212,184,150,0.2); }
+    .status-badge.offline { color: var(--text-dim); border-color: var(--border); }
+    @keyframes status-dot {
+      0%, 100% { opacity: 0.4; } 50% { opacity: 1; }
+    }
+
+    .mission-title {
+      font-size: 20px; font-family: Georgia,serif;
+      color: var(--text); line-height: 1.4;
+      display: -webkit-box; -webkit-line-clamp: 2;
+      -webkit-box-orient: vertical; overflow: hidden;
+    }
+    .latest-thought {
+      font-size: 14px; color: var(--text-dim); line-height: 1.6;
+      display: -webkit-box; -webkit-line-clamp: 3;
+      -webkit-box-orient: vertical; overflow: hidden;
+    }
+    .cycle-info {
+      font-size: 13px; color: var(--text-faint);
+      text-transform: uppercase; letter-spacing: 1.5px;
+    }
+    .time-display {
+      font-size: 28px; color: var(--text);
+      font-variant-numeric: tabular-nums;
+    }
+    .time-date {
+      font-size: 13px; color: var(--text-dim);
+      margin-top: -8px;
+    }
+    .uptime-display {
+      font-size: 14px; color: var(--text-dim);
+    }
+    .cost-display {
+      font-size: 13px; color: var(--text-faint);
+    }
+
+    /* ── Mind Panel ──────────────────────────────── */
+    .mind-layout { display: flex; flex-direction: column; gap: 20px; height: 100%; }
+    .mood-bars { display: flex; flex-direction: column; gap: 8px; }
+    .mood-bar-row {
+      display: flex; align-items: center; gap: 12px;
+      min-height: 48px; padding: 6px 16px;
+      background: var(--surface); border-radius: 10px;
+      cursor: pointer;
+      -webkit-tap-highlight-color: transparent;
+    }
+    .mood-bar-name {
+      flex: 0 0 110px; font-size: 13px; text-transform: uppercase;
+      letter-spacing: 1px; color: var(--text-dim);
+    }
+    .mood-bar-track {
+      flex: 1; height: 10px; background: rgba(255,255,255,0.04);
+      border-radius: 5px; overflow: hidden;
+    }
+    .mood-bar-fill {
+      height: 100%; border-radius: 5px;
+      transition: width 600ms ease-out;
+    }
+    .mood-bar-val {
+      flex: 0 0 45px; text-align: right;
+      font-size: 18px; font-variant-numeric: tabular-nums;
+    }
+
+    .goals-section {
+      flex: 1; overflow-y: auto; -webkit-overflow-scrolling: touch;
+    }
+    .goals-header {
+      font-size: 12px; text-transform: uppercase; letter-spacing: 2px;
+      color: var(--text-faint); margin-bottom: 10px; padding-left: 4px;
+    }
+    .goal-card {
+      padding: 14px 16px; margin-bottom: 8px;
+      background: var(--surface); border-radius: 10px;
+      border-left: 3px solid var(--accent);
+      animation: card-in 200ms ease-out;
+    }
+    .goal-card.completed { border-left-color: var(--text-faint); opacity: 0.5; }
+    .goal-title { font-size: 14px; margin-bottom: 4px; }
+    .goal-meta { font-size: 12px; color: var(--text-dim); }
+    .goal-tasks {
+      margin-top: 6px; font-size: 12px; color: var(--text-dim);
+    }
+    .goal-task { padding: 2px 0; }
+    .goal-task.done { text-decoration: line-through; opacity: 0.5; }
+    @keyframes card-in {
+      from { opacity: 0; transform: translateY(12px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    /* ── Words Panel ─────────────────────────────── */
+    .words-layout { display: flex; flex-direction: column; height: 100%; gap: 12px; }
+    .words-filter {
+      display: flex; gap: 8px; flex-shrink: 0;
+      overflow-x: auto; -webkit-overflow-scrolling: touch;
+      padding-bottom: 4px;
+    }
+    .filter-btn {
+      padding: 8px 18px; border-radius: 20px; border: 1px solid var(--border);
+      background: none; color: var(--text-dim); font-size: 13px;
+      font-family: inherit; cursor: pointer; white-space: nowrap;
+      min-height: 40px;
+      -webkit-tap-highlight-color: transparent;
+      transition: all 150ms;
+    }
+    .filter-btn.active {
+      background: var(--surface-hover); color: var(--text);
+      border-color: var(--mood-color);
+    }
+    .words-list {
+      flex: 1; overflow-y: auto; -webkit-overflow-scrolling: touch;
+      display: flex; flex-direction: column; gap: 6px;
+    }
+    .word-card {
+      padding: 14px 16px; background: var(--surface);
+      border-radius: 10px; cursor: pointer;
+      -webkit-tap-highlight-color: transparent;
+      animation: card-in 200ms ease-out;
+      min-height: 64px;
+    }
+    .word-card.expanded .word-body { -webkit-line-clamp: unset; }
+    .word-type {
+      font-size: 10px; text-transform: uppercase; letter-spacing: 1.5px;
+      color: var(--text-faint); margin-bottom: 4px;
+    }
+    .word-type.thought { color: hsl(200,60%,55%); }
+    .word-type.action { color: hsl(45,80%,55%); }
+    .word-type.system { color: var(--text-faint); }
+    .word-body {
+      font-size: 14px; color: var(--text-dim); line-height: 1.6;
+      display: -webkit-box; -webkit-line-clamp: 3;
+      -webkit-box-orient: vertical; overflow: hidden;
+      word-break: break-word;
+    }
+    .word-time {
+      font-size: 11px; color: var(--text-faint); margin-top: 6px;
+    }
+
+    /* ── Chat Panel ──────────────────────────────── */
+    .chat-layout {
+      display: flex; flex-direction: column; height: 100%; gap: 8px;
+    }
+    .chat-messages {
+      flex: 1; overflow-y: auto; -webkit-overflow-scrolling: touch;
+      display: flex; flex-direction: column; gap: 8px;
+      padding-bottom: 4px;
+    }
+    .chat-msg {
+      max-width: 80%; padding: 12px 16px;
+      border-radius: 16px; font-size: 15px;
+      line-height: 1.55; word-break: break-word;
+      animation: card-in 200ms ease-out;
+    }
+    .chat-msg.user {
+      align-self: flex-end;
+      background: hsla(var(--mood-h), var(--mood-s), var(--mood-l), 0.15);
+      border: 1px solid hsla(var(--mood-h), var(--mood-s), var(--mood-l), 0.2);
+      color: var(--text);
+    }
+    .chat-msg.bot {
+      align-self: flex-start;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      color: var(--text-dim);
+    }
+    .chat-msg .msg-time {
+      font-size: 10px; color: var(--text-faint); margin-top: 4px;
+    }
+    .chat-quick {
+      display: flex; gap: 6px; flex-shrink: 0;
+      overflow-x: auto; -webkit-overflow-scrolling: touch;
+      padding: 2px 0;
+    }
+    .quick-btn {
+      padding: 8px 14px; border-radius: 18px;
+      border: 1px solid var(--border); background: none;
+      color: var(--text-dim); font-size: 13px; font-family: inherit;
+      white-space: nowrap; cursor: pointer;
+      min-height: 40px;
+      -webkit-tap-highlight-color: transparent;
+      transition: all 150ms;
+    }
+    .quick-btn:active { background: var(--surface-hover); }
+    .chat-input-row {
+      display: flex; gap: 8px; flex-shrink: 0;
+    }
+    #chat-input {
+      flex: 1; height: 52px; padding: 0 18px;
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: 26px; color: var(--text); font-size: 16px;
+      font-family: inherit; outline: none;
+      -webkit-appearance: none;
+    }
+    #chat-input::placeholder { color: var(--text-faint); }
+    #chat-input:focus { border-color: var(--mood-color); }
+    #chat-send {
+      width: 52px; height: 52px; border-radius: 50%;
+      background: var(--mood-color); border: none;
+      color: var(--bg); font-size: 22px; cursor: pointer;
+      display: flex; align-items: center; justify-content: center;
+      -webkit-tap-highlight-color: transparent;
+      transition: opacity 150ms;
+    }
+    #chat-send:active { opacity: 0.7; }
+
+    /* ── Vitals Panel ────────────────────────────── */
+    .vitals-layout {
+      display: flex; flex-direction: column; gap: 20px;
+      height: 100%; justify-content: center;
+    }
+    .vitals-gauges {
+      display: flex; justify-content: center; gap: 48px;
+    }
+    .gauge-wrap {
+      display: flex; flex-direction: column; align-items: center; gap: 8px;
+    }
+    .gauge-svg { width: 160px; height: 160px; }
+    .gauge-bg { fill: none; stroke: rgba(255,255,255,0.04); stroke-width: 10; }
+    .gauge-fill {
+      fill: none; stroke-width: 10; stroke-linecap: round;
+      transition: stroke-dashoffset 800ms ease-out, stroke 400ms;
+    }
+    .gauge-val {
+      fill: var(--text); font-size: 32px;
+      font-family: 'SF Mono','Fira Code','Consolas',monospace;
+      font-variant-numeric: tabular-nums;
+    }
+    .gauge-unit { fill: var(--text-dim); font-size: 13px; }
+    .gauge-label {
+      font-size: 12px; text-transform: uppercase;
+      letter-spacing: 2px; color: var(--text-dim);
+    }
+    .vitals-bars {
+      display: flex; flex-direction: column; gap: 10px;
+      padding: 0 40px;
+    }
+    .vital-bar-row {
+      display: flex; align-items: center; gap: 12px;
+    }
+    .vital-bar-label {
+      flex: 0 0 80px; font-size: 13px; text-transform: uppercase;
+      letter-spacing: 1px; color: var(--text-dim);
+    }
+    .vital-bar-track {
+      flex: 1; height: 8px; background: rgba(255,255,255,0.04);
+      border-radius: 4px; overflow: hidden;
+    }
+    .vital-bar-fill {
+      height: 100%; border-radius: 4px; background: var(--accent);
+      transition: width 800ms ease-out;
+    }
+    .vital-bar-val {
+      flex: 0 0 100px; text-align: right;
+      font-size: 13px; color: var(--text-dim);
+      font-variant-numeric: tabular-nums;
+    }
+    .vitals-info {
+      display: flex; justify-content: center; gap: 32px;
+      flex-wrap: wrap; padding: 0 20px;
+    }
+    .vital-info-item {
+      display: flex; flex-direction: column; align-items: center; gap: 2px;
+    }
+    .vital-info-val { font-size: 18px; font-variant-numeric: tabular-nums; }
+    .vital-info-label {
+      font-size: 11px; text-transform: uppercase;
+      letter-spacing: 1.5px; color: var(--text-faint);
+    }
+    .svc-dot {
+      display: inline-block; width: 8px; height: 8px;
+      border-radius: 50%; margin-right: 4px;
+    }
+    .svc-dot.up { background: var(--accent); }
+    .svc-dot.down { background: #f87171; }
+
+    /* ── Sleep Overlay ───────────────────────────── */
+    .sleep {
+      position: fixed; inset: 0; z-index: 200;
+      background: #050507;
+      display: flex; flex-direction: column;
+      align-items: center; justify-content: center; gap: 24px;
+      transition: opacity 1.5s ease-out;
+    }
+    .sleep.hidden { opacity: 0; pointer-events: none; }
+    .sleep-orb {
+      width: 240px; height: 240px; border-radius: 50%;
+      background: radial-gradient(circle at 38% 38%,
+        hsla(var(--mood-h), var(--mood-s), calc(var(--mood-l) + 15%), 0.25),
+        hsla(var(--mood-h), var(--mood-s), var(--mood-l), 0.3),
+        hsla(var(--mood-h), var(--mood-s), calc(var(--mood-l) - 20%), 0.1)
+      );
+      box-shadow: 0 0 80px hsla(var(--mood-h), var(--mood-s), var(--mood-l), 0.1);
+      animation: breathe 6s ease-in-out infinite;
+    }
+    .sleep-label {
+      font-family: Georgia,serif; font-size: 22px; font-style: italic;
+      color: var(--mood-color); opacity: 0.3;
+    }
+    .sleep-time {
+      font-size: 48px; color: var(--text); opacity: 0.35;
+      font-variant-numeric: tabular-nums;
+    }
+
+    /* ── Scrollbar ───────────────────────────────── */
+    ::-webkit-scrollbar { width: 4px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+    ::-webkit-scrollbar-thumb {
+      background: rgba(255,255,255,0.08); border-radius: 2px;
+    }
+  </style>
+</head>
+<body>
+  <div id="panels">
+    <!-- ── Pulse ─────────────────────────────────── -->
+    <div id="panel-pulse" class="panel active">
+      <div class="pulse-layout">
+        <div class="pulse-left">
+          <div class="orb-wrap">
+            <div class="orb-ring"></div>
+            <div class="mood-orb" id="mood-orb"></div>
+          </div>
+          <div class="mood-label serif" id="mood-label">resting</div>
+          <div class="mood-pills" id="mood-pills"></div>
+        </div>
+        <div class="pulse-center">
+          <div class="status-badge" id="brain-status"><span>loading</span></div>
+          <div class="mission-title serif" id="mission-title">&mdash;</div>
+          <div class="latest-thought" id="latest-thought">&mdash;</div>
+          <div class="cycle-info" id="cycle-info">cycle &mdash;</div>
+        </div>
+        <div class="pulse-right">
+          <div class="time-display" id="adelaide-time">&mdash;</div>
+          <div class="time-date" id="adelaide-date">&mdash;</div>
+          <div class="uptime-display" id="uptime-display">&mdash;</div>
+          <div class="cost-display" id="cost-display">&mdash;</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── Mind ──────────────────────────────────── -->
+    <div id="panel-mind" class="panel">
+      <div class="mind-layout">
+        <div class="mood-bars" id="mood-bars"></div>
+        <div class="goals-section" id="goals-section"></div>
+      </div>
+    </div>
+
+    <!-- ── Words ─────────────────────────────────── -->
+    <div id="panel-words" class="panel">
+      <div class="words-layout">
+        <div class="words-filter" id="words-filter"></div>
+        <div class="words-list" id="words-list"></div>
+      </div>
+    </div>
+
+    <!-- ── Chat ──────────────────────────────────── -->
+    <div id="panel-chat" class="panel">
+      <div class="chat-layout">
+        <div class="chat-messages" id="chat-messages"></div>
+        <div class="chat-quick" id="chat-quick"></div>
+        <div class="chat-input-row">
+          <input type="text" id="chat-input" placeholder="Talk to seed..." autocomplete="off" />
+          <button id="chat-send" aria-label="Send">&uarr;</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── Vitals ────────────────────────────────── -->
+    <div id="panel-vitals" class="panel">
+      <div class="vitals-layout">
+        <div class="vitals-gauges" id="vitals-gauges"></div>
+        <div class="vitals-bars" id="vitals-bars"></div>
+        <div class="vitals-info" id="vitals-info"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── Tab Bar ───────────────────────────────── -->
+  <nav id="tabbar">
+    <button class="tab active" data-tab="pulse"><span class="tab-icon">&loz;</span><span class="tab-label">Pulse</span></button>
+    <button class="tab" data-tab="mind"><span class="tab-icon">&#9672;</span><span class="tab-label">Mind</span></button>
+    <button class="tab" data-tab="words"><span class="tab-icon">&#10022;</span><span class="tab-label">Words</span></button>
+    <button class="tab" data-tab="chat"><span class="tab-icon">&#9711;</span><span class="tab-label">Chat</span></button>
+    <button class="tab" data-tab="vitals"><span class="tab-icon">&#9635;</span><span class="tab-label">Vitals</span></button>
+  </nav>
+
+  <!-- ── Sleep Overlay ─────────────────────────── -->
+  <div id="sleep" class="sleep hidden">
+    <div class="sleep-orb" id="sleep-orb"></div>
+    <div class="sleep-label serif" id="sleep-label">resting</div>
+    <div class="sleep-time" id="sleep-time">&mdash;</div>
+  </div>
+
+<script>
+/* ═══════════════════════════════════════════════════════════════
+ * Seed Touch Dashboard — Single-page touchscreen SPA
+ * Connects to Pi-Chi brain APIs on the same host
+ * ═══════════════════════════════════════════════════════════════ */
+
+// ── State ────────────────────────────────────────────────────────
+const TABS = ['pulse', 'mind', 'words', 'chat', 'vitals'];
+let activeTab = 'pulse';
+let brainState = null;
+let brainStatus = 'loading';
+let vitalsData = null;
+let activityLog = [];
+let chatMessages = [];
+let wordsFilter = 'all';
+let sleepTimer = null;
+let chatStreaming = false;
+let sseRetryMs = 2000;
+
+// ── Mood → Color ─────────────────────────────────────────────────
+const MOOD_MAP = [
+  { key: 'curiosity',    h: 200, s: 60, l: 55, label: 'curious',   color: '#3b82f6' },
+  { key: 'satisfaction', h: 150, s: 45, l: 50, label: 'content',   color: '#7ecba1' },
+  { key: 'energy',       h: 45,  s: 80, l: 55, label: 'energized', color: '#f59e0b' },
+  { key: 'pride',        h: 270, s: 50, l: 60, label: 'proud',     color: '#a78bfa' },
+  { key: 'frustration',  h: 15,  s: 70, l: 50, label: 'restless',  color: '#f87171' },
+  { key: 'loneliness',   h: 220, s: 30, l: 45, label: 'longing',   color: '#64748b' },
+];
+
+function moodToColor(mood) {
+  if (!mood) return { h: 150, s: 40, l: 55, label: 'resting' };
+  const sorted = MOOD_MAP.map(d => ({ ...d, val: mood[d.key] || 0 }))
+    .sort((a, b) => b.val - a.val);
+  const p = sorted[0], s = sorted[1];
+  if (p.val === 0) return { h: 150, s: 40, l: 55, label: 'resting' };
+  const blend = s.val / (p.val + s.val + 1);
+  return {
+    h: Math.round(p.h * (1 - blend * 0.3) + s.h * blend * 0.3),
+    s: Math.round(p.s * 0.8 + s.s * 0.2),
+    l: Math.round(p.l),
+    label: p.val > 70 ? p.label : (p.val > 50 ? 'quietly ' + p.label : 'resting'),
+  };
+}
+
+function applyMoodColor(mood) {
+  const mc = moodToColor(mood);
+  const r = document.documentElement.style;
+  r.setProperty('--mood-h', mc.h);
+  r.setProperty('--mood-s', mc.s + '%');
+  r.setProperty('--mood-l', mc.l + '%');
+  return mc;
+}
+
+// ── Tab Navigation ───────────────────────────────────────────────
+function switchTab(tab) {
+  if (tab === activeTab) return;
+  const oldPanel = document.getElementById('panel-' + activeTab);
+  const newPanel = document.getElementById('panel-' + tab);
+  const oldIdx = TABS.indexOf(activeTab);
+  const newIdx = TABS.indexOf(tab);
+  if (oldPanel) {
+    oldPanel.classList.remove('active');
+    oldPanel.classList.add(newIdx > oldIdx ? 'exit-left' : '');
+    setTimeout(() => oldPanel.classList.remove('exit-left'), 310);
+  }
+  if (newPanel) {
+    newPanel.style.transform = newIdx > oldIdx ? 'translateX(40px)' : 'translateX(-40px)';
+    newPanel.offsetHeight; // force reflow
+    newPanel.classList.add('active');
+    newPanel.style.transform = '';
+  }
+  document.querySelectorAll('.tab').forEach(t => {
+    t.classList.toggle('active', t.dataset.tab === tab);
+  });
+  activeTab = tab;
+  renderActivePanel();
+}
+
+// Tab click handlers
+document.querySelectorAll('.tab').forEach(t => {
+  t.addEventListener('click', () => switchTab(t.dataset.tab));
+});
+
+// Swipe gesture
+let touchStartX = 0, touchStartY = 0;
+document.addEventListener('touchstart', e => {
+  touchStartX = e.touches[0].clientX;
+  touchStartY = e.touches[0].clientY;
+}, { passive: true });
+document.addEventListener('touchend', e => {
+  const dx = e.changedTouches[0].clientX - touchStartX;
+  const dy = e.changedTouches[0].clientY - touchStartY;
+  if (Math.abs(dx) > 70 && Math.abs(dx) > Math.abs(dy) * 1.5) {
+    const idx = TABS.indexOf(activeTab);
+    if (dx < 0 && idx < TABS.length - 1) switchTab(TABS[idx + 1]);
+    if (dx > 0 && idx > 0) switchTab(TABS[idx - 1]);
+  }
+}, { passive: true });
+
+// ── SSE Connection ───────────────────────────────────────────────
+function connectSSE() {
+  const es = new EventSource('/api/brain/stream');
+
+  es.addEventListener('brain-state', e => {
+    try {
+      const data = JSON.parse(e.data);
+      brainStatus = data.status || 'not-running';
+      if (data.state) {
+        brainState = data.state;
+        activityLog = (data.state.activityLog || []).slice(-100);
+        chatMessages = data.state.chatMessages || [];
+      }
+      sseRetryMs = 2000;
+      renderActivePanel();
+      renderPulseAlways();
+    } catch {}
+  });
+
+  es.addEventListener('brain-delta', e => {
+    try {
+      const d = JSON.parse(e.data);
+      brainStatus = d.status || brainStatus;
+      if (d.mood && brainState) brainState.mood = d.mood;
+      if (d.currentMission && brainState) brainState.currentMission = d.currentMission;
+      if (d.currentCycle && brainState) brainState.currentCycle = d.currentCycle;
+      if (d.meta && brainState) {
+        Object.assign(brainState, {
+          totalThoughts: d.meta.totalThoughts,
+          totalApiCost: d.meta.totalApiCost,
+          lastThought: d.meta.lastThought,
+          name: d.meta.name,
+          wakeIntervalMs: d.meta.wakeIntervalMs,
+          birthTimestamp: d.meta.birthTimestamp,
+        });
+      }
+      if (d.goals && brainState) brainState.goals = d.goals;
+      if (d.latestActivity) {
+        const exists = activityLog.find(a => a.id === d.latestActivity.id);
+        if (!exists) activityLog.push(d.latestActivity);
+        if (activityLog.length > 100) activityLog = activityLog.slice(-100);
+      }
+      if (d.latestChat) {
+        const exists = chatMessages.find(m => m.id === d.latestChat.id);
+        if (!exists) chatMessages.push(d.latestChat);
+      }
+      if (d.recentCycles && brainState) brainState.workCycles = d.recentCycles;
+      renderActivePanel();
+      renderPulseAlways();
+    } catch {}
+  });
+
+  es.onerror = () => {
+    es.close();
+    setTimeout(connectSSE, sseRetryMs);
+    sseRetryMs = Math.min(sseRetryMs * 1.5, 30000);
+  };
+}
+
+// ── Vitals Polling ───────────────────────────────────────────────
+async function fetchVitals() {
+  try {
+    const r = await fetch('/api/vitals');
+    if (r.ok) vitalsData = await r.json();
+  } catch {}
+}
+
+// ── Render ───────────────────────────────────────────────────────
+function renderActivePanel() {
+  switch (activeTab) {
+    case 'pulse': renderPulse(); break;
+    case 'mind': renderMind(); break;
+    case 'words': renderWords(); break;
+    case 'chat': renderChat(); break;
+    case 'vitals': renderVitals(); break;
+  }
+}
+
+// Things that always update regardless of active tab
+function renderPulseAlways() {
+  const mood = brainState?.mood;
+  const mc = applyMoodColor(mood);
+  document.getElementById('mood-label').textContent = mc.label;
+  document.getElementById('sleep-label').textContent = mc.label;
+}
+
+// ── Pulse Panel ──────────────────────────────────────────────────
+function renderPulse() {
+  const s = brainState;
+  const mood = s?.mood;
+
+  // Status badge
+  const badge = document.getElementById('brain-status');
+  badge.querySelector('span').textContent = brainStatus;
+  badge.className = 'status-badge ' + (brainStatus === 'running' ? '' : brainStatus === 'sleeping' ? 'sleeping' : 'offline');
+
+  // Mission
+  const mission = s?.currentMission;
+  document.getElementById('mission-title').textContent = mission?.title || 'No active mission';
+
+  // Latest thought
+  document.getElementById('latest-thought').textContent = s?.lastThought || '\u2014';
+
+  // Cycle info
+  const cycles = s?.totalThoughts || 0;
+  document.getElementById('cycle-info').textContent = 'cycle ' + cycles;
+
+  // Mood pills
+  const pills = document.getElementById('mood-pills');
+  if (mood) {
+    pills.innerHTML = MOOD_MAP.map(d =>
+      '<span class="mood-pill">' + d.key.slice(0, 3) + ' ' + (mood[d.key] || 0) + '</span>'
+    ).join('');
+  }
+
+  // Cost
+  const cost = s?.totalApiCost;
+  document.getElementById('cost-display').textContent = cost != null ? '$' + cost.toFixed(2) + ' lifetime' : '';
+
+  // Uptime
+  if (vitalsData?.uptime > 0) {
+    document.getElementById('uptime-display').textContent = 'up ' + fmtUptime(vitalsData.uptime);
+  }
+}
+
+// ── Mind Panel ───────────────────────────────────────────────────
+function renderMind() {
+  const mood = brainState?.mood;
+  const bars = document.getElementById('mood-bars');
+
+  if (mood) {
+    bars.innerHTML = MOOD_MAP.map(d => {
+      const v = mood[d.key] || 0;
+      return `<div class="mood-bar-row">
+        <span class="mood-bar-name">${d.key}</span>
+        <div class="mood-bar-track">
+          <div class="mood-bar-fill" style="width:${v}%;background:${d.color}"></div>
+        </div>
+        <span class="mood-bar-val" style="color:${d.color}">${v}</span>
+      </div>`;
+    }).join('');
+  }
+
+  // Goals
+  const goals = brainState?.goals || [];
+  const active = goals.filter(g => g.status === 'active');
+  const completed = goals.filter(g => g.status === 'completed');
+  const section = document.getElementById('goals-section');
+
+  let html = '';
+  if (active.length) {
+    html += '<div class="goals-header">Active Goals (' + active.length + ')</div>';
+    html += active.map(g => goalCardHTML(g)).join('');
+  }
+  if (completed.length) {
+    html += '<div class="goals-header" style="margin-top:12px">Completed (' + completed.length + ')</div>';
+    html += completed.slice(-5).map(g => goalCardHTML(g, true)).join('');
+  }
+  section.innerHTML = html;
+}
+
+function goalCardHTML(g, done) {
+  const tasks = g.tasks || [];
+  const doneCount = tasks.filter(t => t.status === 'done').length;
+  return `<div class="goal-card ${done ? 'completed' : ''}">
+    <div class="goal-title">${esc(g.title)}</div>
+    <div class="goal-meta">${g.priority || ''} &middot; ${doneCount}/${tasks.length} tasks</div>
+    ${tasks.length ? '<div class="goal-tasks">' + tasks.map(t =>
+      '<div class="goal-task ' + (t.status === 'done' ? 'done' : '') + '">' +
+      (t.status === 'done' ? '\u2713 ' : '\u25CB ') + esc(t.title) + '</div>'
+    ).join('') + '</div>' : ''}
+  </div>`;
+}
+
+// ── Words Panel ──────────────────────────────────────────────────
+function renderWords() {
+  // Filter buttons
+  const filterEl = document.getElementById('words-filter');
+  const filters = ['all', 'thought', 'action', 'system'];
+  filterEl.innerHTML = filters.map(f =>
+    `<button class="filter-btn ${f === wordsFilter ? 'active' : ''}" data-filter="${f}">${f}</button>`
+  ).join('');
+  filterEl.querySelectorAll('.filter-btn').forEach(b => {
+    b.addEventListener('click', () => {
+      wordsFilter = b.dataset.filter;
+      renderWords();
+    });
+  });
+
+  // Activity entries
+  let items = [...activityLog].reverse();
+  if (wordsFilter !== 'all') {
+    items = items.filter(a => a.type === wordsFilter);
+  }
+
+  const list = document.getElementById('words-list');
+  list.innerHTML = items.slice(0, 50).map(a => `
+    <div class="word-card" onclick="this.classList.toggle('expanded')">
+      <div class="word-type ${a.type || ''}">${a.type || 'note'}</div>
+      <div class="word-body">${miniMd(a.message || '')}</div>
+      <div class="word-time">${fmtTime(a.time)}</div>
+    </div>
+  `).join('') || '<div style="color:var(--text-faint);text-align:center;padding:40px">No entries yet</div>';
+}
+
+// ── Chat Panel ───────────────────────────────────────────────────
+let chatRenderedCount = 0;
+let streamingMsgEl = null;
+
+function renderChat() {
+  const container = document.getElementById('chat-messages');
+
+  // Quick replies
+  const quickEl = document.getElementById('chat-quick');
+  if (!quickEl.children.length) {
+    const prompts = ['How are you?', "What's on your mind?", 'Tell me about your goals'];
+    quickEl.innerHTML = prompts.map(p =>
+      `<button class="quick-btn" data-msg="${esc(p)}">${p}</button>`
+    ).join('');
+    quickEl.querySelectorAll('.quick-btn').forEach(b => {
+      b.addEventListener('click', () => sendChat(b.dataset.msg));
+    });
+  }
+
+  // Render messages from brain state
+  if (chatRenderedCount < chatMessages.length) {
+    for (let i = chatRenderedCount; i < chatMessages.length; i++) {
+      const m = chatMessages[i];
+      const isUser = m.from === 'owner';
+      // Skip if this was already rendered by streaming
+      if (streamingMsgEl && !isUser && i === chatMessages.length - 1) continue;
+      appendChatBubble(isUser ? 'user' : 'bot', m.message, m.timestamp);
+    }
+    chatRenderedCount = chatMessages.length;
+    scrollChat();
+  }
+}
+
+function appendChatBubble(type, text, time) {
+  const container = document.getElementById('chat-messages');
+  const div = document.createElement('div');
+  div.className = 'chat-msg ' + type;
+  div.innerHTML = `<div class="msg-text">${miniMd(text)}</div>
+    ${time ? '<div class="msg-time">' + fmtTime(time) + '</div>' : ''}`;
+  container.appendChild(div);
+  return div;
+}
+
+function scrollChat() {
+  const c = document.getElementById('chat-messages');
+  c.scrollTop = c.scrollHeight;
+}
+
+async function sendChat(msg) {
+  if (!msg || chatStreaming) return;
+  msg = msg.trim();
+  if (!msg) return;
+
+  const input = document.getElementById('chat-input');
+  input.value = '';
+  chatStreaming = true;
+
+  // Add user bubble
+  appendChatBubble('user', msg);
+  scrollChat();
+
+  // Add bot placeholder
+  const botEl = appendChatBubble('bot', '');
+  streamingMsgEl = botEl;
+  const textEl = botEl.querySelector('.msg-text');
+  scrollChat();
+
+  const clientMessageId = 'touch_' + Date.now() + '_' + Math.random().toString(36).slice(2, 8);
+
+  try {
+    const res = await fetch('/api/brain/chat', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ message: msg, clientMessageId }),
+    });
+
+    if (!res.ok) {
+      textEl.textContent = 'Error: ' + res.status;
+      chatStreaming = false;
+      streamingMsgEl = null;
+      return;
+    }
+
+    const reader = res.body.getReader();
+    const decoder = new TextDecoder();
+    let buffer = '';
+    let fullText = '';
+
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+
+      buffer += decoder.decode(value, { stream: true });
+      const lines = buffer.split('\n');
+      buffer = lines.pop() || '';
+
+      for (const line of lines) {
+        if (line.startsWith('0:')) {
+          try {
+            const chunk = JSON.parse(line.slice(2));
+            fullText += chunk;
+            textEl.innerHTML = miniMd(fullText);
+            scrollChat();
+          } catch {}
+        }
+      }
+    }
+
+    // Process remaining
+    if (buffer.startsWith('0:')) {
+      try {
+        const chunk = JSON.parse(buffer.slice(2));
+        fullText += chunk;
+        textEl.innerHTML = miniMd(fullText);
+      } catch {}
+    }
+
+    if (!fullText) textEl.textContent = '(no response)';
+  } catch (err) {
+    textEl.textContent = 'Connection error';
+  }
+
+  chatStreaming = false;
+  streamingMsgEl = null;
+  // The SSE stream will pick up the new messages from brain state
+  // Increment rendered count to avoid double-rendering
+  chatRenderedCount = chatMessages.length + 2; // user + bot
+}
+
+// Chat input handlers
+document.getElementById('chat-send').addEventListener('click', () => {
+  sendChat(document.getElementById('chat-input').value);
+});
+document.getElementById('chat-input').addEventListener('keydown', e => {
+  if (e.key === 'Enter' && !e.shiftKey) {
+    e.preventDefault();
+    sendChat(e.target.value);
+  }
+});
+
+// ── Vitals Panel ─────────────────────────────────────────────────
+function renderVitals() {
+  const v = vitalsData;
+  if (!v) {
+    document.getElementById('vitals-gauges').innerHTML =
+      '<div style="color:var(--text-faint)">Loading vitals...</div>';
+    return;
+  }
+
+  // Gauges: CPU and Temperature
+  const cpuPct = Math.max(0, v.cpu || 0);
+  const temp = v.temp || 0;
+  const tempColor = temp < 60 ? '#7ecba1' : temp < 75 ? '#f59e0b' : '#f87171';
+  const cpuColor = cpuPct < 50 ? '#7ecba1' : cpuPct < 80 ? '#f59e0b' : '#f87171';
+
+  document.getElementById('vitals-gauges').innerHTML = `
+    ${gaugeHTML(cpuPct, '%', 'CPU', cpuColor)}
+    ${gaugeHTML(temp, '°', 'Temp', tempColor)}
+  `;
+
+  // Memory + Disk bars
+  const memPct = v.memory.total > 0 ? Math.round(v.memory.used / v.memory.total * 100) : 0;
+  const diskPct = v.disk.total > 0 ? Math.round(v.disk.used / v.disk.total * 100) : 0;
+  const memColor = memPct < 70 ? '#7ecba1' : memPct < 90 ? '#f59e0b' : '#f87171';
+  const diskColor = diskPct < 80 ? '#7ecba1' : diskPct < 95 ? '#f59e0b' : '#f87171';
+
+  document.getElementById('vitals-bars').innerHTML = `
+    <div class="vital-bar-row">
+      <span class="vital-bar-label">Memory</span>
+      <div class="vital-bar-track">
+        <div class="vital-bar-fill" style="width:${memPct}%;background:${memColor}"></div>
+      </div>
+      <span class="vital-bar-val">${v.memory.used}MB / ${v.memory.total}MB</span>
+    </div>
+    <div class="vital-bar-row">
+      <span class="vital-bar-label">Disk</span>
+      <div class="vital-bar-track">
+        <div class="vital-bar-fill" style="width:${diskPct}%;background:${diskColor}"></div>
+      </div>
+      <span class="vital-bar-val">${fmtDisk(v.disk.used)} / ${fmtDisk(v.disk.total)}</span>
+    </div>
+  `;
+
+  // Info row
+  const cycles = brainState?.totalThoughts || 0;
+  document.getElementById('vitals-info').innerHTML = `
+    <div class="vital-info-item">
+      <span class="vital-info-val">${fmtUptime(v.uptime)}</span>
+      <span class="vital-info-label">Uptime</span>
+    </div>
+    <div class="vital-info-item">
+      <span class="vital-info-val">#${cycles}</span>
+      <span class="vital-info-label">Cycles</span>
+    </div>
+    <div class="vital-info-item">
+      <span class="vital-info-val">${brainStatus}</span>
+      <span class="vital-info-label">Brain</span>
+    </div>
+    <div class="vital-info-item">
+      <span class="vital-info-val">${v.ip || '?'}</span>
+      <span class="vital-info-label">IP</span>
+    </div>
+    ${v.ssid ? `<div class="vital-info-item">
+      <span class="vital-info-val">${esc(v.ssid)}</span>
+      <span class="vital-info-label">WiFi</span>
+    </div>` : ''}
+  `;
+}
+
+function gaugeHTML(value, unit, label, color) {
+  const r = 65, cx = 80, cy = 80;
+  const circ = 2 * Math.PI * r;
+  const pct = Math.min(100, Math.max(0, value));
+  const offset = circ * (1 - pct / 100);
+  return `<div class="gauge-wrap">
+    <svg class="gauge-svg" viewBox="0 0 160 160">
+      <circle class="gauge-bg" cx="${cx}" cy="${cy}" r="${r}" />
+      <circle class="gauge-fill" cx="${cx}" cy="${cy}" r="${r}"
+        stroke="${color}"
+        stroke-dasharray="${circ.toFixed(1)}"
+        stroke-dashoffset="${offset.toFixed(1)}"
+        transform="rotate(-90 ${cx} ${cy})" />
+      <text class="gauge-val" x="${cx}" y="${cy - 4}" text-anchor="middle" dominant-baseline="central">
+        ${Math.round(value)}${unit}
+      </text>
+    </svg>
+    <span class="gauge-label">${label}</span>
+  </div>`;
+}
+
+// ── Sleep Mode ───────────────────────────────────────────────────
+const SLEEP_TIMEOUT = 120000; // 2 minutes
+
+function resetSleepTimer() {
+  const sleepEl = document.getElementById('sleep');
+  if (!sleepEl.classList.contains('hidden')) {
+    sleepEl.classList.add('hidden');
+  }
+  clearTimeout(sleepTimer);
+  sleepTimer = setTimeout(enterSleep, SLEEP_TIMEOUT);
+}
+
+function enterSleep() {
+  const sleepEl = document.getElementById('sleep');
+  sleepEl.classList.remove('hidden');
+}
+
+['touchstart', 'mousemove', 'keydown', 'click'].forEach(ev => {
+  document.addEventListener(ev, resetSleepTimer, { passive: true });
+});
+
+// ── Time Display ─────────────────────────────────────────────────
+function updateTime() {
+  // Adelaide: UTC+10:30 during DST (Oct-Apr), UTC+9:30 standard
+  const now = new Date();
+  const month = now.getUTCMonth(); // 0-indexed
+  // Simple DST check: Oct (9) to Mar (2) = +10:30, Apr (3) to Sep (8) = +9:30
+  const isDST = month >= 9 || month <= 2;
+  const offsetMs = isDST ? (10.5 * 3600000) : (9.5 * 3600000);
+  const adelaide = new Date(now.getTime() + offsetMs);
+
+  const h = adelaide.getUTCHours();
+  const m = adelaide.getUTCMinutes();
+  const ampm = h >= 12 ? 'pm' : 'am';
+  const h12 = h % 12 || 12;
+  const timeStr = h12 + ':' + String(m).padStart(2, '0') + ' ' + ampm;
+
+  const days = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+  const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  const dateStr = days[adelaide.getUTCDay()] + ' ' + adelaide.getUTCDate() + ' ' + months[adelaide.getUTCMonth()];
+
+  document.getElementById('adelaide-time').textContent = timeStr;
+  document.getElementById('adelaide-date').textContent = dateStr;
+  document.getElementById('sleep-time').textContent = timeStr;
+}
+
+// ── Utility Functions ────────────────────────────────────────────
+function fmtUptime(seconds) {
+  if (seconds < 0) return '?';
+  const d = Math.floor(seconds / 86400);
+  const h = Math.floor((seconds % 86400) / 3600);
+  const m = Math.floor((seconds % 3600) / 60);
+  if (d > 0) return d + 'd ' + h + 'h';
+  if (h > 0) return h + 'h ' + m + 'm';
+  return m + 'm';
+}
+
+function fmtDisk(mb) {
+  if (mb >= 1024) return (mb / 1024).toFixed(1) + 'GB';
+  return mb + 'MB';
+}
+
+function fmtTime(iso) {
+  if (!iso) return '';
+  const d = new Date(iso);
+  const now = new Date();
+  const diff = (now - d) / 1000;
+  if (diff < 60) return 'just now';
+  if (diff < 3600) return Math.floor(diff / 60) + 'm ago';
+  if (diff < 86400) return Math.floor(diff / 3600) + 'h ago';
+  return Math.floor(diff / 86400) + 'd ago';
+}
+
+function esc(s) {
+  if (!s) return '';
+  const d = document.createElement('div');
+  d.textContent = s;
+  return d.innerHTML;
+}
+
+function miniMd(text) {
+  if (!text) return '';
+  return esc(text)
+    .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
+    .replace(/\n/g, '<br>')
+    .replace(/—/g, '&mdash;')
+    .replace(/✓/g, '&check;')
+    .replace(/✗/g, '&cross;')
+    .replace(/✅/g, '&check;')
+    .replace(/❌/g, '&cross;');
+}
+
+// ── Initialize ───────────────────────────────────────────────────
+function init() {
+  connectSSE();
+  fetchVitals();
+  updateTime();
+  resetSleepTimer();
+
+  // Periodic updates
+  setInterval(updateTime, 10000);
+  setInterval(fetchVitals, 15000);
+  setInterval(() => {
+    if (activeTab === 'vitals') renderVitals();
+  }, 16000);
+
+  // Keyboard handling for chat
+  if (window.visualViewport) {
+    window.visualViewport.addEventListener('resize', () => {
+      if (activeTab === 'chat') {
+        document.getElementById('panel-chat').style.height =
+          window.visualViewport.height - 56 + 'px';
+      }
+    });
+  }
+}
+
+init();
+</script>
+</body>
+</html>

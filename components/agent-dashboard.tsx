@@ -580,7 +580,7 @@ export function AgentDashboard(_props: AgentDashboardProps) {
                   transition={{ type: 'spring', stiffness: 400, damping: 30 }}
                   className="absolute inset-0 overflow-y-auto"
                 >
-                  <div className="px-2 py-3">
+                  <div className="px-1.5 py-2">
                     <GoalsPanel goals={agent.goals} onInjectGoal={agent.injectGoal} />
                   </div>
                 </motion.div>
@@ -596,7 +596,7 @@ export function AgentDashboard(_props: AgentDashboardProps) {
                   transition={{ type: 'spring', stiffness: 400, damping: 30 }}
                   className="absolute inset-0 overflow-y-auto"
                 >
-                  <div className="px-2 py-3">
+                  <div className="px-1.5 py-2">
                     <ActivityFeed entries={agent.activity} agentStatus={agent.agentStatus} />
                   </div>
                 </motion.div>
@@ -619,8 +619,8 @@ export function AgentDashboard(_props: AgentDashboardProps) {
           </div>
 
           {/* ─── Mobile bottom tab bar ─── */}
-          <div className="border-t border-pi-border bg-pi-panel/95 backdrop-blur-md supports-[padding-bottom:env(safe-area-inset-bottom)]:pb-[env(safe-area-inset-bottom)]" role="tablist">
-            <div className="flex items-center justify-around px-3 py-2">
+          <div className="border-t border-pi-border bg-pi-panel/95 backdrop-blur-md safe-bottom" role="tablist">
+            <div className="flex items-center justify-around px-1 py-1">
               {mobileTabs.map(tab => {
                 const isActive = mobileTab === tab.id
                 const badge = tab.id === 'chat' ? unreadBrainMessages : 0
@@ -634,10 +634,10 @@ export function AgentDashboard(_props: AgentDashboardProps) {
                       if ('vibrate' in navigator) navigator.vibrate(10)
                     }}
                     className={cn(
-                      'relative flex flex-col items-center gap-1 px-3 py-2 rounded-xl transition-all min-w-[60px] min-h-[48px] touch-manipulation',
+                      'relative flex flex-col items-center gap-0.5 px-2 py-1.5 rounded-xl transition-all flex-1 min-h-[44px] touch-manipulation',
                       isActive
                         ? 'text-pi-accent bg-pi-accent/10'
-                        : 'text-pi-text-dim hover:text-pi-text hover:bg-pi-hover/50 active:bg-pi-hover/70'
+                        : 'text-pi-text-dim hover:text-pi-text active:bg-pi-surface/50'
                     )}
                   >
                     <div className="relative">
@@ -653,13 +653,13 @@ export function AgentDashboard(_props: AgentDashboardProps) {
                       )}
                     </div>
                     <span className={cn(
-                      'text-[10px] font-medium leading-tight',
+                      'text-[9px] font-medium leading-tight',
                       isActive && 'font-semibold'
                     )}>{tab.label}</span>
                     {isActive && (
                       <motion.span
                         layoutId="mobile-tab-indicator"
-                        className="absolute -bottom-0.5 w-6 h-0.5 bg-pi-accent rounded-full shadow-sm"
+                        className="absolute -bottom-0.5 w-5 h-0.5 bg-pi-accent rounded-full shadow-sm"
                         transition={{ type: 'spring', stiffness: 500, damping: 30 }}
                       />
                     )}
