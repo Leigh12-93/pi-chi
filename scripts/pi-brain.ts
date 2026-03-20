@@ -31,7 +31,7 @@ import { getPendingCount } from '../lib/brain/escalation'
 import { executeCommand } from '../lib/tools/terminal-tools'
 import { randomUUID } from 'node:crypto'
 import { execSync } from 'node:child_process'
-import { writeFileSync, unlinkSync, copyFileSync, readdirSync, readFileSync, existsSync } from 'node:fs'
+import { writeFileSync, appendFileSync, unlinkSync, copyFileSync, readdirSync, readFileSync, existsSync } from 'node:fs'
 import { join } from 'node:path'
 import { homedir } from 'node:os'
 import type { SystemVitalsSnapshot, BrainState, CycleJournal, FailureRecord } from '../lib/brain/brain-types'
@@ -1132,6 +1132,22 @@ ${goalDeficit}
     console.error(`[pi-brain] API error:`, errMsg)
     addActivity(state, 'error', `Brain cycle failed: ${errMsg.slice(0, 200)}`)
     finishCycleRecord(state, cycleActivityStartIndex, `Cycle failed: ${errMsg.slice(0, 200)}`)
+    // Auth failure detection -- trigger watchdog immediately, then retry after 60s
+    if (/does not have access|Please login|401|unauthorized/i.test(errMsg)) {
+      const authLog = '/home/pi/data/claude-auth-watchdog.log'
+      const ts = new Date().toISOString().replace('T', ' ').slice(0, 19)
+      const logLine = `[${ts}] AUTH ERROR detected in brain cycle -- triggering watchdog immediately
+`
+      appendFileSync(authLog, logLine)
+      console.error('[pi-brain] Auth error detected -- running watchdog now')
+      try {
+        await executeCommand('bash /home/pi/scripts/claude-auth-watchdog.sh', { timeout: 60000 })
+      } catch (watchdogErr) {
+        console.error('[pi-brain] Watchdog error:', watchdogErr instanceof Error ? watchdogErr.message : String(watchdogErr))
+      }
+      // Wait 60s before next cycle to give watchdog time to restore creds
+      await new Promise(r => setTimeout(r, 60000))
+    }
     // Only count non-transient errors toward crash counter (avoids rollback from API hiccups)
     if (!isTransientError(err)) {
       state.consecutiveCrashes++
