@@ -2,7 +2,6 @@
 /* ═══════════════════════════════════════════════════════════════════
  * CheapSkip Lead Notifier — Polls Supabase for new leads,
  * matches to providers, sends SMS via Pi modem outbox.
- * Also sends welcome SMS to newly registered providers.
  *
  * Run: npx tsx scripts/cheapskip-lead-notifier.ts
  * Service: cheapskip-lead-notifier.service
@@ -31,9 +30,6 @@ if (!SUPABASE_KEY) {
 
 const supabase = createClient(SUPABASE_URL, SUPABASE_KEY)
 
-// Track welcomed providers in-memory (avoids re-sending within session)
-const welcomedPhones = new Set<string>()
-
 // ── SMS Helper ─────────────────────────────────────────────────────
 
 function normalizePhone(phone: string): string | null {
@@ -51,37 +47,6 @@ function queueSms(to: string, message: string): void {
   const payload = JSON.stringify({ to, message: message.slice(0, 160) })
   writeFileSync(join(OUTBOX_DIR, `${id}.json`), payload)
   console.log(`  SMS queued to ${to.slice(0, 8)}...`)
-}
-
-// ── Welcome SMS for new providers ─────────────────────────────────
-
-async function welcomeNewProviders(): Promise<void> {
-  const since = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString()
-  const { data: newProviders, error } = await supabase
-    .from('skip_providers')
-    .select('id, business_name, contact_name, phone, service_areas, created_at')
-    .eq('status', 'active')
-    .gte('created_at', since)
-
-  if (error || !newProviders || newProviders.length === 0) return
-
-  for (const provider of newProviders) {
-    const phone = normalizePhone(provider.phone || '')
-    if (!phone) continue
-    if (welcomedPhones.has(phone)) continue
-
-    welcomedPhones.add(phone)
-
-    const contactName = (provider.contact_name || provider.business_name) as string
-    const areas = ((provider.service_areas as string[]) || []).join(', ')
-    const welcomeMsg = `Welcome to CheapSkipBinsNearMe, ${contactName}! You are now live. You will receive customer leads via SMS for ${areas || 'your service areas'}. $2 per verified lead, invoiced monthly.`
-
-    queueSms(phone, welcomeMsg)
-    console.log(`  Welcome SMS queued: ${provider.business_name}`)
-
-    const adminMsg = `New CheapSkip provider signup: ${provider.business_name} (${contactName}) ${provider.phone} - ${areas}`
-    queueSms(LEIGH_PHONE, adminMsg)
-  }
 }
 
 // ── Process new leads ──────────────────────────────────────────────
@@ -188,10 +153,5 @@ async function processNewLeads(): Promise<void> {
 console.log('CheapSkip Lead Notifier started')
 console.log(`Polling every ${POLL_INTERVAL_MS / 1000}s`)
 
-async function poll(): Promise<void> {
-  await welcomeNewProviders().catch(console.error)
-  await processNewLeads().catch(console.error)
-}
-
-poll()
-setInterval(poll, POLL_INTERVAL_MS)
+processNewLeads().catch(console.error)
+setInterval(() => processNewLeads().catch(console.error), POLL_INTERVAL_MS)
