@@ -41,10 +41,25 @@ function normalizePhone(phone: string): string | null {
   return null
 }
 
+/** Replace unicode with GSM-7 equivalents. Non-GSM chars force UCS-2 (70 chars/segment not 160). */
+function cleanSms(msg: string): string {
+  return msg
+    .replace(/\u00b3/g, '3')    // m3 (cubic)
+    .replace(/\u00b2/g, '2')    // m2 (square)
+    .replace(/[\u201c\u201d]/g, '"')  // smart quotes
+    .replace(/[\u2013\u2014]/g, '-')  // dashes
+    .replace(/\u2026/g, '...')        // ellipsis
+    .replace(/\u00a0/g, ' ')          // non-breaking space
+    .replace(/[^\x20-\x7E\n]/g, '') // strip remaining non-ASCII
+    .replace(/ {2,}/g, ' ')           // collapse spaces
+    .trim()
+}
+
 function queueSms(to: string, message: string): void {
   mkdirSync(OUTBOX_DIR, { recursive: true })
   const id = randomUUID()
-  const payload = JSON.stringify({ to, message: message.slice(0, 160) })
+  const clean = cleanSms(message).slice(0, 459) // max 3 SMS segments
+  const payload = JSON.stringify({ to, message: clean })
   writeFileSync(join(OUTBOX_DIR, `${id}.json`), payload)
   console.log(`  SMS queued to ${to.slice(0, 8)}...`)
 }
