@@ -17,7 +17,7 @@ import { randomUUID } from 'node:crypto'
 
 const POLL_INTERVAL_MS = 60_000 // 60 seconds
 const OUTBOX_DIR = join(homedir(), '.pi-chi', 'sms', 'outbox')
-const LEIGH_PHONE = '+61451072948' // Leigh's number for owner notifications
+const LEIGH_PHONE = '+61481274420'
 
 // CheapSkip Supabase (separate from Pi-Chi's Supabase)
 const SUPABASE_URL = (process.env.CHEAPSKIP_SUPABASE_URL || 'https://pocoystpkrdmobplazhd.supabase.co').trim()
@@ -46,10 +46,10 @@ function queueSms(to: string, message: string): void {
   const id = randomUUID()
   const payload = JSON.stringify({ to, message: message.slice(0, 160) })
   writeFileSync(join(OUTBOX_DIR, `${id}.json`), payload)
-  console.log(`  SMS queued → ${to.slice(0, 6)}...`)
+  console.log(`  SMS queued to ${to.slice(0, 8)}...`)
 }
 
-// ── Main Loop ──────────────────────────────────────────────────────
+// ── Process new leads ──────────────────────────────────────────────
 
 async function processNewLeads(): Promise<void> {
   const { data: leads, error } = await supabase
@@ -68,35 +68,41 @@ async function processNewLeads(): Promise<void> {
 
   console.log(`Found ${leads.length} new lead(s)`)
 
-  // Fetch active providers
+  // Fetch active providers from skip_providers (has service_postcodes + radius data)
   const { data: providers } = await supabase
-    .from('providers')
-    .select('*')
-    .in('subscription_status', ['approved', 'active'])
+    .from('skip_providers')
+    .select('id, business_name, contact_name, phone, service_areas, service_postcodes, bin_sizes')
+    .in('status', ['active', 'approved'])
 
   for (const lead of leads) {
     const suburb = (lead.suburb || '').toLowerCase().trim()
     const postcode = (lead.postcode || '').trim()
     const state = (lead.state || '').toLowerCase().trim()
+    const binSize = (lead.bin_size || '').trim()
 
-    // Match providers by service area
     const matched = (providers || []).filter((p: Record<string, unknown>) => {
+      // Bin size filter
+      const sizes = (p.bin_sizes as string[] | null) || []
+      if (sizes.length > 0 && binSize) {
+        const targetNum = parseFloat(binSize)
+        if (!sizes.some(s => Math.abs(parseFloat(s) - targetNum) <= 1)) return false
+      }
+
+      // Postcode match — most accurate (radius-based signup)
+      const postcodes = (p.service_postcodes as string[] | null) || []
+      if (postcodes.length > 0 && postcode && postcodes.includes(postcode)) return true
+
+      // Fallback: service area string match (legacy providers)
       const areas = (p.service_areas as string[]) || []
       return areas.some((area: string) => {
         const a = area.toLowerCase().trim()
-        return (
-          a === suburb ||
-          a === postcode ||
-          a === state ||
-          suburb.includes(a) ||
-          a.includes(suburb)
-        )
+        return a === suburb || a === postcode || a === state ||
+          suburb.includes(a) || a.includes(suburb)
       })
     })
 
-    console.log(`Lead #${lead.id}: ${lead.customer_name} in ${lead.suburb} — ${matched.length} provider match(es)`)
+    console.log(`Lead #${lead.id}: ${lead.customer_name} in ${lead.suburb} (${postcode}) — ${matched.length} match(es)`)
 
-    // Notify matched providers via SMS
     const notifiedNames: string[] = []
     for (const provider of matched) {
       const p = provider as Record<string, unknown>
@@ -110,37 +116,27 @@ async function processNewLeads(): Promise<void> {
         lead.suburb ? `Area: ${lead.suburb}` : null,
         lead.bin_size ? `Size: ${lead.bin_size}` : null,
         'Call them ASAP!',
-      ]
-        .filter(Boolean)
-        .join('\n')
+      ].filter(Boolean).join('\n')
 
       queueSms(phone, msg)
-      notifiedNames.push(p.name as string)
+      notifiedNames.push(p.business_name as string)
     }
 
-    // Notify Leigh of the new lead
     const ownerMsg = [
       `CheapSkip lead #${lead.id}!`,
       `${lead.customer_name} - ${lead.phone}`,
-      `${lead.suburb || ''} ${lead.bin_size || ''}`,
-      matched.length > 0
-        ? `Sent to: ${notifiedNames.join(', ')}`
-        : 'No provider match',
-    ]
-      .filter(Boolean)
-      .join('\n')
+      `${lead.suburb || ''} ${lead.bin_size || ''}`.trim(),
+      matched.length > 0 ? `Sent to: ${notifiedNames.join(', ')}` : 'No provider match',
+    ].filter(Boolean).join('\n')
 
     queueSms(LEIGH_PHONE, ownerMsg)
 
-    // Update lead status
     const notes = [
       lead.notes,
       matched.length > 0
         ? `SMS sent to: ${notifiedNames.join(', ')}`
         : 'No provider matched service area',
-    ]
-      .filter(Boolean)
-      .join('; ')
+    ].filter(Boolean).join('; ')
 
     await supabase
       .from('quote_requests')
@@ -157,10 +153,5 @@ async function processNewLeads(): Promise<void> {
 console.log('CheapSkip Lead Notifier started')
 console.log(`Polling every ${POLL_INTERVAL_MS / 1000}s`)
 
-// Initial poll
 processNewLeads().catch(console.error)
-
-// Recurring poll
-setInterval(() => {
-  processNewLeads().catch(console.error)
-}, POLL_INTERVAL_MS)
+setInterval(() => processNewLeads().catch(console.error), POLL_INTERVAL_MS)
