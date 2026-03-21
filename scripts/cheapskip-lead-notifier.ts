@@ -124,25 +124,17 @@ async function processNewLeads(): Promise<void> {
       const phone = normalizePhone((p.phone as string) || '')
       if (!phone) continue
 
-      const msg = [
-        'New skip bin lead - CheapSkipBinsNearMe',
-        `Customer: ${lead.customer_name}`,
-        `Phone: ${lead.phone}`,
-        lead.suburb ? `Area: ${lead.suburb}` : null,
-        lead.bin_size ? `Size: ${lead.bin_size}` : null,
-        'Call them ASAP!',
-      ].filter(Boolean).join('\n')
+      const size = (lead.bin_size || '').replace(/\u00b3/g, '3').replace(/\u00b2/g, '2')
+      const msg = `CheapSkip lead: ${lead.customer_name}, ${lead.phone}, ${lead.suburb || ''} ${lead.state || ''}, ${size}. Call ASAP!`
 
       queueSms(phone, msg)
       notifiedNames.push(p.business_name as string)
     }
 
-    const ownerMsg = [
-      `CheapSkip lead #${lead.id}!`,
-      `${lead.customer_name} - ${lead.phone}`,
-      `${lead.suburb || ''} ${lead.bin_size || ''}`.trim(),
-      matched.length > 0 ? `Sent to: ${notifiedNames.join(', ')}` : 'No provider match',
-    ].filter(Boolean).join('\n')
+    const size = (lead.bin_size || '').replace(/\u00b3/g, '3').replace(/\u00b2/g, '2')
+    const ownerMsg = matched.length > 0
+      ? `CheapSkip lead #${lead.id}: ${lead.customer_name} ${lead.phone} ${lead.suburb || ''} ${size} -> ${notifiedNames.join(', ')}`
+      : `CheapSkip lead #${lead.id}: ${lead.customer_name} ${lead.phone} ${lead.suburb || ''} ${size} - NO MATCH`
 
     queueSms(LEIGH_PHONE, ownerMsg)
 
