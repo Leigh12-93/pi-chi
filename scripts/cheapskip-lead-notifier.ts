@@ -1,11 +1,4 @@
 #!/usr/bin/env tsx
-/* ═══════════════════════════════════════════════════════════════════
- * CheapSkip Lead Notifier — Polls Supabase for new leads,
- * matches to providers, sends SMS via Pi modem outbox.
- *
- * Run: npx tsx scripts/cheapskip-lead-notifier.ts
- * Service: cheapskip-lead-notifier.service
- * ═══════════════════════════════════════════════════════════════════ */
 
 import { createClient } from '@supabase/supabase-js'
 import { writeFileSync, mkdirSync } from 'node:fs'
@@ -41,7 +34,6 @@ function normalizePhone(phone: string): string | null {
   return null
 }
 
-/** Replace unicode with GSM-7 equivalents. Non-GSM chars force UCS-2 (70 chars/segment not 160). */
 function cleanSms(msg: string): string {
   return msg
     .replace(/\u00b3/g, '3')    // m3 (cubic)
@@ -119,26 +111,31 @@ async function processNewLeads(): Promise<void> {
     console.log(`Lead #${lead.id}: ${lead.customer_name} in ${lead.suburb} (${postcode}) — ${matched.length} match(es)`)
 
     const notifiedNames: string[] = []
+    const size = (lead.bin_size || '').replace(/\u00b3/g, '3').replace(/\u00b2/g, '2')
     for (const provider of matched) {
       const p = provider as Record<string, unknown>
       const phone = normalizePhone((p.phone as string) || '')
       if (!phone) continue
 
-      const size = (lead.bin_size || '').replace(/\u00b3/g, '3').replace(/\u00b2/g, '2')
-      const msg = [
-        'New skip bin lead - CheapSkipBinsNearMe',
-        `Customer: ${lead.customer_name}`,
-        `Phone: ${lead.phone}`,
-        lead.suburb ? `Area: ${lead.suburb}${lead.state ? ', ' + lead.state : ''}` : null,
-        `Size: ${size}`,
-        'Call them ASAP!',
-      ].filter(Boolean).join('\n')
+      // Send teaser only — provider must reply YES to get full details
+      const teaser = cleanSms(
+        `CheapSkipBins: New lead in ${lead.suburb || lead.state || 'your area'} - ${size || 'skip bin'}. Reply YES to get customer details. $2/lead.`
+      )
+      queueSms(phone, teaser)
 
-      queueSms(phone, msg)
+      // Record distribution so inbound YES handler can find it
+      await supabase
+        .from('lead_distributions')
+        .insert({
+          lead_id: lead.id,
+          provider_id: p.id,
+          status: 'sent',
+          teaser_sent_at: new Date().toISOString(),
+        })
+
       notifiedNames.push(p.business_name as string)
     }
 
-    const size = (lead.bin_size || '').replace(/\u00b3/g, '3').replace(/\u00b2/g, '2')
     const ownerMsg = [
       `CheapSkip lead #${lead.id}!`,
       `${lead.customer_name} - ${lead.phone}`,
