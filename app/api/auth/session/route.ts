@@ -15,14 +15,23 @@ export async function GET() {
   const session = await getSession()
   if (!session) return NextResponse.json(null)
 
-  // Check if user has a stored API key
+  // Check if user has a stored API key + subscription status
   let hasApiKey = false
+  let subscription: { status: string; plan: string | null; endsAt: string | null } = { status: 'none', plan: null, endsAt: null }
   try {
     const { data, ok } = await supabaseFetch(
-      `/pi_user_settings?github_username=eq.${encodeURIComponent(session.githubUsername)}&select=encrypted_api_key`,
+      `/pi_user_settings?github_username=eq.${encodeURIComponent(session.githubUsername)}&select=encrypted_api_key,subscription_status,subscription_plan,subscription_current_period_end`,
     )
     if (ok && Array.isArray(data) && data.length > 0) {
-      hasApiKey = !!(data[0] as any).encrypted_api_key
+      const row = data[0] as Record<string, unknown>
+      hasApiKey = !!row.encrypted_api_key
+      if (row.subscription_status && row.subscription_status !== 'none') {
+        subscription = {
+          status: row.subscription_status as string,
+          plan: (row.subscription_plan as string) || null,
+          endsAt: (row.subscription_current_period_end as string) || null,
+        }
+      }
     }
   } catch (err) {
     console.error('[auth/session] Failed to check API key:', err instanceof Error ? err.message : err)
@@ -32,6 +41,7 @@ export async function GET() {
     user: session.user,
     githubUsername: session.githubUsername,
     hasApiKey,
+    subscription,
   })
   response.headers.set('Cache-Control', 'private, max-age=60, stale-while-revalidate=120')
   return response

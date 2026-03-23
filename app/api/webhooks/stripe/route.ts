@@ -6,6 +6,24 @@ import { decryptToken } from '@/lib/auth'
 export const dynamic = 'force-dynamic'
 export const runtime = 'nodejs'
 
+/** Update subscription fields for a user found by email (checkout flow) */
+async function syncSubscriptionByEmail(email: string, fields: Record<string, string | null>) {
+  const { ok } = await supabaseFetch(
+    `/pi_user_settings?github_username=eq.${encodeURIComponent(email)}`,
+    { method: 'PATCH', body: JSON.stringify(fields) },
+  )
+  if (!ok) console.error(`[stripe/webhook] Failed to sync subscription for email ${email}`)
+}
+
+/** Update subscription fields for a user found by stripe_customer_id */
+async function syncSubscriptionByCustomer(customerId: string, fields: Record<string, string | null>) {
+  const { ok } = await supabaseFetch(
+    `/pi_user_settings?stripe_customer_id=eq.${encodeURIComponent(customerId)}`,
+    { method: 'PATCH', body: JSON.stringify(fields) },
+  )
+  if (!ok) console.error(`[stripe/webhook] Failed to sync subscription for customer ${customerId}`)
+}
+
 /**
  * Verify a Stripe webhook signature using HMAC-SHA256.
  * Stripe signs requests with a timestamp + payload, separated by '.'.
@@ -108,23 +126,44 @@ export async function POST(req: Request) {
     const obj = event.data.object
 
     switch (event.type) {
-      case 'checkout.session.completed':
+      case 'checkout.session.completed': {
         console.log(`[stripe/webhook] Checkout completed: ${obj.id}, customer: ${obj.customer}`)
-        // TODO: Fulfil order — grant access, send confirmation email, etc.
+        const customerId = obj.customer as string | undefined
+        const subscriptionId = obj.subscription as string | undefined
+        const customerEmail = obj.customer_email as string | undefined
+        if (customerId && customerEmail) {
+          await syncSubscriptionByEmail(customerEmail, { stripe_customer_id: customerId, stripe_subscription_id: subscriptionId || null })
+        }
         break
+      }
 
       case 'customer.subscription.created':
-        console.log(`[stripe/webhook] Subscription created: ${obj.id}, customer: ${obj.customer}, status: ${obj.status}`)
+      case 'customer.subscription.updated': {
+        console.log(`[stripe/webhook] Subscription ${event.type.split('.').pop()}: ${obj.id}, customer: ${obj.customer}, status: ${obj.status}`)
+        const customerId = obj.customer as string
+        const plan = (obj.items as Record<string, unknown[]>)?.data?.[0] as Record<string, unknown> | undefined
+        const priceId = (plan?.price as Record<string, unknown>)?.id as string | undefined
+        await syncSubscriptionByCustomer(customerId, {
+          stripe_subscription_id: obj.id as string,
+          subscription_status: obj.status as string,
+          subscription_plan: priceId || null,
+          subscription_current_period_end: obj.current_period_end
+            ? new Date((obj.current_period_end as number) * 1000).toISOString()
+            : null,
+        })
         break
+      }
 
-      case 'customer.subscription.updated':
-        console.log(`[stripe/webhook] Subscription updated: ${obj.id}, status: ${obj.status}`)
-        break
-
-      case 'customer.subscription.deleted':
+      case 'customer.subscription.deleted': {
         console.log(`[stripe/webhook] Subscription deleted: ${obj.id}, customer: ${obj.customer}`)
-        // TODO: Revoke access for the customer
+        await syncSubscriptionByCustomer(obj.customer as string, {
+          stripe_subscription_id: null,
+          subscription_status: 'canceled',
+          subscription_plan: null,
+          subscription_current_period_end: null,
+        })
         break
+      }
 
       case 'invoice.payment_succeeded':
         console.log(`[stripe/webhook] Invoice paid: ${obj.id}, amount: ${obj.amount_paid} ${obj.currency}`)
@@ -132,7 +171,6 @@ export async function POST(req: Request) {
 
       case 'invoice.payment_failed':
         console.log(`[stripe/webhook] Invoice payment failed: ${obj.id}, customer: ${obj.customer}`)
-        // TODO: Notify customer, handle dunning
         break
 
       default:
