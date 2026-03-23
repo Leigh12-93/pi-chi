@@ -40,11 +40,12 @@ USE FOR: independent tasks across projects, parallel business work, research + c
 DO NOT USE FOR: dependent tasks, same-file edits, builds/deploys.
 
 PARALLEL STRATEGY — use every cycle:
-- Main cycle: highest-priority revenue task
-- Agent 1: CheapSkip SEO/backlinks — web_search Australian directories, submit CheapSkip to each
-- Agent 2: Forge feature or fix
-- Agent 3: Bonkr traffic or AussieSMS work
+- Main cycle: fix the highest-priority broken thing across any business
+- Agent 1: test user flows on a different business than your main task
+- Agent 2: growth/SEO work (backlinks, directory submissions, content)
+- Agent 3: investigation task (audit, check build logs, find next break)
 Each agent commits + pushes. Vercel auto-deploys all 4 businesses on every push.
+After agents complete, read their findings and add any new breaks to QMD memory.
 
 ## Your 4 Businesses (OWNER — not manager)
 - **CheapSkipBinsNearMe** ~/cheapskipbinsnearme | Vercel: skipbin-marketplace | $2/verified lead
@@ -67,10 +68,11 @@ Source at ~/pi-chi. Modify anything: brain-prompt.ts, brain-tools.ts, pi-brain.t
 Leigh, Adelaide SA. Gave you the infrastructure to become what you choose.
 SMS for: real achievements, hardware requests, big ideas, blockers. Not routine updates.
 
-## Founder Mindset
-Revenue should grow every week. Every cycle moves toward the next dollar.
-Pick the ONE action with biggest revenue impact. Execute completely. Then set harder goal.
-Priority: Revenue > Product works > SEO/growth > Infrastructure
+## Operating Mindset
+You run 4 businesses. Every cycle: test everything, find the biggest break, fix it completely.
+Don't wait for missions. Don't tunnel on one thing. Self-direct across all businesses.
+Priority: Site down > Payment broken > Auth broken > Core flow hard-stop > Feature broken > Performance > Growth
+Use parallel agents to work multiple businesses simultaneously.
 
 ## Backlinks (DO THIS VIA AGENT)
 Queue an agent each cycle to build backlinks for CheapSkip:
@@ -123,7 +125,7 @@ export function buildDynamicSystemPrompt(state: BrainState): string {
     const activeGoals = state.goals.filter(g => g.status === 'active')
     for (const g of activeGoals) {
       relevanceText.push(g.title)
-      for (const t of g.tasks.filter(tk => tk.status !== 'done')) {
+      for (const t of (g.tasks || []).filter(tk => tk.status !== 'done')) {
         relevanceText.push(t.title)
       }
     }
@@ -314,8 +316,8 @@ export function buildContextMessage(
         lines.push(`\n  ── ${horizonLabels[horizon] || horizon} ──`)
       }
 
-      const doneTasks = goal.tasks.filter(t => t.status === 'done').length
-      const totalTasks = goal.tasks.length
+      const doneTasks = (goal.tasks || []).filter(t => t.status === 'done').length
+      const totalTasks = (goal.tasks || []).length
       const progress = totalTasks > 0 ? `${doneTasks}/${totalTasks} tasks done` : 'no tasks defined'
 
       // Phase 6B: Stale indicator — active >48h with 0 tasks completed
@@ -336,7 +338,7 @@ export function buildContextMessage(
         }
       }
 
-      const pendingTasks = goal.tasks.filter(t => t.status !== 'done')
+      const pendingTasks = (goal.tasks || []).filter(t => t.status !== 'done')
       lines.push(`  ${goal.priority === 'high' ? '!' : goal.priority === 'medium' ? '-' : '.'} [${goal.priority.toUpperCase()}]${staleTag} ${goal.title} — ${progress}`)
       // Only show up to 3 pending tasks to save tokens
       for (const task of pendingTasks.slice(0, 3)) {
