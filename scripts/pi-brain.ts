@@ -984,8 +984,9 @@ ${goalDeficit}
     const result = await callWithRetry(() => runClaudeCodePrompt({
       promptPath,
       cwd: PI_CHI_DIR,
-      maxTurns: 50,
-      timeoutSeconds: 480,
+      maxTurns: 40,
+      timeoutSeconds: 900,
+      liveLogPath: join(homedir(), 'data', 'claude-live.log'),
     }))
 
     const output = (result.stdout || '').trim()
