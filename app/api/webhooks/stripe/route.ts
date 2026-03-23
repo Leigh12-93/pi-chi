@@ -4,6 +4,7 @@ import { decryptToken } from '@/lib/auth'
 
 // Stripe sends webhooks as raw body — ensure Next.js does not pre-parse
 export const dynamic = 'force-dynamic'
+export const runtime = 'nodejs'
 
 /**
  * Verify a Stripe webhook signature using HMAC-SHA256.
@@ -143,4 +144,12 @@ export async function POST(req: Request) {
   }
 
   return NextResponse.json({ received: true })
+}
+
+/** GET /api/webhooks/stripe — health check / method hint */
+export async function GET() {
+  return NextResponse.json(
+    { error: 'Stripe webhooks use POST' },
+    { status: 405, headers: { Allow: 'POST' } },
+  )
 }
