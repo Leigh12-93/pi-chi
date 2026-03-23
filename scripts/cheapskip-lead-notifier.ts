@@ -82,6 +82,16 @@ async function processNewLeads(): Promise<void> {
     .in('status', ['active', 'approved'])
 
   for (const lead of leads) {
+    // Skip test/bot leads — don't waste provider SMS on fake leads
+    const testNames = ['test', 'healthcheck bot', 'pipeline test', 'flow test', 'api test']
+    const nameLC = (lead.customer_name || '').toLowerCase().trim()
+    const isTestLead = testNames.some(t => nameLC.includes(t)) || lead.phone === '0400000000'
+    if (isTestLead) {
+      console.log(`Lead #${lead.id}: "${lead.customer_name}" — TEST lead, skipping distribution`)
+      await supabase.from('quote_requests').update({ status: 'test' }).eq('id', lead.id)
+      continue
+    }
+
     const suburb = (lead.suburb || '').toLowerCase().trim()
     const postcode = (lead.postcode || '').trim()
     const state = (lead.state || '').toLowerCase().trim()
