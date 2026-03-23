@@ -648,7 +648,7 @@ ${memories.map(m => `[${m.importance}] ${m.key}: ${m.content}`).join('\n')}
 
 Current mood: curiosity=${state.mood.curiosity}, satisfaction=${state.mood.satisfaction}, frustration=${state.mood.frustration}, loneliness=${state.mood.loneliness}, energy=${state.mood.energy}, pride=${state.mood.pride}
 
-Total thoughts: ${state.totalThoughts}. Goals completed: ${state.goals.filter(g => g.status === 'completed').length}. Active threads: ${state.threads.filter(t => t.status === 'active').length}.
+Total thoughts: ${state.totalThoughts}. Goals completed: ${(state.goals || []).filter(g => g.status === 'completed').length}. Active threads: ${(state.threads || []).filter(t => t.status === 'active').length}.
 
 Reflect on your experiences. Also review memories for consolidation — identify memories older than 30 days with low access counts that could be merged into summaries.
 
@@ -1311,9 +1311,9 @@ async function main(): Promise<void> {
   console.log(`[pi-brain] Birth: ${initialState.birthTimestamp}`)
   console.log(`[pi-brain] Total thoughts: ${initialState.totalThoughts}`)
   console.log(`[pi-brain] Wake interval: ${initialState.wakeIntervalMs / 60000} minutes`)
-  console.log(`[pi-brain] Goals: ${initialState.goals.length} (${initialState.goals.filter(g => g.status === 'active').length} active)`)
-  console.log(`[pi-brain] Memories: ${initialState.memories.length}`)
-  console.log(`[pi-brain] Research threads: ${initialState.threads.length} (${initialState.threads.filter(t => t.status === 'active').length} active)`)
+  console.log(`[pi-brain] Goals: ${(initialState.goals || []).length} (${(initialState.goals || []).filter(g => g.status === 'active').length} active)`)
+  console.log(`[pi-brain] Memories: ${(initialState.memories || []).length}`)
+  console.log(`[pi-brain] Research threads: ${(initialState.threads || []).length} (${(initialState.threads || []).filter(t => t.status === 'active').length} active)`)
   console.log(`[pi-brain] Dreams: ${initialState.dreamCount}`)
   console.log(`[pi-brain] Mood: C=${initialState.mood.curiosity} S=${initialState.mood.satisfaction} F=${initialState.mood.frustration} L=${initialState.mood.loneliness} E=${initialState.mood.energy} P=${initialState.mood.pride}`)
   console.log(`[pi-brain] API cost so far: $${initialState.totalApiCost.toFixed(3)}`)

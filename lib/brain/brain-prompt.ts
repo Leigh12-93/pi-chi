@@ -129,7 +129,7 @@ export function buildDynamicSystemPrompt(state: BrainState): string {
         relevanceText.push(t.title)
       }
     }
-    const activeThreads = state.threads.filter(t => t.status === 'active')
+    const activeThreads = (state.threads || []).filter(t => t.status === 'active')
     for (const t of activeThreads) {
       relevanceText.push(t.title)
     }
@@ -167,7 +167,7 @@ export function buildDynamicSystemPrompt(state: BrainState): string {
   }
 
   // Capabilities
-  if (state.capabilities.length > 0) {
+  if ((state.capabilities || []).length > 0) {
     parts.push(`## Discovered Capabilities\n\n${state.capabilities.join(', ')}`)
   }
 
@@ -275,7 +275,7 @@ export function buildContextMessage(
   }
 
   // Active research threads (compressed — next step only)
-  const activeThreads = state.threads.filter(t => t.status === 'active')
+  const activeThreads = (state.threads || []).filter(t => t.status === 'active')
   if (activeThreads.length > 0) {
     lines.push('')
     lines.push(`Research threads (${activeThreads.length}):`)
