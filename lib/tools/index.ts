@@ -10,6 +10,7 @@ export { createTestingTools } from './testing-tools'
 export { createAuditTools } from './audit-tools'
 export { createTaskTools } from './task-tools'
 export { createGoogleTools } from './google-tools'
+export { createStripeTools } from './stripe-tools'
 // Domain-specific utility tool exports (also available via createUtilityTools)
 export { createPlanningTools } from './planning-tools'
 export { createInspectionTools } from './inspection-tools'

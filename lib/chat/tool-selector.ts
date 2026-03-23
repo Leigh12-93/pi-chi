@@ -14,6 +14,7 @@ import {
   createAuditTools,
   createTaskTools,
   createGoogleTools,
+  createStripeTools,
 } from '@/lib/tools'
 
 export const TOOL_CATEGORY_PATTERNS: Record<string, RegExp> = {
@@ -25,6 +26,7 @@ export const TOOL_CATEGORY_PATTERNS: Record<string, RegExp> = {
   terminal: /run\b|command|terminal|install|server|npm|start.*dev/i,
   audit: /audit|code review|scan|review.*code/i,
   google: /google|sheet|calendar|gmail|drive|spreadsheet|email/i,
+  stripe: /stripe|payment|checkout|billing|subscription|invoice|customer|refund|charge|payout/i,
   mcp: /mcp|plugin|external.*server/i,
   inspection: /validate|coherence|capture.*preview|reference|diagnose/i,
   generation: /generate.*test|dependency.*health/i,
@@ -75,6 +77,7 @@ export function selectTools(
   if (matches.has('terminal')) Object.assign(tools, createTerminalTools(ctx))
   if (matches.has('audit')) Object.assign(tools, createAuditTools(ctx))
   if (matches.has('google')) Object.assign(tools, createGoogleTools(ctx))
+  if (matches.has('stripe')) Object.assign(tools, createStripeTools(ctx))
 
   const toolCount = Object.keys(tools).length
   const estimatedSchemaTokens = Math.round(toolCount * 220)
