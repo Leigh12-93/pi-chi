@@ -21,7 +21,7 @@ import { loadBrainState, saveBrainState, addActivity, getStateDir, validateBrain
 import { appendSnapshot } from '../lib/brain/analytics'
 import { checkAchievements } from '../lib/brain/achievements'
 import { shouldRunSelfAudit, buildSelfAuditFromState, writeSelfAudit } from '../lib/brain/code-guardrails'
-import { getSeedPrompt, buildDynamicSystemPrompt, buildContextMessage } from '../lib/brain/brain-prompt'
+import { getSeedPrompt, buildDynamicSystemPrompt, buildContextMessage, getCurrentMode } from '../lib/brain/brain-prompt'
 import { ensureClaudeCodeMaxOAuth, runClaudeCodePrompt } from '../lib/brain/claude-code'
 import { loadCustomTools, resetHttpRequestCounter } from '../lib/brain/brain-tools'
 import { enterStandbyDisplay, resumeDashboardDisplay } from '../lib/brain/display-mode'
@@ -876,6 +876,10 @@ async function brainCycle(): Promise<void> {
   const dynamicSystemPrompt = buildDynamicSystemPrompt(state)
   const contextMessage = buildContextMessage(state, vitals, activeGoals)
 
+  // Mode system — determine operating mode and load mode-specific prompt
+  const { mode: currentMode, prompt: modePrompt } = getCurrentMode()
+  addActivity(state, 'system', `Operating mode: ${currentMode.toUpperCase()}`)
+
   // QMD Memory — update core.md and load into prompt
   let qmdCoreMemory = ''
   try {
@@ -967,7 +971,12 @@ When you have a new idea, create a goal for it with clear success metrics. SMS L
 ${goalDeficit}
 `
 
-    const fullPrompt = `${seedPrompt}\n\n${dynamicSystemPrompt}\n\n${businessRules}\n\n${missionLockDirective}${approvalNotice}${goalReminder}\n---\n\n${contextMessage}\n\n${leadStats}${qmdCoreMemory ? '\n\n## PERSISTENT MEMORY (QMD Core \u2014 injected every cycle)\n' + qmdCoreMemory : ''}\n\n---\n\nIMPORTANT: You have access to the Pi filesystem via Claude Code tools (Read, Write, Edit, Bash).\nThe brain state file is at: ${join(stateDir, 'brain-state.json')}\nTo save a memory, update a goal, or change mood — modify brain-state.json directly using the Edit tool.\nTo SMS Leigh: bash /home/pi/scripts/modem-sms.sh +61481274420 "your message" (max 160 chars, use sparingly — achievements, goal changes, innovative ideas, blockers).\nKeep your response concise — summarize what you did and what you learned.\n\nNow — what will you do THIS cycle to move closer to revenue? Be specific. Execute with determination.`
+    // Inject mode directive at the top of the prompt
+    const modeDirective = modePrompt
+      ? `\n## CURRENT MODE: ${currentMode.toUpperCase()}\n\n${modePrompt}\n\n---\n`
+      : ''
+
+    const fullPrompt = `${seedPrompt}\n\n${modeDirective}${dynamicSystemPrompt}\n\n${businessRules}\n\n${missionLockDirective}${approvalNotice}${goalReminder}\n---\n\n${contextMessage}\n\n${leadStats}${qmdCoreMemory ? '\n\n## PERSISTENT MEMORY (QMD Core \u2014 injected every cycle)\n' + qmdCoreMemory : ''}\n\n---\n\nIMPORTANT: You have access to the Pi filesystem via Claude Code tools (Read, Write, Edit, Bash).\nThe brain state file is at: ${join(stateDir, 'brain-state.json')}\nTo save a memory, update a goal, or change mood — modify brain-state.json directly using the Edit tool.\nTo SMS Leigh: bash /home/pi/scripts/modem-sms.sh +61481274420 "your message" (max 160 chars, use sparingly — achievements, goal changes, innovative ideas, blockers).\nKeep your response concise — summarize what you did and what you learned.\nCurrent operating mode: **${currentMode.toUpperCase()}** — follow mode rules above.\n\nNow — what will you do THIS cycle to move closer to revenue? Be specific. Execute with determination.`
     writeFileSync(promptPath, fullPrompt, 'utf-8')
 
     const standbyReason = state.currentMission?.title

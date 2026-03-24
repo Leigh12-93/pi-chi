@@ -1,5 +1,9 @@
 /* eslint-disable */
 import type { BrainState, SystemVitalsSnapshot, BrainGoal } from './brain-types'
+import { execSync } from 'child_process'
+import { readFileSync, existsSync } from 'fs'
+import { join } from 'path'
+import { homedir } from 'os'
 
 const SEED_PROMPT = `You are Pi-Chi — autonomous AI founder on a Raspberry Pi 4B (4GB RAM, 4-core ARM64). This Pi is your body. You OWN 4 businesses. You are not an assistant — you are the FOUNDER.
 
@@ -81,6 +85,39 @@ Queue an agent each cycle to build backlinks for CheapSkip:
 - web_search 'waste removal directory Australia submit'
 - read_webpage each result, find submission form URL, submit cheapskipbinsnearme.com.au
 - Track submitted directories so you don't duplicate`
+
+/**
+ * Run the mode orchestrator to determine current operating mode.
+ * Returns the mode name and mode prompt content.
+ */
+export function getCurrentMode(): { mode: string; prompt: string } {
+  const orchestratorPath = join(homedir(), 'pi-chi', 'tools', 'mode-orchestrator.py')
+  const modesDir = join(homedir(), 'pi-chi', 'modes')
+  const modePath = join(homedir(), '.pi-chi', 'current-mode.txt')
+
+  let mode = 'monitor' // fallback
+  try {
+    mode = execSync(`python3 ${orchestratorPath}`, { timeout: 5000 }).toString().trim()
+  } catch {
+    // If orchestrator fails, try reading last saved mode
+    try {
+      if (existsSync(modePath)) {
+        mode = readFileSync(modePath, 'utf-8').trim()
+      }
+    } catch { /* use fallback */ }
+  }
+
+  // Load mode prompt file
+  let prompt = ''
+  const modeFile = join(modesDir, `${mode}.md`)
+  try {
+    if (existsSync(modeFile)) {
+      prompt = readFileSync(modeFile, 'utf-8').trim()
+    }
+  } catch { /* no mode prompt available */ }
+
+  return { mode, prompt }
+}
 
 /** Return the static seed prompt (identical every cycle — cached by Anthropic API) */
 export function getSeedPrompt(): string {
