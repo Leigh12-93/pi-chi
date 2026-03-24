@@ -30,7 +30,7 @@ def load_state():
 
 def has_p0_issues(state):
     """Check for critical unresolved failures or constraint violations."""
-    failures = state.get("failureRegistry", [])
+    fr_raw = state.get("failureRegistry", []); failures = list(fr_raw.values()) if isinstance(fr_raw, dict) else fr_raw
     unresolved_critical = [
         f for f in failures
         if not f.get("resolved")
@@ -55,7 +55,7 @@ def has_recent_failures(state):
     failed_recent = [j for j in recent if j.get("outcome") in ("wasted", "failed")]
 
     # Unresolved failures of any kind
-    failures = state.get("failureRegistry", [])
+    fr_raw = state.get("failureRegistry", []); failures = list(fr_raw.values()) if isinstance(fr_raw, dict) else fr_raw
     unresolved = [f for f in failures if not f.get("resolved")]
 
     return len(failed_recent) > 0 or len(unresolved) > 3
@@ -78,7 +78,7 @@ def has_incomplete_features(state):
 
 def everything_passing(state):
     """Check if all businesses are healthy and no issues exist."""
-    failures = state.get("failureRegistry", [])
+    fr_raw = state.get("failureRegistry", []); failures = list(fr_raw.values()) if isinstance(fr_raw, dict) else fr_raw
     unresolved = [f for f in failures if not f.get("resolved")]
 
     journal = state.get("cycleJournal", [])

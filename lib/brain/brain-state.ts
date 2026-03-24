@@ -531,10 +531,14 @@ export function saveBrainState(state: BrainState): void {
   if (state.cycleJournal && state.cycleJournal.length > MAX_CYCLE_JOURNAL) {
     state.cycleJournal = state.cycleJournal.slice(-MAX_CYCLE_JOURNAL)
   }
+  // Normalize failureRegistry to array (may be stored as object)
+  if (state.failureRegistry && !Array.isArray(state.failureRegistry)) {
+    state.failureRegistry = Object.values(state.failureRegistry)
+  }
   if (state.failureRegistry && state.failureRegistry.length > MAX_FAILURE_REGISTRY) {
     // Keep unresolved failures, prune oldest resolved ones
-    const unresolved = state.failureRegistry.filter(f => !f.resolved)
-    const resolved = state.failureRegistry.filter(f => f.resolved)
+    const unresolved = state.failureRegistry.filter((f: any) => !f.resolved)
+    const resolved = state.failureRegistry.filter((f: any) => f.resolved)
       .sort((a, b) => new Date(b.resolvedAt || 0).getTime() - new Date(a.resolvedAt || 0).getTime())
     state.failureRegistry = [...unresolved, ...resolved].slice(0, MAX_FAILURE_REGISTRY)
   }

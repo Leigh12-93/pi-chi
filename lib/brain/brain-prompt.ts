@@ -1,5 +1,5 @@
 /* eslint-disable */
-import type { BrainState, SystemVitalsSnapshot, BrainGoal } from './brain-types'
+import type { BrainState, SystemVitalsSnapshot, BrainGoal, FailureRecord } from './brain-types'
 import { execSync } from 'child_process'
 import { readFileSync, existsSync } from 'fs'
 import { join } from 'path'
@@ -223,7 +223,7 @@ export function buildDynamicSystemPrompt(state: BrainState): string {
   }
 
   // ── Learning System: Unresolved Failures (shown until resolved) ──
-  const failures = (state.failureRegistry || []).filter(f => !f.resolved)
+  const _failArr: FailureRecord[] = Array.isArray(state.failureRegistry) ? state.failureRegistry : Object.values(state.failureRegistry || {}) as FailureRecord[]; const failures = _failArr.filter(f => !f.resolved)
   if (failures.length > 0) {
     const sorted = [...failures].sort((a, b) => b.occurrenceCount - a.occurrenceCount)
     const lines = sorted.slice(0, 10).map(f => {
@@ -501,7 +501,7 @@ export function buildContextMessage(
   }
 
   // Failure pattern warnings — if the same error keeps happening, SHOUT about it
-  const failures = (state.failureRegistry || []).filter(f => !f.resolved && f.occurrenceCount >= 3)
+  const _failArr: FailureRecord[] = Array.isArray(state.failureRegistry) ? state.failureRegistry : Object.values(state.failureRegistry || {}) as FailureRecord[]; const failures = _failArr.filter(f => !f.resolved && f.occurrenceCount >= 3)
   if (failures.length > 0) {
     lines.push('')
     lines.push('** RECURRING FAILURES — YOU KEEP MAKING THESE MISTAKES: **')

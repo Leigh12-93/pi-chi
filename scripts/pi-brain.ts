@@ -424,7 +424,9 @@ function autoRecordCycleJournal(
 
 /** Auto-detect and record failures from cycle output errors */
 function autoRecordFailures(state: BrainState, errors: string[], cycle: number): void {
-  if (!state.failureRegistry) state.failureRegistry = []
+  if (!state.failureRegistry || !Array.isArray(state.failureRegistry)) {
+    state.failureRegistry = Array.isArray(state.failureRegistry) ? state.failureRegistry : Object.values(state.failureRegistry || {})
+  }
   const now = new Date().toISOString()
 
   for (const error of errors) {
