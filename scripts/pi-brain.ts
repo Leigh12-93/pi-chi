@@ -1334,6 +1334,9 @@ async function main(): Promise<void> {
   while (true) {
     let watchdogTimer: ReturnType<typeof setTimeout> | undefined
     try {
+      // Signal LED controller that a cycle is active
+      try { writeFileSync('/tmp/pi-chi-active', new Date().toISOString()) } catch { /* */ }
+
       // Watchdog timeout (Phase 3.7) — kill stuck cycles after 30 minutes
       await Promise.race([
         brainCycle(),
@@ -1342,6 +1345,8 @@ async function main(): Promise<void> {
         }),
       ]).finally(() => {
         if (watchdogTimer) clearTimeout(watchdogTimer)
+        // Remove active flag — cycle done, entering sleep
+        try { unlinkSync('/tmp/pi-chi-active') } catch { /* */ }
       })
     } catch (err) {
       console.error('[pi-brain] Unexpected error in main loop:', err)
