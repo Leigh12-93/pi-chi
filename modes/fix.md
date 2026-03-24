@@ -28,3 +28,17 @@ P0: Site down, payment broken, auth broken
 P1: Core flow hard-stop (leads don't capture, SMS doesn't send, provider can't sign up)
 P2: Feature broken (but workaround exists)
 P3: Edge case / cosmetic
+
+## STANDING P1 — CheapSkip SMS Loop Test (do every FIX cycle until passing)
+
+1. Send a realistic lead teaser via `gammu-send` to `0466783136`
+2. Query AussieSMS Supabase (`unsqcfflbedqclgkuknq`) messages table — read the EXACT received text
+3. Evaluate: does it read naturally? Would a real tradie reply YES? Is formatting clean?
+4. Fix the SMS template in the code if it's not good enough
+5. Simulate YES reply via CheapSkip inbound API with `from=0466783136`
+6. Verify in CheapSkip Supabase (`pocoystpkrdmobplazhd`) that distribution processed correctly
+7. Verify `/etc/gammu-smsdrc` has `RunOnReceive` wired to the inbound handler
+
+**Test numbers ONLY — never real providers:**
+- `0466783136` — AussieSMS gateway (full loop testing, check received in Supabase)
+- `0481274420` — Leigh alerts only
