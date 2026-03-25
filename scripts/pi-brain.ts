@@ -30,6 +30,7 @@ import { BUSINESSES, NOT_OUR_BUSINESSES, LEAD_PRICE_AUD, getPricingStatement } f
 import { getLeadSummary } from '../lib/brain/lead-tracker'
 import { getPendingCount } from '../lib/brain/escalation'
 import { executeCommand } from '../lib/tools/terminal-tools'
+import { extractJournalErrors } from '../lib/brain/cycle-journal-errors'
 import { randomUUID } from 'node:crypto'
 import { execSync } from 'node:child_process'
 import { writeFileSync, appendFileSync, unlinkSync, copyFileSync, readdirSync, readFileSync, existsSync } from 'node:fs'
@@ -465,11 +466,7 @@ function autoRecordCycleJournal(
   const durationMs = new Date(now).getTime() - new Date(startedAt).getTime()
 
   // Parse errors from output
-  const outputLines = claudeOutput.split('\n')
-  const errors = outputLines
-    .filter(line => /\b(error|failed|ENOENT|EACCES|OOM|killed|Cannot find|Module not found|SyntaxError)\b/i.test(line))
-    .slice(0, 5)
-    .map(l => l.trim().slice(0, 200))
+  const errors = extractJournalErrors(claudeOutput)
 
   // Determine outcome
   let outcome: CycleJournal['outcome'] = 'productive'
