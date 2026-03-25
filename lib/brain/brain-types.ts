@@ -196,6 +196,25 @@ export interface BrainActivityEntry {
   message: string
 }
 
+export interface PersonalityProfile {
+  name: string
+  ownerName?: string | null
+  voice: string
+  temperament: string
+  values: string[]
+  styleRules: string[]
+  updatedAt: string
+}
+
+export interface ReasoningSnapshot {
+  id: string
+  summary: string
+  why: string
+  nextStep: string
+  mode: string
+  createdAt: string
+}
+
 export interface BrainProject {
   id: string
   name: string

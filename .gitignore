@@ -9,3 +9,4 @@ next-env.d.ts
 scripts/.env.keys
 dashboard.log
 BUSINESS-KEYS.md
+__pycache__/

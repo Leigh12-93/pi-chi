@@ -5,7 +5,7 @@ import { readFileSync, appendFileSync, writeFileSync, existsSync, statSync } fro
 import { join } from 'node:path'
 import { homedir } from 'node:os'
 import type { BrainState } from './brain-types'
-import { addActivity, getAdelaideDate } from './brain-state'
+import { addActivity, getAdelaideDate, pushDisplayEvent } from './brain-state'
 import { checkSmsGuardrails } from './sms-guardrails'
 
 const MAX_SMS_PER_HOUR = 10
@@ -202,13 +202,16 @@ export async function queueSmsChecked(to: string, body: string, source: string, 
   }
 
   // Send via gammu
+  pushDisplayEvent('sms_sending', clean, { to, source })
   const result = await gammuSend(to, clean)
   if (!result.success) {
     console.log(`[brain-sms] Gammu send failed: ${result.output}`)
+    pushDisplayEvent('sms_fail', result.output, { to, source })
     return { queued: false, message: `Gammu send failed: ${result.output}` }
   }
 
   appendSmsLog({ time: new Date().toISOString(), to, message: clean, source })
+  pushDisplayEvent('sms_sent', clean, { to, source })
   console.log(`[brain-sms] Sent SMS to ${to} via gammu (${source}): ${clean.slice(0, 60)}`)
   return { queued: true, message: `SMS sent to ${to}: ${clean.slice(0, 50)}...` }
 }
@@ -276,12 +279,15 @@ export async function sendSms(state: BrainState, message: string): Promise<SmsRe
   }
 
   try {
+    pushDisplayEvent('sms_sending', clean, { to: recipientPhone, source: 'brain' })
     const result = await gammuSend(recipientPhone, clean)
     if (!result.success) {
+      pushDisplayEvent('sms_fail', result.output, { to: recipientPhone, source: 'brain' })
       addActivity(state, 'error', `SMS failed (gammu): ${result.output}`)
       return { success: false, message: `Gammu failed: ${result.output}` }
     }
 
+    pushDisplayEvent('sms_sent', clean, { to: recipientPhone, source: 'brain' })
     recordSmsSent(state, recipientPhone, clean, 'brain')
     return { success: true, message: `SMS sent to ${recipient} via gammu` }
   } catch (err) {

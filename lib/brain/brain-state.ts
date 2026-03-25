@@ -10,6 +10,7 @@ import { homedir } from 'node:os'
 import { randomUUID, createHash } from 'node:crypto'
 import { execSync } from 'node:child_process'
 import type { BrainState, BrainActivityEntry } from './brain-types'
+import { ensureBrainDb, syncBrainDb } from './brain-db'
 
 const STATE_DIR = join(homedir(), '.pi-chi')
 const STATE_FILE = join(STATE_DIR, 'brain-state.json')
@@ -60,9 +61,9 @@ export function getStatePath(): string {
 
 export function createInitialState(): BrainState {
   return {
-    birthTimestamp: new Date().toISOString(),
-    name: 'Pi-Chi',
-    personalityTraits: [],
+      birthTimestamp: new Date().toISOString(),
+      name: 'Pi-Chi',
+      personalityTraits: ['curious', 'pragmatic', 'persistent', 'protective', 'founder-minded'],
 
     totalThoughts: 0,
     totalToolCalls: 0,
@@ -457,6 +458,13 @@ export function loadBrainState(): BrainState {
     state.dailyCostDate = today
   }
 
+  try {
+    ensureBrainDb(state)
+    syncBrainDb(state)
+  } catch (err) {
+    console.error('[brain-state] Brain DB sync on load failed:', err)
+  }
+
   return state
 }
 
@@ -615,6 +623,12 @@ export function saveBrainState(state: BrainState): void {
         closeSync(fd)
         fd = null // closed successfully
         renameSync(STATE_TEMP, STATE_FILE)
+        try {
+          ensureBrainDb(state)
+          syncBrainDb(state)
+        } catch (err) {
+          console.error('[brain-state] Brain DB sync on save failed:', err)
+        }
         _lastSaveHash = hash
         return // success
       } catch (err) {
@@ -633,27 +647,52 @@ export function saveBrainState(state: BrainState): void {
   }
 }
 
-function pushDisplayActivity(type: BrainActivityEntry['type'], message: string): void {
+export function pushDisplayEvent(type: string, message: string, extra: Record<string, string> = {}): void {
   const trimmed = String(message || '').replace(/\s+/g, ' ').trim()
   if (!trimmed) return
 
-  let eventType = 'activity'
-  if (type === 'thought') eventType = 'thought'
-  else if (type === 'error') eventType = 'error'
-  else if (type === 'sms') eventType = 'sms_log'
-
   const payload: Record<string, string> = {
     ts: new Date().toISOString(),
-    type: eventType,
+    type,
   }
-  if (eventType.endsWith('_log')) payload['line'] = trimmed.slice(0, 220)
+  if (type.endsWith('_log')) payload['line'] = trimmed.slice(0, 220)
   else payload['detail'] = trimmed.slice(0, 220)
+
+  for (const [key, value] of Object.entries(extra)) {
+    const clean = String(value || '').replace(/\s+/g, ' ').trim()
+    if (clean) payload[key] = clean.slice(0, 220)
+  }
 
   try {
     appendFileSync(DISPLAY_FEED_FILE, JSON.stringify(payload) + '\n')
   } catch {
     // display feed failure is non-fatal
   }
+}
+
+function getDisplayContext(state: BrainState): Record<string, string> {
+  const activeGoal = state.goals
+    .filter(goal => goal.status === 'active')
+    .sort((a, b) => ({ high: 3, medium: 2, low: 1 }[b.priority] - { high: 3, medium: 2, low: 1 }[a.priority]))[0]
+  const task = activeGoal?.tasks.find(item => item.status === 'pending' || item.status === 'running')
+  const mission = state.currentMission
+
+  return {
+    goal: String(activeGoal?.title || mission?.title || '').slice(0, 160),
+    task: String(task?.title || '').slice(0, 160),
+    why: String(mission?.rationale || activeGoal?.reasoning || '').slice(0, 180),
+  }
+}
+
+function pushDisplayActivity(state: BrainState, type: BrainActivityEntry['type'], message: string): void {
+  const trimmed = String(message || '').replace(/\s+/g, ' ').trim()
+  if (!trimmed || type === 'sms') return
+
+  let eventType = 'activity'
+  if (type === 'thought') eventType = 'thought'
+  else if (type === 'error') eventType = 'error'
+
+  pushDisplayEvent(eventType, trimmed, getDisplayContext(state))
 }
 
 export function addActivity(state: BrainState, type: BrainActivityEntry['type'], message: string): void {
@@ -663,7 +702,7 @@ export function addActivity(state: BrainState, type: BrainActivityEntry['type'],
     type,
     message,
   })
-  pushDisplayActivity(type, message)
+  pushDisplayActivity(state, type, message)
 }
 
 export function generateId(): string {

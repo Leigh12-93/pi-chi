@@ -18,6 +18,7 @@
  * ═══════════════════════════════════════════════════════════════════ */
 
 import { loadBrainState, saveBrainState, addActivity, getStateDir, validateBrainState, repairBrainState } from '../lib/brain/brain-state'
+import { ensureBrainDb, syncBrainDb } from '../lib/brain/brain-db'
 import { appendSnapshot } from '../lib/brain/analytics'
 import { checkAchievements } from '../lib/brain/achievements'
 import { shouldRunSelfAudit, buildSelfAuditFromState, writeSelfAudit } from '../lib/brain/code-guardrails'
@@ -29,8 +30,8 @@ import { enterFixAuthDisplay, enterStandbyDisplay, resumeDashboardDisplay } from
 import { BUSINESSES, NOT_OUR_BUSINESSES, LEAD_PRICE_AUD, getPricingStatement } from '../lib/brain/business-rules'
 import { getLeadSummary } from '../lib/brain/lead-tracker'
 import { getPendingCount } from '../lib/brain/escalation'
-import { executeCommand } from '../lib/tools/terminal-tools'
 import { extractJournalErrors } from '../lib/brain/cycle-journal-errors'
+import { executeCommand } from '../lib/tools/terminal-tools'
 import { randomUUID } from 'node:crypto'
 import { execSync } from 'node:child_process'
 import { writeFileSync, appendFileSync, unlinkSync, copyFileSync, readdirSync, readFileSync, existsSync } from 'node:fs'
@@ -1416,6 +1417,12 @@ async function main(): Promise<void> {
 
   // ── Crash Recovery Check ──────────────────────────────────────
   const initialState = loadBrainState()
+  try {
+    ensureBrainDb(initialState)
+    syncBrainDb(initialState, true)
+  } catch (err) {
+    console.error('[pi-brain] Brain DB startup sync failed:', err)
+  }
 
   if (initialState.consecutiveCrashes >= MAX_CONSECUTIVE_CRASHES && initialState.lastGoodCommit) {
     console.log(`[pi-brain] WARNING: ${initialState.consecutiveCrashes} consecutive crashes detected!`)
