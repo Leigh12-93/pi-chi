@@ -1,0 +1,91 @@
+/**
+ * Codex CLI fallback — used when Claude auth/rate-limits fail.
+ * Uses `codex exec --sandbox danger-full-access` with the same prompt file.
+ * Auth: ~/.codex/auth.json (pushed from Windows every 4h via push-creds.sh)
+ */
+import { executeCommand } from '../tools/terminal-tools'
+import type { ExecuteResult } from '../tools/terminal-tools'
+import { writeFileSync, existsSync, unlinkSync, readFileSync } from 'node:fs'
+import { join } from 'node:path'
+import { homedir } from 'node:os'
+
+const DATA_DIR        = join(homedir(), 'data')
+const FALLBACK_FLAG   = join(DATA_DIR, 'codex-fallback-active.flag')
+const FALLBACK_LOG    = join(DATA_DIR, 'codex-fallback.log')
+
+function flog(msg: string) {
+  const ts = new Date().toISOString().slice(0, 19).replace('T', ' ')
+  const line = `[${ts}] ${msg}\n`
+  process.stdout.write('[codex-fallback] ' + msg + '\n')
+  try { writeFileSync(FALLBACK_LOG, line, { flag: 'a' }) } catch { /* non-critical */ }
+}
+
+export function isFallbackActive(): boolean {
+  return existsSync(FALLBACK_FLAG)
+}
+
+export function setFallbackActive(reason: string) {
+  try {
+    writeFileSync(FALLBACK_FLAG, JSON.stringify({
+      since: new Date().toISOString(),
+      reason,
+    }), 'utf-8')
+    flog(`Fallback ACTIVATED: ${reason}`)
+  } catch { /* non-critical */ }
+}
+
+export function clearFallback() {
+  try {
+    if (existsSync(FALLBACK_FLAG)) {
+      unlinkSync(FALLBACK_FLAG)
+      flog('Fallback CLEARED — Claude restored')
+    }
+  } catch { /* non-critical */ }
+}
+
+export function getFallbackInfo(): { since: string; reason: string } | null {
+  try {
+    if (!existsSync(FALLBACK_FLAG)) return null
+    return JSON.parse(readFileSync(FALLBACK_FLAG, 'utf-8')) as { since: string; reason: string }
+  } catch { return null }
+}
+
+/** Check if Claude auth is healthy. Returns true if OK. */
+export async function probeClaudeHealth(): Promise<boolean> {
+  try {
+    const r = await executeCommand(
+      'claude auth status 2>/dev/null | head -3',
+      { timeout: 12_000 }
+    )
+    const out = ((r.stdout || '') + (r.stderr || '')).toLowerCase()
+    if (/does not have access|please login|401|unauthorized|not logged/i.test(out)) return false
+    if (/logged.in|max|claude\.ai|oauth/i.test(out)) return true
+    // Also check token expiry
+    const tokenCheck = await executeCommand(
+      `python3 -c "import json,time; c=json.load(open('/home/pi/.claude/.credentials.json')); ea=c['claudeAiOauth']['expiresAt']/1000; print('ok' if ea > time.time()+300 else 'expired')" 2>/dev/null`,
+      { timeout: 5_000 }
+    )
+    return (tokenCheck.stdout || '').trim() === 'ok'
+  } catch {
+    return false
+  }
+}
+
+/** Run a prompt via Codex exec (fallback for when Claude is down). */
+export async function runCodexPrompt(options: {
+  promptPath: string
+  cwd: string
+  maxTurns: number
+  timeoutSeconds: number
+}): Promise<ExecuteResult> {
+  const { promptPath, cwd, timeoutSeconds } = options
+  const kill = 30
+  flog(`Running Codex exec (timeout=${timeoutSeconds}s) on ${promptPath}`)
+
+  const cmd = `cat "${promptPath}" | timeout --kill-after=${kill} ${timeoutSeconds} codex exec --sandbox danger-full-access - 2>&1`
+
+  return executeCommand(cmd, {
+    cwd,
+    timeout: (timeoutSeconds + kill + 10) * 1000,
+  })
+}

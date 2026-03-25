@@ -3,23 +3,13 @@ set -euo pipefail
 
 STATE_FILE="${HOME:-/home/pi}/.pi-chi/display-mode.json"
 
-read_reason() {
-  if [ -f "$STATE_FILE" ]; then
-    grep -o '"reason"[[:space:]]*:[[:space:]]*"[^"]*"' "$STATE_FILE" | sed 's/.*"reason"[[:space:]]*:[[:space:]]*"\([^"]*\)"/\1/' | head -n 1
-  fi
-}
-
-read_field() {
-  local field="$1"
-  if [ -f "$STATE_FILE" ]; then
-    grep -o "\"${field}\"[[:space:]]*:[[:space:]]*\"[^\"]*\"" "$STATE_FILE" | sed "s/.*\"${field}\"[[:space:]]*:[[:space:]]*\"\([^\"]*\)\"/\1/" | head -n 1
-  fi
-}
-
-read_numeric_field() {
-  local field="$1"
-  if [ -f "$STATE_FILE" ]; then
-    grep -o "\"${field}\"[[:space:]]*:[[:space:]]*[0-9][0-9]*" "$STATE_FILE" | sed "s/.*\"${field}\"[[:space:]]*:[[:space:]]*\([0-9][0-9]*\)/\1/" | head -n 1
+compact() {
+  local s="$1"
+  local max="${2:-32}"
+  if [ ${#s} -le "$max" ]; then
+    printf '%s' "$s"
+  else
+    printf '%s...' "${s:0:$((max-3))}"
   fi
 }
 
@@ -28,40 +18,69 @@ tput civis 2>/dev/null || true
 trap 'tput cnorm 2>/dev/null || true; clear' EXIT
 
 while true; do
-  REASON="$(read_reason)"
-  MISSION="$(read_field missionTitle)"
-  DETAIL="$(read_field detail)"
-  UPDATED="$(read_field updatedAt)"
-  THOUGHT="$(read_numeric_field sinceThought)"
-  NOW="$(date '+%Y-%m-%d %H:%M:%S')"
-  LOAD="$(uptime 2>/dev/null | sed 's/.*load average: //')"
-  MEM="$(awk '/MemAvailable/ {printf "%.0f MB available", $2/1024}' /proc/meminfo 2>/dev/null || echo 'memory unknown')"
-  TEMP="$(vcgencmd measure_temp 2>/dev/null | sed 's/temp=//' || echo 'temp unknown')"
+  IFS=$'\t' read -r MODE PROVIDER REASON MISSION DETAIL UPDATED THOUGHT <<< "$(python3 - "$STATE_FILE" <<'PY'
+import json, pathlib, sys
+path = pathlib.Path(sys.argv[1])
+data = {}
+if path.exists():
+    try:
+        data = json.loads(path.read_text())
+    except Exception:
+        data = {}
+vals = []
+for key in ('mode', 'provider', 'reason', 'missionTitle', 'detail', 'updatedAt', 'sinceThought'):
+    val = data.get(key, '')
+    if val is None:
+        val = ''
+    val = str(val).replace('\t', ' ').replace('\n', ' ')
+    vals.append(val)
+print('\t'.join(vals))
+PY
+)"
 
-  printf '\033[H'
-  printf '\033[2J'
-  printf '\n'
-  printf '  PI-CHI HEAVY TASK MODE\n\n'
-  printf '  Dashboard paused to keep the Pi responsive.\n\n'
-  printf '  Reason: %s\n' "${REASON:-High-load task running}"
+  NOW="$(date '+%H:%M:%S')"
+  LOAD="$(uptime 2>/dev/null | sed 's/.*load average: //')"
+  MEM="$(awk '/MemAvailable/ {printf "%.0fMB free", $2/1024}' /proc/meminfo 2>/dev/null || echo '?')"
+  TEMP="$(vcgencmd measure_temp 2>/dev/null | sed 's/temp=//' || echo '?')"
+
+  HEADER='PI-CHI CLAUDE MODE'
+  STATUS='Claude active'
+  if [ "$PROVIDER" = 'codex' ]; then
+    HEADER='PI-CHI CODEX MODE'
+    STATUS='Codex fallback active'
+  fi
+  if [ "$MODE" = 'fix-auth' ]; then
+    HEADER='PI-CHI FIX AUTH'
+    STATUS='Claude unavailable'
+  fi
+
+  printf '\033[H\033[2J\n'
+  printf '  %s\n\n' "$HEADER"
+  printf '  %s\n\n' "$STATUS"
+  printf '  Reason: %s\n' "$(compact "${REASON:-Working}" 30)"
   if [ -n "${MISSION:-}" ]; then
-    printf '  Mission: %s\n' "$MISSION"
+    printf '  Goal:   %s\n' "$(compact "$MISSION" 30)"
   fi
   if [ -n "${DETAIL:-}" ]; then
-    printf '  Detail: %s\n' "$DETAIL"
+    printf '  Detail: %s\n' "$(compact "$DETAIL" 30)"
   fi
   if [ -n "${THOUGHT:-}" ]; then
     printf '  Cycle:  #%s\n' "$THOUGHT"
   fi
   if [ -n "${UPDATED:-}" ]; then
-    printf '  Since:  %s\n' "$UPDATED"
+    printf '  Since:  %s\n' "$(compact "$UPDATED" 22)"
   fi
   printf '  Time:   %s\n' "$NOW"
   printf '  Temp:   %s\n' "$TEMP"
   printf '  Memory: %s\n' "$MEM"
-  printf '  Load:   %s\n' "${LOAD:-unknown}"
-  printf '\n'
-  printf '  The full dashboard will return automatically when the task finishes.\n'
+  printf '  Load:   %s\n\n' "${LOAD:-unknown}"
+
+  if [ "$MODE" = 'fix-auth' ]; then
+    printf '  Brain stays alive on Codex.\n'
+    printf '  It will switch back to Claude automatically.\n'
+  else
+    printf '  Dashboard returns automatically when done.\n'
+  fi
   printf '\n'
   sleep 5
 done

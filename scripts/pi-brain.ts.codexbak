@@ -23,9 +23,8 @@ import { checkAchievements } from '../lib/brain/achievements'
 import { shouldRunSelfAudit, buildSelfAuditFromState, writeSelfAudit } from '../lib/brain/code-guardrails'
 import { getSeedPrompt, buildDynamicSystemPrompt, buildContextMessage, getCurrentMode } from '../lib/brain/brain-prompt'
 import { ensureClaudeCodeMaxOAuth, runClaudeCodePrompt } from '../lib/brain/claude-code'
-import { clearFallback, hasCodexAuth, isClaudeUnavailableText, isFallbackActive, probeClaudeHealth, runCodexPrompt, setFallbackActive } from '../lib/brain/codex-fallback'
 import { loadCustomTools, resetHttpRequestCounter } from '../lib/brain/brain-tools'
-import { enterFixAuthDisplay, enterStandbyDisplay, resumeDashboardDisplay } from '../lib/brain/display-mode'
+import { enterStandbyDisplay, resumeDashboardDisplay } from '../lib/brain/display-mode'
 import { BUSINESSES, NOT_OUR_BUSINESSES, LEAD_PRICE_AUD, getPricingStatement } from '../lib/brain/business-rules'
 import { getLeadSummary } from '../lib/brain/lead-tracker'
 import { getPendingCount } from '../lib/brain/escalation'
@@ -75,104 +74,6 @@ async function callWithRetry<T>(fn: () => Promise<T>, maxRetries = 2): Promise<T
     }
   }
   throw new Error('unreachable')
-}
-
-type BrainRunnerOptions = {
-  promptPath: string
-  cwd: string
-  maxTurns: number
-  timeoutSeconds: number
-  liveLogPath?: string
-}
-
-type BrainRunnerResult = {
-  engine: 'claude' | 'codex'
-  result: {
-    exitCode: number
-    stdout: string
-    stderr: string
-  }
-}
-
-function summarizeFailure(raw: string): string {
-  const trimmed = raw.replace(/\s+/g, ' ').trim()
-  return trimmed.slice(0, 180) || 'Claude unavailable'
-}
-
-async function restoreClaudeIfHealthy(state?: BrainState): Promise<void> {
-  if (!isFallbackActive()) return
-  const restored = await probeClaudeHealth()
-  if (!restored) return
-  clearFallback()
-  console.log('[pi-brain] Claude recovered — switching back from Codex fallback')
-  if (state) {
-    addActivity(state, 'system', 'Claude auth healthy again — switching back from Codex fallback')
-  }
-}
-
-async function activateCodexFallback(
-  rawReason: string,
-  state?: BrainState,
-  purpose = 'brain-cycle',
-): Promise<void> {
-  const reason = summarizeFailure(rawReason)
-  setFallbackActive(reason)
-  console.error(`[pi-brain] Claude unavailable for ${purpose} — switching to Codex fallback: ${reason}`)
-  if (state) {
-    addActivity(state, 'system', `Claude unavailable — switched to Codex fallback (${reason})`)
-  }
-
-  if (/login|auth|oauth|401|unauthorized/i.test(reason)) {
-    await enterFixAuthDisplay('Claude auth needs attention', {
-      provider: 'codex',
-      detail: 'Running on Codex until Claude is healthy again',
-      sinceThought: state?.totalThoughts ?? null,
-      taskClass: 'recovery',
-    }).catch(() => {})
-    return
-  }
-
-  await enterStandbyDisplay('Codex fallback active', {
-    provider: 'codex',
-    detail: 'Claude hit limits or became unavailable — Codex is running this cycle',
-    sinceThought: state?.totalThoughts ?? null,
-    taskClass: 'recovery',
-  }).catch(() => {})
-}
-
-async function runBrainModelPrompt(
-  options: BrainRunnerOptions,
-  state?: BrainState,
-  purpose = 'brain-cycle',
-): Promise<BrainRunnerResult> {
-  await restoreClaudeIfHealthy(state)
-
-  if (!isFallbackActive()) {
-    try {
-      const result = await runClaudeCodePrompt(options)
-      const combined = `${result.stdout || ''}\n${result.stderr || ''}`
-      if (result.exitCode === 0 || !isClaudeUnavailableText(combined)) {
-        return { engine: 'claude', result }
-      }
-      if (!hasCodexAuth()) {
-        return { engine: 'claude', result }
-      }
-      await activateCodexFallback(combined, state, purpose)
-    } catch (err) {
-      const msg = err instanceof Error ? err.message : String(err)
-      if (!isClaudeUnavailableText(msg) || !hasCodexAuth()) {
-        throw err
-      }
-      await activateCodexFallback(msg, state, purpose)
-    }
-  }
-
-  if (!hasCodexAuth()) {
-    throw new Error('Codex fallback requested but ~/.codex/auth.json is missing on Pi-Chi')
-  }
-
-  const result = await runCodexPrompt(options)
-  return { engine: 'codex', result }
 }
 
 // ── Vitals ────────────────────────────────────────────────────────
@@ -614,17 +515,17 @@ async function processAgentQueue(state: BrainState): Promise<void> {
       writeFileSync(promptPath, task.prompt, 'utf-8')
 
       try {
-        const { engine, result } = await runBrainModelPrompt({
+        const result = await runClaudeCodePrompt({
           promptPath,
           cwd: PI_CHI_DIR,
           maxTurns: task.maxTurns || 20,
           timeoutSeconds: task.timeoutSeconds || 300,
-        }, state, `agent:${task.name}`)
+        })
 
         try { unlinkSync(promptPath) } catch { /* ok */ }
 
         task.status = result.exitCode === 0 ? 'completed' : 'failed'
-        task.result = `[${engine}] ${(result.stdout || '').trim().slice(0, 980)}`
+        task.result = (result.stdout || '').trim().slice(0, 1000)
         task.exitCode = result.exitCode
         task.completedAt = new Date().toISOString()
         return task
@@ -769,13 +670,12 @@ Respond with a JSON object:
     const dreamPromptPath = join(stateDir, 'dream-prompt.txt')
     writeFileSync(dreamPromptPath, dreamPrompt, 'utf-8')
 
-    const { engine: dreamEngine, result: dreamResult } = await runBrainModelPrompt({
+    const dreamResult = await runClaudeCodePrompt({
       promptPath: dreamPromptPath,
       cwd: PI_CHI_DIR,
       maxTurns: 10,
       timeoutSeconds: 180,
-    }, state, 'dream-cycle')
-    console.log(`[pi-brain] Dream cycle using ${dreamEngine}`)
+    })
     try { unlinkSync(dreamPromptPath) } catch { /* ok */ }
 
     const text = (dreamResult.stdout || '').trim()
@@ -1085,21 +985,20 @@ ${goalDeficit}
       ? `Heavy task mode: ${state.currentMission.title}`
       : 'Heavy task mode: Autonomous Claude Code cycle'
     await enterStandbyDisplay(standbyReason, {
-      provider: isFallbackActive() ? 'codex' : 'claude',
       missionTitle: state.currentMission?.title ?? null,
-      detail: state.currentMission?.progressLabel || activeGoals[0]?.title || 'Pi-Chi is running a high-load autonomous cycle',
+      detail: state.currentMission?.progressLabel || activeGoals[0]?.title || 'Claude Code is running a high-load autonomous cycle',
       sinceThought: state.totalThoughts,
       taskClass: 'heavy-autonomous',
     })
     addActivity(state, 'system', 'Display switched to standby mode for heavy autonomous work')
 
-    const { engine, result } = await callWithRetry(() => runBrainModelPrompt({
+    const result = await callWithRetry(() => runClaudeCodePrompt({
       promptPath,
       cwd: PI_CHI_DIR,
       maxTurns: 80,
       timeoutSeconds: 900,
-      liveLogPath: join(homedir(), 'data', isFallbackActive() ? 'codex-live.log' : 'claude-live.log'),
-    }, state, 'main-cycle'))
+      liveLogPath: join(homedir(), 'data', 'claude-live.log'),
+    }))
 
     const output = (result.stdout || '').trim()
     const exitCode = result.exitCode
@@ -1138,7 +1037,7 @@ ${goalDeficit}
     state.chatMessages = freshState.chatMessages
 
     // No API cost — Claude Max subscription covers this
-    console.log(`[pi-brain] ${engine.toUpperCase()} cycle complete (exit: ${exitCode}). Response: ${responseText.slice(0, 150)}`)
+    console.log(`[pi-brain] Claude Code cycle complete (exit: ${exitCode}). Response: ${responseText.slice(0, 150)}`)
 
     // Clean up temp prompt
     try { unlinkSync(promptPath) } catch { /* ok */ }
@@ -1256,27 +1155,20 @@ ${goalDeficit}
     addActivity(state, 'error', `Brain cycle failed: ${errMsg.slice(0, 200)}`)
     finishCycleRecord(state, cycleActivityStartIndex, `Cycle failed: ${errMsg.slice(0, 200)}`)
     // Auth failure detection -- trigger watchdog immediately, then retry after 60s
-    if (isClaudeUnavailableText(errMsg)) {
+    if (/does not have access|Please login|401|unauthorized/i.test(errMsg)) {
       const authLog = '/home/pi/data/claude-auth-watchdog.log'
       const ts = new Date().toISOString().replace('T', ' ').slice(0, 19)
-      const logLine = `[${ts}] CLAUDE UNAVAILABLE detected in brain cycle -- watchdog + fallback evaluation\n`
+      const logLine = `[${ts}] AUTH ERROR detected in brain cycle -- triggering watchdog immediately
+`
       appendFileSync(authLog, logLine)
-      if (hasCodexAuth()) {
-        setFallbackActive(errMsg)
-        await enterFixAuthDisplay('Claude unavailable', {
-          provider: 'codex',
-          detail: 'Brain will continue on Codex until Claude recovers',
-          sinceThought: state.totalThoughts,
-          taskClass: 'recovery',
-        }).catch(() => {})
-      }
-      console.error('[pi-brain] Claude unavailable -- running watchdog now')
+      console.error('[pi-brain] Auth error detected -- running watchdog now')
       try {
         await executeCommand('bash /home/pi/scripts/claude-auth-watchdog.sh', { timeout: 60000 })
       } catch (watchdogErr) {
         console.error('[pi-brain] Watchdog error:', watchdogErr instanceof Error ? watchdogErr.message : String(watchdogErr))
       }
-      await new Promise(r => setTimeout(r, 15000))
+      // Wait 60s before next cycle to give watchdog time to restore creds
+      await new Promise(r => setTimeout(r, 60000))
     }
     // Only count non-transient errors toward crash counter (avoids rollback from API hiccups)
     if (!isTransientError(err)) {
@@ -1387,27 +1279,12 @@ async function main(): Promise<void> {
     process.exit(1)
   }
 
-  const codexCheck = await executeCommand('which codex', { timeout: 5000 })
-  const codexReady = codexCheck.exitCode === 0 && hasCodexAuth()
-
   try {
     const authStatus = await ensureClaudeCodeMaxOAuth()
-    clearFallback()
     console.log(`[pi-brain] Claude Code auth OK (${authStatus.authMethod}/${authStatus.subscriptionType})`)
   } catch (err) {
-    const msg = err instanceof Error ? err.message : String(err)
-    if (!codexReady) {
-      console.error(`[pi-brain] FATAL: ${msg}`)
-      process.exit(1)
-    }
-
-    setFallbackActive(msg)
-    console.error(`[pi-brain] Claude unavailable at startup — Codex fallback enabled: ${msg}`)
-    await enterFixAuthDisplay('Claude unavailable at boot', {
-      provider: 'codex',
-      detail: 'Running on Codex until Claude auth or limits recover',
-      taskClass: 'recovery',
-    }).catch(() => {})
+    console.error(`[pi-brain] FATAL: ${err instanceof Error ? err.message : String(err)}`)
+    process.exit(1)
   }
 
   // ── Crash Recovery Check ──────────────────────────────────────

@@ -31,39 +31,23 @@ function writeDisplayState(snapshot: DisplayModeSnapshot) {
   }
 }
 
-async function switchToStandby(snapshot: DisplayModeSnapshot): Promise<void> {
-  writeDisplayState(snapshot)
-  await executeCommand('sudo systemctl stop pi-chi-kiosk', { timeout: 20_000 }).catch(() => {})
-  await executeCommand('sudo systemctl start pi-chi-standby', { timeout: 20_000 }).catch(() => {})
-}
-
 export async function enterStandbyDisplay(
   reason: string,
-  details: Omit<DisplayModeSnapshot, 'mode' | 'reason' | 'updatedAt'> = {},
+  details: Omit<DisplayModeSnapshot, 'mode' | 'reason' | 'updatedAt'> = {}
 ): Promise<void> {
-  await switchToStandby({
+  writeDisplayState({
     mode: 'standby',
     reason,
     updatedAt: new Date().toISOString(),
     ...details,
   })
-}
-
-export async function enterFixAuthDisplay(
-  reason: string,
-  details: Omit<DisplayModeSnapshot, 'mode' | 'reason' | 'updatedAt'> = {},
-): Promise<void> {
-  await switchToStandby({
-    mode: 'fix-auth',
-    reason,
-    updatedAt: new Date().toISOString(),
-    ...details,
-  })
+  await executeCommand('sudo systemctl stop pi-chi-kiosk', { timeout: 20_000 }).catch(() => {})
+  await executeCommand('sudo systemctl start pi-chi-standby', { timeout: 20_000 }).catch(() => {})
 }
 
 export async function resumeDashboardDisplay(
   reason = 'Task complete',
-  details: Omit<DisplayModeSnapshot, 'mode' | 'reason' | 'updatedAt'> = {},
+  details: Omit<DisplayModeSnapshot, 'mode' | 'reason' | 'updatedAt'> = {}
 ): Promise<void> {
   writeDisplayState({
     mode: 'dashboard',
