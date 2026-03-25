@@ -151,7 +151,7 @@ async function runBrainModelPrompt(
     try {
       const result = await runClaudeCodePrompt(options)
       const combined = `${result.stdout || ''}\n${result.stderr || ''}`
-      if (result.exitCode === 0 || !isClaudeUnavailableText(combined)) {
+      if (result.exitCode === 0 && !isClaudeUnavailableText(combined)) {
         return { engine: 'claude', result }
       }
       if (!hasCodexAuth()) {
