@@ -4,14 +4,28 @@ set -euo pipefail
 STATE_FILE="${HOME:-/home/pi}/.pi-chi/display-mode.json"
 BRAIN_STATE="${HOME:-/home/pi}/.pi-chi/brain-state.json"
 
-compact() {
+RESET='\033[0m'
+BOLD='\033[1m'
+WHITE='\033[97m'
+CYAN='\033[96m'
+GREEN='\033[92m'
+YELLOW='\033[93m'
+RED='\033[91m'
+DIM='\033[2m'
+
+scroll_text() {
   local s="$1"
-  local max="${2:-34}"
+  local max="${2:-28}"
   if [ ${#s} -le "$max" ]; then
     printf '%s' "$s"
-  else
-    printf '%s...' "${s:0:$((max-3))}"
+    return
   fi
+  local pad='   •   '
+  local scroll="${s}${pad}"
+  local full="${scroll}${scroll}"
+  local len=${#scroll}
+  local off=$(( ( $(date +%s) / 2 ) % len ))
+  printf '%s' "${full:$off:$max}"
 }
 
 clear
@@ -36,12 +50,10 @@ for key in ('mode', 'provider', 'reason', 'missionTitle', 'detail', 'updatedAt',
     val = state.get(key, '')
     if val is None: val = ''
     vals.append(str(val).replace('\t', ' ').replace('\n', ' '))
-last_thought = str(brain.get('lastThought', '') or '').replace('\t', ' ').replace('\n', ' ')
-vals.append(last_thought)
+vals.append(str(brain.get('lastThought', '') or '').replace('\t', ' ').replace('\n', ' '))
 acts = []
 for item in (brain.get('activityLog') or [])[-3:]:
-    msg = str(item.get('message', '') or '').replace('\t', ' ').replace('\n', ' ')
-    acts.append(msg)
+    acts.append(str(item.get('message', '') or '').replace('\t', ' ').replace('\n', ' '))
 while len(acts) < 3:
     acts.insert(0, '')
 vals.extend(acts[-3:])
@@ -51,42 +63,42 @@ PY
 
   NOW="$(date '+%H:%M:%S')"
   LOAD="$(uptime 2>/dev/null | sed 's/.*load average: //')"
-  MEM="$(awk '/MemAvailable/ {printf "%.0fMB free", $2/1024}' /proc/meminfo 2>/dev/null || echo '?')"
+  MEM="$(awk '/MemAvailable/ {printf "%.0fMB FREE", $2/1024}' /proc/meminfo 2>/dev/null || echo '?')"
   TEMP="$(vcgencmd measure_temp 2>/dev/null | sed 's/temp=//' || echo '?')"
 
   HEADER='PI-CHI CLAUDE MODE'
+  HCOL="$CYAN"
   STATUS='Claude active'
   if [ "$PROVIDER" = 'codex' ]; then
     HEADER='PI-CHI CODEX MODE'
+    HCOL="$YELLOW"
     STATUS='Codex fallback active'
   fi
   if [ "$MODE" = 'fix-auth' ]; then
     HEADER='PI-CHI FIX AUTH'
+    HCOL="$RED"
     STATUS='Claude unavailable'
   fi
 
-  printf '\033[H\033[2J\n'
-  printf '  %s\n' "$HEADER"
-  printf '  %s\n\n' "$STATUS"
-
-  printf '  NOW:    %s\n' "$(compact "${MISSION:-${REASON:-Working}}" 28)"
-  printf '  DETAIL: %s\n' "$(compact "${DETAIL:-${LAST_THOUGHT:-Waiting}}" 28)"
+  printf '\033[H\033[2J'
+  printf "\n  ${BOLD}${HCOL}%s${RESET}\n" "$HEADER"
+  printf "  ${WHITE}%s${RESET}\n\n" "$STATUS"
+  printf "  ${BOLD}${WHITE}NOW${RESET}    %s\n" "$(scroll_text "${MISSION:-${REASON:-Working}}" 27)"
+  printf "  ${BOLD}${WHITE}LAST${RESET}   %s\n" "$(scroll_text "${DETAIL:-${LAST_THOUGHT:-Waiting}}" 27)"
   if [ -n "${THOUGHT:-}" ]; then
-    printf '  CYCLE:  #%s\n' "$THOUGHT"
+    printf "  ${BOLD}${WHITE}CYCLE${RESET}  #%s\n" "$THOUGHT"
   fi
-  printf '  TIME:   %s\n' "$NOW"
-  printf '  TEMP:   %s\n' "$TEMP"
-  printf '  MEM:    %s\n' "$MEM"
-  printf '  LOAD:   %s\n\n' "${LOAD:-unknown}"
-
-  printf '  RECENT:\n'
-  [ -n "${A1:-}" ] && printf '   - %s\n' "$(compact "$A1" 30)"
-  [ -n "${A2:-}" ] && printf '   - %s\n' "$(compact "$A2" 30)"
-  [ -n "${A3:-}" ] && printf '   - %s\n' "$(compact "$A3" 30)"
-
+  printf "  ${BOLD}${WHITE}TIME${RESET}   %s\n" "$NOW"
+  printf "  ${BOLD}${WHITE}TEMP${RESET}   %s\n" "$TEMP"
+  printf "  ${BOLD}${WHITE}MEM${RESET}    %s\n" "$MEM"
+  printf "  ${BOLD}${WHITE}LOAD${RESET}   %s\n\n" "${LOAD:-unknown}"
+  printf "  ${BOLD}${HCOL}RECENT${RESET}\n"
+  [ -n "${A1:-}" ] && printf "   ${WHITE}%s${RESET}\n" "$(scroll_text "$A1" 30)"
+  [ -n "${A2:-}" ] && printf "   ${WHITE}%s${RESET}\n" "$(scroll_text "$A2" 30)"
+  [ -n "${A3:-}" ] && printf "   ${WHITE}%s${RESET}\n" "$(scroll_text "$A3" 30)"
   if [ "$MODE" = 'fix-auth' ]; then
-    printf '\n  Brain stays alive on Codex.\n'
-    printf '  Auto-switches back when Claude recovers.\n'
+    printf "\n  ${YELLOW}Brain stays alive on Codex.${RESET}\n"
+    printf "  ${YELLOW}Auto-switches back when Claude recovers.${RESET}\n"
   fi
-  sleep 5
+  sleep 2
 done
