@@ -6,11 +6,11 @@ BRAIN_STATE="${HOME:-/home/pi}/.pi-chi/brain-state.json"
 
 RESET='\033[0m'
 BOLD='\033[1m'
-WHITE='\033[97m'
-CYAN='\033[96m'
-GREEN='\033[92m'
-YELLOW='\033[93m'
-RED='\033[91m'
+WHITE='\033[1;97m'
+CYAN='\033[1;96m'
+GREEN='\033[1;92m'
+YELLOW='\033[1;93m'
+RED='\033[1;91m'
 DIM='\033[2m'
 
 scroll_text() {

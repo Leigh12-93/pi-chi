@@ -23,7 +23,7 @@ import { checkAchievements } from '../lib/brain/achievements'
 import { shouldRunSelfAudit, buildSelfAuditFromState, writeSelfAudit } from '../lib/brain/code-guardrails'
 import { getSeedPrompt, buildDynamicSystemPrompt, buildContextMessage, getCurrentMode } from '../lib/brain/brain-prompt'
 import { ensureClaudeCodeMaxOAuth, runClaudeCodePrompt } from '../lib/brain/claude-code'
-import { clearFallback, hasCodexAuth, isClaudeUnavailableText, isFallbackActive, probeClaudeHealth, runCodexPrompt, setFallbackActive } from '../lib/brain/codex-fallback'
+import { clearFallback, getFallbackInfo, hasCodexAuth, isClaudeUnavailableText, isFallbackActive, probeClaudeHealth, runCodexPrompt, setFallbackActive, shouldProbeClaudeNow } from '../lib/brain/codex-fallback'
 import { loadCustomTools, resetHttpRequestCounter } from '../lib/brain/brain-tools'
 import { enterFixAuthDisplay, enterStandbyDisplay, resumeDashboardDisplay } from '../lib/brain/display-mode'
 import { BUSINESSES, NOT_OUR_BUSINESSES, LEAD_PRICE_AUD, getPricingStatement } from '../lib/brain/business-rules'
@@ -101,6 +101,13 @@ function summarizeFailure(raw: string): string {
 
 async function restoreClaudeIfHealthy(state?: BrainState): Promise<void> {
   if (!isFallbackActive()) return
+  if (!shouldProbeClaudeNow()) {
+    const retryAfter = getFallbackInfo()?.retryAfter
+    if (state && retryAfter) {
+      addActivity(state, 'system', `Claude retry deferred until ${retryAfter}`)
+    }
+    return
+  }
   const restored = await probeClaudeHealth()
   if (!restored) return
   clearFallback()

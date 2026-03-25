@@ -18,6 +18,7 @@ const STATE_BACKUP = join(STATE_DIR, 'brain-state.bak.json')
 const STATE_LOCK = join(STATE_DIR, 'brain-state.lock')
 const ARCHIVE_FILE = join(STATE_DIR, 'activity-archive.jsonl')
 const CHAT_ARCHIVE_FILE = join(STATE_DIR, 'chat-archive.jsonl')
+const DISPLAY_FEED_FILE = join(STATE_DIR, 'display-feed.jsonl')
 
 const MAX_ACTIVITY_ENTRIES = 200
 const MAX_MEMORIES = 200
@@ -632,6 +633,29 @@ export function saveBrainState(state: BrainState): void {
   }
 }
 
+function pushDisplayActivity(type: BrainActivityEntry['type'], message: string): void {
+  const trimmed = String(message || '').replace(/\s+/g, ' ').trim()
+  if (!trimmed) return
+
+  let eventType = 'activity'
+  if (type === 'thought') eventType = 'thought'
+  else if (type === 'error') eventType = 'error'
+  else if (type === 'sms') eventType = 'sms_log'
+
+  const payload: Record<string, string> = {
+    ts: new Date().toISOString(),
+    type: eventType,
+  }
+  if (eventType.endsWith('_log')) payload['line'] = trimmed.slice(0, 220)
+  else payload['detail'] = trimmed.slice(0, 220)
+
+  try {
+    appendFileSync(DISPLAY_FEED_FILE, JSON.stringify(payload) + '\n')
+  } catch {
+    // display feed failure is non-fatal
+  }
+}
+
 export function addActivity(state: BrainState, type: BrainActivityEntry['type'], message: string): void {
   state.activityLog.push({
     id: randomUUID(),
@@ -639,6 +663,7 @@ export function addActivity(state: BrainState, type: BrainActivityEntry['type'],
     type,
     message,
   })
+  pushDisplayActivity(type, message)
 }
 
 export function generateId(): string {
