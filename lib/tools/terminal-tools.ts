@@ -92,6 +92,33 @@ function truncateOutput(output: string): string {
   )
 }
 
+function sanitizeNodeOptions(value?: string): string | undefined {
+  if (!value) return value
+
+  const cleaned = value
+    .split(/\s+/)
+    .filter(Boolean)
+    .filter(token => !/^--inspect(?:-brk)?(?:=|$)/.test(token))
+    .join(' ')
+    .trim()
+
+  return cleaned || undefined
+}
+
+function buildChildEnv(overrides?: Record<string, string>): NodeJS.ProcessEnv {
+  const env: NodeJS.ProcessEnv = { ...process.env, ...(overrides || {}) }
+  const sanitizedNodeOptions = sanitizeNodeOptions(env.NODE_OPTIONS)
+
+  if (sanitizedNodeOptions) {
+    env.NODE_OPTIONS = sanitizedNodeOptions
+  } else {
+    delete env.NODE_OPTIONS
+  }
+
+  delete env.NODE_INSPECT_RESUME_ON_START
+  return env
+}
+
 // ── Standalone executor (used by API route) ────────────────────────
 
 export interface ExecuteResult {
@@ -137,7 +164,7 @@ export async function executeCommand(
         cwd: resolvedCwd,
         timeout: commandTimeout,
         maxBuffer: MAX_BUFFER,
-        env: { ...process.env, ...(options?.env || {}) },
+        env: buildChildEnv(options?.env),
         windowsHide: true,
       },
     )
