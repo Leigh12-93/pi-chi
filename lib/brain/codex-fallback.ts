@@ -21,8 +21,21 @@ function flog(msg: string) {
   try { writeFileSync(FALLBACK_LOG, line, { flag: 'a' }) } catch { /* non-critical */ }
 }
 
+const MAX_TOKEN_AGE_MS = 24 * 60 * 60 * 1000 // 24 hours
+
 export function hasCodexAuth(): boolean {
-  return existsSync(CODEX_AUTH)
+  if (!existsSync(CODEX_AUTH)) return false
+  try {
+    const auth = JSON.parse(readFileSync(CODEX_AUTH, 'utf-8'))
+    const lastRefresh = auth.last_refresh ? Date.parse(auth.last_refresh) : 0
+    if (Date.now() - lastRefresh > MAX_TOKEN_AGE_MS) {
+      flog(`Codex auth stale (last_refresh: ${auth.last_refresh || 'never'}) — skipping fallback`)
+      return false
+    }
+    return true
+  } catch {
+    return false
+  }
 }
 
 export function isFallbackActive(): boolean {
