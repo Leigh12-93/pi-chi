@@ -68,7 +68,7 @@ export interface WorkCycle {
 }
 
 export interface DisplayModeSnapshot {
-  mode: 'dashboard' | 'standby' | 'fix-auth'
+  mode: 'active' | 'standby' | 'fix-auth'
   reason: string
   updatedAt: string
   provider?: 'claude' | 'codex' | null

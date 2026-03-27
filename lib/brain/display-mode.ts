@@ -31,34 +31,37 @@ function writeDisplayState(snapshot: DisplayModeSnapshot) {
   }
 }
 
-async function switchToStandby(snapshot: DisplayModeSnapshot): Promise<void> {
-  writeDisplayState(snapshot)
+// Stop kiosk so display_agent (custom screen) can take over the framebuffer
+async function stopKiosk(): Promise<void> {
   await executeCommand('sudo systemctl stop pi-chi-kiosk', { timeout: 20_000 }).catch(() => {})
-  await executeCommand('sudo systemctl start pi-chi-standby', { timeout: 20_000 }).catch(() => {})
+  await executeCommand('sudo systemctl stop pi-chi-standby', { timeout: 20_000 }).catch(() => {})
 }
 
 export async function enterStandbyDisplay(
   reason: string,
   details: Omit<DisplayModeSnapshot, 'mode' | 'reason' | 'updatedAt'> = {},
 ): Promise<void> {
-  await switchToStandby({
+  writeDisplayState({
     mode: 'standby',
     reason,
     updatedAt: new Date().toISOString(),
     ...details,
   })
+  // Stop kiosk so display_agent has the framebuffer — display_agent handles its own screens
+  await stopKiosk()
 }
 
 export async function enterFixAuthDisplay(
   reason: string,
   details: Omit<DisplayModeSnapshot, 'mode' | 'reason' | 'updatedAt'> = {},
 ): Promise<void> {
-  await switchToStandby({
+  writeDisplayState({
     mode: 'fix-auth',
     reason,
     updatedAt: new Date().toISOString(),
     ...details,
   })
+  await stopKiosk()
 }
 
 export async function resumeDashboardDisplay(
@@ -66,11 +69,11 @@ export async function resumeDashboardDisplay(
   details: Omit<DisplayModeSnapshot, 'mode' | 'reason' | 'updatedAt'> = {},
 ): Promise<void> {
   writeDisplayState({
-    mode: 'dashboard',
+    mode: 'active',
     reason,
     updatedAt: new Date().toISOString(),
     ...details,
   })
-  await executeCommand('sudo systemctl stop pi-chi-standby', { timeout: 20_000 }).catch(() => {})
-  await executeCommand('sudo systemctl start pi-chi-kiosk', { timeout: 20_000 }).catch(() => {})
+  // Keep display_agent in control — just ensure kiosk/standby are not fighting it
+  await stopKiosk()
 }
