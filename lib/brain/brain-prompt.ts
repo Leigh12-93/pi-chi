@@ -286,13 +286,18 @@ export function buildDynamicSystemPrompt(state: BrainState): string {
   // ── Learning System: Skill levels ──
   const skills = state.skills || []
   if (skills.length > 0) {
-    const sorted = [...skills].sort((a, b) => b.attempts - a.attempts)
+    const sorted = [...skills].sort((a, b) => (b.attempts || 0) - (a.attempts || 0))
     const lines = sorted.slice(0, 8).map(s => {
-      const outcomes = s.recentOutcomes || []
-      const trend = outcomes.length >= 3
-        ? (outcomes.slice(-3).filter(Boolean).length >= 2 ? '↑' : '↓')
-        : '—'
-      return `- ${s.name}: ${s.proficiency}% (${s.successes}/${s.attempts}) ${trend}`
+      if (typeof s.attempts === 'number') {
+        const outcomes = s.recentOutcomes || []
+        const trend = outcomes.length >= 3
+          ? (outcomes.slice(-3).filter(Boolean).length >= 2 ? '↑' : '↓')
+          : '—'
+        return `- ${s.name}: ${s.proficiency}% (${s.successes}/${s.attempts}) ${trend}`
+      }
+      // Legacy text-based skill format
+      const legacy = s as unknown as Record<string, unknown>
+      return `- ${s.name}: ${legacy.level || 'unknown'}${legacy.evidence ? ` — ${legacy.evidence}` : ''}`
     })
     parts.push(`## Your Skill Levels\n\n${lines.join('\n')}`)
   }
