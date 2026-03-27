@@ -40,6 +40,12 @@ import { homedir } from 'node:os'
 import type { SystemVitalsSnapshot, BrainState, CycleJournal, FailureRecord } from '../lib/brain/brain-types'
 import type { Mission, WorkCycle } from '../lib/brain/domain-types'
 
+// ── Suppress SIGUSR1 to prevent Node inspector activation ────────
+// Something (likely tsx or child processes) sends SIGUSR1 to this
+// process, which Node interprets as "start the inspector on :9229".
+// We don't need the inspector, so swallow the signal silently.
+process.on('SIGUSR1', () => { /* ignore */ })
+
 // ── Constants ─────────────────────────────────────────────────────
 
 const MIN_WAKE_MS = 60 * 1000        // 1 minute
