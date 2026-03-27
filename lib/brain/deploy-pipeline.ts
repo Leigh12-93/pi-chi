@@ -12,7 +12,7 @@ import { fixTypeErrors } from './deploy-fix'
 import { captureDeployVitals } from './deploy-health'
 import { recordDeploy, checkBuildAnomaly } from './deploy-history'
 import { randomUUID } from 'node:crypto'
-import { existsSync, writeFileSync, unlinkSync } from 'node:fs'
+import { existsSync, writeFileSync, unlinkSync, statSync } from 'node:fs'
 import { join } from 'node:path'
 import type { BrainState } from './brain-types'
 import type { DeployRecord, DeployConfig, PipelineStep, ChangeClass } from './deploy-types'
@@ -40,13 +40,24 @@ export async function runDeployPipeline(
   const record = createEmptyRecord(changedFiles.split('\n'))
   const lockPath = join(getStateDir(), 'deploy.lock')
 
-  // ── Step 2: Acquire deploy lock
+  // ── Step 2: Acquire deploy lock (with stale-lock recovery)
   if (existsSync(lockPath)) {
-    addActivity(state, 'system', 'Deploy skipped: another deploy in progress')
-    record.outcome = 'skipped'
-    record.completedAt = new Date().toISOString()
-    record.durationMs = Date.now() - new Date(record.timestamp).getTime()
-    return record
+    const STALE_LOCK_MS = 10 * 60 * 1000 // 10 minutes
+    try {
+      const lockAge = Date.now() - statSync(lockPath).mtimeMs
+      if (lockAge > STALE_LOCK_MS) {
+        unlinkSync(lockPath)
+        addActivity(state, 'system', `Cleared stale deploy lock (${Math.round(lockAge / 60000)}min old)`)
+      } else {
+        addActivity(state, 'system', 'Deploy skipped: another deploy in progress')
+        record.outcome = 'skipped'
+        record.completedAt = new Date().toISOString()
+        record.durationMs = Date.now() - new Date(record.timestamp).getTime()
+        return record
+      }
+    } catch {
+      // Lock file vanished between check and stat — proceed
+    }
   }
   writeFileSync(lockPath, `${process.pid}:${new Date().toISOString()}`, 'utf-8')
 
