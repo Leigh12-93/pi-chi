@@ -492,9 +492,9 @@ function autoRecordCycleJournal(
   else if (!claudeOutput.trim() || claudeOutput.trim().length < 20) outcome = 'wasted'
 
   // Extract active goal/task info
-  const activeGoal = state.goals.find(g => g.status === 'active' && g.priority === 'high')
-    || state.goals.find(g => g.status === 'active')
-  const pendingTask = activeGoal?.tasks.find(t => t.status === 'pending' || t.status === 'running')
+  const activeGoal = (state.goals || []).find(g => g.status === 'active' && g.priority === 'high')
+    || (state.goals || []).find(g => g.status === 'active')
+  const pendingTask = (activeGoal?.tasks || []).find(t => t.status === 'pending' || t.status === 'running')
 
   // Detect files changed from output mentions
   const fileMatches = claudeOutput.match(/(?:\/home\/pi\/|~\/|\.\/)[^\s'")\]]+\.[a-z]{1,4}/g) || []
@@ -566,7 +566,7 @@ function autoRecordFailures(state: BrainState, errors: string[], cycle: number):
     else if (/service|systemd/i.test(error)) category = 'service'
 
     // Deduplicate: check for existing similar failure
-    const existing = state.failureRegistry.find(f => {
+    const existing = (state.failureRegistry || []).find(f => {
       if (!f.description || !f.category) return false
       const descWords = new Set(f.description.toLowerCase().split(/\s+/))
       const errorWords = errorLower.split(/\s+/)
@@ -598,7 +598,7 @@ function autoRecordFailures(state: BrainState, errors: string[], cycle: number):
         occurrenceCycles: [cycle],
         resolved: false,
         resolvedAt: null,
-        relatedGoal: state.goals.find(g => g.status === 'active')?.title || null,
+        relatedGoal: (state.goals || []).find(g => g.status === 'active')?.title || null,
       })
     }
   }

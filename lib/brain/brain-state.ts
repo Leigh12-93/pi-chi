@@ -430,6 +430,9 @@ export function loadBrainState(): BrainState {
   if (!state.skills) state.skills = []
   if (!state.antiPatterns) state.antiPatterns = []
   if (!state.agentQueue) state.agentQueue = []
+  if (!state.goals) state.goals = defaults.goals
+  if (!state.activityLog) state.activityLog = defaults.activityLog
+  if (!state.memories) state.memories = defaults.memories
 
   // Backfill horizon on existing goals that don't have it
   for (const goal of state.goals) {
@@ -671,10 +674,10 @@ export function pushDisplayEvent(type: string, message: string, extra: Record<st
 }
 
 function getDisplayContext(state: BrainState): Record<string, string> {
-  const activeGoal = state.goals
+  const activeGoal = (state.goals || [])
     .filter(goal => goal.status === 'active')
     .sort((a, b) => ({ high: 3, medium: 2, low: 1 }[b.priority] - { high: 3, medium: 2, low: 1 }[a.priority]))[0]
-  const task = activeGoal?.tasks.find(item => item.status === 'pending' || item.status === 'running')
+  const task = (activeGoal?.tasks || []).find(item => item.status === 'pending' || item.status === 'running')
   const mission = state.currentMission
 
   return {
