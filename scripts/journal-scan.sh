@@ -16,4 +16,6 @@ journalctl -u pi-chi-brain -n 200 --no-pager -o short-iso 2>/dev/null \
   | grep -vE "Response:.*0 (stuck|failed|error)|Response:.*expected\)" \
   | grep -vE "Journal scan.*0 real|Journal scan.*false.positiv" \
   | grep -vE "CLAUDE cycle complete.*Response:" \
+  | grep -vE "FIX audit found everything|zero stuck|zero open fail" \
+  | grep -vE "Cycle [0-9]+ complete\." \
   | tail -20
