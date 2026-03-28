@@ -572,7 +572,7 @@ export function buildContextMessage(
   // ── Self-Healing: Scan recent brain logs for errors/warnings ──
   try {
     const logOutput = execSync(
-      'journalctl -u pi-chi-brain -n 200 --no-pager -o short-iso 2>/dev/null | grep -iE "error|warn|crash|exception|oom|kill|fail|SEGV|panic|traceback|unhandled" | grep -vE "0 errors|crash counter|Crash counter|[Ww]ake cycle|counter: 0|counter:0" | tail -20',
+      'journalctl -u pi-chi-brain -n 200 --no-pager -o short-iso 2>/dev/null | grep -iE "error|warn|crash|exception|oom|kill|fail|SEGV|panic|traceback|unhandled" | grep -vE "0 errors|crash counter|Crash counter|[Ww]ake cycle|counter: 0|counter:0|CLAUDE cycle complete|journal errors|No .* errors|No .* failures|FIX audit found nothing" | tail -20',
       { timeout: 5000 }
     ).toString().trim()
     if (logOutput) {
