@@ -34,7 +34,7 @@ import { extractJournalErrors } from '../lib/brain/cycle-journal-errors'
 import { executeCommand } from '../lib/tools/terminal-tools'
 import { randomUUID } from 'node:crypto'
 import { execSync } from 'node:child_process'
-import { writeFileSync, appendFileSync, unlinkSync, copyFileSync, readdirSync, readFileSync, existsSync } from 'node:fs'
+import { writeFileSync, appendFileSync, unlinkSync, copyFileSync, readdirSync, readFileSync, existsSync, mkdirSync } from 'node:fs'
 import { join } from 'node:path'
 import { homedir } from 'node:os'
 import type { SystemVitalsSnapshot, BrainState, CycleJournal, FailureRecord } from '../lib/brain/brain-types'
@@ -59,7 +59,7 @@ try {
 // ── Constants ─────────────────────────────────────────────────────
 
 const MIN_WAKE_MS = 60 * 1000        // 1 minute
-const MAX_WAKE_MS = 60 * 60 * 1000   // 1 hour
+const MAX_WAKE_MS = 55 * 60 * 1000   // 55 minutes (auth token safety)
 const DEFAULT_WAKE_MS = 5 * 60 * 1000 // 5 minutes
 
 const DAILY_BUDGET = parseFloat(process.env.BRAIN_DAILY_BUDGET || '999')
@@ -1535,8 +1535,28 @@ async function main(): Promise<void> {
     // Write initial heartbeat
     try { writeFileSync(HEARTBEAT_FILE, new Date().toISOString()) } catch { /* */ }
 
-    await sleep(interval)
+    // Trigger-aware sleep: poll /home/pi/.pi-chi/triggers/ every 30s for early wakeups
+    const TRIGGER_DIR = '/home/pi/.pi-chi/triggers'
+    try { mkdirSync(TRIGGER_DIR, { recursive: true }) } catch { /* */ }
+    const POLL_MS = 30000
+    let elapsed = 0
+    let triggeredBy: string | undefined
+    while (elapsed < interval) {
+      await sleep(Math.min(POLL_MS, interval - elapsed))
+      elapsed += POLL_MS
+      try {
+        const files = readdirSync(TRIGGER_DIR)
+        if (files.length > 0) {
+          triggeredBy = files[0]
+          try { unlinkSync(TRIGGER_DIR + "/" + triggeredBy) } catch { /* */ }
+          break
+        }
+      } catch { /* non-critical */ }
+    }
     clearInterval(heartbeatInterval)
+    if (triggeredBy) {
+      console.log()
+    }
   }
 }
 
