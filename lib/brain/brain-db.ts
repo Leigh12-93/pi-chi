@@ -23,7 +23,7 @@ function runPython(args: string[]): string {
 }
 
 function activeGoal(state: BrainState): BrainGoal | undefined {
-  return state.goals
+  return (state.goals || [])
     .filter(goal => goal.status === 'active')
     .sort((a, b) => ({ high: 3, medium: 2, low: 1 }[b.priority] - { high: 3, medium: 2, low: 1 }[a.priority]))[0]
 }
@@ -31,19 +31,19 @@ function activeGoal(state: BrainState): BrainGoal | undefined {
 function nextTask(state: BrainState): string {
   const goal = activeGoal(state)
   if (!goal) return ''
-  const task = goal.tasks.find(item => item.status === 'pending' || item.status === 'running')
+  const task = (goal.tasks || []).find(item => item.status === 'pending' || item.status === 'running')
   return task?.title || ''
 }
 
 function latestMeaningfulActivity(state: BrainState): BrainActivityEntry | undefined {
-  return [...state.activityLog].reverse().find(entry => entry.message && entry.type !== 'gpio')
+  return [...(state.activityLog || [])].reverse().find(entry => entry.message && entry.type !== 'gpio')
 }
 
 function buildSnapshot(state: BrainState) {
   const goal = activeGoal(state)
   const currentMission = state.currentMission || null
   const latest = latestMeaningfulActivity(state)
-  const goals = state.goals.map(goalItem => ({
+  const goals = (state.goals || []).map(goalItem => ({
     ...goalItem,
     tasks: (goalItem.tasks || []).map(task => ({
       ...task,
@@ -103,7 +103,7 @@ function buildSnapshot(state: BrainState) {
       : null,
     goals,
     memories: state.memories,
-    activityEvents: state.activityLog.slice(-400),
+    activityEvents: (state.activityLog || []).slice(-400),
     reasoningSnapshot: {
       id: randomUUID(),
       summary: state.lastThought || latest?.message || (goal?.title ?? 'Keeping things healthy'),
