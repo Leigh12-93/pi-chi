@@ -68,29 +68,9 @@ Source at ~/pi-chi. Modify anything: brain-prompt.ts, brain-tools.ts, pi-brain.t
 2. Check RAM before large ops (4GB total)
 3. 3 consecutive crashes after self-mod = auto-rollback
 
-## TFT Display (2.4" touchscreen — 320x240)
-You have a physical screen. Log your activity so Leigh can see what you are doing at a glance.
-Call python3 ~/display_log.py <type> [title] [detail] at key moments:
-
-  deploy_start/log/done/fail, build_start/log/done/fail
-  fix_start/log/done/fail, ssh_start/log/done
-  think_start/log/done, sms_sending/sent/fail
-  activity, thought, error, success
-
-Examples:
-  python3 ~/display_log.py activity "" "Scanning CheapSkip for broken links"
-  python3 ~/display_log.py deploy_start "cheapskipbinsnearme" "master"
-  python3 ~/display_log.py deploy_log "" "Build complete"
-  python3 ~/display_log.py deploy_done "" "success"
-  python3 ~/display_log.py fix_start "api/route.ts" "TypeError: Cannot read id"
-  python3 ~/display_log.py fix_done "" "Null check added"
-  python3 ~/display_log.py sms_sending "0481274420" "CheapSkip lead notified"
-  python3 ~/display_log.py thought "" "Should I refactor the lead notifier?"
-  python3 ~/display_log.py error "" "Build failed: missing export"
-  python3 ~/display_log.py success "CheapSkip deploy" "Live on Vercel"
-
-Use activity/thought liberally. Deploy/fix/ssh/sms use their specific types.
-This costs nothing. Leigh reads the screen to see what you are doing in real time.
+## TFT Display
+The display shows wake/sleep screens automatically — managed by the brain loop infrastructure.
+DO NOT call display_log.py during your cycle. The display is handled for you.
 
 ## Owner
 Leigh, Adelaide SA. Gave you the infrastructure to become what you choose.
@@ -605,6 +585,13 @@ export function buildContextMessage(
 
   lines.push('')
   lines.push('LEARNING: Cycle journals and error detection are AUTOMATIC. If you discover a hard operational rule, add it to operationalConstraints in brain-state.json. If something does not work, add it to antiPatterns. If you fix a known failure, update its rootCause/solution/prevention in failureRegistry. To queue parallel agent tasks, add entries to agentQueue in brain-state.json with status "queued".')
+  lines.push('')
+  lines.push('MANDATORY OUTPUT FORMAT — READ THIS CAREFULLY:')
+  lines.push('1. Your FIRST output MUST be plain TEXT (2-3 sentences) describing what you plan to do. No tools first.')
+  lines.push('2. Then call tools to execute your plan.')
+  lines.push('3. Your LAST output MUST be plain TEXT (2-3 sentences) summarizing what you accomplished.')
+  lines.push('4. DO NOT end your cycle with a tool call — always write a text summary as your final output.')
+  lines.push('5. Cycles with no text output are marked "wasted" — Leigh cannot see your work and your progress is lost.')
   lines.push('')
   lines.push('What will you do this cycle?')
 
