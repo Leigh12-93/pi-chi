@@ -102,6 +102,9 @@ export function isClaudeUnavailableText(text: string): boolean {
   // Real auth errors are short (< 500 chars). Long responses are productive cycles
   // that may mention auth-related words when discussing past fixes — skip those.
   if (text.length > 500) return false
+  // Productive cycle summaries start with "Cycle #NNNN" or "**Cycle" — never auth errors
+  if (/^\*{0,2}Cycle\s+#?\d+/i.test(text.trim())) return false
+  // Only match actual API/CLI error patterns, not natural language mentioning auth
   return /(does not have access|please login|unauthorized|not logged in|API Error:\s*401|authentication_error|auth status unavailable|must use the claude\.ai max oauth account|hit your limit|usage limit|rate limit|resets?\s+\d|out of extra usage)/i.test(text)
 }
 
