@@ -902,6 +902,7 @@ async function brainCycle(): Promise<void> {
   saveBrainState(state)
 
   console.log(`[pi-brain] Cycle #${state.totalThoughts} starting... (crash counter: ${state.consecutiveCrashes})`)
+  state.lastThought = `Cycle #${state.totalThoughts} — starting...`
   addActivity(state, 'system', `Cycle #${state.totalThoughts} started`)
   saveBrainState(state)
 
@@ -1005,7 +1006,11 @@ async function brainCycle(): Promise<void> {
   const { mode: currentMode, prompt: modePrompt } = getCurrentMode()
   addActivity(state, 'system', `Operating mode: ${currentMode.toUpperCase()}`)
   const _topGoal = (state.goals || []).find((g: any) => g.status === 'active')
-  if (_topGoal) addActivity(state, 'system', `Goal: ${(_topGoal.title || '').slice(0, 80)}`)
+  if (_topGoal) {
+    addActivity(state, 'system', `Goal: ${(_topGoal.title || '').slice(0, 80)}`)
+    state.lastThought = `Cycle #${state.totalThoughts} — ${(_topGoal.title || 'working...').slice(0, 80)}`
+    saveBrainState(state)
+  }
 
   // QMD Memory — update core.md and load into prompt
   let qmdCoreMemory = ''
