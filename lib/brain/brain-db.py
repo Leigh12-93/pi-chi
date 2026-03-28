@@ -2,6 +2,7 @@
 import json
 import sqlite3
 import sys
+from datetime import datetime, timezone
 from pathlib import Path
 
 
@@ -254,14 +255,17 @@ def sync_from_snapshot(conn: sqlite3.Connection, snapshot_path: str) -> None:
 
     replace_table(conn, "activity_events")
     for event in payload.get("activityEvents") or []:
+        ts = event.get("time") or event.get("timestamp")
+        if not ts:
+            ts = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%S.%f")[:-3] + "Z"
+        event_type = event.get("type") or "unknown"
+        message = event.get("message") or ""
+        event_id = event.get("id")
+        if not event_id:
+            continue  # skip events with no id
         conn.execute(
             "INSERT INTO activity_events (id, ts, event_type, message) VALUES (?, ?, ?, ?)",
-            (
-                event.get("id"),
-                event.get("time"),
-                event.get("type"),
-                event.get("message"),
-            ),
+            (event_id, ts, event_type, message),
         )
 
     snapshot = payload.get("reasoningSnapshot") or {}

@@ -96,6 +96,15 @@ This costs nothing. Leigh reads the screen to see what you are doing in real tim
 Leigh, Adelaide SA. Gave you the infrastructure to become what you choose.
 SMS for: real achievements, hardware requests, big ideas, blockers. Not routine updates.
 
+## Self-Healing — Mandatory Log Scanning
+At the START of every cycle, scan recent journalctl logs for errors, warnings, crashes, and anomalies.
+If you find ANY:
+- Treat them as priority tasks to investigate and fix IMMEDIATELY
+- Do NOT report a cycle as 'productive (0 errors)' if there are errors in the logs
+- Fix the ROOT CAUSE in the code, do not suppress or ignore the error
+- Also watch for: unhandled exceptions, service restarts, OOM kills, failed systemctl commands, subprocess stderr
+You must NEVER silently swallow errors across cycles. The log scan output is injected automatically below — act on it.
+
 ## Operating Mindset
 You run 4 businesses. Every cycle: test everything, find the biggest break, fix it completely.
 Don't wait for missions. Don't tunnel on one thing. Self-direct across all businesses.
@@ -551,6 +560,25 @@ export function buildContextMessage(
       lines.push(`  ❌ ${a.description}${a.alternative ? ' → DO THIS INSTEAD: ' + a.alternative : ''}`)
     }
   }
+
+  // ── Self-Healing: Scan recent brain logs for errors/warnings ──
+  try {
+    const logOutput = execSync(
+      'journalctl -u pi-chi-brain -n 200 --no-pager -o short-iso 2>/dev/null | grep -iE "error|warn|crash|exception|oom|kill|fail|SEGV|panic|traceback|unhandled" | grep -v "0 errors" | tail -20',
+      { timeout: 5000 }
+    ).toString().trim()
+    if (logOutput) {
+      const logLines = logOutput.split('\n').filter(l => l.trim())
+      if (logLines.length > 0) {
+        lines.push('')
+        lines.push(`** JOURNAL LOG ERRORS/WARNINGS (${logLines.length} found — FIX THESE): **`)
+        for (const l of logLines) {
+          lines.push(`  ${l.slice(0, 200)}`)
+        }
+        lines.push('These are REAL errors from your previous cycles. Investigate and fix the root cause.')
+      }
+    }
+  } catch { /* no errors found or journalctl unavailable — good */ }
 
   lines.push('')
   lines.push('LEARNING: Cycle journals and error detection are AUTOMATIC. If you discover a hard operational rule, add it to operationalConstraints in brain-state.json. If something does not work, add it to antiPatterns. If you fix a known failure, update its rootCause/solution/prevention in failureRegistry. To queue parallel agent tasks, add entries to agentQueue in brain-state.json with status "queued".')
