@@ -939,8 +939,8 @@ async function brainCycle(): Promise<void> {
   // Gather system vitals
   const vitals = await gatherVitals()
 
-  // Pull SMS from SIM modem into inbox dir
-  try { execSync("python3 /home/pi/scripts/modem-to-inbox.py", { timeout: 15000 }) } catch { /* modem busy or no messages */ }
+  // SMS delivery to inbox is handled by gammu-smsd RunOnReceive → gammu-on-receive.sh
+  // modem-to-inbox.py always fails with "device busy" because gammu-smsd holds the modem
 
   // Read incoming SMS from modem gateway inbox
   readIncomingSms(state)
