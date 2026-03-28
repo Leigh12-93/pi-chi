@@ -902,6 +902,8 @@ async function brainCycle(): Promise<void> {
   saveBrainState(state)
 
   console.log(`[pi-brain] Cycle #${state.totalThoughts} starting... (crash counter: ${state.consecutiveCrashes})`)
+  addActivity(state, 'system', `Cycle #${state.totalThoughts} started`)
+  saveBrainState(state)
 
   // Check daily budget (using dailyCost field reset at Adelaide midnight)
   if (isDailyBudgetExceeded(state)) {
@@ -1002,6 +1004,8 @@ async function brainCycle(): Promise<void> {
   // Mode system — determine operating mode and load mode-specific prompt
   const { mode: currentMode, prompt: modePrompt } = getCurrentMode()
   addActivity(state, 'system', `Operating mode: ${currentMode.toUpperCase()}`)
+  const _topGoal = (state.goals || []).find((g: any) => g.status === 'active')
+  if (_topGoal) addActivity(state, 'system', `Goal: ${(_topGoal.title || '').slice(0, 80)}`)
 
   // QMD Memory — update core.md and load into prompt
   let qmdCoreMemory = ''
@@ -1165,7 +1169,9 @@ ${goalDeficit}
     try { unlinkSync(promptPath) } catch { /* ok */ }
 
     // Log completion
-    addActivity(state, 'thought', responseText.slice(0, 200) || 'Cycle completed with tool use only')
+    const _firstLine = responseText.split('\n').find((l: string) => l.trim().length > 20)?.trim() || ''
+    addActivity(state, 'thought', (_firstLine || responseText).slice(0, 200) || 'Cycle completed')
+    addActivity(state, 'system', `Cycle #${state.totalThoughts} done — sleeping ${Math.round((state.wakeIntervalMs || 600000) / 60000)}min`)
     finishCycleRecord(state, cycleActivityStartIndex, state.lastThought || 'Cycle completed', [
       responseText.split('\n').find(line => line.trim().length > 0)?.trim() || '',
     ])
