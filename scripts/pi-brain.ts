@@ -43,7 +43,14 @@ import type { Mission, WorkCycle } from '../lib/brain/domain-types'
 // ── Suppress SIGUSR1 & close any inspector that snuck open ───────
 // SIGUSR1 during import phase (before this handler) opens the Node
 // inspector on :9229. Close it immediately and prevent future opens.
-process.on('SIGUSR1', () => { /* ignore */ })
+// Also set debugPort=0 so any future inspector activation uses a
+// random port instead of conflicting on :9229.
+process.debugPort = 0
+process.on('SIGUSR1', () => {
+  // Swallow the signal AND close the inspector if Node opened it
+  // before our handler could intercept (race during import phase)
+  try { require('node:inspector').close() } catch { /* */ }
+})
 try {
   const insp = require('node:inspector')
   insp.close()          // close inspector if opened during imports
