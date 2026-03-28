@@ -99,7 +99,10 @@ export function getFallbackInfo(): { since: string; reason: string; retryAfter?:
 }
 
 export function isClaudeUnavailableText(text: string): boolean {
-  return /(does not have access|please login|unauthorized|not logged|401|oauth|auth status unavailable|must use the claude\.ai max oauth account|hit your limit|usage limit|rate limit|resets?\s+\d|out of extra usage)/i.test(text)
+  // Real auth errors are short (< 500 chars). Long responses are productive cycles
+  // that may mention auth-related words when discussing past fixes — skip those.
+  if (text.length > 500) return false
+  return /(does not have access|please login|unauthorized|not logged in|API Error:\s*401|authentication_error|auth status unavailable|must use the claude\.ai max oauth account|hit your limit|usage limit|rate limit|resets?\s+\d|out of extra usage)/i.test(text)
 }
 
 
