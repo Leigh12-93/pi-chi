@@ -1537,6 +1537,21 @@ async function main(): Promise<void> {
     // Use the shorter of adaptive and manual (brain can still extend via adjust_schedule)
     const interval = Math.max(MIN_WAKE_MS, Math.min(MAX_WAKE_MS, Math.min(adaptiveMs, manualMs)))
 
+    // Write rich sleep status so Pulse screen always has context
+    try {
+      const _lastJournal = (state.cycleJournal || []).slice(-1)[0]
+      const _outcome = _lastJournal?.outcome || 'done'
+      const _summary = (_lastJournal?.summary || state.lastThought || 'Cycle complete')
+        .replace(/\*\*/g, '').replace(/#+\s*/g, '').slice(0, 200)
+      const _nextGoal = (state.goals || []).find((g: any) => g.status === 'active')
+      const _nextPlan = _nextGoal?.title || 'monitoring all systems'
+      state.nextWakeAt = new Date(Date.now() + interval).toISOString()
+      state.lastCycleSummary = `[${_outcome.toUpperCase()}] ${_summary}`
+      state.nextCyclePlan = _nextPlan
+      state.lastThought = `${_summary}`
+      saveBrainState(state)
+    } catch { /* non-critical */ }
+
     // Heartbeat during sleep (Phase 3.4)
     const heartbeatInterval = setInterval(() => {
       try {

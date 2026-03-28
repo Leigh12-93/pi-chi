@@ -21,6 +21,9 @@ export interface BrainState {
   lastWakeAt: string | null
   lastThought: string
   wakeIntervalMs: number
+  nextWakeAt?: string
+  lastCycleSummary?: string
+  nextCyclePlan?: string
 
   // Goals (self-set)
   goals: BrainGoal[]

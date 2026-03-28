@@ -1187,6 +1187,7 @@ function miniMd(text) {
 function init() {
   connectSSE();
   fetchVitals();
+  setInterval(() => { if (activeTab === pulse) renderPulse(); }, 1000);
   updateTime();
   resetSleepTimer();
 
