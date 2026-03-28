@@ -339,6 +339,15 @@ async function restartDashboard(cwd: string): Promise<PipelineStep> {
   const start = Date.now()
   const result = await executeCommand('sudo systemctl restart pi-chi-dashboard', { cwd, timeout: 15_000 })
 
+  if (result.exitCode === 0) {
+    // Wait for dashboard to become ready (up to 30s)
+    for (let i = 0; i < 6; i++) {
+      await new Promise(r => setTimeout(r, 5000))
+      const health = await executeCommand('curl -s -o /dev/null -w "%{http_code}" http://localhost:3333/', { cwd, timeout: 5000 }).catch(() => null)
+      if (health && health.stdout?.trim() === '200') break
+    }
+  }
+
   return {
     name: 'restart-dashboard',
     startedAt: new Date(start).toISOString(),
