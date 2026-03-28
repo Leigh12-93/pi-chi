@@ -186,6 +186,21 @@
       font-size: 13px; color: var(--text-faint);
       text-transform: uppercase; letter-spacing: 1.5px;
     }
+    .brain-log {
+      margin-top: 12px;
+      display: flex; flex-direction: column; gap: 7px;
+    }
+    .brain-log-row {
+      font-size: 12px; line-height: 1.45; color: var(--text-dim);
+    }
+    .brain-log-row em {
+      font-style: normal; color: var(--text-faint); font-size: 10px;
+      text-transform: uppercase; letter-spacing: 0.8px; margin-right: 5px;
+    }
+    .brain-log-countdown {
+      font-size: 13px; color: var(--accent);
+      font-variant-numeric: tabular-nums; letter-spacing: 0.5px;
+    }
     .time-display {
       font-size: 28px; color: var(--text);
       font-variant-numeric: tabular-nums;
@@ -493,6 +508,11 @@
           <div class="mission-title serif" id="mission-title">&mdash;</div>
           <div class="latest-thought" id="latest-thought">&mdash;</div>
           <div class="cycle-info" id="cycle-info">cycle &mdash;</div>
+          <div class="brain-log">
+            <div class="brain-log-row"><em>just did</em><span id="log-last">&mdash;</span></div>
+            <div class="brain-log-row"><em>planning</em><span id="log-next">&mdash;</span></div>
+            <div class="brain-log-row"><em>next wake</em><span class="brain-log-countdown" id="log-wake">&mdash;</span></div>
+          </div>
         </div>
         <div class="pulse-right">
           <div class="time-display" id="adelaide-time">&mdash;</div>
@@ -769,6 +789,27 @@ function renderPulse() {
     pills.innerHTML = MOOD_MAP.map(d =>
       '<span class="mood-pill">' + d.key.slice(0, 3) + ' ' + (mood[d.key] || 0) + '</span>'
     ).join('');
+  }
+
+  // Brain log rows — last done, next plan, countdown
+  const _rawSummary = (s?.lastCycleSummary || s?.lastThought || '')
+    .replace(/\[\w+\]\s*/g, '').replace(/\*\*/g, '').replace(/#+\s*/g, '').trim()
+  const _nextPlan = s?.nextCyclePlan
+    || (s?.goals || []).find(g => g.status === 'active')?.title
+    || 'monitoring all systems'
+  document.getElementById('log-last').textContent = _rawSummary.slice(0, 120) || '—'
+  document.getElementById('log-next').textContent = _nextPlan.slice(0, 100)
+
+  const _wakeEl = document.getElementById('log-wake')
+  const _nextWake = s?.nextWakeAt ? new Date(s.nextWakeAt) : null
+  if (brainStatus === 'running') {
+    _wakeEl.textContent = 'running now ↻'
+  } else if (_nextWake && _nextWake > new Date()) {
+    const _sec = Math.max(0, Math.round((_nextWake - Date.now()) / 1000))
+    const _m = Math.floor(_sec / 60), _s = _sec % 60
+    _wakeEl.textContent = (_m > 0 ? _m + 'm ' : '') + String(_s).padStart(2,'0') + 's'
+  } else {
+    _wakeEl.textContent = 'waking soon...'
   }
 
   // Cost
@@ -1187,6 +1228,7 @@ function miniMd(text) {
 function init() {
   connectSSE();
   fetchVitals();
+  setInterval(() => { if (activeTab === 'pulse') renderPulse(); }, 1000);
   setInterval(() => { if (activeTab === pulse) renderPulse(); }, 1000);
   updateTime();
   resetSleepTimer();
