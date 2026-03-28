@@ -570,11 +570,10 @@ export function buildContextMessage(
   }
 
   // ── Self-Healing: Scan recent brain logs for errors/warnings ──
+  // Uses external script so filter updates take effect without brain restart
   try {
-    const logOutput = execSync(
-      'journalctl -u pi-chi-brain -n 200 --no-pager -o short-iso 2>/dev/null | grep -iE "error|warn|crash|exception|oom|kill|fail|SEGV|panic|traceback|unhandled" | grep -vE "0 errors|crash counter|Crash counter|[Ww]ake cycle|counter: 0|counter:0|CLAUDE cycle complete|journal errors|No .* errors|No .* failures|FIX audit found nothing|Auto-journal:" | tail -20',
-      { timeout: 5000 }
-    ).toString().trim()
+    const scriptPath = join(homedir(), 'pi-chi', 'scripts', 'journal-scan.sh')
+    const logOutput = execSync(`bash "${scriptPath}"`, { timeout: 5000 }).toString().trim()
     if (logOutput) {
       const logLines = logOutput.split('\n').filter(l => l.trim())
       if (logLines.length > 0) {
