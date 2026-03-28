@@ -73,12 +73,22 @@ function rotateSmsLog(): void {
 
 function gammuSend(to: string, body: string): Promise<{ success: boolean; output: string }> {
   return new Promise((resolve) => {
-    execFile('gammu', ['sendsms', 'TEXT', to, '-text', body, '-autolen', '1'], { timeout: GAMMU_TIMEOUT_MS }, (err, stdout, stderr) => {
+    // Use gammu-smsd-inject when gammu-smsd is running (avoids device lock conflicts)
+    // -len 400 enables multipart SMS for messages >160 chars
+    execFile('gammu-smsd-inject', ['TEXT', to, '-len', '400', '-text', body], { timeout: GAMMU_TIMEOUT_MS }, (err, stdout, stderr) => {
       const output = (stdout + '\n' + stderr).trim()
       if (err) {
-        resolve({ success: false, output: output || err.message })
+        // Fallback to direct gammu if inject not available
+        execFile('gammu', ['sendsms', 'TEXT', to, '-text', body, '-autolen', '4'], { timeout: GAMMU_TIMEOUT_MS }, (err2, stdout2, stderr2) => {
+          const out2 = (stdout2 + '\n' + stderr2).trim()
+          if (err2) {
+            resolve({ success: false, output: out2 || err2.message })
+          } else {
+            resolve({ success: out2.includes('OK'), output: out2 })
+          }
+        })
       } else {
-        resolve({ success: output.includes('OK'), output })
+        resolve({ success: true, output })
       }
     })
   })
