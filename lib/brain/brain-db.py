@@ -217,6 +217,9 @@ def sync_from_snapshot(conn: sqlite3.Connection, snapshot_path: str) -> None:
             ),
         )
         for position, task in enumerate(goal.get("tasks") or []):
+            task_title = task.get("title") or task.get("description")
+            if not task_title:
+                continue  # skip tasks with no title or description
             conn.execute(
                 """
                 INSERT INTO goal_tasks (
@@ -226,7 +229,7 @@ def sync_from_snapshot(conn: sqlite3.Connection, snapshot_path: str) -> None:
                 (
                     task.get("id"),
                     goal.get("id"),
-                    task.get("title"),
+                    task_title,
                     task.get("status") or "pending",
                     task.get("result") or "",
                     rank,
