@@ -529,7 +529,12 @@ export function buildContextMessage(
       const time = new Date(msg.timestamp).toLocaleTimeString('en-AU', { hour: '2-digit', minute: '2-digit', hour12: false, timeZone: 'Australia/Adelaide' })
       lines.push(`  ${time} ${owner}: ${msg.message}`)
     }
-    lines.push(`Reply using the chat_owner tool. Mark as read by responding.`)
+    const hasSmsMessages = unreadChat.some(m => m.message.startsWith('[SMS from'))
+    if (hasSmsMessages) {
+      lines.push(`These messages came via SMS. Reply using sms_owner so ${owner} gets your response on their phone. Also use chat_owner to log the reply on the dashboard.`)
+    } else {
+      lines.push(`Reply using the chat_owner tool. Mark as read by responding.`)
+    }
   }
 
   // Recent chat (compressed — only last 1 message for context when all read)
