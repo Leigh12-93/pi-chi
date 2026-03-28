@@ -1135,6 +1135,31 @@ ${goalDeficit}
     const exitCode = result.exitCode
     const responseText = output.trim()
 
+    // ── Detect auth failures disguised as exit-0 responses ──────────
+    if (isClaudeUnavailableText(responseText)) {
+      const streakFile = join(homedir(), '.pi-chi', 'auth-fail-streak')
+      let streak = 1
+      try { streak = parseInt(readFileSync(streakFile, 'utf-8').trim(), 10) + 1 } catch { /* first failure */ }
+      writeFileSync(streakFile, String(streak))
+      console.error(`[pi-brain] Auth failure detected in response (streak: ${streak}): ${responseText.slice(0, 120)}`)
+      addActivity(state, 'error', `Auth failure (streak ${streak}): ${responseText.slice(0, 150)}`)
+      finishCycleRecord(state, cycleActivityStartIndex, `Auth failure: ${responseText.slice(0, 100)}`)
+      autoRecordCycleJournal(state, state.totalThoughts, state.lastWakeAt || new Date().toISOString(), responseText, exitCode)
+      // SMS Leigh after 5 consecutive auth failures (once only)
+      if (streak === 5) {
+        try {
+          const { sendSms } = await import('../lib/brain/brain-sms')
+          await sendSms(state, `Pi-Chi auth broken - ${streak} failed cycles. OAuth token may need refresh. Please run: claude auth login`)
+        } catch { /* best effort */ }
+      }
+      // Don't reset crash counter — this is NOT a productive cycle
+      try { unlinkSync(promptPath) } catch { /* ok */ }
+      saveBrainState(state)
+      return
+    }
+    // Auth recovered — reset streak file
+    try { unlinkSync(join(homedir(), '.pi-chi', 'auth-fail-streak')) } catch { /* ok */ }
+
     // Extract a clean summary for the header (not the full verbose output)
     const thoughtLines = responseText.split('\n').filter(l => l.trim() && !l.startsWith('---') && !l.startsWith('==='))
     const summary = thoughtLines.slice(0, 3).join(' ').replace(/\*\*/g, '').replace(/#+\s*/g, '').trim()
