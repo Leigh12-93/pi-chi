@@ -118,20 +118,22 @@ export function shouldProbeClaudeNow(): boolean {
 }
 export async function probeClaudeHealth(): Promise<boolean> {
   try {
-    const r = await executeCommand(
-      'claude auth status --output json 2>/dev/null || claude auth status --json 2>/dev/null || claude auth status 2>/dev/null',
-      { timeout: 12_000 },
-    )
-    const out = `${r.stdout || ''}\n${r.stderr || ''}`.trim()
-    if (!out) return false
-    if (isClaudeUnavailableText(out)) return false
-    if (/claude\.ai|oauth|max/i.test(out)) return true
-
+    // First: quick local check — is the token file present and not expired?
     const tokenCheck = await executeCommand(
       `python3 -c "import json,time; c=json.load(open('/home/pi/.claude/.credentials.json')); ea=c['claudeAiOauth']['expiresAt']/1000; print('ok' if ea > time.time()+300 else 'expired')" 2>/dev/null`,
       { timeout: 5_000 },
     )
-    return (tokenCheck.stdout || '').trim() === 'ok'
+    if ((tokenCheck.stdout || '').trim() !== 'ok') return false
+
+    // Second: real API test — make a tiny Claude call to verify the token works server-side
+    const apiTest = await executeCommand(
+      `echo "reply ok" | env -u ANTHROPIC_API_KEY -u ANTHROPIC_AUTH_TOKEN -u CLAUDECODE claude -p - --output-format text --max-turns 1 2>&1`,
+      { timeout: 20_000 },
+    )
+    const out = `${apiTest.stdout || ''}\n${apiTest.stderr || ''}`.trim()
+    if (isClaudeUnavailableText(out)) return false
+    // If we got a non-empty response that isn't an error, Claude is healthy
+    return out.length > 0 && apiTest.exitCode === 0
   } catch {
     return false
   }

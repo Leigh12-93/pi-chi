@@ -1152,6 +1152,21 @@ ${goalDeficit}
           await sendSms(state, `Pi-Chi auth broken - ${streak} failed cycles. OAuth token may need refresh. Please run: claude auth login`)
         } catch { /* best effort */ }
       }
+      // Force token refresh immediately — don't wait for the 15-min cron
+      try {
+        console.log('[pi-brain] Triggering immediate token refresh after auth failure...')
+        const refreshResult = await executeCommand(
+          'python3 /home/pi/scripts/claude-token-refresh.py 2>&1',
+          { timeout: 30_000 },
+        )
+        console.log(`[pi-brain] Token refresh result: ${(refreshResult.stdout || '').trim().slice(0, 200)}`)
+      } catch (refreshErr) {
+        console.error(`[pi-brain] Token refresh failed:`, refreshErr instanceof Error ? refreshErr.message : refreshErr)
+      }
+      // Back off longer as streak grows: 30s base, up to 5 min max
+      const backoffMs = Math.min(30_000 * Math.ceil(streak / 3), 300_000)
+      console.log(`[pi-brain] Auth failure backoff: waiting ${backoffMs / 1000}s before next cycle`)
+      state.wakeIntervalMs = Math.max(state.wakeIntervalMs, backoffMs)
       // Don't reset crash counter — this is NOT a productive cycle
       try { unlinkSync(promptPath) } catch { /* ok */ }
       saveBrainState(state)
