@@ -40,11 +40,14 @@ import { homedir } from 'node:os'
 import type { SystemVitalsSnapshot, BrainState, CycleJournal, FailureRecord } from '../lib/brain/brain-types'
 import type { Mission, WorkCycle } from '../lib/brain/domain-types'
 
-// ── Suppress SIGUSR1 to prevent Node inspector activation ────────
-// Something (likely tsx or child processes) sends SIGUSR1 to this
-// process, which Node interprets as "start the inspector on :9229".
-// We don't need the inspector, so swallow the signal silently.
+// ── Suppress SIGUSR1 & close any inspector that snuck open ───────
+// SIGUSR1 during import phase (before this handler) opens the Node
+// inspector on :9229. Close it immediately and prevent future opens.
 process.on('SIGUSR1', () => { /* ignore */ })
+try {
+  const insp = require('node:inspector')
+  insp.close()          // close inspector if opened during imports
+} catch { /* inspector module unavailable — fine */ }
 
 // ── Constants ─────────────────────────────────────────────────────
 
