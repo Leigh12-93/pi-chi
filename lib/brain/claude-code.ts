@@ -127,15 +127,26 @@ export function buildClaudeCodeCommand({
 export async function runClaudeCodePrompt(options: RunClaudeCodeOptions): Promise<ExecuteResult> {
   await ensureClaudeCodeMaxOAuth()
   const command = buildClaudeCodeCommand(options)
+  // Strip all --inspect* flags from NODE_OPTIONS — --inspect-port=0 crashes Claude Code silently
+  const cleanNodeOptions = (process.env.NODE_OPTIONS || '')
+    .split(/\s+/)
+    .filter(t => t && !/^--inspect/.test(t))
+    .join(' ')
+    .trim()
+
+  const env: Record<string, string> = {
+    ANTHROPIC_API_KEY: '',
+    ANTHROPIC_AUTH_TOKEN: '',
+    ANTHROPIC_BASE_URL: '',
+    ANTHROPIC_MODEL: '',
+  }
+  if (cleanNodeOptions) env.NODE_OPTIONS = cleanNodeOptions
+  else env.NODE_OPTIONS = ''
+
   return executeCommand(command, {
     cwd: options.cwd,
     timeout: (options.timeoutSeconds + 60) * 1000,
-    env: {
-      ANTHROPIC_API_KEY: '',
-      ANTHROPIC_AUTH_TOKEN: '',
-      ANTHROPIC_BASE_URL: '',
-      ANTHROPIC_MODEL: '',
-    },
+    env,
   })
 }
 
