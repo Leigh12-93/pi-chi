@@ -19,5 +19,5 @@ journalctl -u pi-chi-brain -n 200 --no-pager -o short-iso 2>/dev/null \
   | grep -vE "FIX audit found everything|zero stuck|zero open fail" \
   | grep -vE "Cycle [0-9]+ complete\.|Cycle.*complete|everything healthy" \
   | grep -vE "Response:.*filter|Response:.*working|Response:.*healthy|Response:.*Cycle" \
-  | grep -vE 'journal.*"errors".*stale|filter script ret|scan returns zero' \
+  | grep -vE 'journal.*"errors"|"errors".*shown|"errors".*stale|"stale errors"|filter script ret|scan returns zero|filters ARE working' \
   | tail -20
