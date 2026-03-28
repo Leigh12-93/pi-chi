@@ -12,4 +12,8 @@ journalctl -u pi-chi-brain -n 200 --no-pager -o short-iso 2>/dev/null \
   | grep -vE "false.positiv|filter.*false|properly filtering" \
   | grep -vE "No real errors|no real errors|No unresolved|No active errors" \
   | grep -vE "Response:.*errors.*logs" \
+  | grep -vE "Response:.*no real err|Response:.*nothing broken|Response:.*pipeline.*clean" \
+  | grep -vE "Response:.*0 (stuck|failed|error)|Response:.*expected\)" \
+  | grep -vE "Journal scan.*0 real|Journal scan.*false.positiv" \
+  | grep -vE "CLAUDE cycle complete.*Response:" \
   | tail -20
