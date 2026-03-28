@@ -52,11 +52,32 @@ function parseClaudeAuthStatus(raw: string): ClaudeCodeAuthStatus {
 
 export async function getClaudeCodeAuthStatus(): Promise<ClaudeCodeAuthStatus> {
   const result = await executeCommand(
-    'claude auth status --output json 2>/dev/null || claude auth status --json 2>/dev/null || claude auth status 2>/dev/null',
+    'claude auth status 2>/dev/null',
     { timeout: 15_000 },
   )
 
   const raw = `${result.stdout || ''}\n${result.stderr || ''}`.trim()
+
+  // Fallback: if CLI returned nothing, check credentials file directly
+  if (!raw) {
+    try {
+      const { readFileSync } = await import('node:fs')
+      const { homedir } = await import('node:os')
+      const { join } = await import('node:path')
+      const credsPath = join(homedir(), '.claude', '.credentials.json')
+      const creds = JSON.parse(readFileSync(credsPath, 'utf8'))
+      if (creds.claudeAiOauth) {
+        return {
+          available: true,
+          authMethod: 'claude.ai',
+          subscriptionType: 'max',
+          isMaxOAuth: true,
+          raw: 'credentials-file-fallback',
+        }
+      }
+    } catch { /* no creds file */ }
+  }
+
   return parseClaudeAuthStatus(raw)
 }
 
