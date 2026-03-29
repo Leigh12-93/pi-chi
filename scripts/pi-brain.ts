@@ -1173,7 +1173,7 @@ ${goalDeficit}
       finishCycleRecord(state, cycleActivityStartIndex, `Auth failure: ${responseText.slice(0, 100)}`)
       autoRecordCycleJournal(state, state.totalThoughts, state.lastWakeAt || new Date().toISOString(), responseText, exitCode)
       // SMS Leigh at streak 5 and again every 20 failures (don't spam, but don't go silent)
-      if (streak === 5 || (streak > 5 && streak % 20 === 0)) {
+      if (streak === 20 || (streak > 20 && streak % 50 === 0)) {
         try {
           const { sendSms } = await import('../lib/brain/brain-sms')
           await sendSms(state, `Pi-Chi auth broken - ${streak} failed cycles. OAuth token may need refresh. Please run: claude auth login`)
