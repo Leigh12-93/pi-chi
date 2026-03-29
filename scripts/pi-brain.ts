@@ -1172,27 +1172,45 @@ ${goalDeficit}
       addActivity(state, 'error', `Auth failure (streak ${streak}): ${responseText.slice(0, 150)}`)
       finishCycleRecord(state, cycleActivityStartIndex, `Auth failure: ${responseText.slice(0, 100)}`)
       autoRecordCycleJournal(state, state.totalThoughts, state.lastWakeAt || new Date().toISOString(), responseText, exitCode)
-      // SMS Leigh after 5 consecutive auth failures (once only)
-      if (streak === 5) {
+      // SMS Leigh at streak 5 and again every 20 failures (don't spam, but don't go silent)
+      if (streak === 5 || (streak > 5 && streak % 20 === 0)) {
         try {
           const { sendSms } = await import('../lib/brain/brain-sms')
           await sendSms(state, `Pi-Chi auth broken - ${streak} failed cycles. OAuth token may need refresh. Please run: claude auth login`)
         } catch { /* best effort */ }
       }
       // Force token refresh immediately — don't wait for the 15-min cron
+      let refreshWorked = false
       try {
         console.log('[pi-brain] Triggering immediate token refresh after auth failure...')
         const refreshResult = await executeCommand(
           'python3 /home/pi/scripts/claude-token-refresh.py 2>&1',
           { timeout: 30_000 },
         )
-        console.log(`[pi-brain] Token refresh result: ${(refreshResult.stdout || '').trim().slice(0, 200)}`)
+        const refreshOut = (refreshResult.stdout || '').trim()
+        console.log(`[pi-brain] Token refresh result: ${refreshOut.slice(0, 200)}`)
+        refreshWorked = refreshResult.exitCode === 0 && /ok|success|refreshed|valid/i.test(refreshOut)
       } catch (refreshErr) {
         console.error(`[pi-brain] Token refresh failed:`, refreshErr instanceof Error ? refreshErr.message : refreshErr)
       }
-      // Back off longer as streak grows: 30s base, up to 5 min max
-      const backoffMs = Math.min(30_000 * Math.ceil(streak / 3), 300_000)
-      console.log(`[pi-brain] Auth failure backoff: waiting ${backoffMs / 1000}s before next cycle`)
+      // Aggressive backoff: if refresh failed, escalate quickly to avoid burning cycles
+      // streak 1-5: 30s-60s (token refresh may fix it)
+      // streak 6-15: 5 min (refresh isn't working, wait longer)
+      // streak 16-30: 15 min (persistent failure, conserve resources)
+      // streak 30+: 30 min (likely needs manual intervention)
+      let backoffMs: number
+      if (refreshWorked && streak <= 3) {
+        backoffMs = 30_000 // refresh worked, try again soon
+      } else if (streak <= 5) {
+        backoffMs = 60_000
+      } else if (streak <= 15) {
+        backoffMs = 300_000
+      } else if (streak <= 30) {
+        backoffMs = 900_000
+      } else {
+        backoffMs = 1_800_000 // 30 min — needs manual fix
+      }
+      console.log(`[pi-brain] Auth failure backoff: ${backoffMs / 1000}s (streak: ${streak}, refresh ${refreshWorked ? 'OK' : 'FAILED'})`)
       state.wakeIntervalMs = Math.max(state.wakeIntervalMs, backoffMs)
       // Don't reset crash counter — this is NOT a productive cycle
       try { unlinkSync(promptPath) } catch { /* ok */ }
