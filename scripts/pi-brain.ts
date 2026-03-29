@@ -883,6 +883,15 @@ Respond with a JSON object:
 // ── Brain Cycle ───────────────────────────────────────────────────
 
 async function brainCycle(): Promise<void> {
+  // Proactive OAuth token refresh — self-sufficient, no external machine needed
+  try {
+    const tokenResult = await executeCommand('python3 /home/pi/scripts/claude-token-refresh.py', { timeout: 20000 })
+    const lastLine = (tokenResult.stdout || '').trim().split(String.fromCharCode(10)).pop() || ''
+    console.log(`[pi-brain] ${lastLine}`)
+  } catch (err) {
+    console.warn('[pi-brain] Token refresh check failed (non-fatal):', err instanceof Error ? err.message : err)
+  }
+
   let state = loadBrainState()
 
   // Validate and repair state if needed
