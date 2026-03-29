@@ -99,10 +99,11 @@ export function getFallbackInfo(): { since: string; reason: string; retryAfter?:
 }
 
 export function isClaudeUnavailableText(text: string): boolean {
-  // Real auth/quota errors from Claude CLI are very short (< 150 chars).
-  // Productive cycle summaries that *discuss* past auth issues are longer
-  // and were triggering false positives (e.g. "usage limit" in narrative text).
-  if (text.length > 150) return false
+  // Real auth/quota errors from Claude CLI are very short one-liners (< 100 chars).
+  // e.g. "You're out of extra usage · resets Apr 2, 8:30am" (~68 chars)
+  // Productive cycle summaries that *discuss* auth issues are always longer
+  // and were triggering false positives at the old 150-char threshold.
+  if (text.length > 100) return false
   // Productive cycle summaries start with "Cycle #NNNN" or "**Cycle" — never auth errors
   if (/^\*{0,2}Cycle\s+#?\d+/i.test(text.trim())) return false
   // Only match actual API/CLI error patterns, not natural language mentioning auth
