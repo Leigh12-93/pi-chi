@@ -10,6 +10,9 @@
  * Service: pi-chi-sms.service
  * ═══════════════════════════════════════════════════════════════════ */
 
+// Suppress SIGUSR1 to prevent Node inspector spam (resource-watchdog sends pkill -USR1 node)
+process.on('SIGUSR1', () => {})
+
 import { mkdirSync, readdirSync, readFileSync, writeFileSync, appendFileSync, renameSync, unlinkSync } from 'node:fs'
 import { join } from 'node:path'
 import { homedir } from 'node:os'
