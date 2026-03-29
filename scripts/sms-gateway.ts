@@ -135,7 +135,29 @@ async function processOutbox(modem: Sim7600): Promise<void> {
 
 // ── Incoming SMS Handler ──────────────────────────────────────────
 
+// In-memory dedup: modem can fire +CMTI twice for the same message
+const recentIncoming: { from: string; body: string; time: number }[] = []
+const GATEWAY_DEDUP_MS = 120_000 // 2 minutes
+
+function isGatewayDuplicate(sms: ReceivedSms): boolean {
+  const now = Date.now()
+  // Prune old entries
+  while (recentIncoming.length > 0 && now - recentIncoming[0].time > GATEWAY_DEDUP_MS) {
+    recentIncoming.shift()
+  }
+  const isDup = recentIncoming.some(r => r.from === sms.from && r.body === sms.body)
+  if (!isDup) {
+    recentIncoming.push({ from: sms.from, body: sms.body, time: now })
+  }
+  return isDup
+}
+
 function handleIncomingSms(sms: ReceivedSms): void {
+  if (isGatewayDuplicate(sms)) {
+    console.log(`[sms-gw] Skipping duplicate SMS from ${sms.from}: ${sms.body.slice(0, 50)}`)
+    return
+  }
+
   const id = randomUUID().slice(0, 8)
   const timestamp = Date.now()
   const filename = `${timestamp}-${id}.json`
