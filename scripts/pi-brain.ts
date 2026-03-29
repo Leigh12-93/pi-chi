@@ -729,8 +729,24 @@ function readIncomingSms(state: BrainState): void {
         continue
       }
 
-      // Inject as a chat message from owner
+      // Dedup: skip if identical message from same number within last 120s
       if (!state.chatMessages) state.chatMessages = []
+      const dedupWindow = 120_000 // 2 minutes
+      const now = Date.now()
+      const isDuplicate = state.chatMessages.some(cm => {
+        if (cm.from !== 'owner') return false
+        const msgText = `[SMS from ${msg.from}]: ${msg.body}`
+        if (cm.message !== msgText) return false
+        const cmTime = new Date(cm.timestamp).getTime()
+        return (now - cmTime) < dedupWindow
+      })
+      if (isDuplicate) {
+        console.log(`[pi-brain] Skipping duplicate SMS from ${msg.from}: ${msg.body.slice(0, 80)}`)
+        unlinkSync(filePath)
+        continue
+      }
+
+      // Inject as a chat message from owner
       state.chatMessages.push({
         id: randomUUID(),
         from: 'owner',
