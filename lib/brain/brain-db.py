@@ -239,6 +239,8 @@ def sync_from_snapshot(conn: sqlite3.Connection, snapshot_path: str) -> None:
 
     replace_table(conn, "memories")
     for mem in payload.get("memories") or []:
+        if not mem.get("content"):
+            continue  # skip memories with null/empty content
         conn.execute(
             """
             INSERT INTO memories (
