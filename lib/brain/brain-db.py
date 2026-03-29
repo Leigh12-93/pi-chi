@@ -277,7 +277,7 @@ def sync_from_snapshot(conn: sqlite3.Connection, snapshot_path: str) -> None:
     if snapshot.get("summary"):
         conn.execute(
             """
-            INSERT INTO reasoning_snapshots (id, summary, why, next_step, mode, created_at)
+            INSERT OR REPLACE INTO reasoning_snapshots (id, summary, why, next_step, mode, created_at)
             VALUES (?, ?, ?, ?, ?, ?)
             """,
             (
