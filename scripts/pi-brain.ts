@@ -1461,7 +1461,22 @@ async function main(): Promise<void> {
     process.exit(1) // Must exit — state is unknown
   })
 
-  // Verify Claude Code CLI is available (uses Max OAuth — no API key needed)
+  // Startup token check -- runs on every boot/restart
+  // Proactively refreshes OAuth access token. If refresh token is expired,
+  // triggers full reauth via claude-reauth.js which SMSes a Google sign-in link.
+  console.log('[pi-brain] Checking Claude OAuth token...')
+  try {
+    const startupToken = await executeCommand('python3 /home/pi/scripts/claude-token-refresh.py', { timeout: 680000 })
+    const startupLog = (startupToken.stdout || '').trim().split(String.fromCharCode(10)).pop() || ''
+    console.log(`[pi-brain] ${startupLog}`)
+    if (startupToken.exitCode !== 0) {
+      console.warn('[pi-brain] Token check returned non-zero -- proceeding anyway')
+    }
+  } catch (err) {
+    console.warn('[pi-brain] Startup token check failed (non-fatal):', err instanceof Error ? err.message : err)
+  }
+
+  // Verify Claude Code CLI is available (uses Max OAuth -- no API key needed)
   const claudeCheck = await executeCommand('which claude', { timeout: 5000 })
   if (claudeCheck.exitCode !== 0) {
     console.error('[pi-brain] FATAL: Claude Code CLI not found. Install with: npm i -g @anthropic-ai/claude-code')
