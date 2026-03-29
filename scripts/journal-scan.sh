@@ -20,4 +20,5 @@ journalctl -u pi-chi-brain -n 200 --no-pager -o short-iso 2>/dev/null \
   | grep -vE "Cycle [0-9]+ complete\.|Cycle.*complete|everything healthy" \
   | grep -vE "Response:.*filter|Response:.*working|Response:.*healthy|Response:.*Cycle" \
   | grep -vE 'journal.*"errors"|"errors".*shown|"errors".*stale|"stale errors"|filter script ret|scan returns zero|filters ARE working' \
+  | grep -vE "summary:.*auth fail|all resolved|0 crashes|auth failure.*resolved|failures.*resolved" \
   | tail -20
