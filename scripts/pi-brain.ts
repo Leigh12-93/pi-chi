@@ -729,16 +729,20 @@ function readIncomingSms(state: BrainState): void {
         continue
       }
 
-      // Dedup: skip if identical message from same number within 5-minute window
+      // Dedup: skip if identical message body within 5-minute window
+      // Normalize phone numbers so +614xx and 04xx formats both match
       // Compare incoming message's own timestamp against stored messages (not Date.now())
       // so dedup works even when brain reads the file minutes after modem delivery
       if (!state.chatMessages) state.chatMessages = []
       const dedupWindow = 300_000 // 5 minutes
       const incomingTime = new Date(msg.receivedAt || new Date().toISOString()).getTime()
+      // Extract just the message body for dedup comparison (ignore number format differences)
+      const incomingBody = msg.body.trim()
       const isDuplicate = state.chatMessages.some(cm => {
         if (cm.from !== 'owner') return false
-        const msgText = `[SMS from ${msg.from}]: ${msg.body}`
-        if (cm.message !== msgText) return false
+        // Extract body from stored format "[SMS from +614xxx]: body"
+        const storedBody = cm.message.replace(/^\[SMS from [^\]]+\]:\s*/, '').trim()
+        if (storedBody !== incomingBody) return false
         const cmTime = new Date(cm.timestamp).getTime()
         return Math.abs(incomingTime - cmTime) < dedupWindow
       })
